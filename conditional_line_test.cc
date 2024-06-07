@@ -1,0 +1,222 @@
+#include <catch2/catch_all.hpp>
+
+#include "conditional_line.h"
+
+TEST_CASE("GroupTricks") {
+  std::set<int> empty;
+  int leader = 0;
+  auto input = std::vector<GeneralizedTrick>({
+      GeneralizedTrick(GeneralizedDemiStruct("__", "SK", empty),
+                       GeneralizedDemiStruct("__", "S4", empty),
+                       std::set<int>({0,1,2,3,4}),
+                       leader)
+    });
+  std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
+      GroupTricks(input);
+  REQUIRE(grouped_tricks.size() >= 1);
+  REQUIRE(grouped_tricks[0].size() == 1);
+  LOG(INFO) << "grouped_tricks[0] " << grouped_tricks[0][0].ToString();
+}
+
+TEST_CASE("GroupTricks2") {
+  int leader = 0;
+  std::set<int> empty;
+  auto input = std::vector<GeneralizedTrick>({
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "SK", empty),
+                       GeneralizedDemiStruct("__", "S4", empty),
+                       std::set<int>({0,1,2}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "SK", empty),
+                       GeneralizedDemiStruct("__", "S4", empty),
+                       std::set<int>({3,4}),
+                       leader),
+    });
+  std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
+      GroupTricks(input);
+  for (const auto &grp : grouped_tricks) {
+    LOG(INFO) << "See group:";
+    for (const auto &trick : grp) {
+      LOG(INFO) << "   " << trick.ToString();
+    }
+  }
+  REQUIRE(grouped_tricks.size() == 1);
+  REQUIRE(grouped_tricks[0].size() == 2);
+}
+
+TEST_CASE("GroupTricks3") {
+  int leader = 0;
+  std::set<int> empty;
+  auto input = std::vector<GeneralizedTrick>({
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "SK", empty),
+                       GeneralizedDemiStruct("__", "S4", empty),
+                       std::set<int>({0}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "SK", empty),
+                       GeneralizedDemiStruct("__", "S4", empty),
+                       std::set<int>({1}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "SK", empty),
+                       GeneralizedDemiStruct("__", "S5", empty),
+                       std::set<int>({2}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("__", "SK", empty),
+                       GeneralizedDemiStruct("__", "S6", empty),
+                       std::set<int>({3}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("__", "SQ", empty),
+                       GeneralizedDemiStruct("__", "S7", empty),
+                       std::set<int>({4}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Dx", "SK", empty),
+                       GeneralizedDemiStruct("__", "SJ", empty),
+                       std::set<int>({5}),
+                       leader),
+    });
+  std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
+      GroupTricks(input);
+  for (const auto &grp : grouped_tricks) {
+    LOG(INFO) << "See group:";
+    for (const auto &trick : grp) {
+      LOG(INFO) << "   " << trick.ToString();
+    }
+  }
+  REQUIRE(grouped_tricks.size() == 4);
+  REQUIRE(grouped_tricks[0].size() == 3);
+  REQUIRE(grouped_tricks[1].size() == 2);
+}
+
+TEST_CASE("GroupTricks4") {
+  int leader = 1;
+  std::set<int> empty;
+  auto input = std::vector<GeneralizedTrick>({
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "SK", empty),
+                       GeneralizedDemiStruct("__", "S4", empty),
+                       std::set<int>({0}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "SK", empty),
+                       GeneralizedDemiStruct("Sx", "S4", empty),
+                       std::set<int>({1}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "SK", empty),
+                       GeneralizedDemiStruct("Dx", "S5", empty),
+                       std::set<int>({2}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("__", "SK", empty),
+                       GeneralizedDemiStruct("__", "S6", empty),
+                       std::set<int>({3}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Cx", "SQ", empty),
+                       GeneralizedDemiStruct("__", "S7", empty),
+                       std::set<int>({4}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Dx", "SK", empty),
+                       GeneralizedDemiStruct("__", "SJ", empty),
+                       std::set<int>({5}),
+                       leader),
+    });
+  std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
+      GroupTricks(input);
+  for (const auto &grp : grouped_tricks) {
+    LOG(INFO) << "See group:";
+    for (const auto &trick : grp) {
+      LOG(INFO) << "   " << trick.ToString();
+    }
+  }
+  REQUIRE(grouped_tricks.size() == 2);
+  REQUIRE(grouped_tricks[0].size() == 5);
+  REQUIRE(grouped_tricks[1].size() == 1);
+}
+
+TEST_CASE("GroupTricksFinesse") {
+  int leader = 0;
+  std::set<int> empty;
+  auto input = std::vector<GeneralizedTrick>({
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("__", "SJ", empty),
+                       std::set<int>({0}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("SQ", "SJ", empty),
+                       std::set<int>({1}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("Sx", "SJ", empty),
+                       std::set<int>({2}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "S2", empty),
+                       GeneralizedDemiStruct("Sx", "SK", empty),
+                       std::set<int>({3}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "S2", empty),
+                       GeneralizedDemiStruct("SQ", "SK", empty),
+                       std::set<int>({4}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("SQ", "SK", empty),
+                       std::set<int>({5}),
+                       leader),
+    });
+  std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
+      GroupTricks(input);
+  for (const auto &grp : grouped_tricks) {
+    LOG(INFO) << "See group:";
+    for (const auto &trick : grp) {
+      LOG(INFO) << "   " << trick.ToString();
+    }
+  }
+  REQUIRE(grouped_tricks.size() == 3);
+  REQUIRE(grouped_tricks[0].size() == 3);
+  REQUIRE(grouped_tricks[1].size() == 4);
+}
+
+TEST_CASE("GroupTricksFinesse2") {
+  int leader = 0;
+  std::set<int> empty;
+  // Hands:
+  // 0: Sx, SQ
+  // 1: SQx, Sx
+  // 2: SQ, Sx
+  // 3: Hx, SQ
+  // 4: Hx SQx
+  auto input = std::vector<GeneralizedTrick>({
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("__", "SJ", empty),
+                       std::set<int>({0,1}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("SQ", "SJ", empty),
+                       std::set<int>({0}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("Sx", "SJ", empty),
+                       std::set<int>({1}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("SQ", "S2", empty),
+                       GeneralizedDemiStruct("__", "SK", empty),
+                       std::set<int>({2}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "S2", empty),
+                       GeneralizedDemiStruct("Sx", "SK", empty),
+                       std::set<int>({4}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Hx", "S2", empty),
+                       GeneralizedDemiStruct("SQ", "SK", empty),
+                       std::set<int>({3}),
+                       leader),
+      GeneralizedTrick(GeneralizedDemiStruct("Sx", "S2", empty),
+                       GeneralizedDemiStruct("SQ", "SK", empty),
+                       std::set<int>({0}),
+                       leader),
+    });
+  std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
+      GroupTricks(input);
+  for (const auto &grp : grouped_tricks) {
+    LOG(INFO) << "See group:";
+    for (const auto &trick : grp) {
+      LOG(INFO) << "   " << trick.ToString();
+    }
+  }
+  REQUIRE(grouped_tricks.size() == 2);
+  REQUIRE(grouped_tricks[0].size() == 4);
+  REQUIRE(grouped_tricks[1].size() == 5);
+}
