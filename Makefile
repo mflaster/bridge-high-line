@@ -19,7 +19,7 @@ CFLAGS = -O4 ${COMMON_FLAGS}
 # -flto
 LDFLAGS = -fopenmp -lCatch2Main -lCatch2 -lglog
 
-DDS_LDFLAGS = ${LDFLAGS} -Ldds-develop/src -l$(DLLBASE) -lboost_thread
+DDS_LDFLAGS = ${LDFLAGS} -Ldds-develop/src -l$(DLLBASE)
 
 %.o: %.cc *.h
 	g++ ${CFLAGS} ${PROF} -c $<  -o $@ 
