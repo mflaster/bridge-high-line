@@ -1,0 +1,6 @@
+# Missing west hand
+north = S AKQ H J109 D 876 C 543
+east  = S JT9 H 876 D 543 C AKQ
+south = S 876 H AKQ D AKQ C 876
+trump = SPADES
+leader = EAST

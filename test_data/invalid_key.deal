@@ -1,0 +1,6 @@
+# Deal with invalid key
+north = S AKQ H J109 D 876 C 543
+east  = S JT9 H 876 D 543 C AKQ
+south = S 876 H AKQ D AKQ C 876
+west  = S 5432 H 542 D J109 C JT9
+unknown_key = invalid

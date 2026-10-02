@@ -1,0 +1,10 @@
+# Sample deal file fixture
+// Test comments and blank lines
+
+north = S AKQ2 H J109 D 876 C 543
+east  = S JT9 H 8762 D 543 C AKQ
+south = S 876 H AKQ D AKQ2 C 876
+west  = S 543 H 543 D J109 C JT92
+
+trump = HEARTS
+leader = NORTH

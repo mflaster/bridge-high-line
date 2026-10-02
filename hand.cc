@@ -123,6 +123,13 @@ uint64_t ParseHand(std::string hand_str) {
   uint64_t ans = 0;
   Suit cur_suit = NOTRUMP;
   for (unsigned int i = 0; i < hand_str.size(); i++) {
+    if (hand_str[i] == '1' && i + 1 < hand_str.size() && hand_str[i + 1] == '0') {
+      int card_val = 8;
+      i++;
+      uint64_t cur_card = Card::GetSuitedCard(cur_suit, card_val);
+      ans = (ans | cur_card);
+      continue;
+    }
     int card_val = -1;
     switch(hand_str[i]) {
       case ';':
