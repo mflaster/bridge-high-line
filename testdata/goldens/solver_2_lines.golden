@@ -3,5 +3,5 @@
 # Hand 1: S KJ; H -; D -; C -;
 # Hand 2: S 87; H -; D -; C -;
 # Hand 3: S 54; H -; D -; C -;
-SA SJ S7 S4
-SQ SK S7 S4
+SA SJ S7 S4 / SQ SK S8 S5 / 
+SQ SK S7 S4 / SJ S8 S5 SA / 
