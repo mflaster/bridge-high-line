@@ -1,0 +1,7 @@
+# Setup: Solver4e: optimal lines for 4-card deal, Hand 0 on lead
+# Hand 0: S AK; H AK; D -; C -;
+# Hand 1: S 9; H T; D AJ; C -;
+# Hand 2: S QJ; H QJ; D -; C -;
+# Hand 3: S T; H -; D KQT; C -;
+HK HT HJ ST
+SK S9 SJ ST

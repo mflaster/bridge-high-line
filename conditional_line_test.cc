@@ -1,6 +1,19 @@
 #include <catch2/catch_all.hpp>
 
+#include "golden_serializer.h"
 #include "conditional_line.h"
+
+static std::string FormatGroupedTricks(
+    const std::vector<std::vector<GeneralizedTrick>> &grouped_tricks) {
+  std::string res;
+  for (size_t i = 0; i < grouped_tricks.size(); ++i) {
+    res += "Group " + std::to_string(i) + ":\n";
+    for (const auto &trick : grouped_tricks[i]) {
+      res += "  " + trick.ToString() + "\n";
+    }
+  }
+  return res;
+}
 
 TEST_CASE("GroupTricks") {
   std::set<int> empty;
@@ -16,6 +29,7 @@ TEST_CASE("GroupTricks") {
   REQUIRE(grouped_tricks.size() >= 1);
   REQUIRE(grouped_tricks[0].size() == 1);
   LOG(INFO) << "grouped_tricks[0] " << grouped_tricks[0][0].ToString();
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_1.golden", "GroupTricks: grouping single trick");
 }
 
 TEST_CASE("GroupTricks2") {
@@ -41,6 +55,7 @@ TEST_CASE("GroupTricks2") {
   }
   REQUIRE(grouped_tricks.size() == 1);
   REQUIRE(grouped_tricks[0].size() == 2);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_2.golden", "GroupTricks2: grouping spade/heart tricks");
 }
 
 TEST_CASE("GroupTricks3") {
@@ -83,6 +98,7 @@ TEST_CASE("GroupTricks3") {
   REQUIRE(grouped_tricks.size() == 4);
   REQUIRE(grouped_tricks[0].size() == 3);
   REQUIRE(grouped_tricks[1].size() == 2);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_3.golden", "GroupTricks3: grouping multiple trick types");
 }
 
 TEST_CASE("GroupTricks4") {
@@ -125,6 +141,7 @@ TEST_CASE("GroupTricks4") {
   REQUIRE(grouped_tricks.size() == 2);
   REQUIRE(grouped_tricks[0].size() == 5);
   REQUIRE(grouped_tricks[1].size() == 1);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_4.golden", "GroupTricks4: grouping tricks led by West");
 }
 
 TEST_CASE("GroupTricksFinesse") {
@@ -167,6 +184,7 @@ TEST_CASE("GroupTricksFinesse") {
   REQUIRE(grouped_tricks.size() == 3);
   REQUIRE(grouped_tricks[0].size() == 3);
   REQUIRE(grouped_tricks[1].size() == 4);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse.golden", "GroupTricksFinesse: grouping finesse tricks");
 }
 
 TEST_CASE("GroupTricksFinesse2") {
@@ -219,4 +237,19 @@ TEST_CASE("GroupTricksFinesse2") {
   REQUIRE(grouped_tricks.size() == 2);
   REQUIRE(grouped_tricks[0].size() == 4);
   REQUIRE(grouped_tricks[1].size() == 5);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse_2.golden", "GroupTricksFinesse2: grouping complex finesse tricks");
 }
+
+TEST_CASE("ConditionalLineTotalBoardsFormat") {
+  ConditionalLine line(std::set<int>({1, 2, 4, 5, 6}));
+  ConditionalLine root;
+  root.AddCondition(new WinnerPlayCondition(2), line);
+
+  REQUIRE(root.Describe().find("Covers 5 [1, 2, 4, 5, 6]") == 0);
+  REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5 [1, 2, 4, 5, 6]") == 0);
+
+  root.set_total_boards(10);
+  REQUIRE(root.Describe().find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
+  REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
+}
+

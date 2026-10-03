@@ -1,0 +1,14 @@
+# Setup: GroupTricksFinesse: grouping finesse tricks
+Group 0:
+  S2 (Sx) SJ (__) [0] / 
+  S2 (Hx) SK (Sx) [3] / 
+  S2 (Hx) SK (SQ) [4] / 
+Group 1:
+  S2 (Sx) SJ (SQ) [1] / 
+  S2 (Sx) SJ (Sx) [2] / 
+  S2 (Hx) SK (Sx) [3] / 
+  S2 (Hx) SK (SQ) [4] / 
+Group 2:
+  S2 (Hx) SK (Sx) [3] / 
+  S2 (Hx) SK (SQ) [4] / 
+  S2 (Sx) SK (SQ) [5] / 

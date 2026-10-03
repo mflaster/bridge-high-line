@@ -1,0 +1,15 @@
+# Setup: squeeze_1: NT contract, Hand 0 on lead
+# Hand 0: S A43; H -; D A; C -;
+# Hand 1: 
+# Hand 2: S K2; H K; D 2; C -;
+# Hand 3: 
+Covers 16/20 (80.0%) [0, 1, 4, 5, 6, 7, 8, 9, 11, 12, 13, 15, 16, 17, 18, 19]
+
+  after SA (S_) S2 (S_): SA (S_) S2 (S_) [0,1,4,5,6,7,8,9,11,12,13,15,16,17,18,19] / SA S9 S2 ST  / SA SQ S2 ST  / SA SJ S2 S9  / SA SQ S2 ST  / SA ST S2 S9 
+    when 0 wins: 
+      after S4 (SX) SK (S_): S4 (SX) SK (S_) [0,1,4,5,6,7,8,9,11,12,13,15,16,17,18,19] / S4 SJ SK SQ  / S4 SJ SK S9  / S4 ST SK SQ  / S4 SJ SK S9  / S4 SQ SK SJ 
+        when 2 wins: 
+          after D2 (R_) DA (R_): D2 (R_) DA (R_) [0,1,4,5,6,7,8,9,11,12,13,15,16,17,18,19] / D2 HQ DA HT  / D2 HT DA HQ  / D2 HQ DA HJ  / D2 HJ DA HT  / D2 HJ DA HT 
+            when 0 wins: 
+              after S3 (R_) HK (R_): S3 (R_) HK (R_) [0,1,4,5,6,7,8,9,11,12,13,15,16,17,18,19] / S3 HA HK HJ  / S3 HJ HK HA  / S3 HT HK HA  / S3 HQ HK HA  / S3 HQ HK HA 
+                when 0 wins: HAND SUCCEEDED FOR: 0, 1, 4, 5, 6, 7, 8, 9, 11, 12, 13, 15, 16, 17, 18, 19

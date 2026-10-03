@@ -1,0 +1,12 @@
+# Setup: GroupTricks3: grouping multiple trick types
+Group 0:
+  SK (Sx) S4 (__) [0] / 
+  SK (Hx) S4 (__) [1] / 
+  SK (Dx) SJ (__) [5] / 
+Group 1:
+  SK (Hx) S5 (__) [2] / 
+  SK (Dx) SJ (__) [5] / 
+Group 2:
+  SK (__) S6 (__) [3] / 
+Group 3:
+  SQ (__) S7 (__) [4] / 

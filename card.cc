@@ -25,6 +25,7 @@ std::string SuitDebugString(Suit s) {
     case HEARTS: return "H";
     case DIAMONDS: return "D";
     case CLUBS: return "C";
+    case NOTRUMP: return "NT";
     default: return "UNKNOWN";
   }
 }
