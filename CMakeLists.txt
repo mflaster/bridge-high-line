@@ -41,7 +41,15 @@ FetchContent_Declare(
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
-FetchContent_MakeAvailable(boost_headers glog Catch2)
+# 5. nlohmann_json
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  nlohmann_json
+  URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
+FetchContent_MakeAvailable(boost_headers glog Catch2 nlohmann_json)
 
 if(NOT TARGET Boost::thread)
   add_library(Boost::thread ALIAS boost_headers)
@@ -88,6 +96,7 @@ target_link_libraries(bridge_lib PUBLIC
   dds
   glog::glog
   boost_headers
+  nlohmann_json::nlohmann_json
   OpenMP::OpenMP_CXX
 )
 
