@@ -2,8 +2,15 @@
 
 #include "card.h"
 #include "hand.h"
-#include <set>
+#include "glog/logging.h"
+#include <algorithm>
+#include <cctype>
+#include <fstream>
 #include <random>
+#include <set>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 
 
 
@@ -230,4 +237,189 @@ std::vector<uint64_t> DealMissingCards(
     return final_hands;
   }
   LOG(FATAL) << "Couldn't meet requirements";
+}
+
+static std::string TrimString(const std::string &s) {
+  size_t start = 0;
+  while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
+    start++;
+  }
+  if (start == s.size()) {
+    return "";
+  }
+  size_t end = s.size();
+  while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1]))) {
+    end--;
+  }
+  return s.substr(start, end - start);
+}
+
+static std::string ToLowerString(const std::string &s) {
+  std::string res = s;
+  for (char &c : res) {
+    c = std::tolower(static_cast<unsigned char>(c));
+  }
+  return res;
+}
+
+static Suit ParseSuitName(const std::string &val_str) {
+  std::string s = ToLowerString(TrimString(val_str));
+  if (s == "spades" || s == "spade" || s == "s") return SPADES;
+  if (s == "hearts" || s == "heart" || s == "h") return HEARTS;
+  if (s == "diamonds" || s == "diamond" || s == "d") return DIAMONDS;
+  if (s == "clubs" || s == "club" || s == "c") return CLUBS;
+  if (s == "notrump" || s == "no_trump" || s == "notrumps" || s == "nt" || s == "n") return NOTRUMP;
+  LOG(ERROR) << "Unrecognized trump suit name: " << val_str;
+  throw std::runtime_error("Unrecognized trump suit name: " + val_str);
+}
+
+static PlayerDirection ParseDirectionName(const std::string &val_str) {
+  std::string s = ToLowerString(TrimString(val_str));
+  if (s == "north" || s == "n") return NORTH;
+  if (s == "east" || s == "e") return EAST;
+  if (s == "south" || s == "s") return SOUTH;
+  if (s == "west" || s == "w") return WEST;
+  LOG(ERROR) << "Unrecognized player direction: " << val_str;
+  throw std::runtime_error("Unrecognized player direction: " + val_str);
+}
+
+BoardState LoadDealFromKeyValueString(const std::string &content) {
+  std::istringstream stream(content);
+  std::string line;
+  std::vector<uint64_t> hands(4, 0);
+  std::vector<bool> hand_set(4, false);
+  Suit trump = NOTRUMP;
+  int leader = NORTH;
+
+  int line_num = 0;
+  while (std::getline(stream, line)) {
+    line_num++;
+    std::string line_content = line;
+    size_t hash_pos = line_content.find('#');
+    if (hash_pos != std::string::npos) {
+      line_content = line_content.substr(0, hash_pos);
+    }
+    size_t slash_pos = line_content.find("//");
+    if (slash_pos != std::string::npos) {
+      line_content = line_content.substr(0, slash_pos);
+    }
+    std::string trimmed = TrimString(line_content);
+    if (trimmed.empty()) {
+      continue;
+    }
+
+    size_t eq_pos = trimmed.find('=');
+    if (eq_pos == std::string::npos) {
+      LOG(ERROR) << "Line " << line_num << " is missing '=' delimiter: " << line;
+      throw std::runtime_error("Missing '=' delimiter in deal line: " + line);
+    }
+
+    std::string key = ToLowerString(TrimString(trimmed.substr(0, eq_pos)));
+    std::string val = TrimString(trimmed.substr(eq_pos + 1));
+
+    if (key == "north" || key == "n") {
+      if (val.empty()) {
+        LOG(ERROR) << "Empty hand string provided for north";
+        throw std::runtime_error("Empty hand string provided for north");
+      }
+      std::vector<std::string> words = SplitWords(val);
+      std::string hand_str = StrJoin(words, " ");
+      uint64_t parsed = ParseHand(hand_str);
+      if (parsed == 0) {
+        LOG(ERROR) << "Unparseable hand string for north: " << val;
+        throw std::runtime_error("Unparseable hand string for north: " + val);
+      }
+      hands[NORTH] = parsed;
+      hand_set[NORTH] = true;
+    } else if (key == "east" || key == "e") {
+      if (val.empty()) {
+        LOG(ERROR) << "Empty hand string provided for east";
+        throw std::runtime_error("Empty hand string provided for east");
+      }
+      std::vector<std::string> words = SplitWords(val);
+      std::string hand_str = StrJoin(words, " ");
+      uint64_t parsed = ParseHand(hand_str);
+      if (parsed == 0) {
+        LOG(ERROR) << "Unparseable hand string for east: " << val;
+        throw std::runtime_error("Unparseable hand string for east: " + val);
+      }
+      hands[EAST] = parsed;
+      hand_set[EAST] = true;
+    } else if (key == "south" || key == "s") {
+      if (val.empty()) {
+        LOG(ERROR) << "Empty hand string provided for south";
+        throw std::runtime_error("Empty hand string provided for south");
+      }
+      std::vector<std::string> words = SplitWords(val);
+      std::string hand_str = StrJoin(words, " ");
+      uint64_t parsed = ParseHand(hand_str);
+      if (parsed == 0) {
+        LOG(ERROR) << "Unparseable hand string for south: " << val;
+        throw std::runtime_error("Unparseable hand string for south: " + val);
+      }
+      hands[SOUTH] = parsed;
+      hand_set[SOUTH] = true;
+    } else if (key == "west" || key == "w") {
+      if (val.empty()) {
+        LOG(ERROR) << "Empty hand string provided for west";
+        throw std::runtime_error("Empty hand string provided for west");
+      }
+      std::vector<std::string> words = SplitWords(val);
+      std::string hand_str = StrJoin(words, " ");
+      uint64_t parsed = ParseHand(hand_str);
+      if (parsed == 0) {
+        LOG(ERROR) << "Unparseable hand string for west: " << val;
+        throw std::runtime_error("Unparseable hand string for west: " + val);
+      }
+      hands[WEST] = parsed;
+      hand_set[WEST] = true;
+    } else if (key == "trump" || key == "trumps") {
+      trump = ParseSuitName(val);
+    } else if (key == "leader" || key == "lead") {
+      leader = ParseDirectionName(val);
+    } else {
+      LOG(ERROR) << "Unrecognized key '" << key << "' on line " << line_num;
+      throw std::runtime_error("Unrecognized key in deal file: " + key);
+    }
+  }
+
+  for (int i = 0; i < 4; i++) {
+    if (!hand_set[i]) {
+      std::string dir_name;
+      switch (i) {
+        case NORTH: dir_name = "north"; break;
+        case EAST:  dir_name = "east"; break;
+        case SOUTH: dir_name = "south"; break;
+        case WEST:  dir_name = "west"; break;
+      }
+      LOG(ERROR) << "Required directional hand missing from deal: " << dir_name;
+      throw std::runtime_error("Missing required directional hand: " + dir_name);
+    }
+  }
+
+  uint64_t combined_cards = 0;
+  for (int i = 0; i < 4; i++) {
+    if ((combined_cards & hands[i]) != 0) {
+      LOG(ERROR) << "Duplicate card detected in directional hand " << i;
+      throw std::runtime_error("Duplicate card detected across hands in deal");
+    }
+    combined_cards |= hands[i];
+  }
+
+  BoardState bs;
+  bs.SetHands(hands);
+  bs.SetTrump(trump);
+  bs.SetLead(leader);
+  return bs;
+}
+
+BoardState LoadDealFromKeyValueFile(const std::string &filename) {
+  std::ifstream file(filename);
+  if (!file.is_open()) {
+    LOG(ERROR) << "Could not open deal file: " << filename;
+    throw std::runtime_error("Could not open deal file: " + filename);
+  }
+  std::stringstream buffer;
+  buffer << file.rdbuf();
+  return LoadDealFromKeyValueString(buffer.str());
 }

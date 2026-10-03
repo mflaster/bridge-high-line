@@ -1,2 +1,12 @@
 build/
 *.o
+basic_test
+board_state_test
+conditional_line_test
+dds_test
+deal_test
+hand_requirements_test
+interface_dds_test
+line_finder_test
+test_play
+dds-develop/

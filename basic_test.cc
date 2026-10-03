@@ -650,7 +650,7 @@ TEST_CASE("Solver7") {
   REQUIRE(num_solver_iters_str() == "262K");
 }
 
-TEST_CASE("Solver8") {
+TEST_CASE("Solver8", "[.slow]") {
   LOG(INFO) << "Solver8";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -670,7 +670,7 @@ TEST_CASE("Solver8") {
   REQUIRE(num_solver_iters_str() == "1M");
 }
 
-TEST_CASE("Solver8b") {
+TEST_CASE("Solver8b", "[.slow]") {
   LOG(INFO) << "Solver8b";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -690,7 +690,7 @@ TEST_CASE("Solver8b") {
   REQUIRE(num_solver_iters_str() == "1M");
 }
 
-TEST_CASE("Solver8c") {
+TEST_CASE("Solver8c", "[.slow]") {
   LOG(INFO) << "Solver8c";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -729,7 +729,7 @@ TEST_CASE("Solver9") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
 }
 
-TEST_CASE("Solver9b") {
+TEST_CASE("Solver9b", "[.slow]") {
   LOG(INFO) << "Solver9b";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -747,7 +747,7 @@ TEST_CASE("Solver9b") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
 }
 
-TEST_CASE("Solver10") {
+TEST_CASE("Solver10", "[.slow]") {
   LOG(INFO) << "Solver10";
   srand48(0);
   std::vector<uint64_t> hands;

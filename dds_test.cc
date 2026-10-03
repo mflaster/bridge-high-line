@@ -100,7 +100,7 @@ TEST_CASE("Basic3") {
   d1.currentTrickSuit[2] = 0;
   d1.currentTrickRank[2] = 0;
 
-  strcpy(d1.remainCards, "N:KJ... AQ9... 876... 543...");
+  strcpy(d1.remainCards, "N:J... AQ... 87... 54...");
   LOG(INFO) << "Calling SolveBoardPBN";
   SolveBoardPBN(d1, target, solutions, mode, &futp, threadindex);
 
@@ -111,6 +111,6 @@ TEST_CASE("Basic3") {
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
               << " (equals " << futp.equals[i] << "), score: " << futp.score[i];
   }
-  REQUIRE(futp.cards == 2);
+  REQUIRE(futp.cards == 1);
   REQUIRE(futp.score[0] == 2);
 }

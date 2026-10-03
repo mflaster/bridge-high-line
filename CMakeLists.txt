@@ -110,5 +110,5 @@ foreach(test_name IN LISTS TEST_NAMES)
     bridge_lib
     Catch2::Catch2WithMain
   )
-  add_test(NAME ${test_name} COMMAND ${test_name})
+  add_test(NAME ${test_name} COMMAND ${test_name} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 endforeach()

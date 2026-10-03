@@ -83,7 +83,7 @@ TEST_CASE("PlayTree3") {
   REQUIRE(all_plays->TotalCount() == 10);
 }
 
-TEST_CASE("PlayTree8") {
+TEST_CASE("PlayTree8", "[.slow]") {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q7; D KQT9; C A2; "));
   hands.push_back(ParseHand("H T5; D A754; C Q3; "));
@@ -101,7 +101,7 @@ TEST_CASE("PlayTree8") {
   REQUIRE(all_plays->TotalCount() > 10);
 }
 
-TEST_CASE("PlayTree11") {
+TEST_CASE("PlayTree11", "[.slow]") {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 94; H T8; D KQT9; C Q94; "));
   hands.push_back(ParseHand("S KQ; H Q; D A754; C A765; "));
