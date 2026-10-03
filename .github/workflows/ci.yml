@@ -33,10 +33,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             g++ \
             ${{ matrix.compiler }} \
-            libcatch2-dev \
-            libgoogle-glog-dev \
-            libboost-all-dev \
-            libomp-dev \
             cmake \
             make
 
