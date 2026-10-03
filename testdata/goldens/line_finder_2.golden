@@ -1,0 +1,11 @@
+# Setup: LineFinder2: lines for spade contract with 2 known hands, Hand 0 on lead
+# Hand 0: S 32; H -; D -; C -;
+# Hand 1: 
+# Hand 2: S AQ; H -; D -; C -;
+# Hand 3: 
+Covers 5/10 (50.0%) [1, 2, 4, 5, 6]
+
+  after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,2,4,5,6] / S3 S7 SQ S9  / S3 S9 SQ S8  / S3 S8 SQ S7  / S3 S8 SQ S7  / S3 S7 SQ S9 
+    when 2 wins: 
+      after SA (S_) S2 (SK): SA (S_) S2 (SK) [1,2,4,5,6] / SA S8 S2 SK  / SA S7 S2 SK  / SA S9 S2 SK  / SA S9 S2 SK  / SA S8 S2 SK 
+        when 2 wins: HAND SUCCEEDED FOR: 1, 2, 4, 5, 6

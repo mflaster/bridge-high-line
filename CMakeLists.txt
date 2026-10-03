@@ -78,6 +78,7 @@ add_library(bridge_lib STATIC
   conditional_line.cc
   line_finder.cc
   interface_dds.cc
+  golden_serializer.cc
 )
 
 target_include_directories(bridge_lib PUBLIC
@@ -89,6 +90,7 @@ target_link_libraries(bridge_lib PUBLIC
   glog::glog
   boost_headers
   OpenMP::OpenMP_CXX
+  Catch2::Catch2
 )
 
 enable_testing()

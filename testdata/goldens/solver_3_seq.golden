@@ -1,0 +1,6 @@
+# Setup: Solver3: optimal play sequence for 4-card partial deal, Hand 0 on lead
+# Hand 0: S -; H -; D KQT9; C -;
+# Hand 1: S -; H -; D A754; C -;
+# Hand 2: S -; H KJ9; D 2; C -;
+# Hand 3: S -; H -; D J863; C -;
+/ DQ D4 D2 D3 / DK D5 H9 D6 / D9 D7 HJ DJ / D8 DT DA HK 
