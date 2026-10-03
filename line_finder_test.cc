@@ -712,3 +712,138 @@ TEST_CASE("LineFinder13", "[.slow]") {
   LOG(INFO) << "Found > 50% lines for " << more_than_half << " / "
             << num_hands_to_try << " = " << (more_than_half / num_hands_to_try);
 }
+
+struct LineFinderTestCase {
+  std::string name;
+  Suit trump = NOTRUMP;
+  int leader = 0;
+  int min_tricks = 0;
+  int num_iters = 20;
+  int seed = 0;
+  std::string hand0;
+  std::string hand1;
+  std::string hand2;
+  std::string hand3;
+  std::string unknown_cards;
+  std::string description;
+
+  static Suit ParseSuit(const std::string &s) {
+    std::string lower;
+    for (char c : s) lower += tolower(c);
+    if (lower.find("spade") != std::string::npos || lower == "s") return SPADES;
+    if (lower.find("heart") != std::string::npos || lower == "h") return HEARTS;
+    if (lower.find("diamond") != std::string::npos || lower == "d") return DIAMONDS;
+    if (lower.find("club") != std::string::npos || lower == "c") return CLUBS;
+    return NOTRUMP;
+  }
+
+  static LineFinderTestCase Parse(const std::string &spec, const std::string &default_name = "") {
+    LineFinderTestCase tc;
+    tc.name = default_name;
+    std::stringstream ss(spec);
+    std::string line;
+    while (std::getline(ss, line)) {
+      size_t first = line.find_first_not_of(" \t\r\n");
+      if (first == std::string::npos) continue;
+      size_t last = line.find_last_not_of(" \t\r\n");
+      std::string trimmed = line.substr(first, (last - first + 1));
+      if (trimmed.empty() || trimmed[0] == '#') continue;
+
+      size_t colon = trimmed.find(':');
+      if (colon == std::string::npos) continue;
+
+      std::string key = trimmed.substr(0, colon);
+      std::string val = trimmed.substr(colon + 1);
+
+      auto trim_str = [](std::string str) {
+        size_t f = str.find_first_not_of(" \t\r\n");
+        if (f == std::string::npos) return std::string("");
+        size_t l = str.find_last_not_of(" \t\r\n");
+        return str.substr(f, l - f + 1);
+      };
+      key = trim_str(key);
+      val = trim_str(val);
+
+      std::string key_lower;
+      for (char c : key) key_lower += tolower(c);
+
+      if (key_lower == "name") {
+        tc.name = val;
+      } else if (key_lower == "trump" || key_lower == "contract") {
+        tc.trump = ParseSuit(val);
+      } else if (key_lower == "leader" || key_lower == "lead") {
+        tc.leader = std::stoi(val);
+      } else if (key_lower == "min_tricks" || key_lower == "tricks" || key_lower == "min tricks") {
+        tc.min_tricks = std::stoi(val);
+      } else if (key_lower == "num_iters" || key_lower == "iters" || key_lower == "iterations") {
+        tc.num_iters = std::stoi(val);
+      } else if (key_lower == "seed") {
+        tc.seed = std::stoi(val);
+      } else if (key_lower == "hand 0" || key_lower == "hand0") {
+        tc.hand0 = val;
+      } else if (key_lower == "hand 1" || key_lower == "hand1") {
+        tc.hand1 = val;
+      } else if (key_lower == "hand 2" || key_lower == "hand2") {
+        tc.hand2 = val;
+      } else if (key_lower == "hand 3" || key_lower == "hand3") {
+        tc.hand3 = val;
+      } else if (key_lower == "unknown" || key_lower == "unknown_cards" ||
+                 key_lower == "unknown cards" || key_lower.find("hands 1 and 3") != std::string::npos) {
+        tc.unknown_cards = val;
+      } else if (key_lower == "description" || key_lower == "desc") {
+        tc.description = val;
+      }
+    }
+    return tc;
+  }
+};
+
+void RunLineFinderTestCase(const LineFinderTestCase &tc) {
+  LOG(INFO) << "Running LineFinder test case: " << tc.name;
+  srand48(tc.seed);
+
+  std::vector<uint64_t> hands(4, 0);
+  if (!tc.hand0.empty()) hands[0] = ParseHand(tc.hand0);
+  if (!tc.hand1.empty()) hands[1] = ParseHand(tc.hand1);
+  if (!tc.hand2.empty()) hands[2] = ParseHand(tc.hand2);
+  if (!tc.hand3.empty()) hands[3] = ParseHand(tc.hand3);
+
+  uint64_t unknown = tc.unknown_cards.empty() ? 0 : ParseHand(tc.unknown_cards);
+
+  int total_cards = CountCardsInHand(hands[0]) + CountCardsInHand(hands[1]) +
+                    CountCardsInHand(hands[2]) + CountCardsInHand(hands[3]) +
+                    CountCardsInHand(unknown);
+  int min_tricks = tc.min_tricks;
+  if (min_tricks == 0 && total_cards > 0) {
+    min_tricks = total_cards / 4;
+  }
+
+  LineFinder lf(tc.num_iters);
+  std::vector<CardType> cur_trick;
+  std::vector<ConditionalLine> lines =
+      lf.Solve(min_tricks, hands, unknown, tc.leader, tc.trump, cur_trick);
+
+  LOG(INFO) << "Found lines: " << lines.size();
+  REQUIRE(!lines.empty());
+
+  std::string desc = tc.description;
+  if (desc.empty()) {
+    desc = tc.name + ": " + SuitDebugString(tc.trump) +
+           " contract, Hand " + std::to_string(tc.leader) + " on lead";
+  }
+
+  REQUIRE_GOLDEN_LINE_RESULT(lines, tc.name + ".golden", hands, desc);
+}
+
+TEST_CASE("LineFinder_Squeeze1") {
+  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
+    name: squeeze_1
+    trump: no trump
+    leader: 0
+    min_tricks: 4
+    hand 0: S A43 D A
+    hand 2: S K2 H K D 2
+    unknown: S QJT9 H AQJT
+  )", "squeeze_1"));
+}
+
