@@ -1,3 +1,4 @@
+build/
 *.o
 basic_test
 board_state_test

@@ -1,107 +1,41 @@
+.PHONY: all all_tests run_all_tests clean run_basic_test run_requirements_test run_deal_test run_dds_test run_interface_dds_test run_line_finder_test run_board_state_test run_conditional_line_test
 
-# setenv GLOG_vmodule board_state=2,solver=1
+all:
+	cmake -B build
+	cmake --build build -j4
 
-BRIDGE_OBJS = interface_dds.o conditional_line.o line_finder.o card.o hand.o board_state.o solver.o hand_requirements.o deal.o
+all_tests: all
 
-DLLBASE		= dds
-STATIC_LIB	= lib$(DLLBASE).a
+run_all_tests: all
+	ctest --test-dir build --output-on-failure
 
-TESTS = basic_test hand_requirements_test deal_test line_finder_test conditional_line_test
-EXES = ${TESTS}
+run_basic_test: all
+	./build/basic_test --reporter compact --success -d yes
 
-#  -flto
-COMMON_FLAGS = -Wall -fopenmp
+run_requirements_test: all
+	./build/hand_requirements_test --reporter compact --success -d yes
 
-CFLAGS = -O4 ${COMMON_FLAGS}
-# CFLAGS = -O1 -g ${COMMON_FLAGS}
-# PROF = -pg
+run_deal_test: all
+	./build/deal_test --reporter compact --success -d yes
 
-# -flto
-LDFLAGS = -fopenmp -lCatch2Main -lCatch2 -lglog
+run_dds_test: all
+	./build/dds_test --reporter compact --success -d yes Basic3
 
-DDS_LDFLAGS = ${LDFLAGS} -Ldds-develop/src -l$(DLLBASE) -lboost_thread
+run_interface_dds_test: all
+	./build/interface_dds_test --reporter compact --success -d yes
 
-%.o: %.cc *.h
-	g++ ${CFLAGS} ${PROF} -c $<  -o $@ 
+run_line_finder_test: all
+	./build/line_finder_test --reporter compact --success -d yes
 
-all run_basic_test: basic_test
-	./basic_test --reporter compact --success -d yes
+run_board_state_test: all
+	./build/board_state_test --reporter compact --success -d yes
 
-run_requirements_test: hand_requirements_test
-	./hand_requirements_test --reporter compact --success -d yes
-
-run_deal_test: deal_test
-	./deal_test --reporter compact --success -d yes
-
-run_dds_test: dds_test
-	./dds_test --reporter compact --success -d yes Basic3
-
-run_interface_dds_test: interface_dds_test
-	./interface_dds_test --reporter compact --success -d yes
-
-run_line_finder_test: line_finder_test
-	./line_finder_test --reporter compact --success -d yes
-
-run_board_state_test: board_state_test
-	./board_state_test --reporter compact --success -d yes
-
-run_conditional_line_test: conditional_line_test
-	./conditional_line_test --reporter compact --success -d yes
-
-all_tests: ${TESTS}
-
-run_all_tests: run_requirements_test run_deal_test run_line_finder_test run_board_state_test run_basic_test run_conditional_line_test
-
-# ./basic_test --durations yes
-
-basic_test.o: basic_test.cc *.h
-	g++ ${CFLAGS} ${PROF} -c $<  -o $@ 
-
-basic_test: basic_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ basic_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-line_finder_test: line_finder_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ line_finder_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-board_state_test: board_state_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ board_state_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-conditional_line_test: conditional_line_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ conditional_line_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-test_play: test_play.cc ${BRIDGE_OBJS}
-	g++ ${CFLAGS} ${PROF} $< ${BRIDGE_OBJS} -o $@ -lglog
-
-hand_requirements_test.o: hand_requirements_test.cc *.h
-	g++ ${CFLAGS} ${PROF} -c $<  -o $@ 
-
-hand_requirements_test: hand_requirements_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ hand_requirements_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-deal_test: deal_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ deal_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-dds_test: dds_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ dds_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
-
-interface_dds_test: interface_dds_test.o ${BRIDGE_OBJS}
-	g++ -Wall ${PROF} -o $@ interface_dds_test.o ${BRIDGE_OBJS} ${DDS_LDFLAGS}
+run_conditional_line_test: all
+	./build/conditional_line_test --reporter compact --success -d yes
 
 clean:
-	rm *.o ${EXES}
+	rm -rf build
 
-gprof:
-	gprof ./basic_test gmon.out  > /tmp/out
-
-backup: *.cc *.h
-	mv backup backup.old
-	mkdir backup
-	cp Makefile *.{cc,h} *.pl backup
-	mv backup.old backup/backup
-
-tar:
-	tar -cf bridge-solver.tar Makefile *.{cc,h,pl}
-	gzip -f bridge-solver.tar
-
-graph:
-	cat /tmp/foo | ./html_from_line.pl /tmp/line2.html 
+%:
+	cmake -B build
+	cmake --build build --target $@ -j4

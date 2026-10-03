@@ -15,11 +15,10 @@
 
 
 std::vector<uint64_t> DealHands() {
-  static std::mt19937 mt_rand(0);
   std::multiset<std::pair<double, CardType>> deck;
   for (int suit = 0; suit < 4; suit++) {
     for (int val = 0; val < 13; val++) {
-      deck.insert(std::make_pair(mt_rand(), // drand48(),
+      deck.insert(std::make_pair(drand48(),
                                  Card::GetSuitedCard((Suit)suit, val)));
     }
   }
@@ -42,13 +41,12 @@ std::vector<uint64_t> DealHands() {
 }
 
 std::pair<uint64_t, uint64_t> DealTwoHands(uint64_t cards) {
-  static std::mt19937 mt_rand(0);
   std::multiset<std::pair<double, CardType>> deck;
   for (int suit = 0; suit < 4; suit++) {
     for (int val = 0; val < 13; val++) {
       CardType c = Card::GetSuitedCard((Suit)suit, val);
       if (c & cards) {
-        deck.insert(std::make_pair(mt_rand(),  // drand48(),
+        deck.insert(std::make_pair(drand48(),
                                    c));
       }
     }
@@ -100,13 +98,12 @@ std::pair<uint64_t, uint64_t> DealTwoRequiredHands(
 
 
 uint64_t DealOneHand(uint64_t cards) {
-  static std::mt19937 mt_rand(0);
   std::multiset<std::pair<double, CardType>> deck;
   for (int suit = 0; suit < 4; suit++) {
     for (int val = 0; val < 13; val++) {
       CardType c = Card::GetSuitedCard((Suit)suit, val);
       if (c & cards) {
-        deck.insert(std::make_pair(mt_rand(),  // drand48(),
+        deck.insert(std::make_pair(drand48(),
                                    c));
       }
     }
@@ -168,7 +165,6 @@ std::vector<uint64_t> DealMissingCards(
     const std::vector<uint64_t> &hands,
     const std::vector<std::vector<std::shared_ptr<HandRequirements>>> &reqs) {
   CHECK_EQ(hands.size(), 4);
-  static std::mt19937 mt_rand(1);
   uint64_t present_cards = 0;
   std::vector<int> cards_in_hand;
   int max_cards = 0;
@@ -200,7 +196,7 @@ std::vector<uint64_t> DealMissingCards(
       for (int val = 0; val < 13; val++) {
         CardType c = Card::GetSuitedCard((Suit)suit, val);
         if (c & missing_cards) {
-          deck.insert(std::make_pair(mt_rand(), // drand48(),
+          deck.insert(std::make_pair(drand48(),
                                      c));
         }
       }

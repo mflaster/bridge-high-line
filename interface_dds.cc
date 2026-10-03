@@ -175,7 +175,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
       int others = futp.equals[i];
       my_lines.insert(c + " " + line);
       if (defense) {
-        // continue;
+        continue;
       }
       int rank = 0;
       while ((defense || CONSIDER_EQUALS) && others > 0) {
