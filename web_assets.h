@@ -174,6 +174,8 @@ inline const char* INDEX_HTML = R"rawhtml(
         <div class="panel-header">
           <h2>Solver Results & Decision Tree</h2>
           <div class="zoom-controls">
+            <button id="expandAllBtn" class="btn btn-secondary-sm">Expand All</button>
+            <button id="collapseAllBtn" class="btn btn-secondary-sm">Collapse All</button>
             <button id="zoomInBtn" class="btn btn-icon-only" title="Zoom In">+</button>
             <button id="zoomOutBtn" class="btn btn-icon-only" title="Zoom Out">-</button>
             <button id="resetZoomBtn" class="btn btn-secondary-sm">Reset View</button>
@@ -957,7 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Render Decision Tree
       if (data.tree) {
         currentTreeData = data.tree;
-        renderDecisionTree(data.tree);
+        renderDecisionTree(data.tree, true);
       } else {
         treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
       }
@@ -976,12 +978,45 @@ document.addEventListener('DOMContentLoaded', () => {
     if (timeStr) execTime.textContent = timeStr;
   }
 
+  // Expand / Collapse Controls
+  const expandAllBtn = document.getElementById('expandAllBtn');
+  const collapseAllBtn = document.getElementById('collapseAllBtn');
+
+  function setAllCollapsed(node, isCollapsed) {
+    if (node._depth !== undefined && node._depth > 0) {
+      node._collapsed = isCollapsed;
+    }
+    if (node.children) {
+      node.children.forEach(c => setAllCollapsed(c, isCollapsed));
+    }
+  }
+
+  if (expandAllBtn) {
+    expandAllBtn.addEventListener('click', () => {
+      if (currentTreeData) {
+        setAllCollapsed(currentTreeData, false);
+        renderDecisionTree(currentTreeData, false);
+      }
+    });
+  }
+
+  if (collapseAllBtn) {
+    collapseAllBtn.addEventListener('click', () => {
+      if (currentTreeData) {
+        setAllCollapsed(currentTreeData, true);
+        renderDecisionTree(currentTreeData, false);
+      }
+    });
+  }
+
   // Decision Tree SVG Rendering
-  function renderDecisionTree(rootNode) {
+  function renderDecisionTree(rootNode, resetView = false) {
     treeRootGroup.innerHTML = '';
-    panX = 40;
-    panY = 40;
-    zoomLevel = 1.0;
+    if (resetView) {
+      panX = 40;
+      panY = 40;
+      zoomLevel = 1.0;
+    }
     updateTransform();
 
     // Calculate layout coordinates recursively
@@ -994,6 +1029,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function layoutNode(node, depth = 0) {
       node._depth = depth;
+      if (node._collapsed === undefined) {
+        node._collapsed = (node.collapsed !== undefined ? node.collapsed : depth >= 1);
+      }
       if (!node.children || node.children.length === 0 || node._collapsed) {
         node._x = leafCounter * (nodeWidth + siblingGap);
         leafCounter++;

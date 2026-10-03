@@ -153,7 +153,7 @@ std::string GetNDots(int n) {
 }
 
 bool ShouldRecordOptimalLine(int lvl) {
-  return (lvl < 4);
+  return true;
 }
 
 void AddOptimalLine(int lvl, const BoardState &bs, CardType c,
@@ -163,21 +163,30 @@ void AddOptimalLine(int lvl, const BoardState &bs, CardType c,
     return;
   }
   if (bs.CardsPlayedThisTrick() == 0) {
-    if (!optimal_storage.empty()) {
-      VLOG(2) << "Ignoring " << optimal_storage.size() << " existing lines";
+    if (optimal_storage.empty()) {
+      OptimalLine new_line = Card::PrintCard(c);
+      current_optimal_plays.insert(new_line);
+    } else {
+      for (const auto &line : optimal_storage) {
+        OptimalLine new_line = Card::PrintCard(c) + " / " + line;
+        current_optimal_plays.insert(new_line);
+      }
     }
-    OptimalLine new_line = Card::PrintCard(c);
-    current_optimal_plays.insert(new_line);
-    VLOG(2) << "AddOptimalLine starting trick with " << new_line
+    VLOG(2) << "AddOptimalLine completed trick with " << Card::PrintCard(c)
             << " to yield " << current_optimal_plays.size();
     return;
   }
 
   // We need to add this card to existing optimal lines.
-  for (const auto &line : optimal_storage) {
-    OptimalLine new_line = Card::PrintCard(c) + " " + line;
-    VLOG(2) << "AddOptimalLine adds card to yield " << new_line;
+  if (optimal_storage.empty()) {
+    OptimalLine new_line = Card::PrintCard(c);
     current_optimal_plays.insert(new_line);
+  } else {
+    for (const auto &line : optimal_storage) {
+      OptimalLine new_line = Card::PrintCard(c) + " " + line;
+      VLOG(2) << "AddOptimalLine adds card to yield " << new_line;
+      current_optimal_plays.insert(new_line);
+    }
   }
 
   VLOG(2) << "AddOptimalLine at lvl " << lvl
@@ -267,7 +276,7 @@ int MostTricksCanBeWonHelper(const BoardState &bs, int pair,
   CardType cards_to_try[64];
   int num_cards_to_try = 0;
   bool consider_equivalent_cards =
-      SEARCH_EQUIVALENT && ShouldRecordOptimalLine(lvl);
+      SEARCH_EQUIVALENT && (optimal_plays != nullptr);
   int is_equivalent[64];
 
   GetCardsToTry(bs, suit_led, cards_to_try, num_cards_to_try,

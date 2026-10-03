@@ -73,7 +73,49 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_json.contains("tree"));
   REQUIRE(res_json["tree"].contains("id"));
 
-  // Test 2: Invalid JSON payload handling
+  // Test 2: 4-Card Endplay Deal Multi-Trick Tree Verification
+  nlohmann::json endplay_req;
+  endplay_req["hands"]["N"] = "S AK; H K2; D -; C -;";
+  endplay_req["hands"]["E"] = "S 54; H QJ; D -; C -;";
+  endplay_req["hands"]["S"] = "S QJ; H A3; D -; C -;";
+  endplay_req["hands"]["W"] = "S 87; H T9; D -; C -;";
+  endplay_req["trump"] = "HEARTS";
+  endplay_req["leader"] = "NORTH";
+  endplay_req["min_tricks"] = 3;
+
+  auto res_endplay = client.Post("/api/solve", endplay_req.dump(), "application/json");
+  REQUIRE(res_endplay);
+  REQUIRE(res_endplay->status == 200);
+
+  nlohmann::json endplay_json = nlohmann::json::parse(res_endplay->body);
+  REQUIRE(endplay_json["success"] == true);
+  REQUIRE(endplay_json["tricks_won"] == 4);
+
+  // Check decision tree hierarchy down to 4 tricks
+  auto &tree = endplay_json["tree"];
+  REQUIRE(tree["collapsed"] == false);
+  REQUIRE(tree["children"].size() >= 1);
+
+  // Trick 1
+  auto &trick1_node = tree["children"][0];
+  REQUIRE(trick1_node["label"].get<std::string>().find("Trick 1:") != std::string::npos);
+  REQUIRE(trick1_node["collapsed"] == true);
+  REQUIRE(trick1_node["children"].size() >= 1);
+
+  // Trick 2
+  auto &trick2_node = trick1_node["children"][0];
+  REQUIRE(trick2_node["label"].get<std::string>().find("Trick 2:") != std::string::npos);
+  REQUIRE(trick2_node["collapsed"] == true);
+
+  // Trick 3
+  auto &trick3_node = trick2_node["children"][0];
+  REQUIRE(trick3_node["label"].get<std::string>().find("Trick 3:") != std::string::npos);
+
+  // Trick 4
+  auto &trick4_node = trick3_node["children"][0];
+  REQUIRE(trick4_node["label"].get<std::string>().find("Trick 4:") != std::string::npos);
+
+  // Test 3: Invalid JSON payload handling
   auto res_bad = client.Post("/api/solve", "{invalid json}", "application/json");
   REQUIRE(res_bad);
   REQUIRE(res_bad->status == 400);

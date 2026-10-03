@@ -433,7 +433,7 @@ TEST_CASE("Solver3d") {
   LOG(INFO) << "seq " << seq;
   REQUIRE(ans == 3);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  REQUIRE(lines.size() == 2);
+  REQUIRE(lines.size() == 3);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3d_seq.golden", hands, "Solver3d: optimal play sequence with spades and hearts, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_3d_lines.golden", hands, "Solver3d: optimal lines with spades and hearts, Hand 0 on lead");
 }
@@ -541,7 +541,7 @@ TEST_CASE("Solver4e") {
   PrintOutResults(lines);
   LOG(INFO) << "seq " << seq;
   REQUIRE(ans == 4);
-  REQUIRE(lines.size() == 2);
+  REQUIRE(lines.size() == 6);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4e_seq.golden", hands, "Solver4e: optimal play sequence for 4-card deal, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4e_lines.golden", hands, "Solver4e: optimal lines for 4-card deal, Hand 0 on lead");
 }
@@ -600,7 +600,7 @@ TEST_CASE("Solver5b") {
   bs.SetTrump(SPADES);
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 5);
-  REQUIRE(lines.size() == 5);
+  REQUIRE(lines.size() == 62);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, "Solver5b: optimal lines with spade contract, Hand 0 on lead");
 }
@@ -624,7 +624,7 @@ TEST_CASE("Solver5c") {
   LOG(INFO) << "seq " << seq;
   PrintOutResults(lines);
   REQUIRE(ans == 5);
-  REQUIRE(lines.size() == 2);
+  REQUIRE(lines.size() == 10);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, "Solver5c: optimal play sequence with diamond trump, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, "Solver5c: optimal lines with diamond trump, Hand 0 on lead");

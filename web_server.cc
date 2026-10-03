@@ -46,9 +46,10 @@ std::string ExtractFirstCard(const std::string &seq) {
   return "";
 }
 
-nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id) {
+nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id, int depth = 0) {
   nlohmann::json node;
   node["id"] = "node_" + std::to_string(++node_id);
+  node["collapsed"] = (depth >= 1);
 
   const auto &final_boards = line.final_covered_boards();
   if (!final_boards.empty()) {
@@ -83,9 +84,10 @@ nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id) 
     std::string cond_desc = cond_ptr ? cond_ptr->Describe(conds.size() == 1) : "";
     cond_node["label"] = cond_desc;
     cond_node["description"] = cond_desc;
+    cond_node["collapsed"] = true;
 
     if (child_line_ptr) {
-      nlohmann::json child_json = ConditionalLineToJSON(*child_line_ptr, node_id);
+      nlohmann::json child_json = ConditionalLineToJSON(*child_line_ptr, node_id, depth + 2);
       cond_node["covered_boards"] = child_json["covered_boards"];
       cond_node["boards"] = child_json["boards"];
       cond_node["children"] = nlohmann::json::array({child_json});
@@ -99,36 +101,124 @@ nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id) 
   return node;
 }
 
-nlohmann::json BuildTreeFromOptimalLines(const OptimalLines &lines, int tricks_won, int &node_id) {
-  nlohmann::json root;
-  root["id"] = "node_" + std::to_string(++node_id);
-  root["type"] = "action";
-  root["label"] = "Optimal Lines (" + std::to_string(lines.size()) + " variant" + (lines.size() == 1 ? "" : "s") + ")";
-  root["covered_boards"] = 1;
-
-  nlohmann::json children = nlohmann::json::array();
-  for (const auto &line_str : lines) {
-    nlohmann::json line_node;
-    line_node["id"] = "node_" + std::to_string(++node_id);
-    line_node["type"] = "action";
-    line_node["label"] = line_str;
-    line_node["trick"] = ExtractFirstCard(line_str);
-    line_node["covered_boards"] = 1;
-
-    // Add Outcome child
-    nlohmann::json outcome_node;
-    outcome_node["id"] = "node_" + std::to_string(++node_id);
-    outcome_node["type"] = "outcome";
-    outcome_node["label"] = "Contract Result: " + std::to_string(tricks_won) + " tricks won";
-    outcome_node["covered_boards"] = 1;
-    outcome_node["children"] = nlohmann::json::array();
-
-    line_node["children"] = nlohmann::json::array({outcome_node});
-    children.push_back(line_node);
+std::vector<std::string> SplitTricks(const std::string &line_str) {
+  std::vector<std::string> raw_segments;
+  size_t start = 0;
+  size_t end = line_str.find('/');
+  while (end != std::string::npos) {
+    std::string seg = line_str.substr(start, end - start);
+    size_t f = seg.find_first_not_of(" \t");
+    size_t l = seg.find_last_not_of(" \t");
+    if (f != std::string::npos && l != std::string::npos) {
+      raw_segments.push_back(seg.substr(f, l - f + 1));
+    }
+    start = end + 1;
+    end = line_str.find('/', start);
+  }
+  std::string last_seg = line_str.substr(start);
+  size_t f = last_seg.find_first_not_of(" \t");
+  size_t l = last_seg.find_last_not_of(" \t");
+  if (f != std::string::npos && l != std::string::npos) {
+    raw_segments.push_back(last_seg.substr(f, l - f + 1));
   }
 
-  root["children"] = children;
-  return root;
+  if (raw_segments.size() > 1) {
+    return raw_segments;
+  }
+
+  std::stringstream tok_ss(line_str);
+  std::string card;
+  std::vector<std::string> cards;
+  while (tok_ss >> card) {
+    if (card != "/" && card.size() >= 2) {
+      cards.push_back(card);
+    }
+  }
+
+  if (cards.empty()) {
+    return {};
+  }
+
+  std::vector<std::string> tricks;
+  std::string cur_trick = "";
+  for (size_t i = 0; i < cards.size(); ++i) {
+    if (!cur_trick.empty()) cur_trick += " ";
+    cur_trick += cards[i];
+    if ((i + 1) % 4 == 0 || i + 1 == cards.size()) {
+      tricks.push_back(cur_trick);
+      cur_trick = "";
+    }
+  }
+  return tricks;
+}
+
+struct LineTreeNode {
+  std::string label;
+  std::string trick_first_card;
+  std::map<std::string, std::shared_ptr<LineTreeNode>> children;
+  bool is_outcome = false;
+  int tricks_won = 0;
+};
+
+nlohmann::json LineTreeNodeToJSON(const std::shared_ptr<LineTreeNode> &node, int depth, int &node_id) {
+  nlohmann::json json_node;
+  json_node["id"] = "node_" + std::to_string(++node_id);
+  if (node->is_outcome) {
+    json_node["type"] = "outcome";
+    json_node["label"] = node->label;
+    json_node["covered_boards"] = 1;
+    json_node["collapsed"] = true;
+    json_node["children"] = nlohmann::json::array();
+    return json_node;
+  }
+
+  json_node["type"] = "action";
+  json_node["label"] = node->label;
+  if (!node->trick_first_card.empty()) {
+    json_node["trick"] = node->trick_first_card;
+  }
+  json_node["covered_boards"] = 1;
+  json_node["collapsed"] = (depth >= 1);
+
+  nlohmann::json children = nlohmann::json::array();
+  for (const auto &[key, child_ptr] : node->children) {
+    children.push_back(LineTreeNodeToJSON(child_ptr, depth + 1, node_id));
+  }
+  json_node["children"] = children;
+  return json_node;
+}
+
+nlohmann::json BuildTreeFromOptimalLines(const OptimalLines &lines, int tricks_won, int &node_id) {
+  auto root_node = std::make_shared<LineTreeNode>();
+  root_node->label = "Optimal Lines (" + std::to_string(lines.size()) + " variant" + (lines.size() == 1 ? "" : "s") + ")";
+
+  for (const auto &line_str : lines) {
+    std::vector<std::string> tricks = SplitTricks(line_str);
+    if (tricks.empty()) continue;
+
+    auto current = root_node;
+    for (size_t i = 0; i < tricks.size(); ++i) {
+      std::string trick_label = "Trick " + std::to_string(i + 1) + ": " + tricks[i];
+      if (current->children.find(trick_label) == current->children.end()) {
+        auto child = std::make_shared<LineTreeNode>();
+        child->label = trick_label;
+        child->trick_first_card = ExtractFirstCard(tricks[i]);
+        current->children[trick_label] = child;
+      }
+      current = current->children[trick_label];
+    }
+
+    std::string outcome_label = "Contract Result: " + std::to_string(tricks_won) + " tricks won";
+    if (current->children.find(outcome_label) == current->children.end()) {
+      auto outcome = std::make_shared<LineTreeNode>();
+      outcome->label = outcome_label;
+      outcome->is_outcome = true;
+      outcome->tricks_won = tricks_won;
+      current->children[outcome_label] = outcome;
+    }
+  }
+
+  return LineTreeNodeToJSON(root_node, 0, node_id);
 }
 
 }  // namespace
