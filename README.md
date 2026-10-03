@@ -2,6 +2,14 @@
 
 A C++17 library and test suite for double-dummy bridge analysis, deal generation, line finding, and integration with the Double Dummy Solver (DDS) engine.
 
+## System Architecture & Documentation
+
+Comprehensive architectural documentation, interactive Mermaid diagrams, sequence diagrams, and component layer descriptions are available in [docs/architecture.md](docs/architecture.md):
+
+- **[Component Topology Diagram](docs/architecture.md#1-top-level-component-topology)**: Visual map of analytical engines, solvers, state management, and core data primitives.
+- **[Line-Finding Sequence Diagram](docs/architecture.md#2-line-finding-evaluation-sequence-diagram)**: Runtime workflow detailing stochastic deal sampling, hand constraint validation, DDS solver invocation, and conditional decision tree construction.
+- **[Module Overview Tables](docs/architecture.md#3-module-overview-tables)**: Header locations, architectural responsibilities, and public routines for all system modules.
+
 ## Features & Third-Party Dependencies
 
 All external dependencies are automatically fetched, configured, and built via CMake `FetchContent`. No manual pre-installation of libraries is required:
