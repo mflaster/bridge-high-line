@@ -1,0 +1,10 @@
+Covers 4 [0, 1, 2, 3]
+
+  after SA (__) SQ (ST): SA (__) SQ (ST) [0,1,2,3] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST 
+    when 0 wins: 
+      after SK (R_) SJ (__): SK (R_) SJ (__) [0,1,2,3] / SK DJ SJ DT  / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9 
+        when 0 wins: 
+          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3] / HA HT HQ DK  / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT 
+            when 0 wins: 
+              after HK (R_) HJ (R_): HK (R_) HJ (R_) [0,1,2,3] / HK DA HJ DQ  / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK 
+                when 0 wins: HAND SUCCEEDED FOR: 0, 1, 2, 3

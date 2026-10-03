@@ -1,6 +1,19 @@
 #include <catch2/catch_all.hpp>
 
+#include "golden_serializer.h"
 #include "conditional_line.h"
+
+static std::string FormatGroupedTricks(
+    const std::vector<std::vector<GeneralizedTrick>> &grouped_tricks) {
+  std::string res;
+  for (size_t i = 0; i < grouped_tricks.size(); ++i) {
+    res += "Group " + std::to_string(i) + ":\n";
+    for (const auto &trick : grouped_tricks[i]) {
+      res += "  " + trick.ToString() + "\n";
+    }
+  }
+  return res;
+}
 
 TEST_CASE("GroupTricks") {
   std::set<int> empty;
@@ -16,6 +29,7 @@ TEST_CASE("GroupTricks") {
   REQUIRE(grouped_tricks.size() >= 1);
   REQUIRE(grouped_tricks[0].size() == 1);
   LOG(INFO) << "grouped_tricks[0] " << grouped_tricks[0][0].ToString();
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_1.golden");
 }
 
 TEST_CASE("GroupTricks2") {
@@ -41,6 +55,7 @@ TEST_CASE("GroupTricks2") {
   }
   REQUIRE(grouped_tricks.size() == 1);
   REQUIRE(grouped_tricks[0].size() == 2);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_2.golden");
 }
 
 TEST_CASE("GroupTricks3") {
@@ -83,6 +98,7 @@ TEST_CASE("GroupTricks3") {
   REQUIRE(grouped_tricks.size() == 4);
   REQUIRE(grouped_tricks[0].size() == 3);
   REQUIRE(grouped_tricks[1].size() == 2);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_3.golden");
 }
 
 TEST_CASE("GroupTricks4") {
@@ -125,6 +141,7 @@ TEST_CASE("GroupTricks4") {
   REQUIRE(grouped_tricks.size() == 2);
   REQUIRE(grouped_tricks[0].size() == 5);
   REQUIRE(grouped_tricks[1].size() == 1);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_4.golden");
 }
 
 TEST_CASE("GroupTricksFinesse") {
@@ -167,6 +184,7 @@ TEST_CASE("GroupTricksFinesse") {
   REQUIRE(grouped_tricks.size() == 3);
   REQUIRE(grouped_tricks[0].size() == 3);
   REQUIRE(grouped_tricks[1].size() == 4);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse.golden");
 }
 
 TEST_CASE("GroupTricksFinesse2") {
@@ -219,4 +237,5 @@ TEST_CASE("GroupTricksFinesse2") {
   REQUIRE(grouped_tricks.size() == 2);
   REQUIRE(grouped_tricks[0].size() == 4);
   REQUIRE(grouped_tricks[1].size() == 5);
+  REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse_2.golden");
 }

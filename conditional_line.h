@@ -131,6 +131,16 @@ class ConditionalLine {  // ConditionalLineBranch
   int CoveredFinalBoards() const;
   std::set<int> CoveredFinalBoardsSet() const;
 
+  const GeneralizedTrick &do_first() const { return do_first_; }
+  const std::vector<std::pair<std::shared_ptr<PlayCondition>,
+                             std::shared_ptr<ConditionalLine>>> &
+  conditions() const {
+    return conditions_;
+  }
+  const std::set<int> &final_covered_boards() const {
+    return final_covered_boards_;
+  }
+
  private:
   GeneralizedTrick do_first_;
 

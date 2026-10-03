@@ -1,0 +1,11 @@
+Group 0:
+  S2 (Sx) SJ (__) [0,1] /  / 
+  S2 (SQ) SK (__) [2] / 
+  S2 (Hx) SK (Sx) [4] / 
+  S2 (Hx) SK (SQ) [3] / 
+Group 1:
+  S2 (Sx) SJ (SQ) [0] / 
+  S2 (Sx) SJ (Sx) [1] / 
+  S2 (SQ) SK (__) [2] / 
+  S2 (Hx) SK (Sx) [4] / 
+  S2 (Hx) SK (SQ) [3] / 

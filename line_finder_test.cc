@@ -1,5 +1,6 @@
 #include <catch2/catch_all.hpp>
 
+#include "golden_serializer.h"
 #include "line_finder.h"
 #include "deal.h"
 
@@ -19,6 +20,8 @@ TEST_CASE("GeneralizedDemiPlay1") {
   LOG(INFO) << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
       top_plays);
   REQUIRE(top_plays.size() == 3);
+  REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
+                             "generalized_demi_play_1.golden");
 }
 
 TEST_CASE("GeneralizedDemiPlay2") {
@@ -45,6 +48,8 @@ TEST_CASE("GeneralizedDemiPlay2") {
       top_plays);
   // 14 if you consider low cards, 9 cards otherwise
   REQUIRE((top_plays.size() == 9 || top_plays.size() == 10));
+  REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
+                             "generalized_demi_play_2.golden");
 }
 
 TEST_CASE("GeneralizedTrickFinders") {
@@ -131,6 +136,8 @@ TEST_CASE("GeneralizedTrickFinders") {
     LOG(INFO) << "Leader " << leader << ": got top tricks\n"
               << GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks);
     REQUIRE(gen_tricks.size() == 20);
+    REQUIRE_GOLDEN_LINE_RESULT(GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks),
+                               "generalized_trick_finder_leader_" + std::to_string(leader) + ".golden");
     if (leader == 0) {
       bool found = false;
       for (size_t i = 0; i < std::min<size_t>(5, gen_tricks.size()); i++) {
@@ -203,6 +210,7 @@ TEST_CASE("BestLead1") {
   std::set<std::string> leads =
       lf.FindBestLead(min_tricks, hands, unknown_cards, leader, SPADES);
   LOG(INFO) << "Found best leads " << StrJoin(leads, ", ");
+  REQUIRE_GOLDEN_LINE_RESULT(StrJoin(leads, ", "), "best_lead_1.golden");
   // REQUIRE(leads.size() == 1);
 }
 
@@ -238,6 +246,8 @@ TEST_CASE("BestContract1", "[.slow]") {
       lf.FindTricksWon(hands, unknown_cards, leader, NOTRUMP);
   LOG(INFO) << "Spades:\n" << lf.TricksWonDebugString(spade_tricks);
   LOG(INFO) << "Notrump:\n" << lf.TricksWonDebugString(notrump_tricks);
+  REQUIRE_GOLDEN_LINE_RESULT(spade_tricks, "best_contract_1_spades.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(notrump_tricks, "best_contract_1_notrump.golden");
 }
 
 TEST_CASE("BestContract2", "[.slow]") {
@@ -343,6 +353,7 @@ TEST_CASE("BestContract3", "[.slow]") {
   std::multiset<int> heart_tricks =
       lf.FindTricksWon(hands, unknown_cards, leader, HEARTS);
   LOG(INFO) << "Hearts:\n" << lf.TricksWonDebugString(heart_tricks);
+  REQUIRE_GOLDEN_LINE_RESULT(heart_tricks, "best_contract_3_hearts.golden");
 }
 
 
@@ -365,6 +376,7 @@ TEST_CASE("LineFinder2") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() >= 3);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_2.golden");
 }
 
 TEST_CASE("LineFinder3") {
@@ -390,6 +402,7 @@ TEST_CASE("LineFinder3") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() >= 8);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_3.golden");
 }
 
 TEST_CASE("LineFinder4") {
@@ -410,6 +423,7 @@ TEST_CASE("LineFinder4") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() == 4);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_4.golden");
 }
 
 TEST_CASE("LineFinder5", "[.slow]") {
@@ -431,6 +445,7 @@ TEST_CASE("LineFinder5", "[.slow]") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == 10);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5.golden");
 }
 
 TEST_CASE("LineFinder5b", "[.slow]") {
@@ -455,6 +470,7 @@ TEST_CASE("LineFinder5b", "[.slow]") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() >= 10);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5b.golden");
 }
 
 TEST_CASE("LineFinder5c", "[.slow]") {
@@ -481,6 +497,7 @@ TEST_CASE("LineFinder5c", "[.slow]") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == num_hands);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5c.golden");
 }
 
 TEST_CASE("LineFinder5d", "[.slow]") {
@@ -510,6 +527,7 @@ TEST_CASE("LineFinder5d", "[.slow]") {
   }
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == num_deals);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5d.golden");
 }
 
 TEST_CASE("LineFinder5e", "[.slow]") {
@@ -536,6 +554,7 @@ TEST_CASE("LineFinder5e", "[.slow]") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == 58);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5e.golden");
 }
 
 TEST_CASE("LineFinder7", "[.slow]") {
@@ -557,6 +576,7 @@ TEST_CASE("LineFinder7", "[.slow]") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() == 6);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_7.golden");
 }
 
 TEST_CASE("LineFinder9", "[.slow]") {
@@ -578,6 +598,7 @@ TEST_CASE("LineFinder9", "[.slow]") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() > 3);
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_9.golden");
 }
 
 TEST_CASE("LineFinder11", "[.slow]") {
@@ -607,6 +628,7 @@ TEST_CASE("LineFinder11", "[.slow]") {
   for (const auto &line : lines) {
     LOG(INFO) << "line " << ++i << ":\n" << line.Describe();
   }
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_11.golden");
   // REQUIRE(lines[0].CoveredBoards() == 17);
 }
 
@@ -633,10 +655,11 @@ TEST_CASE("LineFinder12", "[.slow]") {
       lf.Solve(12, hands, unknown_cards, leader, NOTRUMP, cur_trick);
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
-  int i = 0;
+  int j = 0;
   for (const auto &line : lines) {
-    LOG(INFO) << "line " << ++i << ":\n" << line.Describe();
+    LOG(INFO) << "line " << ++j << ":\n" << line.Describe();
   }
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_12.golden");
   // REQUIRE(lines[0].CoveredBoards() == 17);
 }
 

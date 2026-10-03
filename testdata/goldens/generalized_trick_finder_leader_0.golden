@@ -1,0 +1,20 @@
+HQ (H_) HK (HX) [0,1,2] / HQ HT HK HA / HQ H4 HK HT / HQ H4 HK HT
+H7 (H_) HJ (HX) [0,1,2] / H7 H5 HJ HA / H7 H4 HJ HT / H7 H4 HJ HT
+CA (C_) C4 (C_) [0,1,2] / CA C3 C4 C5 / CA C5 C4 C3 / CA C5 C4 CQ
+H7 (HX) HJ (HX) [0,2] / H7 HT HJ HA / H7 HA HJ HT
+HQ (H_) HJ (Hx) [1,2] / HQ H4 HJ H5 / HQ H4 HJ H2
+HQ (H_) H8 (Hx) [1,2] / HQ H4 H8 H5 / HQ HA H8 H2
+HQ (H_) HK (HT) [1,2] / HQ H4 HK HT / HQ H4 HK HT
+HQ (H_) HJ (HT) [1,2] / HQ H4 HJ HT / HQ H4 HJ HT
+HQ (H_) H8 (HT) [1,2] / HQ H4 H8 HT / HQ HA H8 HT
+H7 (H_) HK (Hx) [1,2] / H7 H4 HK H5 / H7 HA HK H2
+H7 (H_) H8 (HX) [0,2] / H7 H5 H8 HA / H7 HA H8 HT
+H7 (H_) HK (HT) [1,2] / H7 H4 HK HT / H7 HA HK HT
+H7 (H_) HJ (HT) [1,2] / H7 H4 HJ HT / H7 H4 HJ HT
+CA (C_) C4 (Cx) [0,1] / CA C3 C4 C5 / CA C5 C4 C3
+CA (C_) C9 (C_) [0,1] / CA C3 C9 C5 / CA C5 C9 C3
+HQ (HT) HK (Hx) [0] / HQ HT HK H4
+HQ (HT) HK (HA) [0] / HQ HT HK HA
+H7 (HT) HJ (Hx) [0] / H7 HT HJ H4
+H7 (HT) HJ (HA) [0] / H7 HT HJ HA
+HQ (HA) H8 (Hx) [2] / HQ HA H8 H2
