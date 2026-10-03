@@ -9,4 +9,6 @@ hand_requirements_test
 interface_dds_test
 line_finder_test
 test_play
+bridge_server
+server_test
 dds-develop/

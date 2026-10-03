@@ -1,15 +1,16 @@
 # Bridge Solver & Line Finder
 
-A C++17 library and test suite for double-dummy bridge analysis, deal generation, line finding, and integration with the Double Dummy Solver (DDS) engine.
+A C++17 library and test suite for double-dummy bridge analysis, deal generation, line finding, and integration with the Double Dummy Solver (DDS) engine. Includes an embedded C++ HTTP microserver and interactive Single-Page Web Application (SPA) for deal visualization and decision tree exploration.
 
 ## Features & Third-Party Dependencies
 
-All external dependencies are automatically fetched, configured, and built via CMake `FetchContent`. No manual pre-installation of libraries is required:
+All external dependencies are automatically fetched, configured, and built via CMake `FetchContent` or embedded in `third_party/`. No manual pre-installation of libraries is required:
 
 - **Double Dummy Solver (`dds`)**: v2.9.0 static library build with OpenMP support.
 - **Catch2**: v3.5.2 test framework.
 - **glog**: Google Logging library (v0.6.0).
 - **Boost**: C++ Header libraries (v1.83.0).
+- **Embedded Web Assets & HTTP Microserver**: C++17 single-binary microserver powered by embedded `cpp-httplib` and `nlohmann/json`.
 
 ## Prerequisites
 
@@ -77,10 +78,47 @@ make
 make clean
 ```
 
+## Web Application & Embedded HTTP Server
+
+The project includes an embedded web server (`bridge_server`) serving an interactive Single-Page Web Application (SPA) for visualizing deal layouts, setting player constraints, and exploring optimal decision trees.
+
+### Quick Start: Building and Running the Web Server
+
+```bash
+# Build the bridge_server binary
+cmake --build build --target bridge_server -j4
+
+# Run the server on port 8080
+./build/bridge_server
+
+# Or specify custom host/port:
+./build/bridge_server -p 8080 -h 0.0.0.0
+```
+
+Once running, open your web browser at:
+```text
+http://localhost:8080
+```
+
+### Key Web Features
+- **Interactive Compass Deal Setup**: Enter hand card strings for North, East, South, West with color-coded suit symbols (♠, ♥, ♦, ♣).
+- **Contract & Trump Selectors**: Select trump suit, lead direction, and trick target slider.
+- **Preset Deal Loader**: Load sample endplay deals or full deals with one click.
+- **Hand Requirements**: Define High Card Point (HCP) ranges and suit length minimums for partial/fuzzy deal solver analysis.
+- **Interactive SVG Decision Tree Explorer**:
+  - Multi-trick optimal line rendering (`Trick 1` $\rightarrow$ `Trick 2` $\rightarrow$ `Trick 3` $\rightarrow$ `Trick 4`).
+  - Expand and collapse individual trick branches or toggle all nodes.
+  - Smooth pan (drag & drop) and zoom (+/- or scroll wheel) viewport controls.
+
+For complete details on web application usage, configuration, and REST JSON API endpoints (`/api/health`, `/api/solve`), see [**WEB_SERVER.md**](WEB_SERVER.md).
+
 ## Important Build Targets
 
 ### Core Library
-- **`bridge_lib`**: Static library containing card representations, hand requirements, deal generators/parsers, solver logic, and DDS interface routines.
+- **`bridge_lib`**: Static library containing card representations, hand requirements, deal generators/parsers, solver logic, web server endpoints, and DDS interface routines.
+
+### Web Server
+- **`bridge_server`**: Embedded C++ HTTP server executable serving the interactive web SPA and REST endpoints (`/api/health`, `/api/solve`).
 
 ### Test Executables
 - **`basic_test`**: Card representation, hand evaluation, and basic solver behavior.
@@ -91,6 +129,7 @@ make clean
 - **`hand_requirements_test`**: High card points, suit length, and hand shape constraint checkers.
 - **`interface_dds_test`**: Higher-level DDS C++ wrapper tests and play tree evaluations.
 - **`line_finder_test`**: Line-finding searches across simulated deals.
+- **`server_test`**: Catch2 unit and integration tests for `bridge_server` routes and static web assets.
 
 ### Utility Executables
 - **`test_play`**: Executable for testing interactive play lines.
@@ -117,6 +156,9 @@ You can run individual Catch2 test binaries directly from `build/` with optional
 # Run deal tests
 ./build/deal_test
 
+# Run web server tests
+./build/server_test
+
 # Run basic tests with compact reporter
 ./build/basic_test --reporter compact --success -d yes
 
@@ -135,6 +177,7 @@ make run_interface_dds_test
 make run_line_finder_test
 make run_board_state_test
 make run_conditional_line_test
+make run_server_test
 ```
 
 ## Plain-Text Deal File Format
@@ -150,3 +193,4 @@ west   = S 543 H 543 D JT9 C JT92
 trump  = HEARTS
 leader = NORTH
 ```
+

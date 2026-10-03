@@ -3,5 +3,9 @@
 # Hand 1: S 9; H T; D AJ; C -;
 # Hand 2: S QJ; H QJ; D -; C -;
 # Hand 3: S T; H -; D KQT; C -;
-HK HT HJ ST
-SK S9 SJ ST
+HK HT HJ ST / HA S9 HQ DT / SK DJ SJ DQ / SA DA SQ DK / 
+HK HT HJ ST / SK S9 SJ DT / HA DJ HQ DQ / SA DA SQ DK / 
+HK HT HJ ST / SK S9 SJ DT / SA DJ SQ DQ / HA DA HQ DK / 
+SK S9 SJ ST / HK HT HJ DT / HA DJ HQ DQ / SA DA SQ DK / 
+SK S9 SJ ST / HK HT HJ DT / SA DJ SQ DQ / HA DA HQ DK / 
+SK S9 SJ ST / SA HT SQ DT / HK DJ HJ DQ / HA DA HQ DK / 

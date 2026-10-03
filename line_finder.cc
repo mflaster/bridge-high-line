@@ -12,6 +12,11 @@ void FuzzyBoardState::SetHands(const std::vector<uint64_t> &hands,
 
 BoardState FuzzyBoardState::Randomize(bool deal_missing_cards) {
   std::vector<uint64_t> hands = known_hands_;
+  if (unknown_cards_ == 0) {
+    BoardState bs;
+    bs.SetHands(hands);
+    return bs;
+  }
   if (deal_missing_cards) {
     hands = DealMissingCards(known_hands_, all_hand_reqs_);
   } else {
