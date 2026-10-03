@@ -46,7 +46,6 @@ TEST_CASE("GeneralizedDemiPlay2") {
   // 14 if you consider low cards, 9 cards otherwise
   REQUIRE((top_plays.size() == 9 || top_plays.size() == 10));
 }
-}
 
 TEST_CASE("GeneralizedTrickFinders") {
   // From solver8
