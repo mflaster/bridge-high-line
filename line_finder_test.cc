@@ -21,7 +21,8 @@ TEST_CASE("GeneralizedDemiPlay1") {
       top_plays);
   REQUIRE(top_plays.size() == 3);
   REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
-                             "generalized_demi_play_1.golden");
+                             "generalized_demi_play_1.golden",
+                             "GeneralizedDemiPlay1: top plays in hearts");
 }
 
 TEST_CASE("GeneralizedDemiPlay2") {
@@ -49,7 +50,8 @@ TEST_CASE("GeneralizedDemiPlay2") {
   // 14 if you consider low cards, 9 cards otherwise
   REQUIRE((top_plays.size() == 9 || top_plays.size() == 10));
   REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
-                             "generalized_demi_play_2.golden");
+                             "generalized_demi_play_2.golden",
+                             "GeneralizedDemiPlay2: top plays in hearts with opponent cards");
 }
 
 TEST_CASE("GeneralizedTrickFinders") {
@@ -137,7 +139,8 @@ TEST_CASE("GeneralizedTrickFinders") {
               << GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks);
     REQUIRE(gen_tricks.size() == 20);
     REQUIRE_GOLDEN_LINE_RESULT(GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks),
-                               "generalized_trick_finder_leader_" + std::to_string(leader) + ".golden");
+                               "generalized_trick_finder_leader_" + std::to_string(leader) + ".golden",
+                               "GeneralizedTrickFinders: leader " + std::to_string(leader) + " top tricks");
     if (leader == 0) {
       bool found = false;
       for (size_t i = 0; i < std::min<size_t>(5, gen_tricks.size()); i++) {
@@ -210,7 +213,7 @@ TEST_CASE("BestLead1") {
   std::set<std::string> leads =
       lf.FindBestLead(min_tricks, hands, unknown_cards, leader, SPADES);
   LOG(INFO) << "Found best leads " << StrJoin(leads, ", ");
-  REQUIRE_GOLDEN_LINE_RESULT(StrJoin(leads, ", "), "best_lead_1.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(StrJoin(leads, ", "), "best_lead_1.golden", hands, "BestLead1: best lead for spades contract");
   // REQUIRE(leads.size() == 1);
 }
 
@@ -246,8 +249,8 @@ TEST_CASE("BestContract1", "[.slow]") {
       lf.FindTricksWon(hands, unknown_cards, leader, NOTRUMP);
   LOG(INFO) << "Spades:\n" << lf.TricksWonDebugString(spade_tricks);
   LOG(INFO) << "Notrump:\n" << lf.TricksWonDebugString(notrump_tricks);
-  REQUIRE_GOLDEN_LINE_RESULT(spade_tricks, "best_contract_1_spades.golden");
-  REQUIRE_GOLDEN_LINE_RESULT(notrump_tricks, "best_contract_1_notrump.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(spade_tricks, "best_contract_1_spades.golden", hands, "BestContract1: spade contract trick distribution");
+  REQUIRE_GOLDEN_LINE_RESULT(notrump_tricks, "best_contract_1_notrump.golden", hands, "BestContract1: NT contract trick distribution");
 }
 
 TEST_CASE("BestContract2", "[.slow]") {
@@ -353,7 +356,7 @@ TEST_CASE("BestContract3", "[.slow]") {
   std::multiset<int> heart_tricks =
       lf.FindTricksWon(hands, unknown_cards, leader, HEARTS);
   LOG(INFO) << "Hearts:\n" << lf.TricksWonDebugString(heart_tricks);
-  REQUIRE_GOLDEN_LINE_RESULT(heart_tricks, "best_contract_3_hearts.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(heart_tricks, "best_contract_3_hearts.golden", hands, "BestContract3: heart contract trick distribution");
 }
 
 
@@ -376,7 +379,7 @@ TEST_CASE("LineFinder2") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() >= 3);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_2.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_2.golden", hands, "LineFinder2: lines for spade contract with 2 known hands");
 }
 
 TEST_CASE("LineFinder3") {
@@ -402,7 +405,7 @@ TEST_CASE("LineFinder3") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() >= 8);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_3.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_3.golden", hands, "LineFinder3: lines for spade contract with 2 known hands");
 }
 
 TEST_CASE("LineFinder4") {
@@ -423,7 +426,7 @@ TEST_CASE("LineFinder4") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() == 4);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_4.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_4.golden", hands, "LineFinder4: lines for spade contract");
 }
 
 TEST_CASE("LineFinder5", "[.slow]") {
@@ -445,7 +448,7 @@ TEST_CASE("LineFinder5", "[.slow]") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == 10);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5.golden", hands, "LineFinder5: lines for spade contract");
 }
 
 TEST_CASE("LineFinder5b", "[.slow]") {
@@ -470,7 +473,7 @@ TEST_CASE("LineFinder5b", "[.slow]") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() >= 10);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5b.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5b.golden", hands, "LineFinder5b: lines for spade contract");
 }
 
 TEST_CASE("LineFinder5c", "[.slow]") {
@@ -497,7 +500,7 @@ TEST_CASE("LineFinder5c", "[.slow]") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == num_hands);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5c.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5c.golden", hands, "LineFinder5c: lines for spade contract");
 }
 
 TEST_CASE("LineFinder5d", "[.slow]") {
@@ -527,7 +530,7 @@ TEST_CASE("LineFinder5d", "[.slow]") {
   }
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == num_deals);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5d.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5d.golden", hands, "LineFinder5d: lines for diamond contract");
 }
 
 TEST_CASE("LineFinder5e", "[.slow]") {
@@ -554,7 +557,7 @@ TEST_CASE("LineFinder5e", "[.slow]") {
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines.size() >= 1);
   REQUIRE(lines[0].CoveredBoards() == 58);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5e.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5e.golden", hands, "LineFinder5e: lines for spade contract");
 }
 
 TEST_CASE("LineFinder7", "[.slow]") {
@@ -576,7 +579,7 @@ TEST_CASE("LineFinder7", "[.slow]") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() == 6);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_7.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_7.golden", hands, "LineFinder7: lines for spade contract");
 }
 
 TEST_CASE("LineFinder9", "[.slow]") {
@@ -598,7 +601,7 @@ TEST_CASE("LineFinder9", "[.slow]") {
   LOG(INFO) << "Found lines " << lines.size();
   LOG(INFO) << PrintBestLine(lines);
   REQUIRE(lines[0].CoveredBoards() > 3);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_9.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_9.golden", hands, "LineFinder9: lines for NT contract");
 }
 
 TEST_CASE("LineFinder11", "[.slow]") {
@@ -628,7 +631,7 @@ TEST_CASE("LineFinder11", "[.slow]") {
   for (const auto &line : lines) {
     LOG(INFO) << "line " << ++i << ":\n" << line.Describe();
   }
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_11.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_11.golden", hands, "LineFinder11: lines for heart contract with Spade requirements");
   // REQUIRE(lines[0].CoveredBoards() == 17);
 }
 
@@ -659,7 +662,7 @@ TEST_CASE("LineFinder12", "[.slow]") {
   for (const auto &line : lines) {
     LOG(INFO) << "line " << ++j << ":\n" << line.Describe();
   }
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_12.golden");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_12.golden", hands, "LineFinder12: lines for NT contract with CQ requirement");
   // REQUIRE(lines[0].CoveredBoards() == 17);
 }
 

@@ -128,6 +128,79 @@ std::string PlayLineGoldenSerializer::Serialize(const OptimalLines &lines) {
   return res;
 }
 
+static std::string TrimRight(std::string s) {
+  while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) {
+    s.pop_back();
+  }
+  return s;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(uint64_t hand) {
+  if (hand == 0) return "";
+  return "# Hand: " + TrimRight(HandDebugString(hand)) + "\n";
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::vector<uint64_t> &hands) {
+  if (hands.empty()) return "";
+  std::string res;
+  for (size_t i = 0; i < hands.size(); ++i) {
+    res += "# Hand " + std::to_string(i) + ": " + TrimRight(HandDebugString(hands[i])) + "\n";
+  }
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::pair<uint64_t, uint64_t> &hands) {
+  std::string res;
+  res += "# Hand 0: " + TrimRight(HandDebugString(hands.first)) + "\n";
+  res += "# Hand 1: " + TrimRight(HandDebugString(hands.second)) + "\n";
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::string &hands_str) {
+  if (hands_str.empty()) return "";
+  std::string res;
+  std::istringstream iss(hands_str);
+  std::string line;
+  while (std::getline(iss, line)) {
+    std::string trimmed = TrimRight(line);
+    if (!trimmed.empty()) {
+      if (trimmed[0] == '#') {
+        res += trimmed + "\n";
+      } else {
+        res += "# Hand: " + trimmed + "\n";
+      }
+    }
+  }
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const char *hands_str) {
+  return hands_str ? FormatHands(std::string(hands_str)) : "";
+}
+
+std::string PlayLineGoldenSerializer::FormatCommentHeader(
+    const std::string &description, const std::string &formatted_hands) {
+  std::string header;
+  if (!description.empty()) {
+    std::istringstream iss(description);
+    std::string line;
+    while (std::getline(iss, line)) {
+      std::string trimmed = TrimRight(line);
+      if (!trimmed.empty()) {
+        if (trimmed[0] == '#') {
+          header += trimmed + "\n";
+        } else {
+          header += "# Setup: " + trimmed + "\n";
+        }
+      }
+    }
+  }
+  if (!formatted_hands.empty()) {
+    header += formatted_hands;
+  }
+  return header;
+}
+
 GoldenMatcher::GoldenMatcher(std::string golden_filename)
     : golden_filename_(std::move(golden_filename)) {}
 

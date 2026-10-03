@@ -1,2 +1,7 @@
+# Setup: Solver5c: optimal lines with diamond trump
+# Hand 0: S -; H -; D AKT9; C A;
+# Hand 1: S -; H A; D J543; C -;
+# Hand 2: S -; H -; D Q876; C K;
+# Hand 3: S AKQ; H KQ; D -; C -;
 D9 D3 D6 SQ
 DK D3 D6 SQ

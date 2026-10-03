@@ -1,1 +1,6 @@
+# Setup: Solver3a: optimal play sequence with 3-card spade hands
+# Hand 0: S AQ9; H -; D -; C -;
+# Hand 1: S KJT; H -; D -; C -;
+# Hand 2: S 876; H -; D -; C -;
+# Hand 3: S 543; H -; D -; C -;
 / S9 ST S6 S3 / SK S7 S4 SA / SQ SJ S8 S5 

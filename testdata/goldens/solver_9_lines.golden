@@ -1,3 +1,8 @@
+# Setup: Solver9: optimal lines for 9-trick layout
+# Hand 0: S KQJ; H KQJ; D KQJ; C -;
+# Hand 1: S AT8; H AT8; D 876; C -;
+# Hand 2: S -; H -; D -; C AKQJT9876;
+# Hand 3: S 976; H 976; D AT9; C -;
 DJ D6 C6 D9
 HJ H8 C6 H6
 SJ S8 C6 S6
