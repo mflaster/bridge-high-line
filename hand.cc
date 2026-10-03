@@ -123,20 +123,30 @@ uint64_t ParseHand(std::string hand_str) {
   uint64_t ans = 0;
   Suit cur_suit = NOTRUMP;
   for (unsigned int i = 0; i < hand_str.size(); i++) {
+    if (hand_str[i] == '1' && i + 1 < hand_str.size() && hand_str[i + 1] == '0') {
+      int card_val = 8;
+      i++;
+      uint64_t cur_card = Card::GetSuitedCard(cur_suit, card_val);
+      ans = (ans | cur_card);
+      continue;
+    }
     int card_val = -1;
     switch(hand_str[i]) {
       case ';':
       case ' ':
+      case '\t':
+      case '\r':
+      case '\n':
       case '-': break;
-      case 'S': cur_suit = SPADES; break;
-      case 'H': cur_suit = HEARTS; break;
-      case 'D': cur_suit = DIAMONDS; break;
-      case 'C': cur_suit = CLUBS; break;
-      case 'A': card_val = 12; break;
-      case 'K': card_val = 11; break;
-      case 'Q': card_val = 10; break;
-      case 'J': card_val = 9; break;
-      case 'T': card_val = 8; break;
+      case 'S': case 's': cur_suit = SPADES; break;
+      case 'H': case 'h': cur_suit = HEARTS; break;
+      case 'D': case 'd': cur_suit = DIAMONDS; break;
+      case 'C': case 'c': cur_suit = CLUBS; break;
+      case 'A': case 'a': card_val = 12; break;
+      case 'K': case 'k': card_val = 11; break;
+      case 'Q': case 'q': card_val = 10; break;
+      case 'J': case 'j': card_val = 9; break;
+      case 'T': case 't': card_val = 8; break;
       default:
         card_val = hand_str[i] - '2';
         break;

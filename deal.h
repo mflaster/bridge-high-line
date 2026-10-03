@@ -1,10 +1,15 @@
 #pragma once
 
+#include "board_state.h"
 #include "hand.h"
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include "hand_requirements.h"
+
+BoardState LoadDealFromKeyValueFile(const std::string &filename);
+BoardState LoadDealFromKeyValueString(const std::string &content);
 
 std::vector<uint64_t> DealHands();
 

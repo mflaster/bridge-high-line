@@ -1,6 +1,6 @@
 #include "board_state.h"
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 #include "hand.h"
 
 TEST_CASE("PBN") {
