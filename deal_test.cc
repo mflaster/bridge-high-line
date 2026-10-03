@@ -123,3 +123,47 @@ west  = S 5432 H 542 D JT9 C JT9
   }
 }
 
+TEST_CASE("LoadDealFromKeyValueString - Whitespace and Orderings") {
+  SECTION("Extra spaces and arbitrary direction order") {
+    std::string deal_str = R"(
+north =     S AKQ2 H J109 D 876 C 543
+west = S 543 H 543 D J109 C JT92
+east =                         S JT9 H 8762 D 543 C AKQ
+south =     S 876 H AKQ D AKQ2 C 876
+trump = NT
+leader = North
+)";
+    BoardState bs = LoadDealFromKeyValueString(deal_str);
+    REQUIRE(bs.GetHand(NORTH) == ParseHand("S AKQ2 H JT9 D 876 C 543"));
+    REQUIRE(bs.GetHand(EAST)  == ParseHand("S JT9 H 8762 D 543 C AKQ"));
+    REQUIRE(bs.GetHand(SOUTH) == ParseHand("S 876 H AKQ D AKQ2 C 876"));
+    REQUIRE(bs.GetHand(WEST)  == ParseHand("S 543 H 543 D JT9 C JT92"));
+    REQUIRE(bs.GetTrump() == NOTRUMP);
+    REQUIRE(bs.cur_trick_leader() == NORTH);
+  }
+
+  SECTION("Reordered suits within hand string and lower case characters") {
+    std::string deal_str = R"(
+west  = c jt92 d j109 h 543 s 543
+south = H akq D akq2 S 876 C 876
+north = s akq2 h j109 d 876 c 543
+east  = S jt9 H 8762 D 543 C akq
+)";
+    BoardState bs = LoadDealFromKeyValueString(deal_str);
+    REQUIRE(bs.GetHand(NORTH) == ParseHand("S AKQ2 H JT9 D 876 C 543"));
+    REQUIRE(bs.GetHand(EAST)  == ParseHand("S JT9 H 8762 D 543 C AKQ"));
+    REQUIRE(bs.GetHand(SOUTH) == ParseHand("S 876 H AKQ D AKQ2 C 876"));
+    REQUIRE(bs.GetHand(WEST)  == ParseHand("S 543 H 543 D JT9 C JT92"));
+  }
+
+  SECTION("Tabs and carriage returns") {
+    std::string deal_str = "north\t=\t\tS AKQ2 H J109 D 876 C 543\r\neast = S JT9 H 8762 D 543 C AKQ\r\nsouth = S 876 H AKQ D AKQ2 C 876\r\nwest = S 543 H 543 D J109 C JT92\r\n";
+    BoardState bs = LoadDealFromKeyValueString(deal_str);
+    REQUIRE(bs.GetHand(NORTH) == ParseHand("S AKQ2 H JT9 D 876 C 543"));
+    REQUIRE(bs.GetHand(EAST)  == ParseHand("S JT9 H 8762 D 543 C AKQ"));
+    REQUIRE(bs.GetHand(SOUTH) == ParseHand("S 876 H AKQ D AKQ2 C 876"));
+    REQUIRE(bs.GetHand(WEST)  == ParseHand("S 543 H 543 D JT9 C JT92"));
+  }
+}
+
+
