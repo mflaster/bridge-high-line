@@ -187,6 +187,11 @@ std::string PlayLineGoldenSerializer::FormatHands(const char *hands_str) {
   return hands_str ? FormatHands(std::string(hands_str)) : "";
 }
 
+std::string PlayLineGoldenSerializer::FormatHands(const BoardState &bs) {
+  std::vector<uint64_t> hands = {bs.GetHand(0), bs.GetHand(1), bs.GetHand(2), bs.GetHand(3)};
+  return FormatHands(hands);
+}
+
 std::string PlayLineGoldenSerializer::FormatCommentHeader(
     const std::string &description, const std::string &formatted_hands) {
   std::string header;

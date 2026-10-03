@@ -26,6 +26,7 @@ class PlayLineGoldenSerializer {
   static std::string FormatHands(const std::pair<uint64_t, uint64_t> &hands);
   static std::string FormatHands(const std::string &hands_str);
   static std::string FormatHands(const char *hands_str);
+  static std::string FormatHands(const BoardState &bs);
 
   static std::string FormatCommentHeader(const std::string &description,
                                          const std::string &formatted_hands = "");
@@ -108,6 +109,27 @@ class PlayLineGoldenSerializer {
   static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
                                          const char *description) {
     return SerializeWithHeader(actual, hands, std::string(description));
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const BoardState &bs) {
+    std::string hands_str = FormatHands(bs);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const BoardState &bs,
+                                         const std::string &description) {
+    std::string hands_str = FormatHands(bs);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const BoardState &bs,
+                                         const char *description) {
+    return SerializeWithHeader(actual, bs, std::string(description));
   }
 
  private:

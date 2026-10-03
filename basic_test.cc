@@ -274,8 +274,8 @@ TEST_CASE("Solver2") {
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(seq == "/ SA SJ S7 S4 / SQ SK S8 S5 ");
   REQUIRE(lines.size() == 2);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_2_seq.golden", hands, "Solver2: optimal play sequence for 2 spade tricks");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_2_lines.golden", hands, "Solver2: optimal lines for 2 spade tricks");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_2_seq.golden", hands, "Solver2: optimal play sequence for 2 spade tricks, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_2_lines.golden", hands, "Solver2: optimal lines for 2 spade tricks, Hand 0 on lead");
 
   bs.SetLead(1);
   seq.clear();
@@ -326,8 +326,8 @@ TEST_CASE("Solver2c") {
   REQUIRE(ans == 2);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(lines.size() == 1);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_2c_seq.golden", hands, "Solver2c: optimal play sequence for spades trick layout");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_2c_lines.golden", hands, "Solver2c: optimal lines for spades trick layout");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_2c_seq.golden", hands, "Solver2c: optimal play sequence for spades trick layout, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_2c_lines.golden", hands, "Solver2c: optimal lines for spades trick layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver3a") {
@@ -345,7 +345,7 @@ TEST_CASE("Solver3a") {
   // REQUIRE(seq == "/ S9 ST S6 S3 / SJ S7 S4 SQ / SA SK S8 S5 ");
   REQUIRE(seq == "/ S9 ST S6 S3 / SK S7 S4 SA / SQ SJ S8 S5 ");
   REQUIRE(num_solver_iters() == 79);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3a_seq.golden", hands, "Solver3a: optimal play sequence with 3-card spade hands");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3a_seq.golden", hands, "Solver3a: optimal play sequence with 3-card spade hands, Hand 0 on lead");
 
   seq.clear();
   REQUIRE(MostTricksCanBeWon(bs, 1, &seq) == 1);
@@ -374,7 +374,7 @@ TEST_CASE("Solver3") {
   REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 2);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(num_solver_iters() == 789);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3_seq.golden", hands, "Solver3: optimal play sequence for 4-card partial deal");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3_seq.golden", hands, "Solver3: optimal play sequence for 4-card partial deal, Hand 0 on lead");
 }
 
 TEST_CASE("Solver3b") {
@@ -434,8 +434,8 @@ TEST_CASE("Solver3d") {
   REQUIRE(ans == 3);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(lines.size() == 2);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3d_seq.golden", hands, "Solver3d: optimal play sequence with spades and hearts");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_3d_lines.golden", hands, "Solver3d: optimal lines with spades and hearts");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3d_seq.golden", hands, "Solver3d: optimal play sequence with spades and hearts, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_3d_lines.golden", hands, "Solver3d: optimal lines with spades and hearts, Hand 0 on lead");
 }
 
 TEST_CASE("Solver4") {
@@ -519,8 +519,8 @@ TEST_CASE("Solver4d") {
   LOG(INFO) << "seq " << seq;
   REQUIRE(ans == 4);
   REQUIRE(lines.size() == 1);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4d_seq.golden", hands, "Solver4d: optimal play sequence for 4-trick deal");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4d_lines.golden", hands, "Solver4d: optimal lines for 4-trick deal");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4d_seq.golden", hands, "Solver4d: optimal play sequence for 4-trick deal, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4d_lines.golden", hands, "Solver4d: optimal lines for 4-trick deal, Hand 0 on lead");
 }
 
 TEST_CASE("Solver4e") {
@@ -542,8 +542,8 @@ TEST_CASE("Solver4e") {
   LOG(INFO) << "seq " << seq;
   REQUIRE(ans == 4);
   REQUIRE(lines.size() == 2);
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4e_seq.golden", hands, "Solver4e: optimal play sequence for 4-card deal");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4e_lines.golden", hands, "Solver4e: optimal lines for 4-card deal");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4e_seq.golden", hands, "Solver4e: optimal play sequence for 4-card deal, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4e_lines.golden", hands, "Solver4e: optimal lines for 4-card deal, Hand 0 on lead");
 }
 
 TEST_CASE("Solver4f") {
@@ -564,7 +564,7 @@ TEST_CASE("Solver4f") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   PrintOutResults(lines);
   REQUIRE(ans == 4);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4f_lines.golden", hands, "Solver4f: optimal lines with diamond trump contract");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4f_lines.golden", hands, "Solver4f: optimal lines with diamond trump contract, Hand 2 on lead");
 }
 
 TEST_CASE("Solver5") {
@@ -602,7 +602,7 @@ TEST_CASE("Solver5b") {
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 5);
   REQUIRE(lines.size() == 5);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, "Solver5b: optimal lines with spade contract");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, "Solver5b: optimal lines with spade contract, Hand 0 on lead");
 }
 
 TEST_CASE("Solver5c") {
@@ -626,8 +626,8 @@ TEST_CASE("Solver5c") {
   REQUIRE(ans == 5);
   REQUIRE(lines.size() == 2);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, "Solver5c: optimal play sequence with diamond trump");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, "Solver5c: optimal lines with diamond trump");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, "Solver5c: optimal play sequence with diamond trump, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, "Solver5c: optimal lines with diamond trump, Hand 0 on lead");
 }
 
 TEST_CASE("Solver6") {
@@ -665,7 +665,7 @@ TEST_CASE("Solver7") {
   PrintOutResults(lines);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE(num_solver_iters_str() == "262K");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_7_lines.golden", hands, "Solver7: optimal lines for 7-trick layout");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_7_lines.golden", hands, "Solver7: optimal lines for 7-trick layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver8", "[.slow]") {
@@ -686,7 +686,7 @@ TEST_CASE("Solver8", "[.slow]") {
   PrintOutResults(lines);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE(num_solver_iters_str() == "1M");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8_lines.golden", hands, "Solver8: optimal lines for solver8 layout");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8_lines.golden", hands, "Solver8: optimal lines for solver8 layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver8b", "[.slow]") {
@@ -707,7 +707,7 @@ TEST_CASE("Solver8b", "[.slow]") {
   PrintOutResults(lines);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE(num_solver_iters_str() == "1M");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8b_lines.golden", hands, "Solver8b: optimal lines for solver8b layout");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8b_lines.golden", hands, "Solver8b: optimal lines for solver8b layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver8c", "[.slow]") {
@@ -729,7 +729,7 @@ TEST_CASE("Solver8c", "[.slow]") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE(num_solver_iters_str() == "1M");
   REQUIRE(ans == 2);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8c_lines.golden", hands, "Solver8c: optimal lines for solver8c layout");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8c_lines.golden", hands, "Solver8c: optimal lines for solver8c layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver9") {
@@ -748,7 +748,7 @@ TEST_CASE("Solver9") {
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);
   PrintOutResults(lines);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_9_lines.golden", hands, "Solver9: optimal lines for 9-trick layout");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_9_lines.golden", hands, "Solver9: optimal lines for 9-trick layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver9b", "[.slow]") {
@@ -795,8 +795,8 @@ TEST_CASE("Solver10", "[.slow]") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE(num_solver_iters_str() == "11M");
   LOG(INFO) << "Line: " << seq;
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_10_seq.golden", hands, "Solver10: optimal play sequence for hearts contract");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_10_lines.golden", hands, "Solver10: optimal lines for hearts contract");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_10_seq.golden", hands, "Solver10: optimal play sequence for hearts contract, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_10_lines.golden", hands, "Solver10: optimal lines for hearts contract, Hand 0 on lead");
   // MostTricksCanBeWon solved after 7111325 with cache having 206653
   // 0.952u 0.004s 0:00.95 100.0%    0+0k 0+0io 0pf+0w
 }
