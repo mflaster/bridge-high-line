@@ -79,10 +79,12 @@ add_library(bridge_lib STATIC
   line_finder.cc
   interface_dds.cc
   golden_serializer.cc
+  web_server.cc
 )
 
 target_include_directories(bridge_lib PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
 target_link_libraries(bridge_lib PUBLIC
@@ -92,6 +94,14 @@ target_link_libraries(bridge_lib PUBLIC
   OpenMP::OpenMP_CXX
   Catch2::Catch2
 )
+
+if(WIN32)
+  target_link_libraries(bridge_lib PUBLIC ws2_32 crypt32)
+endif()
+
+# Executable: bridge_server
+add_executable(bridge_server server_main.cc)
+target_link_libraries(bridge_server PRIVATE bridge_lib)
 
 enable_testing()
 
@@ -104,6 +114,7 @@ set(TEST_NAMES
   hand_requirements_test
   interface_dds_test
   line_finder_test
+  server_test
 )
 
 foreach(test_name IN LISTS TEST_NAMES)
