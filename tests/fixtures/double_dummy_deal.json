@@ -1,0 +1,11 @@
+{
+  "hands": {
+    "NORTH": "S AK H K D A C A",
+    "EAST": "S QJ H Q D K C K",
+    "SOUTH": "S 87 H 8 D 8 C 8",
+    "WEST": "S 54 H 5 D 5 C 5"
+  },
+  "trump": "NOTRUMP",
+  "leader": "NORTH",
+  "target_tricks": 5
+}

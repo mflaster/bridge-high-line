@@ -1,0 +1,9 @@
+{
+  "hands": {
+    "NORTH": "S AK",
+    "EAST": "S QJ",
+    "SOUTH": "S 87",
+    "WEST": "S 54"
+  },
+  "leader": "NORTH"
+}

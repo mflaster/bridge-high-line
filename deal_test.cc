@@ -1,6 +1,8 @@
 #include <catch2/catch_all.hpp>
+#include <chrono>
 
 #include "deal.h"
+#include "interface_dds.h"
 
 TEST_CASE("DealTwo") {
   srand48(1);
@@ -166,4 +168,67 @@ east  = S jt9 H 8762 D 543 C akq
   }
 }
 
+TEST_CASE("LoadValidJSONFixture") {
+  DealFixture fixture = LoadDealFromJSONFile("tests/fixtures/sample_deal.json");
 
+  REQUIRE(fixture.trump == SPADES);
+  REQUIRE(fixture.leader == NORTH);
+  REQUIRE(fixture.target_tricks == 10);
+
+  BoardState bs = fixture.board_state;
+  REQUIRE(bs.GetTrump() == SPADES);
+  REQUIRE(bs.cur_trick_leader() == NORTH);
+
+  // Executable board state test via DDS solve
+  int optimal_tricks = FindOptimalTricks(bs);
+  LOG(INFO) << "Optimal tricks solved for sample_deal: " << optimal_tricks;
+  REQUIRE(optimal_tricks >= fixture.target_tricks);
+
+  // Partial deal test
+  DealFixture dd_fixture = LoadDealFromJSONFile("tests/fixtures/double_dummy_deal.json");
+  REQUIRE(dd_fixture.trump == NOTRUMP);
+  REQUIRE(dd_fixture.leader == NORTH);
+  REQUIRE(dd_fixture.target_tricks == 5);
+  REQUIRE(dd_fixture.board_state.GetTrump() == NOTRUMP);
+}
+
+TEST_CASE("LoadInvalidJSONFixtures") {
+  // Test invalid card character
+  REQUIRE_THROWS_WITH(
+      LoadDealFromJSONFile("tests/fixtures/invalid_card.json"),
+      Catch::Matchers::ContainsSubstring("Invalid card character 'X'"));
+
+  // Test duplicate card across hands
+  REQUIRE_THROWS_WITH(
+      LoadDealFromJSONFile("tests/fixtures/duplicate_card.json"),
+      Catch::Matchers::ContainsSubstring("Duplicate card detected across hands"));
+
+  // Test malformed syntax
+  REQUIRE_THROWS_WITH(
+      LoadDealFromJSONFile("tests/fixtures/malformed_syntax.json"),
+      Catch::Matchers::ContainsSubstring("Malformed JSON"));
+
+  // Test missing required field
+  REQUIRE_THROWS_WITH(
+      LoadDealFromJSONFile("tests/fixtures/missing_field.json"),
+      Catch::Matchers::ContainsSubstring("Missing required 'trump' field"));
+
+  // Test non-existent file path
+  REQUIRE_THROWS_WITH(
+      LoadDealFromJSONFile("tests/fixtures/non_existent.json"),
+      Catch::Matchers::ContainsSubstring("Could not open JSON fixture file"));
+}
+
+TEST_CASE("JSONLoaderBenchmark") {
+  const int iterations = 200;
+  auto start = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < iterations; ++i) {
+    DealFixture fixture = LoadDealFromJSONFile("tests/fixtures/sample_deal.json");
+    (void)fixture;
+  }
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double, std::milli> duration = end - start;
+  double avg_ms = duration.count() / iterations;
+  LOG(INFO) << "Average JSON deal fixture load time: " << avg_ms << " ms";
+  REQUIRE(avg_ms < 1.0);
+}

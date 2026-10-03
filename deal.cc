@@ -11,6 +11,246 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <nlohmann/json.hpp>
+
+namespace {
+
+static std::string ToUpper(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c) { return std::toupper(c); });
+  return s;
+}
+
+static Suit ParseSuitString(const std::string &raw_s) {
+  std::string s = ToUpper(raw_s);
+  if (s == "SPADES" || s == "SPADE" || s == "S") return SPADES;
+  if (s == "HEARTS" || s == "HEART" || s == "H") return HEARTS;
+  if (s == "DIAMONDS" || s == "DIAMOND" || s == "D") return DIAMONDS;
+  if (s == "CLUBS" || s == "CLUB" || s == "C") return CLUBS;
+  if (s == "NOTRUMP" || s == "NO_TRUMP" || s == "NO TRUMP" || s == "NT" || s == "N") return NOTRUMP;
+  throw std::invalid_argument("Invalid trump suit string: " + raw_s);
+}
+
+static PlayerDirection ParseLeaderString(const std::string &raw_s) {
+  std::string s = ToUpper(raw_s);
+  if (s == "NORTH" || s == "N") return NORTH;
+  if (s == "EAST" || s == "E") return EAST;
+  if (s == "SOUTH" || s == "S") return SOUTH;
+  if (s == "WEST" || s == "W") return WEST;
+  throw std::invalid_argument("Invalid leader direction string: " + raw_s);
+}
+
+static uint64_t ParseAndValidateHandString(const std::string &hand_str, const std::string &hand_label) {
+  uint64_t hand_mask = 0;
+  Suit cur_suit = NOTRUMP;
+  for (size_t i = 0; i < hand_str.size(); ++i) {
+    char ch = hand_str[i];
+    if (ch == ' ' || ch == ';' || ch == '-') continue;
+    if (ch == 'S' || ch == 's') { cur_suit = SPADES; continue; }
+    if (ch == 'H' || ch == 'h') { cur_suit = HEARTS; continue; }
+    if (ch == 'D' || ch == 'd') { cur_suit = DIAMONDS; continue; }
+    if (ch == 'C' || ch == 'c') { cur_suit = CLUBS; continue; }
+
+    int card_val = -1;
+    if (ch == 'A' || ch == 'a') card_val = 12;
+    else if (ch == 'K' || ch == 'k') card_val = 11;
+    else if (ch == 'Q' || ch == 'q') card_val = 10;
+    else if (ch == 'J' || ch == 'j') card_val = 9;
+    else if (ch == 'T' || ch == 't') card_val = 8;
+    else if (ch >= '2' && ch <= '9') card_val = ch - '2';
+    else {
+      throw std::invalid_argument("Invalid card character '" + std::string(1, ch) + "' in hand " + hand_label);
+    }
+
+    if (cur_suit == NOTRUMP) {
+      throw std::invalid_argument("Card rank '" + std::string(1, ch) + "' specified before suit in hand " + hand_label);
+    }
+
+    uint64_t card_bit = Card::GetSuitedCard(cur_suit, card_val);
+    if ((hand_mask & card_bit) != 0) {
+      throw std::invalid_argument("Duplicate card defined in hand " + hand_label + ": " + Card::PrintCard(card_bit));
+    }
+    hand_mask |= card_bit;
+  }
+  return hand_mask;
+}
+
+static void ValidateDealHands(const std::vector<uint64_t> &hands) {
+  if (hands.size() != 4) {
+    throw std::invalid_argument("Deal must define exactly 4 hands");
+  }
+  uint64_t seen = 0;
+  std::vector<int> card_counts(4, 0);
+  for (int i = 0; i < 4; ++i) {
+    uint64_t h = hands[i];
+    card_counts[i] = CountCardsInHand(h);
+    uint64_t duplicate = seen & h;
+    if (duplicate != 0) {
+      std::string card_name = "unknown";
+      for (int s = 0; s < 4; ++s) {
+        for (int v = 0; v < 13; ++v) {
+          uint64_t c = Card::GetSuitedCard((Suit)s, v);
+          if (duplicate & c) {
+            card_name = Card::PrintCard(c);
+            break;
+          }
+        }
+      }
+      throw std::invalid_argument("Duplicate card detected across hands: " + card_name);
+    }
+    seen |= h;
+  }
+  for (int i = 1; i < 4; ++i) {
+    if (card_counts[i] != card_counts[0]) {
+      throw std::invalid_argument("Hand card counts are unequal: North=" + std::to_string(card_counts[0]) +
+                                  " vs hand " + std::to_string(i) + "=" + std::to_string(card_counts[i]));
+    }
+  }
+  int total_cards = CountCardsInHand(seen);
+  if (total_cards == 0) {
+    throw std::invalid_argument("Deal contains no cards");
+  }
+}
+
+}  // namespace
+
+DealFixture LoadDealFromJSON(const std::string &json_str, const std::string &source_name) {
+  nlohmann::json j;
+  try {
+    j = nlohmann::json::parse(json_str);
+  } catch (const nlohmann::json::parse_error &e) {
+    throw std::runtime_error("Malformed JSON in " + source_name + ": " + e.what());
+  }
+
+  if (!j.is_object()) {
+    throw std::invalid_argument("JSON root must be an object in " + source_name);
+  }
+
+  if (!j.contains("hands")) {
+    throw std::invalid_argument("Missing required 'hands' field in " + source_name);
+  }
+
+  std::vector<uint64_t> hands(4, 0);
+  const auto &j_hands = j["hands"];
+
+  if (j_hands.is_object()) {
+    static const std::vector<std::pair<std::vector<std::string>, int>> dir_keys = {
+      {{"NORTH", "North", "north", "N", "n"}, NORTH},
+      {{"EAST", "East", "east", "E", "e"}, EAST},
+      {{"SOUTH", "South", "south", "S", "s"}, SOUTH},
+      {{"WEST", "West", "west", "W", "w"}, WEST}
+    };
+    for (const auto &[aliases, dir_idx] : dir_keys) {
+      bool found = false;
+      for (const auto &alias : aliases) {
+        if (j_hands.contains(alias)) {
+          if (!j_hands[alias].is_string()) {
+            throw std::invalid_argument("Hand string for " + alias + " must be a string in " + source_name);
+          }
+          hands[dir_idx] = ParseAndValidateHandString(j_hands[alias].get<std::string>(), alias);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        throw std::invalid_argument("Missing hand specification for direction index " + std::to_string(dir_idx) + " in " + source_name);
+      }
+    }
+  } else if (j_hands.is_array()) {
+    if (j_hands.size() != 4) {
+      throw std::invalid_argument("'hands' array must contain exactly 4 hand strings in " + source_name);
+    }
+    for (int i = 0; i < 4; ++i) {
+      if (!j_hands[i].is_string()) {
+        throw std::invalid_argument("Hand at index " + std::to_string(i) + " must be a string in " + source_name);
+      }
+      hands[i] = ParseAndValidateHandString(j_hands[i].get<std::string>(), "index " + std::to_string(i));
+    }
+  } else {
+    throw std::invalid_argument("'hands' field must be an object or array in " + source_name);
+  }
+
+  ValidateDealHands(hands);
+
+  Suit trump = NOTRUMP;
+  std::string trump_key = "";
+  if (j.contains("trump")) trump_key = "trump";
+  else if (j.contains("trump_suit")) trump_key = "trump_suit";
+  else {
+    throw std::invalid_argument("Missing required 'trump' field in " + source_name);
+  }
+
+  if (j[trump_key].is_string()) {
+    trump = ParseSuitString(j[trump_key].get<std::string>());
+  } else if (j[trump_key].is_number_integer()) {
+    int t_val = j[trump_key].get<int>();
+    if (t_val < 0 || t_val > 4) {
+      throw std::invalid_argument("Invalid trump integer value " + std::to_string(t_val) + " in " + source_name);
+    }
+    trump = static_cast<Suit>(t_val);
+  } else {
+    throw std::invalid_argument("'trump' field must be a string or integer in " + source_name);
+  }
+
+  PlayerDirection leader = NORTH;
+  std::string leader_key = "";
+  if (j.contains("leader")) leader_key = "leader";
+  else if (j.contains("initial_leader")) leader_key = "initial_leader";
+  else if (j.contains("first")) leader_key = "first";
+  else {
+    throw std::invalid_argument("Missing required 'leader' field in " + source_name);
+  }
+
+  if (j[leader_key].is_string()) {
+    leader = ParseLeaderString(j[leader_key].get<std::string>());
+  } else if (j[leader_key].is_number_integer()) {
+    int l_val = j[leader_key].get<int>();
+    if (l_val < 0 || l_val > 3) {
+      throw std::invalid_argument("Invalid leader integer value " + std::to_string(l_val) + " in " + source_name);
+    }
+    leader = static_cast<PlayerDirection>(l_val);
+  } else {
+    throw std::invalid_argument("'leader' field must be a string or integer in " + source_name);
+  }
+
+  int target_tricks = 0;
+  std::string target_key = "";
+  if (j.contains("target_tricks")) target_key = "target_tricks";
+  else if (j.contains("target")) target_key = "target";
+  else if (j.contains("contract_tricks")) target_key = "contract_tricks";
+  else if (j.contains("tricks")) target_key = "tricks";
+  else {
+    throw std::invalid_argument("Missing required 'target_tricks' field in " + source_name);
+  }
+
+  if (j[target_key].is_number_integer()) {
+    target_tricks = j[target_key].get<int>();
+  } else if (j[target_key].is_string()) {
+    target_tricks = std::stoi(j[target_key].get<std::string>());
+  } else {
+    throw std::invalid_argument("'target_tricks' field must be an integer or numeric string in " + source_name);
+  }
+
+  DealFixture fixture;
+  fixture.board_state.SetHands(hands);
+  fixture.board_state.SetLead(static_cast<int>(leader));
+  fixture.board_state.SetTrump(trump);
+  fixture.target_tricks = target_tricks;
+  fixture.trump = trump;
+  fixture.leader = leader;
+  fixture.hands = hands;
+
+  return fixture;
+}
+
+DealFixture LoadDealFromJSONFile(const std::string &file_path) {
+  std::ifstream ifs(file_path);
+  if (!ifs.is_open()) {
+    throw std::runtime_error("Could not open JSON fixture file: " + file_path);
+  }
+  std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+  return LoadDealFromJSON(content, file_path);
+}
 
 
 

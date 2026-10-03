@@ -1,0 +1,11 @@
+{
+  "hands": {
+    "NORTH": "S AKQX H 4 D KJ63 C AQ",
+    "EAST": "S 97 H QJ3 D Q972 C J876",
+    "SOUTH": "S 2 H AT8652 D A85 C T54",
+    "WEST": "S J543 H K97 D T4 C K932"
+  },
+  "trump": "SPADES",
+  "leader": "NORTH",
+  "target_tricks": 10
+}
