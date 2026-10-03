@@ -239,3 +239,17 @@ TEST_CASE("GroupTricksFinesse2") {
   REQUIRE(grouped_tricks[1].size() == 5);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse_2.golden", "GroupTricksFinesse2: grouping complex finesse tricks");
 }
+
+TEST_CASE("ConditionalLineTotalBoardsFormat") {
+  ConditionalLine line(std::set<int>({1, 2, 4, 5, 6}));
+  ConditionalLine root;
+  root.AddCondition(new WinnerPlayCondition(2), line);
+
+  REQUIRE(root.Describe().find("Covers 5 [1, 2, 4, 5, 6]") == 0);
+  REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5 [1, 2, 4, 5, 6]") == 0);
+
+  root.set_total_boards(10);
+  REQUIRE(root.Describe().find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
+  REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
+}
+

@@ -2,6 +2,8 @@
 #include "glog/logging.h"
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 
 std::string WinnerPlayCondition::Describe(bool only_choice) const {
   std::string ans = only_choice ? "when " : "if ";
@@ -38,8 +40,17 @@ std::string ConditionalLine::Describe(int lvl) const {
   }
   std::string ans;
   if (lvl == 0) {
-    ans = "Covers " + std::to_string(CoveredBoards()) +
-          " [" + StrJoin(CoveredBoardsSet()) + "]\n";
+    if (total_boards_ > 0) {
+      double pct = (100.0 * CoveredBoards()) / total_boards_;
+      std::ostringstream oss;
+      oss << std::fixed << std::setprecision(1) << pct;
+      ans = "Covers " + std::to_string(CoveredBoards()) + "/" +
+            std::to_string(total_boards_) + " (" + oss.str() + "%) [" +
+            StrJoin(CoveredBoardsSet()) + "]\n";
+    } else {
+      ans = "Covers " + std::to_string(CoveredBoards()) +
+            " [" + StrJoin(CoveredBoardsSet()) + "]\n";
+    }
   }
   if (!do_first_.Empty()) {
     ans += do_first_.ToString();

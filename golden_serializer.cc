@@ -15,8 +15,17 @@ std::string PlayLineGoldenSerializer::SerializeConditionalLineHelper(
   }
   std::string ans;
   if (lvl == 0) {
-    ans = "Covers " + std::to_string(line.CoveredBoards()) +
-          " [" + StrJoin(line.CoveredBoardsSet()) + "]\n";
+    if (line.total_boards() > 0) {
+      double pct = (100.0 * line.CoveredBoards()) / line.total_boards();
+      std::ostringstream oss;
+      oss << std::fixed << std::setprecision(1) << pct;
+      ans = "Covers " + std::to_string(line.CoveredBoards()) + "/" +
+            std::to_string(line.total_boards()) + " (" + oss.str() + "%) [" +
+            StrJoin(line.CoveredBoardsSet()) + "]\n";
+    } else {
+      ans = "Covers " + std::to_string(line.CoveredBoards()) +
+            " [" + StrJoin(line.CoveredBoardsSet()) + "]\n";
+    }
   }
   if (!line.do_first().Empty()) {
     ans += line.do_first().ToString();

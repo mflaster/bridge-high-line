@@ -182,6 +182,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
 
   auto ans = SolveHelper(min_tricks, cache, board_trees,
                          board_offsets, leader, 0);
+  for (auto &line : ans) {
+    line.set_total_boards(num_iters_);
+  }
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
             << get_line_from_trick_calls;
   return ans;

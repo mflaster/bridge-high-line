@@ -128,6 +128,9 @@ class ConditionalLine {  // ConditionalLineBranch
   int CoveredBoards() const { return CoveredFinalBoards(); }
   std::set<int> CoveredBoardsSet() const { return CoveredFinalBoardsSet(); }
 
+  int total_boards() const { return total_boards_; }
+  void set_total_boards(int n) { total_boards_ = n; }
+
   int CoveredFinalBoards() const;
   std::set<int> CoveredFinalBoardsSet() const;
 
@@ -149,6 +152,7 @@ class ConditionalLine {  // ConditionalLineBranch
       conditions_;
 
   std::set<int> final_covered_boards_;
+  int total_boards_ = 0;
 };
 
 class WinnerPlayCondition : public PlayCondition {
