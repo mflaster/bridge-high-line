@@ -19,7 +19,7 @@ All external dependencies are automatically fetched, configured, and built via C
 
 ## How to Build
 
-### Using CMake
+### Using CMake (Linux & macOS)
 
 ```bash
 # Configure the build directory
@@ -29,7 +29,43 @@ cmake -B build
 cmake --build build -j4
 ```
 
-### Using Makefile (Convenience Wrapper)
+### Windows 10 Build Instructions
+
+There are three primary ways to build and run the project on Windows 10:
+
+#### Option 1: Visual Studio / MSVC (Recommended Native Build)
+1. Install **Visual Studio 2019** or **Visual Studio 2022** with the **"Desktop development with C++"** workload.
+2. Open **Developer Command Prompt for VS** (or PowerShell/CMD) and navigate to the project directory:
+   ```cmd
+   # Configure using the Visual Studio generator
+   cmake -B build -G "Visual Studio 17 2022"
+
+   # Build Release binaries
+   cmake --build build --config Release -j4
+
+   # Run test suite
+   ctest --test-dir build -C Release --output-on-failure
+   ```
+   *Note: All C++ dependencies (Catch2, glog, Boost headers, DDS) are automatically downloaded and built via CMake `FetchContent`.*
+
+#### Option 2: MSYS2 / MinGW-w64 (`g++`)
+1. Install [MSYS2](https://www.msys2.org/) and launch the **MINGW64** shell.
+2. Install build dependencies:
+   ```bash
+   pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake make
+   ```
+3. Build and test using standard CMake or Makefile commands:
+   ```bash
+   cmake -B build
+   cmake --build build -j4
+   ctest --test-dir build --output-on-failure
+   ```
+
+#### Option 3: WSL2 (Windows Subsystem for Linux)
+1. Install Ubuntu via WSL2 (`wsl --install`).
+2. Build and test following standard Linux instructions (`cmake -B build && cmake --build build` or `make run_all_tests`).
+
+### Using Makefile (Linux / macOS Convenience Wrapper)
 
 A legacy `Makefile` is provided as a thin wrapper over CMake:
 
