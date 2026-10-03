@@ -3,7 +3,7 @@
 #include <memory>
 #include <unordered_map>
 
-#include "dds-develop/include/dll.h"
+#include "dll.h"
 #include "board_state.h"
 #include "card.h"
 #include "hand.h"

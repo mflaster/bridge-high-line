@@ -1,6 +1,6 @@
 #include <catch2/catch_all.hpp>
 
-#include "dds-develop/include/dll.h"
+#include "dll.h"
 #include "glog/logging.h"
 #include "card.h"
 
