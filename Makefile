@@ -43,7 +43,7 @@ run_server: all
 	./build/bridge_server
 
 run_line_finder_perf: all
-	./build/line_finder_perf
+	./perf/line_finder_perf.sh
 
 clean:
 	rm -rf build

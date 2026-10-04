@@ -1,0 +1,150 @@
+#include <algorithm>
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <random>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "card.h"
+#include "conditional_line.h"
+#include "deal.h"
+#include "hand.h"
+#include "line_finder.h"
+#include "glog/logging.h"
+
+namespace {
+
+void GetHandSuitDistribution(uint64_t hand, int dist[4]) {
+  for (int suit = 0; suit < 4; ++suit) {
+    dist[suit] = 0;
+    uint16_t cur_suit = (hand >> (suit * 16)) & 0xffff;
+    for (int val = 0; val < 13; ++val) {
+      if ((cur_suit >> val) & 1) {
+        dist[suit]++;
+      }
+    }
+  }
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  google::InitGoogleLogging(argv[0]);
+
+  std::ofstream details_log("perf/details.log");
+  std::ofstream summary_log("perf/summary.log");
+
+  auto log_details = [&](const std::string& msg) {
+    std::cout << msg << std::endl;
+    details_log << msg << std::endl;
+  };
+
+  auto log_summary = [&](const std::string& msg) {
+    std::cout << msg << std::endl;
+    summary_log << msg << std::endl;
+  };
+
+  std::mt19937 rng(12345);
+
+  std::vector<CardType> full_deck;
+  for (int suit = 0; suit < 4; suit++) {
+    for (int val = 0; val < 13; val++) {
+      full_deck.push_back(Card::GetSuitedCard(static_cast<Suit>(suit), val));
+    }
+  }
+
+  log_details("Starting LineFinder Performance Benchmark");
+  log_details("Range: ending_size 6..13, 3 trials per ending_size, num_deals=40");
+
+  log_summary("=== LineFinder Performance Benchmark Summary ===");
+
+  LineFinder lf(40);
+
+  for (int ending_size = 6; ending_size <= 13; ending_size++) {
+    for (int trial = 1; trial <= 3; trial++) {
+      std::vector<CardType> deck = full_deck;
+      std::shuffle(deck.begin(), deck.end(), rng);
+
+      std::vector<uint64_t> hands(4, 0);
+      uint64_t unknown_cards = 0;
+
+      for (int i = 0; i < ending_size; i++) {
+        hands[0] |= deck[i];
+      }
+      for (int i = 0; i < ending_size; i++) {
+        hands[2] |= deck[ending_size + i];
+      }
+      for (int i = 0; i < 2 * ending_size; i++) {
+        unknown_cards |= deck[2 * ending_size + i];
+      }
+
+      int dist0[4] = {0};
+      int dist2[4] = {0};
+      GetHandSuitDistribution(hands[0], dist0);
+      GetHandSuitDistribution(hands[2], dist2);
+
+      Suit trump = SPADES;
+      int max_combined = -1;
+      for (int s = 0; s < 4; s++) {
+        int combined = dist0[s] + dist2[s];
+        if (combined > max_combined) {
+          max_combined = combined;
+          trump = static_cast<Suit>(s);
+        }
+      }
+
+      int leader = 1;  // Leader is hand 1 (EAST)
+      int min_tricks = ending_size * 2 / 3;
+
+      std::string suit_len_str = "(" + std::to_string(dist0[trump]) + "-" +
+                                 std::to_string(dist2[trump]) + ")";
+
+      log_details("\n=== ending_size = " + std::to_string(ending_size) +
+                  ", trial = " + std::to_string(trial) + " ===");
+      log_details("hand[0] (Declarer): " + HandDebugString(hands[0]));
+      log_details("hand[2] (Partner):  " + HandDebugString(hands[2]));
+      log_details("unknown_cards:      " + HandDebugString(unknown_cards));
+      log_details("Trump: " + SuitDebugString(trump) + " " + suit_len_str +
+                  ", Leader: " + std::to_string(leader) +
+                  ", Min Tricks: " + std::to_string(min_tricks));
+
+      srand48(12345 + ending_size * 10 + trial);
+
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<ConditionalLine> lines =
+          lf.Solve(min_tricks, hands, unknown_cards, leader, trump);
+      auto end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> elapsed = end - start;
+
+      bool succeeded = !lines.empty();
+      std::string status = succeeded ? "SUCCESS" : "FAILED";
+
+      log_details("Found " + std::to_string(lines.size()) + " lines for ending_size = " +
+                  std::to_string(ending_size) + " trial " + std::to_string(trial));
+      for (size_t i = 0; i < lines.size(); i++) {
+        log_details("Line " + std::to_string(i + 1) + ": " + lines[i].Describe());
+      }
+      log_details("Solve took " + std::to_string(elapsed.count()) + " seconds. Status: " + status);
+
+      std::stringstream ss;
+      ss << "ending_size=" << std::setw(2) << ending_size
+         << " trial=" << trial
+         << " time=" << std::fixed << std::setprecision(3) << elapsed.count() << "s"
+         << " trump=" << std::setw(2) << SuitDebugString(trump)
+         << " fit=" << std::setw(6) << suit_len_str
+         << " min_tricks=" << std::setw(2) << min_tricks
+         << " result=" << status
+         << " (lines=" << lines.size() << ")";
+
+      log_summary(ss.str());
+    }
+  }
+
+  log_details("\nBenchmark complete.");
+  log_summary("Benchmark complete.");
+
+  return 0;
+}
