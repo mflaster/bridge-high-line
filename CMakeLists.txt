@@ -80,6 +80,7 @@ add_library(bridge_lib STATIC
   interface_dds.cc
   golden_serializer.cc
   web_server.cc
+  cross_hand_summarizer.cc
 )
 
 target_include_directories(bridge_lib PUBLIC
@@ -115,6 +116,7 @@ set(TEST_NAMES
   interface_dds_test
   line_finder_test
   server_test
+  cross_hand_summarizer_test
 )
 
 foreach(test_name IN LISTS TEST_NAMES)

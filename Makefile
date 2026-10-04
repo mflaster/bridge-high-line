@@ -1,4 +1,4 @@
-.PHONY: all all_tests run_all_tests clean run_basic_test run_requirements_test run_deal_test run_dds_test run_interface_dds_test run_line_finder_test run_board_state_test run_conditional_line_test run_server_test run_server
+.PHONY: all all_tests run_all_tests clean run_basic_test run_requirements_test run_deal_test run_dds_test run_interface_dds_test run_line_finder_test run_board_state_test run_conditional_line_test run_server_test run_cross_hand_summarizer_test run_server
 
 all:
 	cmake -B build
@@ -35,6 +35,9 @@ run_conditional_line_test: all
 
 run_server_test: all
 	./build/server_test --reporter compact --success -d yes
+
+run_cross_hand_summarizer_test: all
+	./build/cross_hand_summarizer_test --reporter compact --success -d yes
 
 run_server: all
 	./build/bridge_server
