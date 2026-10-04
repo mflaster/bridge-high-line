@@ -8,19 +8,11 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules:
   - hand 1 length in S is between 2 and 4
-  - hand 2 length in S is between 2 and 4
-  - combined length in S is always 6
+  - hand 3 length in S is between 2 and 4
   - maximum length in S in any hand is 4
   - hand 1 length in H is between 2 and 4
-  - hand 2 length in H is between 2 and 4
-  - combined length in H is always 6
+  - hand 3 length in H is between 2 and 4
   - maximum length in H in any hand is 4
-  - hand 1 length in D is always 0
-  - hand 2 length in D is always 0
-  - combined length in D is always 0
-  - hand 1 length in C is always 0
-  - hand 2 length in C is always 0
-  - combined length in C is always 0
 
   after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19] / DA H8 D4 S7  / DA H8 D4 S8  / DA HT D4 SJ  / DA S9 D4 HT 
     when 0 wins: 

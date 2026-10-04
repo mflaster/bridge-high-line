@@ -16,7 +16,9 @@ TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
 
   REQUIRE(report.total_deals == 3);
   REQUIRE(report.HasRule("hand 1 always contains the SK"));
-  REQUIRE(report.HasRule("maximum length in S in any hand is 2"));
+  // Single-suit tautology suppression ensures suit length rules are omitted when all unknown cards are in Spades
+  REQUIRE_FALSE(report.HasRule("combined length in S is always 4"));
+  REQUIRE_FALSE(report.HasRule("hand 1 length in S is always 2"));
 }
 
 TEST_CASE("SpotCardFiltering_IgnoresSpots", "[cross_hand_summarizer]") {
@@ -35,27 +37,33 @@ TEST_CASE("SpotCardFiltering_IgnoresSpots", "[cross_hand_summarizer]") {
   REQUIRE(report.HasRule("hand 1 always contains the HA"));
 }
 
-TEST_CASE("JointSuitRuleExtractor_SuitBoundsAndFit", "[cross_hand_summarizer]") {
-  // Spades fit: Overall set S AKQJT9876 (9 spades) in all deals
+TEST_CASE("JointSuitRuleExtractor_SuitBoundsAndTautologySuppression", "[cross_hand_summarizer]") {
+  // Spades and Hearts unknown cards
+  // Deal 1: Hand 1 = S AK (2), H 2 (1); Hand 2 = S Q (1), H 34 (2)
+  // Deal 2: Hand 1 = S AK (2), H 3 (1); Hand 2 = S Q (1), H 24 (2)
   std::vector<PairedDeal> deals = {
-      PairedDeal("S AKQJT", "S 9876"),
-      PairedDeal("S AKQ98", "S JT76")
+      PairedDeal("S AK H 2", "S Q H 34"),
+      PairedDeal("S AK H 3", "S Q H 24")
   };
 
   CrossHandDealSetSummarizer summarizer;
-  CrossHandSummaryReport report = summarizer.Summarize(deals);
+  CrossHandSummaryReport report = summarizer.Summarize(deals, "hand 1", "hand 3");
 
   REQUIRE(report.total_deals == 2);
-  REQUIRE(report.suit_bounds[SPADES].min_hand1 == 5);
-  REQUIRE(report.suit_bounds[SPADES].max_hand1 == 5);
-  REQUIRE(report.suit_bounds[SPADES].min_hand2 == 4);
-  REQUIRE(report.suit_bounds[SPADES].max_hand2 == 4);
-  REQUIRE(report.suit_bounds[SPADES].min_combined == 9);
-  REQUIRE(report.suit_bounds[SPADES].max_combined == 9);
+  REQUIRE(report.suit_bounds[SPADES].min_hand1 == 2);
+  REQUIRE(report.suit_bounds[SPADES].max_hand1 == 2);
+  REQUIRE(report.suit_bounds[SPADES].min_hand2 == 1);
+  REQUIRE(report.suit_bounds[SPADES].max_hand2 == 1);
 
-  REQUIRE(report.HasRule("combined length in S is always 9"));
-  REQUIRE(report.HasRule("combined length in S has an 8+ card fit"));
-  REQUIRE(report.HasRule("maximum length in S in any hand is 5"));
+  REQUIRE(report.HasRule("hand 1 length in S is always 2"));
+  REQUIRE(report.HasRule("hand 3 length in S is always 1"));
+  REQUIRE(report.HasRule("hand 1 length in H is always 1"));
+  REQUIRE(report.HasRule("hand 3 length in H is always 2"));
+
+  // Verify tautologies are suppressed
+  REQUIRE_FALSE(report.HasRule("combined length in S is always 3"));
+  REQUIRE_FALSE(report.HasRule("hand 1 length in D is always 0"));
+  REQUIRE_FALSE(report.HasRule("hand 3 length in C is always 0"));
 }
 
 TEST_CASE("HonorPossessionClassifier_MultipleHonors", "[cross_hand_summarizer]") {
@@ -66,14 +74,14 @@ TEST_CASE("HonorPossessionClassifier_MultipleHonors", "[cross_hand_summarizer]")
   };
 
   CrossHandDealSetSummarizer summarizer;
-  CrossHandSummaryReport report = summarizer.Summarize(deals);
+  CrossHandSummaryReport report = summarizer.Summarize(deals, "hand 1", "hand 3");
 
   REQUIRE(report.total_deals == 2);
   REQUIRE(report.HasRule("hand 1 always contains the SA"));
   REQUIRE(report.HasRule("hand 1 always contains the HK"));
   REQUIRE(report.HasRule("hand 1 always contains the DQ"));
-  REQUIRE(report.HasRule("hand 2 always contains the HA"));
-  REQUIRE(report.HasRule("hand 2 always contains the DK"));
+  REQUIRE(report.HasRule("hand 3 always contains the HA"));
+  REQUIRE(report.HasRule("hand 3 always contains the DK"));
 }
 
 TEST_CASE("MaximumSuitLength_AcrossBifurcations", "[cross_hand_summarizer]") {

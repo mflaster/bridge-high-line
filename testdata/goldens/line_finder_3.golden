@@ -7,19 +7,6 @@ Covers 10/20 (50.0%) [1, 3, 4, 10, 11, 12, 14, 16, 17, 19]
 Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules:
-  - hand 1 length in S is always 3
-  - hand 2 length in S is always 3
-  - combined length in S is always 6
-  - maximum length in S in any hand is 3
-  - hand 1 length in H is always 0
-  - hand 2 length in H is always 0
-  - combined length in H is always 0
-  - hand 1 length in D is always 0
-  - hand 2 length in D is always 0
-  - combined length in D is always 0
-  - hand 1 length in C is always 0
-  - hand 2 length in C is always 0
-  - combined length in C is always 0
   - hand 1 always contains the SQ
 
   after SK (S_) S4 (S_): SK (S_) S4 (S_) [1,3,4,10,11,12,14,16,17,19] / SK S6 S4 S7  / SK S6 S4 S7  / SK S6 S4 S8  / SK S8 S4 S7  / SK S6 S4 S7 

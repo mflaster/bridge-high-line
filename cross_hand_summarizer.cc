@@ -36,6 +36,15 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
   std::vector<std::string> rules;
   if (total_deals_ == 0) return rules;
 
+  int total_unknown_cards = 0;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    auto it = suit_bounds_.find(suit);
+    if (it != suit_bounds_.end()) {
+      total_unknown_cards += it->second.max_combined;
+    }
+  }
+
   for (int s = 0; s < 4; ++s) {
     Suit suit = static_cast<Suit>(s);
     auto it = suit_bounds_.find(suit);
@@ -44,32 +53,36 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
     const auto& bounds = it->second;
     std::string suit_str = SuitDebugString(suit);
 
+    // Skip suit length rules if there are no cards of this suit in the unknown pool (tautology)
+    if (bounds.max_combined == 0) {
+      continue;
+    }
+
+    // Skip suit length rules if ALL unknown cards belong to this single suit (tautology)
+    if (bounds.max_combined == total_unknown_cards) {
+      continue;
+    }
+
     if (bounds.min_hand1 == bounds.max_hand1) {
-      rules.push_back("hand 1 length in " + suit_str + " is always " + std::to_string(bounds.min_hand1));
+      rules.push_back(hand1_label_ + " length in " + suit_str + " is always " + std::to_string(bounds.min_hand1));
     } else {
-      rules.push_back("hand 1 length in " + suit_str + " is between " +
+      rules.push_back(hand1_label_ + " length in " + suit_str + " is between " +
                       std::to_string(bounds.min_hand1) + " and " +
                       std::to_string(bounds.max_hand1));
     }
     if (bounds.min_hand2 == bounds.max_hand2) {
-      rules.push_back("hand 2 length in " + suit_str + " is always " + std::to_string(bounds.min_hand2));
+      rules.push_back(hand2_label_ + " length in " + suit_str + " is always " + std::to_string(bounds.min_hand2));
     } else {
-      rules.push_back("hand 2 length in " + suit_str + " is between " +
+      rules.push_back(hand2_label_ + " length in " + suit_str + " is between " +
                       std::to_string(bounds.min_hand2) + " and " +
                       std::to_string(bounds.max_hand2));
     }
-    if (bounds.min_combined == bounds.max_combined) {
-      rules.push_back("combined length in " + suit_str + " is always " + std::to_string(bounds.min_combined));
-    } else {
-      rules.push_back("combined length in " + suit_str + " is between " +
-                      std::to_string(bounds.min_combined) + " and " +
-                      std::to_string(bounds.max_combined));
-    }
-    if (bounds.min_combined >= 8) {
-      rules.push_back("combined length in " + suit_str + " has an 8+ card fit");
-    }
 
-    if (bounds.max_combined > 0) {
+    // Note: Combined length ("combined length in S is always X") is omitted as a tautology
+    // because every deal in a set is drawn from identical unknown cards.
+
+    // Emit maximum suit length in any hand if hand lengths vary across deals
+    if (bounds.min_hand1 != bounds.max_hand1 || bounds.min_hand2 != bounds.max_hand2) {
       int max_either = std::max(bounds.max_hand1, bounds.max_hand2);
       rules.push_back("maximum length in " + suit_str + " in any hand is " + std::to_string(max_either));
     }
@@ -122,9 +135,9 @@ std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {
       std::string card_str = SuitDebugString(suit) + Card::PrintCardValue(r);
 
       if (stats.hand1_count + stats.both_count == total_deals_ && stats.both_count < total_deals_) {
-        rules.push_back("hand 1 always contains the " + card_str);
+        rules.push_back(hand1_label_ + " always contains the " + card_str);
       } else if (stats.hand2_count + stats.both_count == total_deals_ && stats.both_count < total_deals_) {
-        rules.push_back("hand 2 always contains the " + card_str);
+        rules.push_back(hand2_label_ + " always contains the " + card_str);
       } else if (stats.both_count == total_deals_) {
         rules.push_back("both hands always contain the " + card_str);
       }
@@ -148,7 +161,9 @@ std::string CrossHandSummaryReport::ToString() const {
 }
 
 CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
-    const std::vector<PairedDeal>& deals) const {
+    const std::vector<PairedDeal>& deals,
+    const std::string& hand1_label,
+    const std::string& hand2_label) const {
   CrossHandSummaryReport report;
   report.total_deals = static_cast<int>(deals.size());
   if (deals.empty()) {
@@ -167,8 +182,8 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     }
   }
 
-  JointSuitRuleExtractor suit_extractor;
-  HonorPossessionClassifier honor_classifier;
+  JointSuitRuleExtractor suit_extractor(hand1_label, hand2_label);
+  HonorPossessionClassifier honor_classifier(hand1_label, hand2_label);
 
   for (const auto& deal : deals) {
     suit_extractor.ProcessDeal(deal);

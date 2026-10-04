@@ -39,26 +39,36 @@ struct HonorPossessionStats {
 
 class JointSuitRuleExtractor {
  public:
-  JointSuitRuleExtractor() = default;
+  JointSuitRuleExtractor(std::string hand1_label = "hand 1",
+                         std::string hand2_label = "hand 2")
+      : hand1_label_(std::move(hand1_label)),
+        hand2_label_(std::move(hand2_label)) {}
 
   void ProcessDeal(const PairedDeal& deal);
   const std::map<Suit, JointSuitBounds>& GetSuitBounds() const { return suit_bounds_; }
   std::vector<std::string> ExtractRules() const;
 
  private:
+  std::string hand1_label_;
+  std::string hand2_label_;
   std::map<Suit, JointSuitBounds> suit_bounds_;
   int total_deals_ = 0;
 };
 
 class HonorPossessionClassifier {
  public:
-  HonorPossessionClassifier() = default;
+  HonorPossessionClassifier(std::string hand1_label = "hand 1",
+                            std::string hand2_label = "hand 2")
+      : hand1_label_(std::move(hand1_label)),
+        hand2_label_(std::move(hand2_label)) {}
 
   void ProcessDeal(const PairedDeal& deal);
   const std::map<Suit, std::map<int, HonorPossessionStats>>& GetHonorStats() const { return honor_stats_; }
   std::vector<std::string> ExtractRules() const;
 
  private:
+  std::string hand1_label_;
+  std::string hand2_label_;
   // Map of Suit -> (honor rank 8..12 -> HonorPossessionStats)
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats_;
   int total_deals_ = 0;
@@ -86,5 +96,8 @@ class CrossHandDealSetSummarizer {
  public:
   CrossHandDealSetSummarizer() = default;
 
-  CrossHandSummaryReport Summarize(const std::vector<PairedDeal>& deals) const;
+  CrossHandSummaryReport Summarize(
+      const std::vector<PairedDeal>& deals,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const;
 };

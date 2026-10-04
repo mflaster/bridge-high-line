@@ -202,7 +202,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
       }
       if (!covered_deals.empty()) {
         try {
-          line.set_summary(summarizer.Summarize(covered_deals));
+          line.set_summary(summarizer.Summarize(covered_deals, "hand 1", "hand 3"));
         } catch (const std::exception &e) {
           LOG(WARNING) << "Failed to summarize line: " << e.what();
         }
