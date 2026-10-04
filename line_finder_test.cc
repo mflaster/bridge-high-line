@@ -740,71 +740,6 @@ struct LineFinderTestCase {
     return NOTRUMP;
   }
 
-  static std::shared_ptr<HandRequirements> ParseRequirement(const std::string &val, Suit trump) {
-    std::string val_lower;
-    for (char c : val) val_lower += tolower(c);
-
-    Suit s = trump;
-    if (val_lower.find("spade") != std::string::npos) s = SPADES;
-    else if (val_lower.find("heart") != std::string::npos) s = HEARTS;
-    else if (val_lower.find("diamond") != std::string::npos) s = DIAMONDS;
-    else if (val_lower.find("club") != std::string::npos) s = CLUBS;
-
-    if (val_lower.find("1, 2, or 3") != std::string::npos ||
-        val_lower.find("1, 2, 3") != std::string::npos ||
-        val_lower.find("1..3") != std::string::npos ||
-        val_lower.find("1-3") != std::string::npos ||
-        (val_lower.find("4 spade") != std::string::npos &&
-         (val_lower.find("one hand") != std::string::npos ||
-          val_lower.find("neither") != std::string::npos ||
-          val_lower.find("restriction") != std::string::npos ||
-          val_lower.find("allowed") != std::string::npos))) {
-      return std::make_shared<AntiRequirement>(std::make_shared<SuitLength>(s, 1, 3));
-    }
-
-    if (val_lower.find("0 or 4") != std::string::npos || val_lower.find("0, 4") != std::string::npos) {
-      return std::make_shared<AnyOfRequirement>(std::vector<std::shared_ptr<HandRequirements>>{
-          std::make_shared<SuitLength>(s, 0, 0),
-          std::make_shared<SuitLength>(s, 4, 4)});
-    }
-
-    if (val_lower.find("card") != std::string::npos || val_lower.find("cq") != std::string::npos) {
-      std::string card_str;
-      for (size_t i = 0; i < val.size(); ++i) {
-        if ((val[i] == 'S' || val[i] == 'H' || val[i] == 'D' || val[i] == 'C') &&
-            i + 1 < val.size() && isalnum(val[i+1])) {
-          card_str = val.substr(i, 2);
-          break;
-        }
-      }
-      if (!card_str.empty()) {
-        return std::make_shared<HandHasCard>(Card::ParseStringCard(card_str));
-      }
-    }
-
-    std::vector<int> nums;
-    for (size_t i = 0; i < val.size(); ++i) {
-      if (isdigit(val[i])) {
-        int num = val[i] - '0';
-        while (i + 1 < val.size() && isdigit(val[i+1])) {
-          num = num * 10 + (val[i+1] - '0');
-          i++;
-        }
-        nums.push_back(num);
-      }
-    }
-    if (!nums.empty()) {
-      int low = nums[0];
-      int high = (nums.size() >= 2) ? nums[1] : nums[0];
-      if (val_lower.find("not") != std::string::npos || val_lower.find("neither") != std::string::npos) {
-        return std::make_shared<AntiRequirement>(std::make_shared<SuitLength>(s, low, high));
-      }
-      return std::make_shared<SuitLength>(s, low, high);
-    }
-
-    return std::make_shared<AntiRequirement>(std::make_shared<SuitLength>(s, 1, 3));
-  }
-
   static LineFinderTestCase Parse(const std::string &spec, const std::string &default_name = "") {
     LineFinderTestCase tc;
     tc.name = default_name;
@@ -858,14 +793,20 @@ struct LineFinderTestCase {
       } else if (key_lower.find("restriction") != std::string::npos ||
                  key_lower.find("requirement") != std::string::npos ||
                  key_lower.find("req") != std::string::npos) {
-        auto req = ParseRequirement(val, tc.trump);
-        if (key_lower.find("hand 1") != std::string::npos || key_lower.find("hand1") != std::string::npos) {
-          tc.reqs1.push_back(req);
-        } else if (key_lower.find("hand 3") != std::string::npos || key_lower.find("hand3") != std::string::npos) {
-          tc.reqs3.push_back(req);
-        } else {
-          tc.reqs1.push_back(req);
-          tc.reqs3.push_back(req);
+        auto req = HandRequirements::FromString(val);
+        if (req) {
+          if (key_lower.find("hand 1") != std::string::npos ||
+              key_lower.find("hand1") != std::string::npos ||
+              key_lower.find("hand_1") != std::string::npos) {
+            tc.reqs1.push_back(req);
+          } else if (key_lower.find("hand 3") != std::string::npos ||
+                     key_lower.find("hand3") != std::string::npos ||
+                     key_lower.find("hand_3") != std::string::npos) {
+            tc.reqs3.push_back(req);
+          } else {
+            tc.reqs1.push_back(req);
+            tc.reqs3.push_back(req);
+          }
         }
       } else if (key_lower == "unknown" || key_lower == "unknown_cards" ||
                  key_lower == "unknown cards" || key_lower.find("hands 1 and 3") != std::string::npos) {
@@ -941,7 +882,8 @@ TEST_CASE("LineFinder_TrumpSafety") {
     hand 0: S AKT9
     hand 2: S Q876
     unknown cards: S J543 D 5432
-    restriction on hands 1 and 3: one hand will have 4 spades (neither hand allowed 1, 2, or 3 spades)
+    hand_1_restrictions: Anti(SuitLength(Spades,1,3))
+    hand_3_restrictions: Anti(SuitLength(Spades,1,3))
   )", "trump_safety"));
 }
 
