@@ -57,11 +57,12 @@ int main(int argc, char** argv) {
   }
 
   log_details("Starting LineFinder Performance Benchmark");
-  log_details("Range: ending_size 6..13, 3 trials per ending_size, num_deals=40");
+  const int num_deals = 40;
+  log_details("Range: ending_size 6..13, 3 trials per ending_size, num_deals=" + std::to_string(num_deals));
 
   log_summary("=== LineFinder Performance Benchmark Summary ===");
 
-  LineFinder lf(40);
+  LineFinder lf(num_deals);
 
   for (int ending_size = 6; ending_size <= 13; ending_size++) {
     for (int trial = 1; trial <= 3; trial++) {
@@ -129,6 +130,7 @@ int main(int argc, char** argv) {
       }
       log_details("Solve took " + std::to_string(elapsed.count()) + " seconds. Status: " + status);
 
+      double pct = (100.0 * lines.size()) / num_deals;
       std::stringstream ss;
       ss << "ending_size=" << std::setw(2) << ending_size
          << " trial=" << trial
@@ -137,7 +139,8 @@ int main(int argc, char** argv) {
          << " fit=" << std::setw(6) << suit_len_str
          << " min_tricks=" << std::setw(2) << min_tricks
          << " result=" << status
-         << " (lines=" << lines.size() << ")";
+         << " (lines=" << lines.size() << "/" << num_deals << ", "
+         << std::fixed << std::setprecision(1) << pct << "%)";
 
       log_summary(ss.str());
     }
