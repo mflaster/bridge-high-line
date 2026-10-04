@@ -4,6 +4,10 @@
 # Hand 2: S AQ; H -; D -; C -;
 # Hand 3: 
 Covers 5/10 (50.0%) [1, 2, 4, 5, 6]
+Cross-Hand Deal Set Summary Report
+Total Deals: 5
+Invariant Rules for 2 card ending:
+  - hand 1 always contains the SK
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,2,4,5,6] / S3 S7 SQ S9  / S3 S9 SQ S8  / S3 S8 SQ S7  / S3 S8 SQ S7  / S3 S7 SQ S9 
     when 2 wins: 
