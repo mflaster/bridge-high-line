@@ -1,7 +1,5 @@
 #include <catch2/catch_all.hpp>
 
-#include <algorithm>
-
 #include "golden_serializer.h"
 #include "line_finder.h"
 #include "deal.h"
@@ -848,6 +846,4 @@ TEST_CASE("LineFinder_Squeeze1") {
     unknown: S QJT987 H AQJT98
   )", "squeeze_1"));
 }
-
-
 
