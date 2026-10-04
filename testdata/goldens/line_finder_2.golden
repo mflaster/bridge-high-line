@@ -3,6 +3,7 @@
 # Hand 1: 
 # Hand 2: S AQ; H -; D -; C -;
 # Hand 3: 
+# Unknown cards: S K987; H -; D -; C -;
 Covers 5/10 (50.0%) [1, 2, 4, 5, 6]
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,2,4,5,6] / S3 S7 SQ S9  / S3 S9 SQ S8  / S3 S8 SQ S7  / S3 S8 SQ S7  / S3 S7 SQ S9 
