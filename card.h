@@ -44,3 +44,28 @@ class Card {
 };
 
 std::string PrintCards(const CardType *cards, int num, int leader);
+
+inline int PopCount64(uint64_t v) {
+#if defined(_MSC_VER) && !defined(__clang__)
+  return static_cast<int>(__popcnt64(v));
+#else
+  return __builtin_popcountll(v);
+#endif
+}
+
+// 64-bit rank and honor bitmask constants across all 4 suits
+constexpr uint64_t kTenMask64   = 0x0100010001000100ULL;
+constexpr uint64_t kJackMask64  = 0x0200020002000200ULL;
+constexpr uint64_t kQueenMask64 = 0x0400040004000400ULL;
+constexpr uint64_t kKingMask64  = 0x0800080008000800ULL;
+constexpr uint64_t kAceMask64   = 0x1000100010001000ULL;
+constexpr uint64_t kHonorMask64 = 0x1F001F001F001F00ULL;
+constexpr uint64_t kSpotMask64  = 0x00FF00FF00FF00FFULL;
+
+inline uint64_t ExtractHonors(uint64_t hand) {
+  return hand & kHonorMask64;
+}
+
+inline int CountHonorsInHand(uint64_t hand) {
+  return PopCount64(ExtractHonors(hand));
+}

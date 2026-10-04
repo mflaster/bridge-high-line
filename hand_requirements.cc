@@ -46,14 +46,7 @@ bool AntiRequirement::MeetsRequirement(uint64_t hand) const {
 }
 
 bool AtLeastAces::MeetsRequirement(uint64_t hand) const {
-  int aces = 0;
-  for (int s = 0; s < 4; s++) {
-    uint64_t c = Card::GetSuitedCard((Suit)s, 12);
-    if (hand & c) {
-      aces++;
-    }
-  }
-  return aces >= n_;
+  return PopCount64(hand & kAceMask64) >= n_;
 }
 
 bool AnyOfRequirement::MeetsRequirement(uint64_t hand) const {

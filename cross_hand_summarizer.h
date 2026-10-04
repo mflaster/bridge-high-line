@@ -9,7 +9,7 @@
 #include "hand.h"
 
 // 64-bit mask for honor cards (ranks 10, J, Q, K, A, corresponding to bits 8..12 in each 16-bit suit)
-constexpr uint64_t kHonorMask = 0x1f001f001f001f00ULL;
+constexpr uint64_t kHonorMask = kHonorMask64;
 
 struct PairedDeal {
   uint64_t hand1 = 0;

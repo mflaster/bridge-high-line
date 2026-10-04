@@ -93,8 +93,8 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
 void HonorPossessionClassifier::ProcessDeal(const PairedDeal& deal) {
   total_deals_++;
   // Filter out spot cards (ranks 2 through 9) using 64-bit honor mask
-  uint64_t h1_honors = deal.hand1 & kHonorMask;
-  uint64_t h2_honors = deal.hand2 & kHonorMask;
+  uint64_t h1_honors = ExtractHonors(deal.hand1);
+  uint64_t h2_honors = ExtractHonors(deal.hand2);
 
   for (int s = 0; s < 4; ++s) {
     Suit suit = static_cast<Suit>(s);
