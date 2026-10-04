@@ -1,0 +1,962 @@
+Starting LineFinder Performance Benchmark (ending_size 3..11)
+
+=== LineFinder Benchmark: ending_size = 3 ===
+hand[0]: S -; H A; D -; C J9; 
+hand[2]: S K3; H -; D J; C -; 
+unknown_cards: S 96; H 75; D A; C 8; 
+Found 1 lines for ending_size = 3
+Line 1: Covers 19/20 (95.0%) [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+  after HA (__) DJ (__): HA (__) DJ (__) [0,1,2,3,4,5,6,7,9,10,11,12,13,14,15,16,17,18,19] / HA H7 DJ C8  / HA H7 DJ C8  / HA H7 DJ C8  / HA H7 DJ S6  / HA H5 DJ H7 
+    if 0 wins: 
+      after CJ (__) SK (__): CJ (__) SK (__) [0,1,2,4,5,6,7,9,11,12,13,14,16,17,19] / CJ H5 SK DA  / CJ H5 SK DA  / CJ H5 SK DA  / CJ C8 SK DA  / CJ S9 SK C8 
+        when 2 wins: 
+          after S3 (__) C9 (__): S3 (__) C9 (__) [0,1,2,4,5,6,7,9,11,12,13,14,16,17,19] / S3 S9 C9 S6  / S3 S9 C9 S6  / S3 S9 C9 S6  / S3 S9 C9 S6  / S3 S6 C9 DA 
+            if 1 wins: HAND SUCCEEDED FOR: 9, 12, 17, 19
+            if 3 wins: HAND SUCCEEDED FOR: 0, 1, 2, 4, 5, 6, 7, 11, 13, 14, 16
+    if 1 wins: 
+      after (S_) SK (R_) CJ: (S_) SK (R_) CJ [10,15] / S6 SK H5 CJ  / S6 SK H5 CJ 
+        when 2 wins: 
+          after S3 (R_) C9 (R_): S3 (R_) C9 (R_) [10,15] / S3 C8 C9 DA  / S3 C8 C9 DA 
+            when 2 wins: HAND SUCCEEDED FOR: 10, 15
+    if 3 wins: 
+      after (C_) CJ (R_) S3: (C_) CJ (R_) S3 [3,18] / C8 CJ H5 S3  / C8 CJ H5 S3 
+        when 2 wins: 
+          after SK (R_) C9 (S_): SK (R_) C9 (S_) [3,18] / SK DA C9 S9  / SK DA C9 S9 
+            when 2 wins: HAND SUCCEEDED FOR: 3, 18
+LineFinder.Solve for ending_size = 3 took 0.375076 seconds.
+
+=== LineFinder Benchmark: ending_size = 4 ===
+hand[0]: S 5; H A; D 2; C T; 
+hand[2]: S 4; H T; D -; C 92; 
+unknown_cards: S KJ9; H 4; D K3; C 43; 
+Found 1 lines for ending_size = 4
+Line 1: Covers 7/20 (35.0%) [3, 5, 9, 10, 17, 18, 19]
+
+  after CT (C_) C9 (C_): CT (C_) C9 (C_) [3,5,6,9,10,15,17,18,19] / CT C4 C9 C3  / CT C4 C9 C3  / CT C4 C9 C3  / CT C3 C9 C4  / CT C3 C9 C4 
+    when 0 wins: 
+      after D2 (D_) S4 (D_): D2 (D_) S4 (D_) [3,5,9,10,17,18,19] / D2 DK S4 D3  / D2 D3 S4 DK  / D2 DK S4 D3  / D2 D3 S4 DK  / D2 DK S4 D3 
+        when 2 wins: 
+          after HT (__) HA (__): HT (__) HA (__) [3,5,9,10,17,18,19] / HT H4 HA S9  / HT H4 HA SJ  / HT S9 HA H4  / HT S9 HA H4  / HT SJ HA H4 
+            if 1 wins: 
+              after (S_) C2 (SX) S5: (S_) C2 (SX) S5 [3,5,18] / SK C2 SJ S5  / S9 C2 SK S5  / SK C2 SJ S5 
+                if 1 wins: HAND SUCCEEDED FOR: 3, 18
+                if 3 wins: HAND SUCCEEDED FOR: 5
+            if 3 wins: 
+              after (S_) S5 (S_) C2: (S_) S5 (S_) C2 [9,10,17,19] / SK S5 SJ C2  / SK S5 SJ C2  / S9 S5 SK C2  / SJ S5 S9 C2 
+                if 1 wins: HAND SUCCEEDED FOR: 17
+                if 3 wins: HAND SUCCEEDED FOR: 9, 10, 19
+LineFinder.Solve for ending_size = 4 took 0.397327 seconds.
+
+=== LineFinder Benchmark: ending_size = 5 ===
+hand[0]: S -; H Q2; D J4; C 7; 
+hand[2]: S K9; H 6; D 93; C -; 
+unknown_cards: S Q8762; H -; D K8; C 842; 
+Found 1 lines for ending_size = 5
+Line 1: Covers 20/20 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
+  after C7 (__) S9 (C_): C7 (__) S9 (C_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / C7 C4 S9 C2  / C7 C2 S9 C4  / C7 C8 S9 C2  / C7 C8 S9 C4  / C7 C4 S9 C8 
+    when 2 wins: 
+      after SK (__) HQ (S_): SK (__) HQ (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / SK S6 HQ S2  / SK S6 HQ S7  / SK S2 HQ S6  / SK S2 HQ SQ  / SK S8 HQ S6 
+        when 2 wins: 
+          after H6 (__) H2 (__): H6 (__) H2 (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / H6 SQ H2 S7  / H6 S8 H2 SQ  / H6 S8 H2 C4  / H6 C2 H2 S8  / H6 S7 H2 S2 
+            if 1 wins: 
+              after (__) D9 (__) DJ: (__) D9 (__) DJ [1,3,8,9,10,11,14,16,17,18,19] / D8 D9 S2 DJ  / S7 D9 D8 DJ  / S8 D9 C8 DJ  / SQ D9 S7 DJ  / S6 D9 D8 DJ 
+                if 1 wins: 
+                  after (__) D3 (D_) D4: (__) D3 (D_) D4 [3,8,9,10,14,16,18] / S6 D3 DK D4  / DK D3 D8 D4  / DK D3 D8 D4  / S2 D3 DK D4  / S6 D3 DK D4 
+                    when 1 wins: HAND SUCCEEDED FOR: 3, 8, 9, 10, 14, 16, 18
+                if 3 wins: 
+                  after (__) D4 (DK) D3: (__) D4 (DK) D3 [1,11,17,19] / C8 D4 DK D3  / C2 D4 DK D3  / D8 D4 DK D3  / D8 D4 DK D3 
+                    if 1 wins: HAND SUCCEEDED FOR: 17, 19
+                    if 3 wins: HAND SUCCEEDED FOR: 1, 11
+            if 3 wins: 
+              after (__) DJ (__) D9: (__) DJ (__) D9 [0,2,4,5,6,7,12,13,15] / D8 DJ DK D9  / S7 DJ SQ D9  / D8 DJ SQ D9  / SQ DJ S7 D9  / D8 DJ SQ D9 
+                if 1 wins: 
+                  after (__) D3 (__) D4: (__) D3 (__) D4 [0,2,4,6,12,13] / C8 D3 S8 D4  / DK D3 D8 D4  / C2 D3 DK D4  / C2 D3 DK D4  / D8 D3 DK D4 
+                    if 1 wins: HAND SUCCEEDED FOR: 2, 4, 6, 13
+                    if 3 wins: HAND SUCCEEDED FOR: 0, 12
+                if 3 wins: 
+                  after (__) D4 (D_) D3: (__) D4 (D_) D3 [5,7,15] / DK D4 D8 D3  / DK D4 D8 D3  / S8 D4 DK D3 
+                    when 3 wins: HAND SUCCEEDED FOR: 5, 7, 15
+LineFinder.Solve for ending_size = 5 took 1.65607 seconds.
+
+=== LineFinder Benchmark: ending_size = 6 ===
+hand[0]: S K73; H 9; D 9; C 9; 
+hand[2]: S -; H -; D K3; C QJT6; 
+unknown_cards: S A84; H 87; D JT874; C 74; 
+Found 1 lines for ending_size = 6
+Line 1: Covers 16/20 (80.0%) [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 17, 19]
+
+  after SK (__) CQ (S_): SK (__) CQ (S_) [0,1,2,3,5,6,7,8,9,10,11,12,14,16,17,19] / SK S4 CQ S8  / SK S4 CQ S8  / SK S4 CQ S8  / SK H8 CQ SA  / SK S4 CQ SA 
+    if 0 wins: 
+      after S7 (__) D3 (__): S7 (__) D3 (__) [0,1,2,6,7,8,12,17,19] / S7 SA D3 H8  / S7 SA D3 D8  / S7 SA D3 D7  / S7 C4 D3 SA  / S7 SA D3 D4 
+        if 1 wins: 
+          after (C_) CJ (C_) C9: (C_) CJ (C_) C9 [2,7,12,17] / C4 CJ C7 C9  / C4 CJ C7 C9  / C7 CJ C4 C9  / C4 CJ C7 C9 
+            when 2 wins: 
+              after CT (R_) S3 (R_): CT (R_) S3 (R_) [2,7,12,17] / CT DJ S3 D8  / CT DJ S3 D8  / CT D4 S3 D8  / CT D8 S3 D7 
+                when 0 wins: 
+                  after H9 (H_) C6 (H_): H9 (H_) C6 (H_) [2,7,12,17] / H9 H8 C6 H7  / H9 H8 C6 H7  / H9 H8 C6 H7  / H9 H8 C6 H7 
+                    when 0 wins: 
+                      after D9 (D_) DK (DX): D9 (D_) DK (DX) [2,7,12,17] / D9 D4 DK DT  / D9 D7 DK DT  / D9 DT DK DJ  / D9 DT DK DJ 
+                        when 2 wins: HAND SUCCEEDED FOR: 2, 7, 12, 17
+          after (D_) DK (D_) D9: (D_) DK (D_) D9 [0,1] / D7 DK D4 D9  / D4 DK D7 D9 
+            when 2 wins: 
+              after CJ (C_) C9 (__): CJ (C_) C9 (__) [0,1] / CJ C4 C9 C7  / CJ C4 C9 H8 
+                when 2 wins: 
+                  after CT (__) S3 (R_): CT (__) S3 (R_) [0,1] / CT D8 S3 DJ  / CT C7 S3 DJ 
+                    when 0 wins: 
+                      after H9 (__) C6 (__): H9 (__) C6 (__) [0,1] / H9 DT C6 H7  / H9 H7 C6 DT 
+                        when 0 wins: HAND SUCCEEDED FOR: 0, 1
+        if 3 wins: 
+          after (D_) D9 (D_) DK: (D_) D9 (D_) DK [6,19] / D4 D9 D7 DK  / D4 D9 D7 DK 
+            when 2 wins: 
+              after CJ (__) C9 (C_): CJ (__) C9 (C_) [6,19] / CJ DT C9 C7  / CJ C7 C9 C4 
+                when 2 wins: 
+                  after CT (R_) S3 (R_): CT (R_) S3 (R_) [6,19] / CT D8 S3 DJ  / CT DJ S3 DT 
+                    when 0 wins: 
+                      after H9 (H_) C6 (H_): H9 (H_) C6 (H_) [6,19] / H9 H7 C6 H8  / H9 H8 C6 H7 
+                        when 0 wins: HAND SUCCEEDED FOR: 6, 19
+          after (C_) C9 (R_) CJ: (C_) C9 (R_) CJ [8] / C4 C9 D7 CJ 
+            when 2 wins: 
+              after DK (DT) D9 (D_): DK (DT) D9 (D_) [8] / DK DT D9 D4 
+                when 2 wins: 
+                  after CT (C_) S3 (R_): CT (C_) S3 (R_) [8] / CT C7 S3 DJ 
+                    when 0 wins: 
+                      after H9 (H_) C6 (S_): H9 (H_) C6 (S_) [8] / H9 H7 C6 S8 
+                        when 3 wins: HAND SUCCEEDED FOR: 8
+    if 1 wins: 
+      after (H_) D3 (H_) H9: (H_) D3 (H_) H9 [9] / H7 D3 H8 H9 
+        when 0 wins: 
+          after S7 (S_) CJ (R_): S7 (S_) CJ (R_) [9] / S7 S8 CJ D4 
+            when 1 wins: 
+              after (D_) DK (DJ) D9: (D_) DK (DJ) D9 [9] / D8 DK DJ D9 
+                when 2 wins: 
+                  after CT (C_) C9 (R_): CT (C_) C9 (R_) [9] / CT C4 C9 DT 
+                    when 2 wins: 
+                      after C6 (C_) S3 (R_): C6 (C_) S3 (R_) [9] / C6 C7 S3 D7 
+                        when 0 wins: HAND SUCCEEDED FOR: 9
+      after (C_) CJ (C_) C9: (C_) CJ (C_) C9 [14] / C7 CJ C4 C9 
+        when 2 wins: 
+          after CT (R_) S7 (R_): CT (R_) S7 (R_) [14] / CT D8 S7 H8 
+            when 0 wins: 
+              after S3 (S_) D3 (R_): S3 (S_) D3 (R_) [14] / S3 S8 D3 D7 
+                when 1 wins: 
+                  after (H_) C6 (R_) H9: (H_) C6 (R_) H9 [14] / H7 C6 D4 H9 
+                    when 0 wins: 
+                      after D9 (DT) DK (DJ): D9 (DT) DK (DJ) [14] / D9 DT DK DJ 
+                        when 2 wins: HAND SUCCEEDED FOR: 14
+    if 3 wins: 
+      after (D_) D9 (D_) DK: (D_) D9 (D_) DK [3,5,10,11,16] / D8 D9 D4 DK  / D7 D9 D8 DK  / D7 D9 D8 DK  / D4 D9 D8 DK  / D8 D9 D4 DK 
+        when 2 wins: 
+          after CJ (__) C9 (C_): CJ (__) C9 (C_) [3,5,10,11,16] / CJ S4 C9 C4  / CJ H8 C9 C4  / CJ DT C9 C4  / CJ H8 C9 C4  / CJ H8 C9 C4 
+            if 2 wins: 
+              after CT (__) S7 (C_): CT (__) S7 (C_) [5,10,11,16] / CT DT S7 C7  / CT D4 S7 C7  / CT H7 S7 C7  / CT H7 S7 C7 
+                when 0 wins: 
+                  after H9 (__) D3 (__): H9 (__) D3 (__) [5,10,11,16] / H9 S8 D3 H7  / H9 H8 D3 H7  / H9 D7 D3 S8  / H9 DJ D3 D7 
+                    if 0 wins: 
+                      after S3 (R_) C6 (S_): S3 (R_) C6 (S_) [10,16] / S3 DJ C6 S8  / S3 DT C6 S8 
+                        when 3 wins: HAND SUCCEEDED FOR: 10, 16
+                    if 1 wins: 
+                      after (DJ) C6 (D_) S3: (DJ) C6 (D_) S3 [5] / DJ C6 D4 S3 
+                        when 0 wins: HAND SUCCEEDED FOR: 5
+                    if 3 wins: 
+                      after (DT) S3 (DJ) C6: (DT) S3 (DJ) C6 [11] / DT S3 DJ C6 
+                        when 0 wins: HAND SUCCEEDED FOR: 11
+            if 3 wins: 
+              after (D_) S7 (DT) D3: (D_) S7 (DT) D3 [3] / D7 S7 DT D3 
+                when 0 wins: 
+                  after H9 (H_) CT (R_): H9 (H_) CT (R_) [3] / H9 H7 CT DJ 
+                    when 0 wins: 
+                      after S3 (R_) C6 (S_): S3 (R_) C6 (S_) [3] / S3 C7 C6 S8 
+                        when 3 wins: HAND SUCCEEDED FOR: 3
+LineFinder.Solve for ending_size = 6 took 5.66748 seconds.
+
+=== LineFinder Benchmark: ending_size = 7 ===
+hand[0]: S AJ87; H -; D 6; C AK; 
+hand[2]: S 9; H 94; D A; C Q64; 
+unknown_cards: S KT532; H QJ7; D KJ9; C 832; 
+Found 1 lines for ending_size = 7
+Line 1: Covers 17/20 (85.0%) [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19]
+
+  after SA (Sx) S9 (Sx): SA (Sx) S9 (Sx) [2,3,4,7,8,9,10,11,12,14,15,16,17,18,19] / SA S3 S9 S5  / SA S5 S9 S3  / SA S3 S9 S2  / SA S5 S9 S2  / SA S5 S9 S2 
+    when 0 wins: 
+      after S8 (__) H9 (__): S8 (__) H9 (__) [2,3,4,7,8,9,10,11,12,14,15,17,18,19] / S8 S2 H9 SK  / S8 SK H9 S2  / S8 ST H9 S5  / S8 ST H9 DK  / S8 S3 H9 H7 
+        if 0 wins: 
+          after S7 (ST) H4 (R_): S7 (ST) H4 (R_) [8,10,15] / S7 ST H4 HQ  / S7 ST H4 HQ  / S7 ST H4 HQ 
+            when 1 wins: 
+              after (C_) CQ (C_) CA: (C_) CQ (C_) CA [8,10,15] / C3 CQ C2 CA  / C3 CQ C8 CA  / C3 CQ C2 CA 
+                when 0 wins: 
+                  after SJ (SK) C6 (R_): SJ (SK) C6 (R_) [8,10,15] / SJ SK C6 HJ  / SJ SK C6 HJ  / SJ SK C6 HJ 
+                    when 1 wins: 
+                      after (C_) C4 (R_) CK: (C_) C4 (R_) CK [8,10,15] / C8 C4 DK CK  / C2 C4 DK CK  / C8 C4 DK CK 
+                        when 0 wins: 
+                          after D6 (D_) DA (DJ): D6 (D_) DA (DJ) [8,10,15] / D6 D9 DA DJ  / D6 D9 DA DJ  / D6 D9 DA DJ 
+                            when 2 wins: HAND SUCCEEDED FOR: 8, 10, 15
+        if 1 wins: 
+          after (C_) CQ (__) CA: (C_) CQ (__) CA [3,4,7,9,12,14,17] / C2 CQ C3 CA  / C2 CQ C3 CA  / C3 CQ C2 CA  / C3 CQ C2 CA  / C3 CQ HQ CA 
+            when 0 wins: 
+              after SJ (__) H4 (__): SJ (__) H4 (__) [3,4,7,9,12,14,17] / SJ HJ H4 ST  / SJ SK H4 HQ  / SJ SK H4 DJ  / SJ SK H4 DK  / SJ SK H4 HJ 
+                if 0 wins: 
+                  after CK (__) C6 (__): CK (__) C6 (__) [3,14,17] / CK C8 C6 DJ  / CK H7 C6 C8  / CK C2 C6 HJ 
+                    when 0 wins: 
+                      after S7 (__) C4 (__): S7 (__) C4 (__) [3,14,17] / S7 H7 C4 HQ  / S7 D9 C4 HQ  / S7 HQ C4 DK 
+                        when 0 wins: 
+                          after D6 (D_) DA (D_): D6 (D_) DA (D_) [3,14,17] / D6 DK DA D9  / D6 DK DA DJ  / D6 D9 DA DJ 
+                            when 2 wins: HAND SUCCEEDED FOR: 3, 14, 17
+                if 1 wins: 
+                  after (H_) C6 (HX) S7: (H_) C6 (HX) S7 [4,7] / H7 C6 HJ S7  / H7 C6 HQ S7 
+                    when 0 wins: 
+                      after D6 (__) DA (D_): D6 (__) DA (D_) [4,7] / D6 D9 DA DK  / D6 S3 DA D9 
+                        if 1 wins: 
+                          after (C_) C4 (R_) CK: (C_) C4 (R_) CK [7] / C8 C4 HJ CK 
+                            when 0 wins: HAND SUCCEEDED FOR: 7
+                        if 2 wins: 
+                          after C4 (R_) CK (C_): C4 (R_) CK (C_) [4] / C4 DJ CK C8 
+                            when 0 wins: HAND SUCCEEDED FOR: 4
+                  after (C_) C6 (__) CK: (C_) C6 (__) CK [9,12] / C8 C6 DJ CK  / C2 C6 H7 CK 
+                    when 0 wins: 
+                      after S7 (__) C4 (__): S7 (__) C4 (__) [9,12] / S7 HJ C4 HQ  / S7 C8 C4 DK 
+                        when 0 wins: 
+                          after D6 (__) DA (D_): D6 (__) DA (D_) [9,12] / D6 H7 DA D9  / D6 D9 DA DJ 
+                            when 2 wins: HAND SUCCEEDED FOR: 9, 12
+        if 3 wins: 
+          after (C_) CA (C_) CQ: (C_) CA (C_) CQ [11,18,19] / C3 CA C8 CQ  / C3 CA C2 CQ  / C2 CA C3 CQ 
+            when 0 wins: 
+              after SJ (__) H4 (__): SJ (__) H4 (__) [11,18,19] / SJ ST H4 DJ  / SJ ST H4 HJ  / SJ HJ H4 SK 
+                if 0 wins: 
+                  after S7 (R_) C6 (R_): S7 (R_) C6 (R_) [11,18] / S7 H7 C6 HJ  / S7 HQ C6 H7 
+                    when 0 wins: 
+                      after CK (__) C4 (C_): CK (__) C4 (C_) [11,18] / CK HQ C4 C2  / CK DK C4 C8 
+                        when 0 wins: 
+                          after D6 (DX) DA (D_): D6 (DX) DA (D_) [11,18] / D6 DK DA D9  / D6 DJ DA D9 
+                            when 2 wins: HAND SUCCEEDED FOR: 11, 18
+                if 3 wins: 
+                  after (HQ) S7 (H_) DA: (HQ) S7 (H_) DA [19] / HQ S7 H7 DA 
+                    when 0 wins: 
+                      after CK (R_) C6 (C_): CK (R_) C6 (C_) [19] / CK DJ C6 C8 
+                        when 0 wins: 
+                          after D6 (D_) C4 (S_): D6 (D_) C4 (S_) [19] / D6 D9 C4 S2 
+                            when 3 wins: HAND SUCCEEDED FOR: 19
+          after (DK) D6 (ST) DA: (DK) D6 (ST) DA [2] / DK D6 ST DA 
+            when 1 wins: 
+              after (C_) CQ (R_) CA: (C_) CQ (R_) CA [2] / C3 CQ DJ CA 
+                when 0 wins: 
+                  after SJ (R_) H4 (R_): SJ (R_) H4 (R_) [2] / SJ C2 H4 D9 
+                    when 0 wins: 
+                      after S7 (R_) C6 (R_): S7 (R_) C6 (R_) [2] / S7 HJ C6 H7 
+                        when 0 wins: 
+                          after CK (C_) C4 (R_): CK (C_) C4 (R_) [2] / CK C8 C4 HQ 
+                            when 0 wins: HAND SUCCEEDED FOR: 2
+  after SA (Sx) S9 (SK): SA (Sx) S9 (SK) [1,13] / SA S5 S9 SK  / SA S5 S9 SK 
+    when 0 wins: 
+      after CA (__) CQ (C_): CA (__) CQ (C_) [1,13] / CA C3 CQ C2  / CA DK CQ C3 
+        when 0 wins: 
+          after D6 (DX) DA (__): D6 (DX) DA (__) [1,13] / D6 DK DA DJ  / D6 DJ DA H7 
+            when 2 wins: 
+              after H9 (H_) S8 (__): H9 (H_) S8 (__) [1,13] / H9 H7 S8 HQ  / H9 HQ S8 ST 
+                if 0 wins: 
+                  after CK (S_) C6 (C_): CK (S_) C6 (C_) [1] / CK S3 C6 C8 
+                    when 1 wins: 
+                      after (S_) H4 (R_) S7: (S_) H4 (R_) S7 [1] / S2 H4 D9 S7 
+                        when 0 wins: 
+                          after SJ (ST) C4 (R_): SJ (ST) C4 (R_) [1] / SJ ST C4 HJ 
+                            when 0 wins: HAND SUCCEEDED FOR: 1
+                if 1 wins: 
+                  after (D_) H4 (R_) SJ: (D_) H4 (R_) SJ [13] / D9 H4 C2 SJ 
+                    when 0 wins: 
+                      after S7 (S_) C6 (R_): S7 (S_) C6 (R_) [13] / S7 S3 C6 HJ 
+                        when 0 wins: 
+                          after CK (S_) C4 (C_): CK (S_) C4 (C_) [13] / CK S2 C4 C8 
+                            when 1 wins: HAND SUCCEEDED FOR: 13
+  after SA (ST) S9 (S_): SA (ST) S9 (S_) [5] / SA ST S9 S5 
+    when 0 wins: 
+      after SJ (R_) H9 (S_): SJ (R_) H9 (S_) [5] / SJ C3 H9 S3 
+        when 0 wins: 
+          after S8 (R_) H4 (SK): S8 (R_) H4 (SK) [5] / S8 H7 H4 SK 
+            when 3 wins: 
+              after (HJ) S7 (HQ) CQ: (HJ) S7 (HQ) CQ [5] / HJ S7 HQ CQ 
+                when 0 wins: 
+                  after CA (C_) C6 (S_): CA (C_) C6 (S_) [5] / CA C2 C6 S2 
+                    when 3 wins: 
+                      after (DK) D6 (D_) DA: (DK) D6 (D_) DA [5] / DK D6 D9 DA 
+                        when 2 wins: 
+                          after C4 (R_) CK (C_): C4 (R_) CK (C_) [5] / C4 DJ CK C8 
+                            when 0 wins: HAND SUCCEEDED FOR: 5
+LineFinder.Solve for ending_size = 7 took 4.63122 seconds.
+
+=== LineFinder Benchmark: ending_size = 8 ===
+hand[0]: S Q94; H 4; D A5; C T8; 
+hand[2]: S K2; H KT; D -; C 7432; 
+unknown_cards: S T86; H J7632; D KQJ987; C A6; 
+Found 4 lines for ending_size = 8
+Line 1: Covers 17/20 (85.0%) [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 16, 18, 19]
+
+  after D5 (D_) S2 (D_): D5 (D_) S2 (D_) [0,1,2,3,4,5,7,8,9,10,12,13,14,15,16,17,18,19] / D5 D8 S2 DJ  / D5 D7 S2 D8  / D5 D8 S2 D9  / D5 D8 S2 D7  / D5 D8 S2 D7 
+    when 2 wins: 
+      after SK (S_) S4 (S_): SK (S_) S4 (S_) [0,1,2,3,5,7,8,9,10,12,13,14,15,17,18,19] / SK S8 S4 S6  / SK ST S4 S8  / SK S8 S4 ST  / SK S8 S4 S6  / SK S6 S4 S8 
+        when 2 wins: 
+          after HK (H_) H4 (Hx): HK (H_) H4 (Hx) [0,1,3,5,7,8,9,10,12,13,14,15,17,18,19] / HK H3 H4 H7  / HK H3 H4 H6  / HK H2 H4 H3  / HK H6 H4 H3  / HK H7 H4 H3 
+            when 2 wins: 
+              after C7 (__) CT (__): C7 (__) CT (__) [0,1,3,5,7,8,9,10,12,13,14,15,18,19] / C7 H6 CT C6  / C7 C6 CT CA  / C7 C6 CT DK  / C7 CA CT C6  / C7 C6 CT CA 
+                if 0 wins: 
+                  after SQ (__) HT (__): SQ (__) HT (__) [0,3,10,13] / SQ ST HT H2  / SQ H6 HT ST  / SQ D9 HT ST  / SQ ST HT DQ 
+                    when 0 wins: 
+                      after S9 (__) C4 (__): S9 (__) C4 (__) [0,3,10,13] / S9 D7 C4 HJ  / S9 HJ C4 H7  / S9 H2 C4 H6  / S9 H7 C4 DJ 
+                        when 0 wins: 
+                          after DA (__) C3 (D_): DA (__) C3 (D_) [0,3,10,13] / DA DQ C3 D9  / DA DQ C3 D9  / DA D8 C3 DK  / DA H6 C3 D7 
+                            when 0 wins: 
+                              after C8 (__) C2 (__): C8 (__) C2 (__) [0,3,10,13] / C8 CA C2 DK  / C8 DJ C2 CA  / C8 HJ C2 CA  / C8 CA C2 HJ 
+                                if 1 wins: HAND SUCCEEDED FOR: 0, 13
+                                if 3 wins: HAND SUCCEEDED FOR: 3, 10
+                if 1 wins: 
+                  after (S_) HT (R_) SQ: (S_) HT (R_) SQ [1,9] / S6 HT H7 SQ  / ST HT H7 SQ 
+                    when 0 wins: 
+                      after S9 (__) C4 (R_): S9 (__) C4 (R_) [1,9] / S9 D9 C4 HJ  / S9 HJ C4 H6 
+                        when 0 wins: 
+                          after C8 (R_) C3 (__): C8 (R_) C3 (__) [1,9] / C8 DK C3 H2  / C8 DQ C3 D8 
+                            when 0 wins: 
+                              after DA (DX) C2 (DX): DA (DX) C2 (DX) [1,9] / DA DQ C2 DJ  / DA DJ C2 DK 
+                                when 0 wins: HAND SUCCEEDED FOR: 1, 9
+                  after (H_) HT (R_) SQ: (H_) HT (R_) SQ [15] / H7 HT DK SQ 
+                    when 0 wins: 
+                      after S9 (R_) C4 (S_): S9 (R_) C4 (S_) [15] / S9 H6 C4 S6 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [15] / C8 H2 C3 DQ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DJ): DA (D_) C2 (DJ) [15] / DA D8 C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 15
+                  after (H_) HT (H_) S9: (H_) HT (H_) S9 [7] / H2 HT H6 S9 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [7] / SQ ST C4 D9 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [7] / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (DQ) C2 (D_): DA (DQ) C2 (D_) [7] / DA DQ C2 D8 
+                                when 0 wins: HAND SUCCEEDED FOR: 7
+                if 3 wins: 
+                  after (H_) S9 (__) HT: (H_) S9 (__) HT [8,12,14,19] / H6 S9 H2 HT  / H7 S9 DJ HT  / H7 S9 H6 HT  / H6 S9 H7 HT 
+                    when 0 wins: 
+                      after SQ (__) C4 (__): SQ (__) C4 (__) [8,12,14,19] / SQ ST C4 HJ  / SQ D9 C4 ST  / SQ DQ C4 ST  / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (__): C8 (R_) C3 (__) [8,12,14,19] / C8 D9 C3 D7  / C8 D8 C3 HJ  / C8 DJ C3 HJ  / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (__): DA (D_) C2 (__) [8,12,14,19] / DA DK C2 DQ  / DA D7 C2 H2  / DA D9 C2 DK  / DA DQ C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 8, 12, 14, 19
+                  after (D_) DA (DJ) HT: (D_) DA (DJ) HT [5,18] / D8 DA DJ HT  / D8 DA DJ HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [5,18] / SQ ST C4 DK  / SQ ST C4 DK 
+                        when 0 wins: 
+                          after S9 (R_) C3 (__): S9 (R_) C3 (__) [5,18] / S9 H7 C3 HJ  / S9 H7 C3 D7 
+                            when 0 wins: 
+                              after C8 (R_) C2 (__): C8 (R_) C2 (__) [5,18] / C8 H2 C2 DQ  / C8 H6 C2 HJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 5, 18
+          after HK (Hx) H4 (HJ): HK (Hx) H4 (HJ) [2] / HK H3 H4 HJ 
+            when 2 wins: 
+              after HT (H_) SQ (R_): HT (H_) SQ (R_) [2] / HT H7 SQ DQ 
+                when 0 wins: 
+                  after S9 (R_) C7 (S_): S9 (R_) C7 (S_) [2] / S9 DJ C7 S6 
+                    when 0 wins: 
+                      after DA (D_) C4 (DK): DA (D_) C4 (DK) [2] / DA D7 C4 DK 
+                        when 0 wins: 
+                          after CT (C_) C3 (R_): CT (C_) C3 (R_) [2] / CT C6 C3 H6 
+                            when 0 wins: 
+                              after C8 (CA) C2 (R_): C8 (CA) C2 (R_) [2] / C8 CA C2 H2 
+                                when 1 wins: HAND SUCCEEDED FOR: 2
+      after SK (Sx) S4 (R_): SK (Sx) S4 (R_) [4,16] / SK S8 S4 H2  / SK S8 S4 H2 
+        when 2 wins: 
+          after C7 (C_) CT (C_): C7 (C_) CT (C_) [4,16] / C7 CA CT C6  / C7 C6 CT CA 
+            if 1 wins: 
+              after (H_) HT (H_) H4: (H_) HT (H_) H4 [16] / H7 HT H3 H4 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [16] / HK DJ C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [16] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [16] / SQ DQ C3 ST 
+                            when 0 wins: 
+                              after DA (D_) C2 (DK): DA (D_) C2 (DK) [16] / DA D9 C2 DK 
+                                when 0 wins: HAND SUCCEEDED FOR: 16
+            if 3 wins: 
+              after (H_) H4 (H_) HT: (H_) H4 (H_) HT [4] / H3 H4 H7 HT 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [4] / HK D9 C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [4] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [4] / SQ DJ C3 ST 
+                            when 0 wins: 
+                              after DA (DK) C2 (DQ): DA (DK) C2 (DQ) [4] / DA DK C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 4
+Line 2: Covers 17/20 (85.0%) [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 16, 18, 19]
+
+  after D5 (Dx) S2 (D_): D5 (Dx) S2 (D_) [0,1,2,3,4,5,7,9,13,14,15,16,17,19] / D5 D8 S2 DJ  / D5 D7 S2 D8  / D5 D8 S2 D9  / D5 D8 S2 D7  / D5 D8 S2 D7 
+    when 2 wins: 
+      after SK (S_) S4 (S_): SK (S_) S4 (S_) [0,1,2,3,5,7,9,13,14,15,17,19] / SK S8 S4 S6  / SK ST S4 S8  / SK S8 S4 ST  / SK S8 S4 S6  / SK S6 S4 S8 
+        when 2 wins: 
+          after HK (H_) H4 (Hx): HK (H_) H4 (Hx) [0,1,3,5,7,9,13,14,15,17,19] / HK H3 H4 H7  / HK H3 H4 H6  / HK H2 H4 H3  / HK H6 H4 H3  / HK H7 H4 H3 
+            when 2 wins: 
+              after C7 (__) CT (__): C7 (__) CT (__) [0,1,3,5,7,9,13,14,15,19] / C7 H6 CT C6  / C7 C6 CT CA  / C7 C6 CT DK  / C7 CA CT C6  / C7 C6 CT CA 
+                if 0 wins: 
+                  after SQ (__) HT (__): SQ (__) HT (__) [0,3,13] / SQ ST HT H2  / SQ H6 HT ST  / SQ ST HT DQ 
+                    when 0 wins: 
+                      after S9 (__) C4 (__): S9 (__) C4 (__) [0,3,13] / S9 D7 C4 HJ  / S9 HJ C4 H7  / S9 H7 C4 DJ 
+                        when 0 wins: 
+                          after DA (__) C3 (D_): DA (__) C3 (D_) [0,3,13] / DA DQ C3 D9  / DA DQ C3 D9  / DA H6 C3 D7 
+                            when 0 wins: 
+                              after C8 (__) C2 (__): C8 (__) C2 (__) [0,3,13] / C8 CA C2 DK  / C8 DJ C2 CA  / C8 CA C2 HJ 
+                                if 1 wins: HAND SUCCEEDED FOR: 0, 13
+                                if 3 wins: HAND SUCCEEDED FOR: 3
+                if 1 wins: 
+                  after (S_) HT (R_) SQ: (S_) HT (R_) SQ [1,9] / S6 HT H7 SQ  / ST HT H7 SQ 
+                    when 0 wins: 
+                      after S9 (__) C4 (R_): S9 (__) C4 (R_) [1,9] / S9 D9 C4 HJ  / S9 HJ C4 H6 
+                        when 0 wins: 
+                          after C8 (R_) C3 (__): C8 (R_) C3 (__) [1,9] / C8 DK C3 H2  / C8 DQ C3 D8 
+                            when 0 wins: 
+                              after DA (DX) C2 (DX): DA (DX) C2 (DX) [1,9] / DA DQ C2 DJ  / DA DJ C2 DK 
+                                when 0 wins: HAND SUCCEEDED FOR: 1, 9
+                  after (H_) HT (R_) SQ: (H_) HT (R_) SQ [15] / H7 HT DK SQ 
+                    when 0 wins: 
+                      after S9 (R_) C4 (S_): S9 (R_) C4 (S_) [15] / S9 H6 C4 S6 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [15] / C8 H2 C3 DQ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DJ): DA (D_) C2 (DJ) [15] / DA D8 C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 15
+                  after (H_) HT (H_) S9: (H_) HT (H_) S9 [7] / H2 HT H6 S9 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [7] / SQ ST C4 D9 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [7] / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (DQ) C2 (D_): DA (DQ) C2 (D_) [7] / DA DQ C2 D8 
+                                when 0 wins: HAND SUCCEEDED FOR: 7
+                if 3 wins: 
+                  after (H_) S9 (H_) HT: (H_) S9 (H_) HT [14,19] / H7 S9 H6 HT  / H6 S9 H7 HT 
+                    when 0 wins: 
+                      after SQ (R_) C4 (ST): SQ (R_) C4 (ST) [14,19] / SQ DQ C4 ST  / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [14,19] / C8 DJ C3 HJ  / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DX): DA (D_) C2 (DX) [14,19] / DA D9 C2 DK  / DA DQ C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 14, 19
+                  after (D_) DA (DJ) HT: (D_) DA (DJ) HT [5] / D8 DA DJ HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [5] / SQ ST C4 DK 
+                        when 0 wins: 
+                          after S9 (R_) C3 (R_): S9 (R_) C3 (R_) [5] / S9 H7 C3 HJ 
+                            when 0 wins: 
+                              after C8 (R_) C2 (R_): C8 (R_) C2 (R_) [5] / C8 H2 C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 5
+          after HK (Hx) H4 (HJ): HK (Hx) H4 (HJ) [2] / HK H3 H4 HJ 
+            when 2 wins: 
+              after HT (H_) SQ (R_): HT (H_) SQ (R_) [2] / HT H7 SQ DQ 
+                when 0 wins: 
+                  after S9 (R_) C7 (S_): S9 (R_) C7 (S_) [2] / S9 DJ C7 S6 
+                    when 0 wins: 
+                      after DA (D_) C4 (DK): DA (D_) C4 (DK) [2] / DA D7 C4 DK 
+                        when 0 wins: 
+                          after CT (C_) C3 (R_): CT (C_) C3 (R_) [2] / CT C6 C3 H6 
+                            when 0 wins: 
+                              after C8 (CA) C2 (R_): C8 (CA) C2 (R_) [2] / C8 CA C2 H2 
+                                when 1 wins: HAND SUCCEEDED FOR: 2
+      after SK (Sx) S4 (R_): SK (Sx) S4 (R_) [4,16] / SK S8 S4 H2  / SK S8 S4 H2 
+        when 2 wins: 
+          after C7 (C_) CT (C_): C7 (C_) CT (C_) [4,16] / C7 CA CT C6  / C7 C6 CT CA 
+            if 1 wins: 
+              after (H_) HT (H_) H4: (H_) HT (H_) H4 [16] / H7 HT H3 H4 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [16] / HK DJ C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [16] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [16] / SQ DQ C3 ST 
+                            when 0 wins: 
+                              after DA (D_) C2 (DK): DA (D_) C2 (DK) [16] / DA D9 C2 DK 
+                                when 0 wins: HAND SUCCEEDED FOR: 16
+            if 3 wins: 
+              after (H_) H4 (H_) HT: (H_) H4 (H_) HT [4] / H3 H4 H7 HT 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [4] / HK D9 C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [4] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [4] / SQ DJ C3 ST 
+                            when 0 wins: 
+                              after DA (DK) C2 (DQ): DA (DK) C2 (DQ) [4] / DA DK C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 4
+  after D5 (DQ) S2 (D_): D5 (DQ) S2 (D_) [10,12,18] / D5 DQ S2 D7  / D5 DQ S2 DK  / D5 DQ S2 D9 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [10,12,18] / SK S6 S9 S8  / SK S8 S9 S6  / SK S8 S9 S6 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [10,12,18] / HK H7 H4 H3  / HK H3 H4 H6  / HK H2 H4 H3 
+            when 2 wins: 
+              after C7 (C_) CT (__): C7 (C_) CT (__) [10,12,18] / C7 C6 CT DJ  / C7 CA CT C6  / C7 CA CT C6 
+                if 0 wins: 
+                  after SQ (R_) HT (ST): SQ (R_) HT (ST) [10] / SQ D9 HT ST 
+                    when 0 wins: 
+                      after S4 (R_) C4 (R_): S4 (R_) C4 (R_) [10] / S4 H2 C4 H6 
+                        when 0 wins: 
+                          after C8 (R_) C3 (CA): C8 (R_) C3 (CA) [10] / C8 HJ C3 CA 
+                            when 3 wins: 
+                              after (DK) DA (D_) C2: (DK) DA (D_) C2 [10] / DK DA D8 C2 
+                                when 0 wins: HAND SUCCEEDED FOR: 10
+                if 3 wins: 
+                  after (H_) S4 (R_) HT: (H_) S4 (R_) HT [12] / H7 S4 DJ HT 
+                    when 0 wins: 
+                      after SQ (R_) C4 (ST): SQ (R_) C4 (ST) [12] / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [12] / C8 D8 C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (R_): DA (D_) C2 (R_) [12] / DA D7 C2 H2 
+                                when 0 wins: HAND SUCCEEDED FOR: 12
+                  after (D_) DA (DJ) HT: (D_) DA (DJ) HT [18] / D8 DA DJ HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [18] / SQ ST C4 DK 
+                        when 0 wins: 
+                          after S4 (R_) C3 (R_): S4 (R_) C3 (R_) [18] / S4 H7 C3 D7 
+                            when 0 wins: 
+                              after C8 (R_) C2 (R_): C8 (R_) C2 (R_) [18] / C8 H6 C2 HJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 18
+  after D5 (DJ) S2 (D_): D5 (DJ) S2 (D_) [8] / D5 DJ S2 D8 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [8] / SK S6 S9 S8 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [8] / HK H7 H4 H3 
+            when 2 wins: 
+              after C7 (CA) CT (C_): C7 (CA) CT (C_) [8] / C7 CA CT C6 
+                when 3 wins: 
+                  after (H_) S4 (H_) HT: (H_) S4 (H_) HT [8] / H6 S4 H2 HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [8] / SQ ST C4 HJ 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [8] / C8 D9 C3 D7 
+                            when 0 wins: 
+                              after DA (DK) C2 (DQ): DA (DK) C2 (DQ) [8] / DA DK C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 8
+Line 3: Covers 17/20 (85.0%) [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 16, 18, 19]
+
+  after D5 (D_) S2 (Dx): D5 (D_) S2 (Dx) [1,2,3,4,5,8,9,10,13,14,15,16,18,19] / D5 D7 S2 D8  / D5 D8 S2 D9  / D5 D8 S2 D7  / D5 D8 S2 D7  / D5 D7 S2 D9 
+    when 2 wins: 
+      after SK (S_) S4 (S_): SK (S_) S4 (S_) [1,2,3,5,8,9,10,13,14,15,18,19] / SK ST S4 S8  / SK S8 S4 ST  / SK S8 S4 S6  / SK S6 S4 S8  / SK S6 S4 S8 
+        when 2 wins: 
+          after HK (H_) H4 (Hx): HK (H_) H4 (Hx) [1,3,5,8,9,10,13,14,15,18,19] / HK H3 H4 H6  / HK H2 H4 H3  / HK H6 H4 H3  / HK H7 H4 H3  / HK H2 H4 H3 
+            when 2 wins: 
+              after C7 (__) CT (__): C7 (__) CT (__) [1,3,5,8,9,10,13,14,15,18,19] / C7 C6 CT CA  / C7 C6 CT DK  / C7 CA CT C6  / C7 CA CT C6  / C7 C6 CT CA 
+                if 0 wins: 
+                  after SQ (__) HT (__): SQ (__) HT (__) [3,10,13] / SQ H6 HT ST  / SQ D9 HT ST  / SQ ST HT DQ 
+                    when 0 wins: 
+                      after DA (__) C4 (D_): DA (__) C4 (D_) [3,10,13] / DA DQ C4 D9  / DA D8 C4 DK  / DA H7 C4 DJ 
+                        when 0 wins: 
+                          after C8 (__) C3 (__): C8 (__) C3 (__) [3,10,13] / C8 HJ C3 CA  / C8 H2 C3 CA  / C8 CA C3 D7 
+                            if 1 wins: 
+                              after (H_) C2 (HJ) S9: (H_) C2 (HJ) S9 [13] / H6 C2 HJ S9 
+                                when 0 wins: HAND SUCCEEDED FOR: 13
+                            if 3 wins: 
+                              after (H_) S9 (__) C2: (H_) S9 (__) C2 [3,10] / H7 S9 DJ C2  / H6 S9 HJ C2 
+                                when 0 wins: HAND SUCCEEDED FOR: 3, 10
+                if 1 wins: 
+                  after (__) HT (__) SQ: (__) HT (__) SQ [1,9,15] / S6 HT H7 SQ  / ST HT H7 SQ  / H7 HT DK SQ 
+                    when 0 wins: 
+                      after S9 (__) C4 (__): S9 (__) C4 (__) [1,9,15] / S9 D9 C4 HJ  / S9 HJ C4 H6  / S9 H6 C4 S6 
+                        when 0 wins: 
+                          after C8 (__) C3 (__): C8 (__) C3 (__) [1,9,15] / C8 DK C3 H2  / C8 DQ C3 D8  / C8 H2 C3 DQ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DX): DA (D_) C2 (DX) [1,9,15] / DA DQ C2 DJ  / DA DJ C2 DK  / DA D8 C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 1, 9, 15
+                if 3 wins: 
+                  after (H_) S9 (H_) HT: (H_) S9 (H_) HT [8,14,19] / H6 S9 H2 HT  / H7 S9 H6 HT  / H6 S9 H7 HT 
+                    when 0 wins: 
+                      after SQ (__) C4 (__): SQ (__) C4 (__) [8,14,19] / SQ ST C4 HJ  / SQ DQ C4 ST  / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (__): C8 (R_) C3 (__) [8,14,19] / C8 D9 C3 D7  / C8 DJ C3 HJ  / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DX): DA (D_) C2 (DX) [8,14,19] / DA DK C2 DQ  / DA D9 C2 DK  / DA DQ C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 8, 14, 19
+                  after (D_) DA (DJ) HT: (D_) DA (DJ) HT [5,18] / D8 DA DJ HT  / D8 DA DJ HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [5,18] / SQ ST C4 DK  / SQ ST C4 DK 
+                        when 0 wins: 
+                          after S9 (R_) C3 (__): S9 (R_) C3 (__) [5,18] / S9 H7 C3 HJ  / S9 H7 C3 D7 
+                            when 0 wins: 
+                              after C8 (R_) C2 (__): C8 (R_) C2 (__) [5,18] / C8 H2 C2 DQ  / C8 H6 C2 HJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 5, 18
+          after HK (Hx) H4 (HJ): HK (Hx) H4 (HJ) [2] / HK H3 H4 HJ 
+            when 2 wins: 
+              after HT (H_) SQ (R_): HT (H_) SQ (R_) [2] / HT H7 SQ DQ 
+                when 0 wins: 
+                  after S9 (R_) C7 (S_): S9 (R_) C7 (S_) [2] / S9 DJ C7 S6 
+                    when 0 wins: 
+                      after DA (D_) C4 (DK): DA (D_) C4 (DK) [2] / DA D7 C4 DK 
+                        when 0 wins: 
+                          after CT (C_) C3 (R_): CT (C_) C3 (R_) [2] / CT C6 C3 H6 
+                            when 0 wins: 
+                              after C8 (CA) C2 (R_): C8 (CA) C2 (R_) [2] / C8 CA C2 H2 
+                                when 1 wins: HAND SUCCEEDED FOR: 2
+      after SK (Sx) S4 (R_): SK (Sx) S4 (R_) [4,16] / SK S8 S4 H2  / SK S8 S4 H2 
+        when 2 wins: 
+          after C7 (C_) CT (C_): C7 (C_) CT (C_) [4,16] / C7 CA CT C6  / C7 C6 CT CA 
+            if 1 wins: 
+              after (H_) HT (H_) H4: (H_) HT (H_) H4 [16] / H7 HT H3 H4 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [16] / HK DJ C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [16] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [16] / SQ DQ C3 ST 
+                            when 0 wins: 
+                              after DA (D_) C2 (DK): DA (D_) C2 (DK) [16] / DA D9 C2 DK 
+                                when 0 wins: HAND SUCCEEDED FOR: 16
+            if 3 wins: 
+              after (H_) H4 (H_) HT: (H_) H4 (H_) HT [4] / H3 H4 H7 HT 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [4] / HK D9 C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [4] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [4] / SQ DJ C3 ST 
+                            when 0 wins: 
+                              after DA (DK) C2 (DQ): DA (DK) C2 (DQ) [4] / DA DK C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 4
+  after D5 (Dx) S2 (DJ): D5 (Dx) S2 (DJ) [0,7,17] / D5 D8 S2 DJ  / D5 D7 S2 DJ  / D5 D7 S2 DJ 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [0,7,17] / SK S8 S9 S6  / SK S6 S9 S8  / SK S8 S9 S6 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [0,7,17] / HK H3 H4 H7  / HK H7 H4 H3  / HK H6 H4 H3 
+            when 2 wins: 
+              after C7 (__) CT (C_): C7 (__) CT (C_) [0,7] / C7 H6 CT C6  / C7 C6 CT CA 
+                if 0 wins: 
+                  after SQ (ST) HT (R_): SQ (ST) HT (R_) [0] / SQ ST HT H2 
+                    when 0 wins: 
+                      after S4 (R_) C4 (R_): S4 (R_) C4 (R_) [0] / S4 D7 C4 HJ 
+                        when 0 wins: 
+                          after DA (DQ) C3 (D_): DA (DQ) C3 (D_) [0] / DA DQ C3 D9 
+                            when 0 wins: 
+                              after C8 (CA) C2 (R_): C8 (CA) C2 (R_) [0] / C8 CA C2 DK 
+                                when 1 wins: HAND SUCCEEDED FOR: 0
+                if 1 wins: 
+                  after (H_) HT (H_) S4: (H_) HT (H_) S4 [7] / H2 HT H6 S4 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [7] / SQ ST C4 D9 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [7] / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (DQ) C2 (D_): DA (DQ) C2 (D_) [7] / DA DQ C2 D8 
+                                when 0 wins: HAND SUCCEEDED FOR: 7
+  after D5 (DQ) S2 (DK): D5 (DQ) S2 (DK) [12] / D5 DQ S2 DK 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [12] / SK S8 S9 S6 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [12] / HK H3 H4 H6 
+            when 2 wins: 
+              after C7 (CA) CT (C_): C7 (CA) CT (C_) [12] / C7 CA CT C6 
+                when 3 wins: 
+                  after (H_) S4 (R_) HT: (H_) S4 (R_) HT [12] / H7 S4 DJ HT 
+                    when 0 wins: 
+                      after SQ (R_) C4 (ST): SQ (R_) C4 (ST) [12] / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [12] / C8 D8 C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (R_): DA (D_) C2 (R_) [12] / DA D7 C2 H2 
+                                when 0 wins: HAND SUCCEEDED FOR: 12
+Line 4: Covers 17/20 (85.0%) [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 16, 18, 19]
+
+  after D5 (Dx) S2 (Dx): D5 (Dx) S2 (Dx) [1,2,3,4,5,9,13,14,15,16,19] / D5 D7 S2 D8  / D5 D8 S2 D9  / D5 D8 S2 D7  / D5 D8 S2 D7  / D5 D7 S2 D9 
+    when 2 wins: 
+      after SK (S_) S4 (S_): SK (S_) S4 (S_) [1,2,3,5,9,13,14,15,19] / SK ST S4 S8  / SK S8 S4 ST  / SK S8 S4 S6  / SK S6 S4 S8  / SK S8 S4 S6 
+        when 2 wins: 
+          after HK (H_) H4 (Hx): HK (H_) H4 (Hx) [1,3,5,9,13,14,15,19] / HK H3 H4 H6  / HK H2 H4 H3  / HK H6 H4 H3  / HK H2 H4 H3  / HK H2 H4 H3 
+            when 2 wins: 
+              after C7 (__) CT (__): C7 (__) CT (__) [1,3,5,9,13,14,15,19] / C7 C6 CT CA  / C7 C6 CT DK  / C7 CA CT C6  / C7 C6 CT CA  / C7 DK CT C6 
+                if 0 wins: 
+                  after SQ (__) HT (__): SQ (__) HT (__) [3,13] / SQ H6 HT ST  / SQ ST HT DQ 
+                    when 0 wins: 
+                      after DA (__) C4 (D_): DA (__) C4 (D_) [3,13] / DA DQ C4 D9  / DA H7 C4 DJ 
+                        when 0 wins: 
+                          after C8 (__) C3 (__): C8 (__) C3 (__) [3,13] / C8 HJ C3 CA  / C8 CA C3 D7 
+                            if 1 wins: 
+                              after (H_) C2 (HJ) S9: (H_) C2 (HJ) S9 [13] / H6 C2 HJ S9 
+                                when 0 wins: HAND SUCCEEDED FOR: 13
+                            if 3 wins: 
+                              after (H_) S9 (R_) C2: (H_) S9 (R_) C2 [3] / H7 S9 DJ C2 
+                                when 0 wins: HAND SUCCEEDED FOR: 3
+                if 1 wins: 
+                  after (__) HT (__) SQ: (__) HT (__) SQ [1,9,15] / S6 HT H7 SQ  / ST HT H7 SQ  / H7 HT DK SQ 
+                    when 0 wins: 
+                      after S9 (__) C4 (__): S9 (__) C4 (__) [1,9,15] / S9 D9 C4 HJ  / S9 HJ C4 H6  / S9 H6 C4 S6 
+                        when 0 wins: 
+                          after C8 (__) C3 (__): C8 (__) C3 (__) [1,9,15] / C8 DK C3 H2  / C8 DQ C3 D8  / C8 H2 C3 DQ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DX): DA (D_) C2 (DX) [1,9,15] / DA DQ C2 DJ  / DA DJ C2 DK  / DA D8 C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 1, 9, 15
+                if 3 wins: 
+                  after (H_) S9 (H_) HT: (H_) S9 (H_) HT [14,19] / H7 S9 H6 HT  / H6 S9 H7 HT 
+                    when 0 wins: 
+                      after SQ (R_) C4 (ST): SQ (R_) C4 (ST) [14,19] / SQ DQ C4 ST  / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [14,19] / C8 DJ C3 HJ  / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (DX): DA (D_) C2 (DX) [14,19] / DA D9 C2 DK  / DA DQ C2 DJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 14, 19
+                  after (D_) DA (DJ) HT: (D_) DA (DJ) HT [5] / D8 DA DJ HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [5] / SQ ST C4 DK 
+                        when 0 wins: 
+                          after S9 (R_) C3 (R_): S9 (R_) C3 (R_) [5] / S9 H7 C3 HJ 
+                            when 0 wins: 
+                              after C8 (R_) C2 (R_): C8 (R_) C2 (R_) [5] / C8 H2 C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 5
+          after HK (Hx) H4 (HJ): HK (Hx) H4 (HJ) [2] / HK H3 H4 HJ 
+            when 2 wins: 
+              after HT (H_) SQ (R_): HT (H_) SQ (R_) [2] / HT H7 SQ DQ 
+                when 0 wins: 
+                  after S9 (R_) C7 (S_): S9 (R_) C7 (S_) [2] / S9 DJ C7 S6 
+                    when 0 wins: 
+                      after DA (D_) C4 (DK): DA (D_) C4 (DK) [2] / DA D7 C4 DK 
+                        when 0 wins: 
+                          after CT (C_) C3 (R_): CT (C_) C3 (R_) [2] / CT C6 C3 H6 
+                            when 0 wins: 
+                              after C8 (CA) C2 (R_): C8 (CA) C2 (R_) [2] / C8 CA C2 H2 
+                                when 1 wins: HAND SUCCEEDED FOR: 2
+      after SK (Sx) S4 (R_): SK (Sx) S4 (R_) [4,16] / SK S8 S4 H2  / SK S8 S4 H2 
+        when 2 wins: 
+          after C7 (C_) CT (C_): C7 (C_) CT (C_) [4,16] / C7 CA CT C6  / C7 C6 CT CA 
+            if 1 wins: 
+              after (H_) HT (H_) H4: (H_) HT (H_) H4 [16] / H7 HT H3 H4 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [16] / HK DJ C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [16] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [16] / SQ DQ C3 ST 
+                            when 0 wins: 
+                              after DA (D_) C2 (DK): DA (D_) C2 (DK) [16] / DA D9 C2 DK 
+                                when 0 wins: HAND SUCCEEDED FOR: 16
+            if 3 wins: 
+              after (H_) H4 (H_) HT: (H_) H4 (H_) HT [4] / H3 H4 H7 HT 
+                when 2 wins: 
+                  after HK (R_) C8 (HJ): HK (R_) C8 (HJ) [4] / HK D9 C8 HJ 
+                    when 2 wins: 
+                      after C4 (S_) S9 (R_): C4 (S_) S9 (R_) [4] / C4 S6 S9 H6 
+                        when 0 wins: 
+                          after SQ (R_) C3 (ST): SQ (R_) C3 (ST) [4] / SQ DJ C3 ST 
+                            when 0 wins: 
+                              after DA (DK) C2 (DQ): DA (DK) C2 (DQ) [4] / DA DK C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 4
+  after D5 (DQ) S2 (D_): D5 (DQ) S2 (D_) [10,12,18] / D5 DQ S2 D7  / D5 DQ S2 DK  / D5 DQ S2 D9 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [10,12,18] / SK S6 S9 S8  / SK S8 S9 S6  / SK S8 S9 S6 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [10,12,18] / HK H7 H4 H3  / HK H3 H4 H6  / HK H2 H4 H3 
+            when 2 wins: 
+              after C7 (C_) CT (__): C7 (C_) CT (__) [10,12,18] / C7 C6 CT DJ  / C7 CA CT C6  / C7 CA CT C6 
+                if 0 wins: 
+                  after SQ (R_) HT (ST): SQ (R_) HT (ST) [10] / SQ D9 HT ST 
+                    when 0 wins: 
+                      after S4 (R_) C4 (R_): S4 (R_) C4 (R_) [10] / S4 H2 C4 H6 
+                        when 0 wins: 
+                          after C8 (R_) C3 (CA): C8 (R_) C3 (CA) [10] / C8 HJ C3 CA 
+                            when 3 wins: 
+                              after (DK) DA (D_) C2: (DK) DA (D_) C2 [10] / DK DA D8 C2 
+                                when 0 wins: HAND SUCCEEDED FOR: 10
+                if 3 wins: 
+                  after (H_) S4 (R_) HT: (H_) S4 (R_) HT [12] / H7 S4 DJ HT 
+                    when 0 wins: 
+                      after SQ (R_) C4 (ST): SQ (R_) C4 (ST) [12] / SQ D9 C4 ST 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [12] / C8 D8 C3 HJ 
+                            when 0 wins: 
+                              after DA (D_) C2 (R_): DA (D_) C2 (R_) [12] / DA D7 C2 H2 
+                                when 0 wins: HAND SUCCEEDED FOR: 12
+                  after (D_) DA (DJ) HT: (D_) DA (DJ) HT [18] / D8 DA DJ HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [18] / SQ ST C4 DK 
+                        when 0 wins: 
+                          after S4 (R_) C3 (R_): S4 (R_) C3 (R_) [18] / S4 H7 C3 D7 
+                            when 0 wins: 
+                              after C8 (R_) C2 (R_): C8 (R_) C2 (R_) [18] / C8 H6 C2 HJ 
+                                when 0 wins: HAND SUCCEEDED FOR: 18
+  after D5 (Dx) S2 (DJ): D5 (Dx) S2 (DJ) [0,7,17] / D5 D8 S2 DJ  / D5 D7 S2 DJ  / D5 D7 S2 DJ 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [0,7,17] / SK S8 S9 S6  / SK S6 S9 S8  / SK S8 S9 S6 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [0,7,17] / HK H3 H4 H7  / HK H7 H4 H3  / HK H6 H4 H3 
+            when 2 wins: 
+              after C7 (__) CT (C_): C7 (__) CT (C_) [0,7] / C7 H6 CT C6  / C7 C6 CT CA 
+                if 0 wins: 
+                  after SQ (ST) HT (R_): SQ (ST) HT (R_) [0] / SQ ST HT H2 
+                    when 0 wins: 
+                      after S4 (R_) C4 (R_): S4 (R_) C4 (R_) [0] / S4 D7 C4 HJ 
+                        when 0 wins: 
+                          after DA (DQ) C3 (D_): DA (DQ) C3 (D_) [0] / DA DQ C3 D9 
+                            when 0 wins: 
+                              after C8 (CA) C2 (R_): C8 (CA) C2 (R_) [0] / C8 CA C2 DK 
+                                when 1 wins: HAND SUCCEEDED FOR: 0
+                if 1 wins: 
+                  after (H_) HT (H_) S4: (H_) HT (H_) S4 [7] / H2 HT H6 S4 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [7] / SQ ST C4 D9 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [7] / C8 DK C3 HJ 
+                            when 0 wins: 
+                              after DA (DQ) C2 (D_): DA (DQ) C2 (D_) [7] / DA DQ C2 D8 
+                                when 0 wins: HAND SUCCEEDED FOR: 7
+  after D5 (DJ) S2 (D_): D5 (DJ) S2 (D_) [8] / D5 DJ S2 D8 
+    when 2 wins: 
+      after SK (S_) S9 (S_): SK (S_) S9 (S_) [8] / SK S6 S9 S8 
+        when 2 wins: 
+          after HK (H_) H4 (H_): HK (H_) H4 (H_) [8] / HK H7 H4 H3 
+            when 2 wins: 
+              after C7 (CA) CT (C_): C7 (CA) CT (C_) [8] / C7 CA CT C6 
+                when 3 wins: 
+                  after (H_) S4 (H_) HT: (H_) S4 (H_) HT [8] / H6 S4 H2 HT 
+                    when 0 wins: 
+                      after SQ (ST) C4 (R_): SQ (ST) C4 (R_) [8] / SQ ST C4 HJ 
+                        when 0 wins: 
+                          after C8 (R_) C3 (R_): C8 (R_) C3 (R_) [8] / C8 D9 C3 D7 
+                            when 0 wins: 
+                              after DA (DK) C2 (DQ): DA (DK) C2 (DQ) [8] / DA DK C2 DQ 
+                                when 0 wins: HAND SUCCEEDED FOR: 8
+LineFinder.Solve for ending_size = 8 took 8.50093 seconds.
+
+=== LineFinder Benchmark: ending_size = 9 ===
+hand[0]: S T3; H A64; D 2; C K85; 
+hand[2]: S 94; H K3; D Q9; C 972; 
+unknown_cards: S AKQJ87; H QJT8752; D A; C QT64; 
+Found 1 lines for ending_size = 9
+Line 1: Covers 14/20 (70.0%) [1, 2, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 18, 19]
+
+  after HA (H_) H3 (H_): HA (H_) H3 (H_) [1,2,5,6,8,9,10,11,12,14,15,16,18,19] / HA H2 H3 H5  / HA H7 H3 H2  / HA HQ H3 H2  / HA H2 H3 HJ  / HA H5 H3 H2 
+    when 0 wins: 
+      after H6 (H_) HK (H_): H6 (H_) HK (H_) [1,2,5,6,8,9,10,11,12,14,15,16,18,19] / H6 H7 HK H8  / H6 HQ HK H5  / H6 HJ HK H5  / H6 H5 HK HT  / H6 H7 HK HT 
+        when 2 wins: 
+          after C9 (C_) CK (C_): C9 (C_) CK (C_) [1,2,5,6,8,9,10,11,12,14,15,16,18,19] / C9 CQ CK C4  / C9 C4 CK CQ  / C9 C4 CK C6  / C9 C4 CK CQ  / C9 C4 CK C6 
+            when 0 wins: 
+              after H4 (H_) S9 (H_): H4 (H_) S9 (H_) [1,2,5,6,8,9,10,11,12,14,15,16,18,19] / H4 HJ S9 HQ  / H4 HJ S9 H8  / H4 HT S9 H7  / H4 H7 S9 H8  / H4 HQ S9 H8 
+                when 2 wins: 
+                  after DQ (__) D2 (__): DQ (__) D2 (__) [1,2,5,6,8,9,10,11,12,14,15,16,18,19] / DQ S8 D2 DA  / DQ DA D2 HT  / DQ SQ D2 DA  / DQ DA D2 S8  / DQ DA D2 HJ 
+                    if 1 wins: 
+                      after (C_) C7 (C_) C8: (C_) C7 (C_) C8 [6,15,16] / CT C7 C6 C8  / C6 C7 CT C8  / CT C7 CQ C8 
+                        if 1 wins: 
+                          after (SQ) S4 (S_) ST: (SQ) S4 (S_) ST [6] / SQ S4 S7 ST 
+                            when 1 wins: 
+                              after (SJ) D9 (SA) S3: (SJ) D9 (SA) S3 [6] / SJ D9 SA S3 
+                                when 3 wins: 
+                                  after (SK) C5 (R_) C2: (SK) C5 (R_) C2 [6] / SK C5 HQ C2 
+                                    when 3 wins: HAND SUCCEEDED FOR: 6
+                        if 3 wins: 
+                          after (__) ST (SJ) S4: (__) ST (SJ) S4 [15,16] / S7 ST SJ S4  / H7 ST SJ S4 
+                            when 1 wins: 
+                              after (SA) D9 (SQ) S3: (SA) D9 (SQ) S3 [15,16] / SA D9 SQ S3  / SA D9 SQ S3 
+                                when 1 wins: 
+                                  after (SK) C2 (__) C5: (SK) C2 (__) C5 [15,16] / SK C2 HJ C5  / SK C2 S8 C5 
+                                    when 1 wins: HAND SUCCEEDED FOR: 15, 16
+                      after (S_) S4 (SX) ST: (S_) S4 (SX) ST [10,18] / S7 S4 SA ST  / S7 S4 SJ ST 
+                        when 3 wins: 
+                          after (C_) C8 (__) C7: (C_) C8 (__) C7 [10,18] / C6 C8 SK C7  / CQ C8 HT C7 
+                            if 1 wins: 
+                              after (SQ) D9 (R_) S3: (SQ) D9 (R_) S3 [10] / SQ D9 H7 S3 
+                                when 1 wins: 
+                                  after (SJ) C2 (R_) C5: (SJ) C2 (R_) C5 [10] / SJ C2 CT C5 
+                                    when 1 wins: HAND SUCCEEDED FOR: 10
+                            if 3 wins: 
+                              after (CT) C5 (SQ) C2: (CT) C5 (SQ) C2 [18] / CT C5 SQ C2 
+                                when 1 wins: 
+                                  after (SA) D9 (SK) S3: (SA) D9 (SK) S3 [18] / SA D9 SK S3 
+                                    when 1 wins: HAND SUCCEEDED FOR: 18
+                    if 3 wins: 
+                      after (S_) ST (S_) S4: (S_) ST (S_) S4 [1,5,8,9,11,14,19] / S7 ST SQ S4  / SJ ST S8 S4  / S8 ST SJ S4  / S7 ST SJ S4  / S8 ST SK S4 
+                        if 1 wins: 
+                          after (C_) C7 (__) C8: (C_) C7 (__) C8 [1,11,14,19] / C6 C7 SA C8  / CT C7 CQ C8  / CT C7 CQ C8  / C6 C7 SK C8 
+                            when 3 wins: 
+                              after (S_) S3 (__) D9: (S_) S3 (__) D9 [1,11,14,19] / SK S3 HT D9  / S7 S3 SQ D9  / SA S3 SJ D9  / SQ S3 HT D9 
+                                if 1 wins: 
+                                  after (SJ) C2 (SA) C5: (SJ) C2 (SA) C5 [11] / SJ C2 SA C5 
+                                    when 3 wins: HAND SUCCEEDED FOR: 11
+                                if 3 wins: 
+                                  after (SX) C5 (__) C2: (SX) C5 (__) C2 [1,14,19] / SJ C5 CT C2  / SK C5 S7 C2  / SJ C5 CQ C2 
+                                    when 3 wins: HAND SUCCEEDED FOR: 1, 14, 19
+                          after (S_) D9 (SX) S3: (S_) D9 (SX) S3 [8,9] / S7 D9 SQ S3  / S8 D9 SK S3 
+                            when 3 wins: 
+                              after (CT) C8 (CQ) C7: (CT) C8 (CQ) C7 [8,9] / CT C8 CQ C7  / CT C8 CQ C7 
+                                when 1 wins: 
+                                  after (SX) C2 (SX) C5: (SX) C2 (SX) C5 [8,9] / SK C2 SA C5  / SA C2 SQ C5 
+                                    if 1 wins: HAND SUCCEEDED FOR: 9
+                                    if 3 wins: HAND SUCCEEDED FOR: 8
+                        if 3 wins: 
+                          after (CQ) C8 (R_) C7: (CQ) C8 (R_) C7 [5] / CQ C8 H8 C7 
+                            when 3 wins: 
+                              after (CT) C5 (SK) C2: (CT) C5 (SK) C2 [5] / CT C5 SK C2 
+                                when 1 wins: 
+                                  after (S_) D9 (SA) S3: (S_) D9 (SA) S3 [5] / S7 D9 SA S3 
+                                    when 3 wins: HAND SUCCEEDED FOR: 5
+                      after (C_) C8 (__) C7: (C_) C8 (__) C7 [2,12] / C6 C8 CT C7  / C6 C8 SJ C7 
+                        when 1 wins: 
+                          after (__) S4 (S_) ST: (__) S4 (S_) ST [2,12] / SA S4 S8 ST  / H8 S4 SQ ST 
+                            if 1 wins: 
+                              after (SK) D9 (SJ) S3: (SK) D9 (SJ) S3 [2] / SK D9 SJ S3 
+                                when 1 wins: 
+                                  after (SQ) C2 (S_) C5: (SQ) C2 (S_) C5 [2] / SQ C2 S7 C5 
+                                    when 1 wins: HAND SUCCEEDED FOR: 2
+                            if 3 wins: 
+                              after (S_) S3 (SA) D9: (S_) S3 (SA) D9 [12] / S7 S3 SA D9 
+                                when 1 wins: 
+                                  after (SK) C2 (R_) C5: (SK) C2 (R_) C5 [12] / SK C2 CQ C5 
+                                    when 1 wins: HAND SUCCEEDED FOR: 12
+LineFinder.Solve for ending_size = 9 took 1.70629 seconds.
+
+=== LineFinder Benchmark: ending_size = 10 ===
+hand[0]: S -; H Q63; D Q8; C JT864; 
+hand[2]: S Q4; H A5; D J7; C KQ53; 
+unknown_cards: S AKJT92; H JT982; D A965432; C 97; 
+Found 1 lines for ending_size = 10
+Line 1: Covers 4/20 (20.0%) [12, 13, 14, 16]
+
+  after HQ (H_) H5 (H_): HQ (H_) H5 (H_) [11,12,13,14,16] / HQ H8 H5 H2  / HQ H2 H5 H9  / HQ H2 H5 H8  / HQ H9 H5 H2  / HQ H8 H5 H2 
+    when 0 wins: 
+      after H6 (H_) HA (H_): H6 (H_) HA (H_) [12,13,14,16] / H6 HJ HA H8  / H6 H9 HA HJ  / H6 HJ HA HT  / H6 HJ HA H9 
+        when 2 wins: 
+          after C5 (C_) CJ (C_): C5 (C_) CJ (C_) [12,13,14,16] / C5 C7 CJ C9  / C5 C9 CJ C7  / C5 C7 CJ C9  / C5 C9 CJ C7 
+            when 0 wins: 
+              after H3 (__) SQ (__): H3 (__) SQ (__) [12,13,14,16] / H3 HT SQ D4  / H3 D3 SQ HT  / H3 D6 SQ H8  / H3 HT SQ D5 
+                when 2 wins: 
+                  after S4 (S_) D8 (S_): S4 (S_) D8 (S_) [12,13,14,16] / S4 S2 D8 SA  / S4 S2 D8 S9  / S4 SJ D8 S2  / S4 S2 D8 ST 
+                    if 1 wins: 
+                      after (D_) D7 (D_) DQ: (D_) D7 (D_) DQ [12,13,16] / D6 D7 D3 DQ  / D2 D7 D4 DQ  / D6 D7 D4 DQ 
+                        when 0 wins: 
+                          after CT (__) CK (__): CT (__) CK (__) [12,13,16] / CT SK CK D2  / CT D9 CK ST  / CT S9 CK D3 
+                            if 1 wins: 
+                              after (D_) DJ (DA) C8: (D_) DJ (DA) C8 [12,16] / D5 DJ DA C8  / D9 DJ DA C8 
+                                when 3 wins: 
+                                  after (__) C6 (SX) CQ: (__) C6 (SX) CQ [12,16] / S9 C6 SJ CQ  / D2 C6 SA CQ 
+                                    when 1 wins: 
+                                      after (SX) C3 (__) C4: (SX) C3 (__) C4 [12,16] / ST C3 D9 C4  / SK C3 SJ C4 
+                                        when 1 wins: HAND SUCCEEDED FOR: 12, 16
+                            if 3 wins: 
+                              after (DA) C8 (D_) DJ: (DA) C8 (D_) DJ [13] / DA C8 D6 DJ 
+                                when 3 wins: 
+                                  after (SA) C6 (SJ) CQ: (SA) C6 (SJ) CQ [13] / SA C6 SJ CQ 
+                                    when 3 wins: 
+                                      after (SK) C4 (R_) C3: (SK) C4 (R_) C3 [13] / SK C4 D5 C3 
+                                        when 3 wins: HAND SUCCEEDED FOR: 13
+                    if 3 wins: 
+                      after (D_) DQ (D_) DJ: (D_) DQ (D_) DJ [14] / D2 DQ D5 DJ 
+                        when 0 wins: 
+                          after CT (SA) CK (ST): CT (SA) CK (ST) [14] / CT SA CK ST 
+                            when 1 wins: 
+                              after (D_) D7 (DA) C8: (D_) D7 (DA) C8 [14] / D4 D7 DA C8 
+                                when 3 wins: 
+                                  after (D_) C6 (D_) CQ: (D_) C6 (D_) CQ [14] / D9 C6 D3 CQ 
+                                    when 3 wins: 
+                                      after (S_) C4 (SK) C3: (S_) C4 (SK) C3 [14] / S9 C4 SK C3 
+                                        when 1 wins: HAND SUCCEEDED FOR: 14
+LineFinder.Solve for ending_size = 10 took 1.21153 seconds.
+
+=== LineFinder Benchmark: ending_size = 11 ===
+hand[0]: S J8; H J87; D 654; C 832; 
+hand[2]: S QT4; H A95; D KQJ; C K5; 
+unknown_cards: S AK932; H KQT642; D AT987; C AJT764; 
+Found 0 lines for ending_size = 11
+LineFinder.Solve for ending_size = 11 took 1.3444 seconds.
+
+Benchmark complete.

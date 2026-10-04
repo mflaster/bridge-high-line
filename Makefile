@@ -1,4 +1,4 @@
-.PHONY: all all_tests run_all_tests clean run_basic_test run_requirements_test run_deal_test run_dds_test run_interface_dds_test run_line_finder_test run_board_state_test run_conditional_line_test run_server_test run_cross_hand_summarizer_test run_server
+.PHONY: all all_tests run_all_tests clean run_basic_test run_requirements_test run_deal_test run_dds_test run_interface_dds_test run_line_finder_test run_board_state_test run_conditional_line_test run_server_test run_cross_hand_summarizer_test run_server run_line_finder_perf
 
 all:
 	cmake -B build
@@ -41,6 +41,9 @@ run_cross_hand_summarizer_test: all
 
 run_server: all
 	./build/bridge_server
+
+run_line_finder_perf: all
+	./build/line_finder_perf
 
 clean:
 	rm -rf build
