@@ -22,8 +22,17 @@ class PlayLineGoldenSerializer {
 
   // Formatting helpers for hands and setup comments
   static std::string FormatHands(uint64_t hand, uint64_t unknown_cards = 0);
+  static std::string FormatHands(uint64_t hand, Suit trump);
+  static std::string FormatHands(uint64_t hand, uint64_t unknown_cards, Suit trump);
+
   static std::string FormatHands(const std::vector<uint64_t> &hands, uint64_t unknown_cards = 0);
+  static std::string FormatHands(const std::vector<uint64_t> &hands, Suit trump);
+  static std::string FormatHands(const std::vector<uint64_t> &hands, uint64_t unknown_cards, Suit trump);
+
   static std::string FormatHands(const std::pair<uint64_t, uint64_t> &hands, uint64_t unknown_cards = 0);
+  static std::string FormatHands(const std::pair<uint64_t, uint64_t> &hands, Suit trump);
+  static std::string FormatHands(const std::pair<uint64_t, uint64_t> &hands, uint64_t unknown_cards, Suit trump);
+
   static std::string FormatHands(const std::string &hands_str);
   static std::string FormatHands(const char *hands_str);
   static std::string FormatHands(const BoardState &bs);
@@ -77,6 +86,20 @@ class PlayLineGoldenSerializer {
   }
 
   template <typename T>
+  static std::string SerializeWithHeader(const T &actual, uint64_t hand, Suit trump) {
+    std::string hands_str = FormatHands(hand, trump);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, uint64_t hand, uint64_t unknown_cards, Suit trump) {
+    std::string hands_str = FormatHands(hand, unknown_cards, trump);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
   static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
                                          uint64_t unknown_cards) {
     std::string hands_str = FormatHands(hands, unknown_cards);
@@ -85,9 +108,41 @@ class PlayLineGoldenSerializer {
   }
 
   template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
+                                         Suit trump) {
+    std::string hands_str = FormatHands(hands, trump);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
+                                         uint64_t unknown_cards, Suit trump) {
+    std::string hands_str = FormatHands(hands, unknown_cards, trump);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
   static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
                                          uint64_t unknown_cards) {
     std::string hands_str = FormatHands(hands, unknown_cards);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
+                                         Suit trump) {
+    std::string hands_str = FormatHands(hands, trump);
+    std::string header = FormatCommentHeader("", hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
+                                         uint64_t unknown_cards, Suit trump) {
+    std::string hands_str = FormatHands(hands, unknown_cards, trump);
     std::string header = FormatCommentHeader("", hands_str);
     return header + Serialize(actual);
   }
@@ -121,6 +176,34 @@ class PlayLineGoldenSerializer {
   }
 
   template <typename T>
+  static std::string SerializeWithHeader(const T &actual, uint64_t hand, Suit trump,
+                                         const std::string &description) {
+    std::string hands_str = FormatHands(hand, trump);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, uint64_t hand, Suit trump,
+                                         const char *description) {
+    return SerializeWithHeader(actual, hand, trump, std::string(description));
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, uint64_t hand, uint64_t unknown_cards,
+                                         Suit trump, const std::string &description) {
+    std::string hands_str = FormatHands(hand, unknown_cards, trump);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, uint64_t hand, uint64_t unknown_cards,
+                                         Suit trump, const char *description) {
+    return SerializeWithHeader(actual, hand, unknown_cards, trump, std::string(description));
+  }
+
+  template <typename T>
   static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
                                          const std::string &description) {
     std::string hands_str = FormatHands(hands);
@@ -151,6 +234,38 @@ class PlayLineGoldenSerializer {
   }
 
   template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
+                                         Suit trump,
+                                         const std::string &description) {
+    std::string hands_str = FormatHands(hands, trump);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
+                                         Suit trump,
+                                         const char *description) {
+    return SerializeWithHeader(actual, hands, trump, std::string(description));
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
+                                         uint64_t unknown_cards, Suit trump,
+                                         const std::string &description) {
+    std::string hands_str = FormatHands(hands, unknown_cards, trump);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::vector<uint64_t> &hands,
+                                         uint64_t unknown_cards, Suit trump,
+                                         const char *description) {
+    return SerializeWithHeader(actual, hands, unknown_cards, trump, std::string(description));
+  }
+
+  template <typename T>
   static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
                                          const std::string &description) {
     std::string hands_str = FormatHands(hands);
@@ -178,6 +293,38 @@ class PlayLineGoldenSerializer {
                                          uint64_t unknown_cards,
                                          const char *description) {
     return SerializeWithHeader(actual, hands, unknown_cards, std::string(description));
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
+                                         Suit trump,
+                                         const std::string &description) {
+    std::string hands_str = FormatHands(hands, trump);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
+                                         Suit trump,
+                                         const char *description) {
+    return SerializeWithHeader(actual, hands, trump, std::string(description));
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
+                                         uint64_t unknown_cards, Suit trump,
+                                         const std::string &description) {
+    std::string hands_str = FormatHands(hands, unknown_cards, trump);
+    std::string header = FormatCommentHeader(description, hands_str);
+    return header + Serialize(actual);
+  }
+
+  template <typename T>
+  static std::string SerializeWithHeader(const T &actual, const std::pair<uint64_t, uint64_t> &hands,
+                                         uint64_t unknown_cards, Suit trump,
+                                         const char *description) {
+    return SerializeWithHeader(actual, hands, unknown_cards, trump, std::string(description));
   }
 
   template <typename T>
@@ -217,7 +364,7 @@ class GoldenMatcher : public Catch::Matchers::MatcherBase<std::string> {
   mutable std::string failure_message_;
 };
 
-#define GET_REQUIRE_GOLDEN_MACRO(_1, _2, _3, _4, _5, NAME, ...) NAME
+#define GET_REQUIRE_GOLDEN_MACRO(_1, _2, _3, _4, _5, _6, NAME, ...) NAME
 
 #define REQUIRE_GOLDEN_2(actual, golden_filename) \
   REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual), GoldenMatcher(golden_filename))
@@ -228,9 +375,12 @@ class GoldenMatcher : public Catch::Matchers::MatcherBase<std::string> {
 #define REQUIRE_GOLDEN_4(actual, golden_filename, hands, description) \
   REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, description), GoldenMatcher(golden_filename))
 
-#define REQUIRE_GOLDEN_5(actual, golden_filename, hands, unknown_cards, description) \
-  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, unknown_cards, description), GoldenMatcher(golden_filename))
+#define REQUIRE_GOLDEN_5(actual, golden_filename, hands, arg4, description) \
+  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, arg4, description), GoldenMatcher(golden_filename))
+
+#define REQUIRE_GOLDEN_6(actual, golden_filename, hands, unknown_cards, trump, description) \
+  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, unknown_cards, trump, description), GoldenMatcher(golden_filename))
 
 #define REQUIRE_GOLDEN_LINE_RESULT(...) \
-  GET_REQUIRE_GOLDEN_MACRO(__VA_ARGS__, REQUIRE_GOLDEN_5, REQUIRE_GOLDEN_4, REQUIRE_GOLDEN_3, REQUIRE_GOLDEN_2)(__VA_ARGS__)
+  GET_REQUIRE_GOLDEN_MACRO(__VA_ARGS__, REQUIRE_GOLDEN_6, REQUIRE_GOLDEN_5, REQUIRE_GOLDEN_4, REQUIRE_GOLDEN_3, REQUIRE_GOLDEN_2)(__VA_ARGS__)
 
