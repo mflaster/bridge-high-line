@@ -125,7 +125,7 @@ Line 13: Covers 0/40 (0.0%) []
   after (H_) H7 (Sx) HA: (H_) H7 (Sx) HA [38] / H6 H7 S4 HA 
   after (H_) H7 (SJ) HA: (H_) H7 (SJ) HA [0] / H6 H7 SJ HA 
   after (H_) H7 (R_) HA: (H_) H7 (R_) HA [18] / H6 H7 DT HA 
-Solve took 1.548523 seconds. Status: SUCCESS
+Solve took 1.378115 seconds. Status: SUCCESS
 
 === ending_size = 6, trial = 2 ===
 hand[0] (Declarer): S 54; H AT; D 2; C T; 
@@ -226,7 +226,7 @@ Line 14: Covers 0/40 (0.0%) []
   after (SK) S9 (SJ) S5: (SK) S9 (SJ) S5 [19] / SK S9 SJ S5 
   after (Dx) DK (DJ) D2: (Dx) DK (DJ) D2 [38] / D5 DK DJ D2 
   after (C_) C9 (S_) CT: (C_) C9 (S_) CT [15] / C7 C9 S8 CT 
-Solve took 1.272967 seconds. Status: SUCCESS
+Solve took 1.204443 seconds. Status: SUCCESS
 
 === ending_size = 6, trial = 3 ===
 hand[0] (Declarer): S -; H Q2; D J43; C 7; 
@@ -766,7 +766,7 @@ Invariant Rules for 6 card ending:
                     when 2 wins: 
                       after S2 (SJ) C7 (R_): S2 (SJ) C7 (R_) [12] / S2 SJ C7 CA 
                         when 3 wins: HAND SUCCEEDED FOR: 12
-Solve took 3.422691 seconds. Status: SUCCESS
+Solve took 3.308921 seconds. Status: SUCCESS
 
 === ending_size = 7, trial = 1 ===
 hand[0] (Declarer): S K73; H 9; D 93; C 9; 
@@ -933,7 +933,7 @@ Invariant Rules for 7 card ending:
                         when 1 wins: 
                           after (SX) C4 (S_) S3: (SX) C4 (S_) S3 [4,10,17,29,31] / ST C4 S8 S3  / SA C4 S4 S3  / ST C4 S8 S3  / SA C4 S8 S3  / SA C4 ST S3 
                             when 2 wins: HAND SUCCEEDED FOR: 4, 10, 17, 29, 31
-Solve took 2.636845 seconds. Status: SUCCESS
+Solve took 2.613071 seconds. Status: SUCCESS
 
 === ending_size = 7, trial = 2 ===
 hand[0] (Declarer): S AJ87; H -; D 6; C AK; 
@@ -1363,7 +1363,7 @@ Invariant Rules for 7 card ending:
                         when 0 wins: 
                           after CK (C_) C4 (S_): CK (C_) C4 (S_) [7] / CK C8 C4 S3 
                             when 3 wins: HAND SUCCEEDED FOR: 7
-Solve took 8.348849 seconds. Status: SUCCESS
+Solve took 8.396923 seconds. Status: SUCCESS
 
 === ending_size = 7, trial = 3 ===
 hand[0] (Declarer): S 94; H 4; D A5; C T8; 
@@ -1413,7 +1413,7 @@ Invariant Rules for 7 card ending:
                         when 2 wins: 
                           after C2 (R_) D5 (__): C2 (R_) D5 (__) [0,4,6,11,14,16,18,20,22,26,29,30,32,36,37] / C2 DK D5 DQ  / C2 D7 D5 D9  / C2 D7 D5 DQ  / C2 DJ D5 DK  / C2 DK D5 D9 
                             when 2 wins: HAND SUCCEEDED FOR: 0, 4, 6, 11, 14, 16, 18, 20, 22, 26, 29, 30, 32, 36, 37
-Solve took 2.634788 seconds. Status: SUCCESS
+Solve took 2.564905 seconds. Status: SUCCESS
 
 === ending_size = 8, trial = 1 ===
 hand[0] (Declarer): S 3; H A64; D 2; C K85; 
@@ -1770,7 +1770,7 @@ Invariant Rules for 8 card ending:
                             when 0 wins: 
                               after D2 (DA) DQ (CT): D2 (DA) DQ (CT) [10] / D2 DA DQ CT 
                                 when 3 wins: HAND SUCCEEDED FOR: 10
-Solve took 4.558361 seconds. Status: SUCCESS
+Solve took 4.229607 seconds. Status: SUCCESS
 
 === ending_size = 8, trial = 2 ===
 hand[0] (Declarer): S -; H Q3; D Q8; C JT64; 
@@ -1911,7 +1911,7 @@ Invariant Rules for 8 card ending:
                             when 2 wins: 
                               after C5 (R_) H3 (SJ): C5 (R_) H3 (SJ) [1] / C5 HA H3 SJ 
                                 when 2 wins: HAND SUCCEEDED FOR: 1
-Solve took 6.322688 seconds. Status: SUCCESS
+Solve took 6.230052 seconds. Status: SUCCESS
 
 === ending_size = 8, trial = 3 ===
 hand[0] (Declarer): S J8; H J87; D 64; C 3; 
@@ -2381,7 +2381,7 @@ Line 35: Covers 0/40 (0.0%) []
   after (Hx) H9 (S_) HJ: (Hx) H9 (S_) HJ [13] / H4 H9 S4 HJ 
   after (Hx) H9 (HT) HJ: (Hx) H9 (HT) HJ [19] / H4 H9 HT HJ 
   after (H_) H9 (Hx) HJ: (H_) H9 (Hx) HJ [30] / HT H9 H4 HJ 
-Solve took 4.110515 seconds. Status: SUCCESS
+Solve took 3.916210 seconds. Status: SUCCESS
 
 === ending_size = 9, trial = 1 ===
 hand[0] (Declarer): S 8652; H 94; D 96; C 7; 
@@ -2473,7 +2473,7 @@ Line 11: Covers 0/40 (0.0%) []
   after (CK) C9 (C_) C7: (CK) C9 (C_) C7 [22] / CK C9 C5 C7 
   after (S_) S4 (SK) S8: (S_) S4 (SK) S8 [26] / S3 S4 SK S8 
   after (H_) HT (Hx) H9: (H_) HT (Hx) H9 [17] / H2 HT H7 H9 
-Solve took 4.064373 seconds. Status: SUCCESS
+Solve took 4.099494 seconds. Status: SUCCESS
 
 === ending_size = 9, trial = 2 ===
 hand[0] (Declarer): S -; H K6; D AKQT9; C K5; 
@@ -2920,7 +2920,7 @@ Invariant Rules for 9 card ending:
                                 when 2 wins: 
                                   after CT (__) H6 (__): CT (__) H6 (__) [5,10,16,17] / CT C7 H6 H7  / CT C7 H6 S4  / CT S4 H6 H7  / CT H7 H6 C6 
                                     when 2 wins: HAND SUCCEEDED FOR: 5, 10, 16, 17
-Solve took 14.939011 seconds. Status: SUCCESS
+Solve took 16.334363 seconds. Status: SUCCESS
 
 === ending_size = 9, trial = 3 ===
 hand[0] (Declarer): S A962; H 7; D -; C 9763; 
@@ -3557,7 +3557,7 @@ Invariant Rules for 9 card ending:
                                 when 2 wins: 
                                   after D5 (SJ) C3 (DJ): D5 (SJ) C3 (DJ) [28] / D5 SJ C3 DJ 
                                     when 3 wins: HAND SUCCEEDED FOR: 28
-Solve took 10.353508 seconds. Status: SUCCESS
+Solve took 10.539698 seconds. Status: SUCCESS
 
 === ending_size = 10, trial = 1 ===
 hand[0] (Declarer): S -; H AKQ832; D J5; C T8; 
@@ -4098,7 +4098,7 @@ Invariant Rules for 10 card ending:
                                     when 0 wins: 
                                       after H2 (ST) C4 (R_): H2 (ST) C4 (R_) [10] / H2 ST C4 D2 
                                         when 0 wins: HAND SUCCEEDED FOR: 10
-Solve took 8.476514 seconds. Status: SUCCESS
+Solve took 8.428021 seconds. Status: SUCCESS
 
 === ending_size = 10, trial = 2 ===
 hand[0] (Declarer): S 2; H T864; D T2; C T97; 
@@ -4281,7 +4281,7 @@ Line 18: Covers 0/40 (0.0%) []
   after (Dx) D6 (Dx) DT: (Dx) D6 (Dx) DT [22] / D5 D6 D8 DT 
   after (S_) S5 (H_) S2: (S_) S5 (H_) S2 [34] / S3 S5 H3 S2 
   after (Cx) CQ (CK) CT: (Cx) CQ (CK) CT [14] / C5 CQ CK CT 
-Solve took 4.414259 seconds. Status: SUCCESS
+Solve took 3.665466 seconds. Status: SUCCESS
 
 === ending_size = 10, trial = 3 ===
 hand[0] (Declarer): S A4; H J; D 542; C 8743; 
@@ -4736,7 +4736,7 @@ Invariant Rules for 10 card ending:
                                     when 0 wins: 
                                       after C3 (CJ) H4 (SK): C3 (CJ) H4 (SK) [6] / C3 CJ H4 SK 
                                         when 1 wins: HAND SUCCEEDED FOR: 6
-Solve took 7.016857 seconds. Status: SUCCESS
+Solve took 7.044335 seconds. Status: SUCCESS
 
 === ending_size = 11, trial = 1 ===
 hand[0] (Declarer): S 85; H K82; D AT3; C Q53; 
@@ -5417,7 +5417,7 @@ Invariant Rules for 11 card ending:
                                         when 2 wins: 
                                           after D4 (R_) C3 (R_): D4 (R_) C3 (R_) [22] / D4 CT C3 C9 
                                             when 2 wins: HAND SUCCEEDED FOR: 22
-Solve took 10.472046 seconds. Status: SUCCESS
+Solve took 10.425987 seconds. Status: SUCCESS
 
 === ending_size = 11, trial = 2 ===
 hand[0] (Declarer): S K2; H 5; D KT95; C AT72; 
@@ -5816,7 +5816,7 @@ Invariant Rules for 11 card ending:
                                         when 0 wins: 
                                           after C2 (R_) H7 (C_): C2 (R_) H7 (C_) [35] / C2 H9 H7 C8 
                                             when 3 wins: HAND SUCCEEDED FOR: 35
-Solve took 17.060170 seconds. Status: SUCCESS
+Solve took 17.019991 seconds. Status: SUCCESS
 
 === ending_size = 11, trial = 3 ===
 hand[0] (Declarer): S 9; H J76532; D -; C J743; 
@@ -5942,7 +5942,7 @@ Line 16: Covers 0/40 (0.0%) []
   after (__) CT (Cx) CJ: (__) CT (Cx) CJ [2,24] / CK CT C2 CJ  / CK CT C2 CJ 
   after (Hx) CT (H_) HJ: (Hx) CT (H_) HJ [5] / H4 CT H9 HJ 
   after (HQ) CT (H_) H7: (HQ) CT (H_) H7 [20] / HQ CT H4 H7 
-Solve took 6.833873 seconds. Status: SUCCESS
+Solve took 6.856209 seconds. Status: SUCCESS
 
 === ending_size = 12, trial = 1 ===
 hand[0] (Declarer): S AJ753; H 6; D JT8; C 843; 
@@ -7019,7 +7019,7 @@ Invariant Rules for 12 card ending:
                                             when 2 wins: 
                                               after C5 (C_) C3 (SQ): C5 (C_) C3 (SQ) [0] / C5 C9 C3 SQ 
                                                 when 3 wins: HAND SUCCEEDED FOR: 0
-Solve took 18.200969 seconds. Status: SUCCESS
+Solve took 18.293865 seconds. Status: SUCCESS
 
 === ending_size = 12, trial = 2 ===
 hand[0] (Declarer): S 94; H A63; D A86; C KJT8; 
@@ -8292,7 +8292,7 @@ Invariant Rules for 12 card ending:
                                             when 1 wins: 
                                               after (DT) C3 (R_) D6: (DT) C3 (R_) D6 [36] / DT C3 HQ D6 
                                                 when 2 wins: HAND SUCCEEDED FOR: 36
-Solve took 147.558717 seconds. Status: SUCCESS
+Solve took 147.558796 seconds. Status: SUCCESS
 
 === ending_size = 12, trial = 3 ===
 hand[0] (Declarer): S AKJT64; H 97; D 97; C JT; 
@@ -9479,7 +9479,7 @@ Invariant Rules for 12 card ending:
                                               after CT (C_) C2 (CK): CT (C_) C2 (CK) [19] / CT C8 C2 CK 
                                                 when 3 wins: HAND SUCCEEDED FOR: 19
       after (C_) CJ (CA) C6: (C_) CJ (CA) C6 [31] / C4 CJ CA C6 
-Solve took 11.158960 seconds. Status: SUCCESS
+Solve took 12.329206 seconds. Status: SUCCESS
 
 === ending_size = 13, trial = 1 ===
 hand[0] (Declarer): S K954; H AKQ6; D AJ2; C J5; 
@@ -10674,7 +10674,7 @@ Invariant Rules for 13 card ending:
                                                 when 2 wins: 
                                                   after C4 (CA) C5 (CQ): C4 (CA) C5 (CQ) [21] / C4 CA C5 CQ 
                                                     when 3 wins: HAND SUCCEEDED FOR: 21
-Solve took 79.081496 seconds. Status: SUCCESS
+Solve took 77.704245 seconds. Status: SUCCESS
 
 === ending_size = 13, trial = 2 ===
 hand[0] (Declarer): S J9743; H K9; D KQJ7; C Q2; 
@@ -10817,7 +10817,7 @@ Invariant Rules for 13 card ending:
                                                 when 0 wins: 
                                                   after S3 (R_) D2 (R_): S3 (R_) D2 (R_) [26] / S3 H6 D2 C3 
                                                     when 2 wins: HAND SUCCEEDED FOR: 26
-Solve took 4.798489 seconds. Status: SUCCESS
+Solve took 4.819531 seconds. Status: SUCCESS
 
 === ending_size = 13, trial = 3 ===
 hand[0] (Declarer): S AQ86; H J984; D AK4; C 93; 
@@ -11563,6 +11563,6 @@ Invariant Rules for 13 card ending:
                                                 when 0 wins: 
                                                   after D4 (R_) C5 (DT): D4 (R_) C5 (DT) [0] / D4 CT C5 DT 
                                                     when 3 wins: HAND SUCCEEDED FOR: 0
-Solve took 27.447577 seconds. Status: SUCCESS
+Solve took 27.280864 seconds. Status: SUCCESS
 
 Benchmark complete.
