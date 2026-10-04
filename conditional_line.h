@@ -7,6 +7,7 @@
 #include <vector>
 #include "board_state.h"
 #include "card.h"
+#include "cross_hand_summarizer.h"
 #include "hand.h"
 
 struct GeneralizedDemiStruct {
@@ -131,6 +132,10 @@ class ConditionalLine {  // ConditionalLineBranch
   int total_boards() const { return total_boards_; }
   void set_total_boards(int n) { total_boards_ = n; }
 
+  void set_summary(const CrossHandSummaryReport &summary) { summary_ = summary; }
+  const CrossHandSummaryReport &summary() const { return summary_; }
+  bool has_summary() const { return summary_.total_deals > 0; }
+
   int CoveredFinalBoards() const;
   std::set<int> CoveredFinalBoardsSet() const;
 
@@ -153,6 +158,7 @@ class ConditionalLine {  // ConditionalLineBranch
 
   std::set<int> final_covered_boards_;
   int total_boards_ = 0;
+  CrossHandSummaryReport summary_;
 };
 
 class WinnerPlayCondition : public PlayCondition {

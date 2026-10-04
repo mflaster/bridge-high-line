@@ -1,6 +1,7 @@
 #include "line_finder.h"
 
 #include <ctype.h>
+#include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "interface_dds.h"
 
@@ -187,8 +188,26 @@ std::vector<ConditionalLine> LineFinder::Solve(
 
   auto ans = SolveHelper(min_tricks, cache, board_trees,
                          board_offsets, leader, 0);
+  CrossHandDealSetSummarizer summarizer;
   for (auto &line : ans) {
     line.set_total_boards(num_iters_);
+    std::set<int> covered = line.CoveredBoardsSet();
+    if (!covered.empty()) {
+      std::vector<PairedDeal> covered_deals;
+      covered_deals.reserve(covered.size());
+      for (int b_idx : covered) {
+        if (b_idx >= 0 && b_idx < static_cast<int>(boards.size())) {
+          covered_deals.emplace_back(boards[b_idx].GetHand(1), boards[b_idx].GetHand(3));
+        }
+      }
+      if (!covered_deals.empty()) {
+        try {
+          line.set_summary(summarizer.Summarize(covered_deals));
+        } catch (const std::exception &e) {
+          LOG(WARNING) << "Failed to summarize line: " << e.what();
+        }
+      }
+    }
   }
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
             << get_line_from_trick_calls;

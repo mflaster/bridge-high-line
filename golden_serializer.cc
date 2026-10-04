@@ -26,6 +26,9 @@ std::string PlayLineGoldenSerializer::SerializeConditionalLineHelper(
       ans = "Covers " + std::to_string(line.CoveredBoards()) +
             " [" + StrJoin(line.CoveredBoardsSet()) + "]\n";
     }
+    if (line.has_summary()) {
+      ans += line.summary().ToString();
+    }
   }
   if (!line.do_first().Empty()) {
     ans += line.do_first().ToString();

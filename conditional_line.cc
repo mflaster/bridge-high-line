@@ -51,6 +51,9 @@ std::string ConditionalLine::Describe(int lvl) const {
       ans = "Covers " + std::to_string(CoveredBoards()) +
             " [" + StrJoin(CoveredBoardsSet()) + "]\n";
     }
+    if (has_summary()) {
+      ans += summary_.ToString();
+    }
   }
   if (!do_first_.Empty()) {
     ans += do_first_.ToString();
