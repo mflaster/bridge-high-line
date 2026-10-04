@@ -19,15 +19,22 @@ class FuzzyBoardState {
   void SetRequirements1(
       const std::vector<std::shared_ptr<HandRequirements>> &reqs) {
     hand_reqs1_ = reqs;
+    if (all_hand_reqs_.size() < 4) all_hand_reqs_.resize(4);
+    all_hand_reqs_[1] = reqs;
   }
   void SetRequirements3(
       const std::vector<std::shared_ptr<HandRequirements>> &reqs) {
     hand_reqs3_ = reqs;
+    if (all_hand_reqs_.size() < 4) all_hand_reqs_.resize(4);
+    all_hand_reqs_[3] = reqs;
   }
   void SetRequirements(
       const std::vector<std::vector<std::shared_ptr<HandRequirements>>> &r) {
     all_hand_reqs_ = r;
+    if (r.size() > 1) hand_reqs1_ = r[1];
+    if (r.size() > 3) hand_reqs3_ = r[3];
   }
+
 
   BoardState Randomize(bool deal_missing_cards = false);
 

@@ -89,3 +89,16 @@ class AtLeastAces : public HandRequirements {
  private:
   int n_;
 };
+
+class AnyOfRequirement : public HandRequirements {
+ public:
+  AnyOfRequirement(std::vector<std::shared_ptr<HandRequirements>> reqs)
+      : reqs_(std::move(reqs)) {}
+  ~AnyOfRequirement() override = default;
+
+  bool MeetsRequirement(uint64_t hand) const override;
+
+ private:
+  std::vector<std::shared_ptr<HandRequirements>> reqs_;
+};
+

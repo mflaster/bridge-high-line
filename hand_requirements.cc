@@ -55,3 +55,13 @@ bool AtLeastAces::MeetsRequirement(uint64_t hand) const {
   }
   return aces >= n_;
 }
+
+bool AnyOfRequirement::MeetsRequirement(uint64_t hand) const {
+  for (const auto &req : reqs_) {
+    if (req && req->MeetsRequirement(hand)) {
+      return true;
+    }
+  }
+  return false;
+}
+
