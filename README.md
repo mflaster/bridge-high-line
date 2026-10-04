@@ -142,6 +142,9 @@ For complete details on web application usage, configuration, and REST JSON API 
 ### Utility Executables
 - **`test_play`**: Executable for testing interactive play lines.
 
+### Performance Benchmark
+- **`line_finder_perf`**: Standalone performance test binary evaluating `LineFinder::Solve` scaling across deal ending sizes (6 to 13 cards per hand) and recording execution benchmarks in `perf/summary.log` and `perf/details.log`.
+
 ## Running Tests
 
 ### Running the Entire Test Suite
@@ -187,6 +190,29 @@ make run_board_state_test
 make run_conditional_line_test
 make run_server_test
 ```
+
+## Performance Benchmarks
+
+A standalone performance benchmark suite evaluating `LineFinder::Solve` execution times and search scaling is located in the `perf/` directory.
+
+### Running the Performance Test
+
+Execute the benchmark using the shell script or the Makefile wrapper:
+
+```bash
+# Run via shell script
+./perf/line_finder_perf.sh
+
+# Or run via Makefile wrapper
+make run_line_finder_perf
+```
+
+### Benchmark Details & Artifacts
+- **Source Code**: `perf/line_finder_perf.cc` builds the executable `line_finder_perf`.
+- **Benchmark Scope**: Evaluates `LineFinder::Solve` across deal ending sizes from 6 to 13 cards per hand. For each ending size, 3 trials are executed using different deterministic random deals, running 40 Monte Carlo simulations per trial.
+- **Log Files**:
+  - `perf/summary.log`: High-level summary recording execution time (seconds with 1-decimal precision), trump suit, fit count `(declarer_trump-dummy_trump)`, required trick target (`min_tricks`), solved lines ratio/percentage, and status (`SUCCESS`/`FAILED`).
+  - `perf/details.log`: Detailed log output capturing deal structures and solver decision tree metrics for initial trial runs.
 
 ## Plain-Text Deal File Format
 
