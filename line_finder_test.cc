@@ -1,5 +1,9 @@
 #include <catch2/catch_all.hpp>
 
+#include <algorithm>
+#include <chrono>
+#include <random>
+
 #include "golden_serializer.h"
 #include "line_finder.h"
 #include "deal.h"
@@ -846,4 +850,65 @@ TEST_CASE("LineFinder_Squeeze1") {
     unknown: S QJT987 H AQJT98
   )", "squeeze_1"));
 }
+
+TEST_CASE("LineFinder_PerfTest", "[.slow]") {
+  std::mt19937 rng(12345);
+
+  std::vector<CardType> full_deck;
+  for (int suit = 0; suit < 4; suit++) {
+    for (int val = 0; val < 13; val++) {
+      full_deck.push_back(Card::GetSuitedCard(static_cast<Suit>(suit), val));
+    }
+  }
+
+  for (int ending_size = 3; ending_size < 10; ending_size++) {
+    std::vector<CardType> deck = full_deck;
+    std::shuffle(deck.begin(), deck.end(), rng);
+
+    std::vector<uint64_t> hands(4, 0);
+    uint64_t unknown_cards = 0;
+
+    for (int i = 0; i < ending_size; i++) {
+      hands[0] |= deck[i];
+    }
+    for (int i = 0; i < ending_size; i++) {
+      hands[2] |= deck[ending_size + i];
+    }
+    for (int i = 0; i < 2 * ending_size; i++) {
+      unknown_cards |= deck[2 * ending_size + i];
+    }
+
+    int min_tricks = ending_size / 2;
+    int leader = 0;
+    Suit trump = SPADES;
+
+    LOG(INFO) << "=== LineFinder_PerfTest: ending_size = " << ending_size << " ===";
+    LOG(INFO) << "hand[0]: " << HandDebugString(hands[0]);
+    LOG(INFO) << "hand[2]: " << HandDebugString(hands[2]);
+    LOG(INFO) << "unknown_cards: " << HandDebugString(unknown_cards);
+
+    LineFinder lf(20);
+    srand48(12345);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<ConditionalLine> lines =
+        lf.Solve(min_tricks, hands, unknown_cards, leader, trump);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+
+    LOG(INFO) << "Found " << lines.size() << " lines for ending_size = " << ending_size;
+    for (size_t i = 0; i < lines.size(); i++) {
+      LOG(INFO) << "Line " << i + 1 << ": " << lines[i].Describe();
+    }
+    LOG(INFO) << "LineFinder.Solve for ending_size = " << ending_size
+              << " took " << elapsed.count() << " seconds.";
+
+    if (elapsed.count() > 30.0) {
+      LOG(INFO) << "Solve took " << elapsed.count()
+                << "s (> 30s), breaking perf test loop.";
+      break;
+    }
+  }
+}
+
 
