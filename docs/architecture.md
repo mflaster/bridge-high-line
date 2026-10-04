@@ -91,7 +91,7 @@ sequenceDiagram
     participant DEAL as Deal Engine
     participant HR as HandRequirements
     participant BS as BoardState
-    participant OPT as OptimalPlayTree
+    participant OPTree as OptimalPlayTree
     participant IDDS as DDS Interface
     participant SC as SolverCache
     participant DDS as DDS C Library
@@ -121,15 +121,15 @@ sequenceDiagram
     end
 
     loop Search & Play Tree Construction
-        LF->>OPT: FindOptimalPlayTree(board_state, min_tricks, cache)
-        activate OPT
-        OPT->>SC: Check saved_optimal_plays
+        LF->>OPTree: FindOptimalPlayTree(board_state, min_tricks, cache)
+        activate OPTree
+        OPTree->>SC: Check saved_optimal_plays
         activate SC
-        SC-->>OPT: Cache hit or miss
+        SC-->>OPTree: Cache hit or miss
         deactivate SC
 
         alt Cache Miss
-            OPT->>IDDS: DDSFindOptimalLines(board_state, min_tricks, cache)
+            OPTree->>IDDS: DDSFindOptimalLines(board_state, min_tricks, cache)
             activate IDDS
             IDDS->>BS: PopulatePBNDeal(bs, &dealPBN)
             activate BS
@@ -140,11 +140,11 @@ sequenceDiagram
             DDS-->>IDDS: Solve results & card plays
             deactivate DDS
             IDDS->>SC: Store in SolverCache
-            IDDS-->>OPT: OptimalLines
+            IDDS-->>OPTree: OptimalLines
             deactivate IDDS
         end
-        OPT-->>LF: OptimalPlayTree
-        deactivate OPT
+        OPTree-->>LF: OptimalPlayTree
+        deactivate OPTree
     end
 
     LF->>GTF: RecordOptimalTrick(leader, trick, board_id)
