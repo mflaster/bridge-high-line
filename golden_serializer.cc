@@ -147,24 +147,67 @@ static std::string TrimRight(std::string s) {
   return s;
 }
 
-std::string PlayLineGoldenSerializer::FormatHands(uint64_t hand) {
-  if (hand == 0) return "";
-  return "# Hand: " + TrimRight(HandDebugString(hand)) + "\n";
-}
-
-std::string PlayLineGoldenSerializer::FormatHands(const std::vector<uint64_t> &hands) {
-  if (hands.empty()) return "";
+std::string PlayLineGoldenSerializer::FormatHands(uint64_t hand, uint64_t unknown_cards) {
+  if (hand == 0 && unknown_cards == 0) return "";
   std::string res;
-  for (size_t i = 0; i < hands.size(); ++i) {
-    res += "# Hand " + std::to_string(i) + ": " + TrimRight(HandDebugString(hands[i])) + "\n";
+  if (hand != 0) {
+    res += "# Hand: " + TrimRight(HandDebugString(hand)) + "\n";
+  }
+  if (unknown_cards != 0) {
+    res += "# Unknown cards: " + TrimRight(HandDebugString(unknown_cards)) + "\n";
   }
   return res;
 }
 
-std::string PlayLineGoldenSerializer::FormatHands(const std::pair<uint64_t, uint64_t> &hands) {
+std::string PlayLineGoldenSerializer::FormatHands(uint64_t hand, Suit trump) {
+  return FormatHands(hand, 0, trump);
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(uint64_t hand, uint64_t unknown_cards, Suit trump) {
+  std::string res = FormatHands(hand, unknown_cards);
+  res += "# Trump: " + SuitDebugString(trump) + "\n";
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::vector<uint64_t> &hands, uint64_t unknown_cards) {
+  if (hands.empty() && unknown_cards == 0) return "";
+  std::string res;
+  for (size_t i = 0; i < hands.size(); ++i) {
+    res += "# Hand " + std::to_string(i) + ": " + TrimRight(HandDebugString(hands[i])) + "\n";
+  }
+  if (unknown_cards != 0) {
+    res += "# Unknown cards: " + TrimRight(HandDebugString(unknown_cards)) + "\n";
+  }
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::vector<uint64_t> &hands, Suit trump) {
+  return FormatHands(hands, 0, trump);
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::vector<uint64_t> &hands, uint64_t unknown_cards, Suit trump) {
+  std::string res = FormatHands(hands, unknown_cards);
+  res += "# Trump: " + SuitDebugString(trump) + "\n";
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::pair<uint64_t, uint64_t> &hands, uint64_t unknown_cards) {
   std::string res;
   res += "# Hand 0: " + TrimRight(HandDebugString(hands.first)) + "\n";
   res += "# Hand 1: " + TrimRight(HandDebugString(hands.second)) + "\n";
+  if (unknown_cards != 0) {
+    res += "# Unknown cards: " + TrimRight(HandDebugString(unknown_cards)) + "\n";
+  }
+  return res;
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::pair<uint64_t, uint64_t> &hands, Suit trump) {
+  return FormatHands(hands, 0, trump);
+}
+
+std::string PlayLineGoldenSerializer::FormatHands(const std::pair<uint64_t, uint64_t> &hands, uint64_t unknown_cards, Suit trump) {
+  std::string res = FormatHands(hands, unknown_cards);
+  res += "# Trump: " + SuitDebugString(trump) + "\n";
   return res;
 }
 
@@ -192,7 +235,7 @@ std::string PlayLineGoldenSerializer::FormatHands(const char *hands_str) {
 
 std::string PlayLineGoldenSerializer::FormatHands(const BoardState &bs) {
   std::vector<uint64_t> hands = {bs.GetHand(0), bs.GetHand(1), bs.GetHand(2), bs.GetHand(3)};
-  return FormatHands(hands);
+  return FormatHands(hands, 0, bs.GetTrump());
 }
 
 std::string PlayLineGoldenSerializer::FormatCommentHeader(

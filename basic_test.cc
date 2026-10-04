@@ -564,7 +564,7 @@ TEST_CASE("Solver4f") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   PrintOutResults(lines);
   REQUIRE(ans == 4);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4f_lines.golden", hands, "Solver4f: optimal lines with diamond trump contract, Hand 2 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4f_lines.golden", hands, DIAMONDS, "Solver4f: optimal lines with diamond trump contract, Hand 2 on lead");
 }
 
 TEST_CASE("Solver5") {
@@ -602,7 +602,7 @@ TEST_CASE("Solver5b") {
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 5);
   REQUIRE(lines.size() == 62);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, "Solver5b: optimal lines with spade contract, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, SPADES, "Solver5b: optimal lines with spade contract, Hand 0 on lead");
 }
 
 TEST_CASE("Solver5c") {
@@ -626,8 +626,8 @@ TEST_CASE("Solver5c") {
   REQUIRE(ans == 5);
   REQUIRE(lines.size() == 10);
   LOG(INFO) << "Total iterations: " << num_solver_iters();
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, "Solver5c: optimal play sequence with diamond trump, Hand 0 on lead");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, "Solver5c: optimal lines with diamond trump, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, DIAMONDS, "Solver5c: optimal play sequence with diamond trump, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, DIAMONDS, "Solver5c: optimal lines with diamond trump, Hand 0 on lead");
 }
 
 TEST_CASE("Solver6") {
@@ -795,8 +795,8 @@ TEST_CASE("Solver10", "[.slow]") {
   LOG(INFO) << "Total iterations: " << num_solver_iters();
   REQUIRE(num_solver_iters_str() == "11M");
   LOG(INFO) << "Line: " << seq;
-  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_10_seq.golden", hands, "Solver10: optimal play sequence for hearts contract, Hand 0 on lead");
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_10_lines.golden", hands, "Solver10: optimal lines for hearts contract, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_10_seq.golden", hands, HEARTS, "Solver10: optimal play sequence for hearts contract, Hand 0 on lead");
+  REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_10_lines.golden", hands, HEARTS, "Solver10: optimal lines for hearts contract, Hand 0 on lead");
   // MostTricksCanBeWon solved after 7111325 with cache having 206653
   // 0.952u 0.004s 0:00.95 100.0%    0+0k 0+0io 0pf+0w
 }
