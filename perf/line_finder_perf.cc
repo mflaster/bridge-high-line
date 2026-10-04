@@ -103,14 +103,17 @@ int main(int argc, char** argv) {
       std::string suit_len_str = "(" + std::to_string(dist0[trump]) + "-" +
                                  std::to_string(dist2[trump]) + ")";
 
-      log_details("\n=== ending_size = " + std::to_string(ending_size) +
-                  ", trial = " + std::to_string(trial) + " ===");
-      log_details("hand[0] (Declarer): " + HandDebugString(hands[0]));
-      log_details("hand[2] (Partner):  " + HandDebugString(hands[2]));
-      log_details("unknown_cards:      " + HandDebugString(unknown_cards));
-      log_details("Trump: " + SuitDebugString(trump) + " " + suit_len_str +
-                  ", Leader: " + std::to_string(leader) +
-                  ", Min Tricks: " + std::to_string(min_tricks));
+      bool should_log_details = (ending_size < 8 && trial == 1);
+      if (should_log_details) {
+        log_details("\n=== ending_size = " + std::to_string(ending_size) +
+                    ", trial = " + std::to_string(trial) + " ===");
+        log_details("hand[0] (Declarer): " + HandDebugString(hands[0]));
+        log_details("hand[2] (Partner):  " + HandDebugString(hands[2]));
+        log_details("unknown_cards:      " + HandDebugString(unknown_cards));
+        log_details("Trump: " + SuitDebugString(trump) + " " + suit_len_str +
+                    ", Leader: " + std::to_string(leader) +
+                    ", Min Tricks: " + std::to_string(min_tricks));
+      }
 
       srand48(12345 + ending_size * 10 + trial);
 
@@ -123,18 +126,20 @@ int main(int argc, char** argv) {
       bool succeeded = !lines.empty();
       std::string status = succeeded ? "SUCCESS" : "FAILED";
 
-      log_details("Found " + std::to_string(lines.size()) + " lines for ending_size = " +
-                  std::to_string(ending_size) + " trial " + std::to_string(trial));
-      for (size_t i = 0; i < lines.size(); i++) {
-        log_details("Line " + std::to_string(i + 1) + ": " + lines[i].Describe());
+      if (should_log_details) {
+        log_details("Found " + std::to_string(lines.size()) + " lines for ending_size = " +
+                    std::to_string(ending_size) + " trial " + std::to_string(trial));
+        for (size_t i = 0; i < lines.size(); i++) {
+          log_details("Line " + std::to_string(i + 1) + ": " + lines[i].Describe());
+        }
+        log_details("Solve took " + std::to_string(elapsed.count()) + " seconds. Status: " + status);
       }
-      log_details("Solve took " + std::to_string(elapsed.count()) + " seconds. Status: " + status);
 
       double pct = (100.0 * lines.size()) / num_deals;
       std::stringstream ss;
       ss << "ending_size=" << std::setw(2) << ending_size
          << " trial=" << trial
-         << " time=" << std::fixed << std::setprecision(3) << elapsed.count() << "s"
+         << " time=" << std::fixed << std::setprecision(1) << elapsed.count() << "s"
          << " trump=" << std::setw(2) << SuitDebugString(trump)
          << " fit=" << std::setw(6) << suit_len_str
          << " min_tricks=" << std::setw(2) << min_tricks
