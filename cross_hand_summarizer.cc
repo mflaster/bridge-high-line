@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <stdexcept>
 
 static int CardsInSuit(uint64_t hand, Suit s) {
   uint16_t suit_bits = (hand >> (static_cast<int>(s) * 16)) & 0xffff;
@@ -45,9 +46,17 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
 
     if (bounds.min_hand1 == bounds.max_hand1) {
       rules.push_back("hand 1 length in " + suit_str + " is always " + std::to_string(bounds.min_hand1));
+    } else {
+      rules.push_back("hand 1 length in " + suit_str + " is between " +
+                      std::to_string(bounds.min_hand1) + " and " +
+                      std::to_string(bounds.max_hand1));
     }
     if (bounds.min_hand2 == bounds.max_hand2) {
       rules.push_back("hand 2 length in " + suit_str + " is always " + std::to_string(bounds.min_hand2));
+    } else {
+      rules.push_back("hand 2 length in " + suit_str + " is between " +
+                      std::to_string(bounds.min_hand2) + " and " +
+                      std::to_string(bounds.max_hand2));
     }
     if (bounds.min_combined == bounds.max_combined) {
       rules.push_back("combined length in " + suit_str + " is always " + std::to_string(bounds.min_combined));
@@ -58,6 +67,11 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
     }
     if (bounds.min_combined >= 8) {
       rules.push_back("combined length in " + suit_str + " has an 8+ card fit");
+    }
+
+    if (bounds.max_combined > 0) {
+      int max_either = std::max(bounds.max_hand1, bounds.max_hand2);
+      rules.push_back("maximum length in " + suit_str + " in any hand is " + std::to_string(max_either));
     }
   }
   return rules;
@@ -139,6 +153,18 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   report.total_deals = static_cast<int>(deals.size());
   if (deals.empty()) {
     return report;
+  }
+
+  uint64_t expected_overall = deals[0].hand1 | deals[0].hand2;
+  for (const auto& deal : deals) {
+    if ((deal.hand1 & deal.hand2) != 0) {
+      throw std::invalid_argument(
+          "PairedDeal has overlapping cards between hand1 and hand2.");
+    }
+    if ((deal.hand1 | deal.hand2) != expected_overall) {
+      throw std::invalid_argument(
+          "All PairedDeals in a deal set must have the identical overall set of cards.");
+    }
   }
 
   JointSuitRuleExtractor suit_extractor;

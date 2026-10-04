@@ -1,10 +1,12 @@
 #include <catch2/catch_all.hpp>
+#include <stdexcept>
 
 #include "cross_hand_summarizer.h"
 
 TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
+  // All paired deals contain S K432, bifurcated differently
   std::vector<PairedDeal> deals = {
-      PairedDeal("S K2", "S 34"),
+      PairedDeal("S K2", "S 43"),
       PairedDeal("S K3", "S 42"),
       PairedDeal("S K4", "S 32")
   };
@@ -14,15 +16,16 @@ TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
 
   REQUIRE(report.total_deals == 3);
   REQUIRE(report.HasRule("hand 1 always contains the SK"));
+  REQUIRE(report.HasRule("maximum length in S in any hand is 2"));
 }
 
 TEST_CASE("SpotCardFiltering_IgnoresSpots", "[cross_hand_summarizer]") {
-  // Hand 1 always has Hearts Ace (H A) and varying spot cards (2, 3, 4, 5, 6, 7, 8, 9)
-  // Hand 2 has varying spot cards in Hearts
+  // Hand 1 always has Hearts Ace (H A)
+  // Overall set of cards is H A8765432 across all deals
   std::vector<PairedDeal> deals = {
-      PairedDeal("H A2", "H 34"),
-      PairedDeal("H A56", "H 78"),
-      PairedDeal("H A9", "H 234")
+      PairedDeal("H A234", "H 8765"),
+      PairedDeal("H A567", "H 8432"),
+      PairedDeal("H A8", "H 765432")
   };
 
   CrossHandDealSetSummarizer summarizer;
@@ -33,10 +36,10 @@ TEST_CASE("SpotCardFiltering_IgnoresSpots", "[cross_hand_summarizer]") {
 }
 
 TEST_CASE("JointSuitRuleExtractor_SuitBoundsAndFit", "[cross_hand_summarizer]") {
-  // Spades fit: Hand 1 has 5 spades, Hand 2 has 4 spades -> combined 9 spades in all deals
+  // Spades fit: Overall set S AKQJT9876 (9 spades) in all deals
   std::vector<PairedDeal> deals = {
       PairedDeal("S AKQJT", "S 9876"),
-      PairedDeal("S A5432", "S K654")
+      PairedDeal("S AKQ98", "S JT76")
   };
 
   CrossHandDealSetSummarizer summarizer;
@@ -52,12 +55,14 @@ TEST_CASE("JointSuitRuleExtractor_SuitBoundsAndFit", "[cross_hand_summarizer]") 
 
   REQUIRE(report.HasRule("combined length in S is always 9"));
   REQUIRE(report.HasRule("combined length in S has an 8+ card fit"));
+  REQUIRE(report.HasRule("maximum length in S in any hand is 5"));
 }
 
 TEST_CASE("HonorPossessionClassifier_MultipleHonors", "[cross_hand_summarizer]") {
+  // Overall set of cards: S AT, H AK, D KQ, C QJT
   std::vector<PairedDeal> deals = {
-      PairedDeal("S A H K D Q C J", "S T H A D K C Q"),
-      PairedDeal("S A H K D Q C T", "S J H A D K C 2")
+      PairedDeal("S A H K D Q C J", "S T H A D K C QT"),
+      PairedDeal("S A H K D Q C T", "S T H A D K C QJ")
   };
 
   CrossHandDealSetSummarizer summarizer;
@@ -69,6 +74,40 @@ TEST_CASE("HonorPossessionClassifier_MultipleHonors", "[cross_hand_summarizer]")
   REQUIRE(report.HasRule("hand 1 always contains the DQ"));
   REQUIRE(report.HasRule("hand 2 always contains the HA"));
   REQUIRE(report.HasRule("hand 2 always contains the DK"));
+}
+
+TEST_CASE("MaximumSuitLength_AcrossBifurcations", "[cross_hand_summarizer]") {
+  // Test case provided by reviewer:
+  // Overall cards across all deals: S 5432, H 5432
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S 32 H 32", "S 54 H 54"),
+      PairedDeal("S 42 H 42", "S 53 H 53"),
+      PairedDeal("S 432 H 2", "S 5 H 543")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 3);
+  REQUIRE(report.HasRule("maximum length in S in any hand is 3"));
+  REQUIRE(report.HasRule("maximum length in H in any hand is 3"));
+}
+
+TEST_CASE("Validation_InvalidDealSetThrows", "[cross_hand_summarizer]") {
+  CrossHandDealSetSummarizer summarizer;
+
+  // Overlapping cards in hand 1 and hand 2 in a single deal
+  std::vector<PairedDeal> overlapping_deals = {
+      PairedDeal("S K2", "S K4")
+  };
+  REQUIRE_THROWS_AS(summarizer.Summarize(overlapping_deals), std::invalid_argument);
+
+  // Mismatched overall card set across deals
+  std::vector<PairedDeal> mismatched_deals = {
+      PairedDeal("S K2", "S 34"),
+      PairedDeal("S A2", "S 34")
+  };
+  REQUIRE_THROWS_AS(summarizer.Summarize(mismatched_deals), std::invalid_argument);
 }
 
 TEST_CASE("EmptyDealSet", "[cross_hand_summarizer]") {
