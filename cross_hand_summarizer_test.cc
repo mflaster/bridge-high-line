@@ -15,10 +15,13 @@ TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 
   REQUIRE(report.total_deals == 3);
+  REQUIRE(report.cards_per_hand == 2);
+  REQUIRE(report.unknown_cards == ParseHand("S K432"));
   REQUIRE(report.HasRule("hand 1 always contains the SK"));
   // Single-suit tautology suppression ensures suit length rules are omitted when all unknown cards are in Spades
   REQUIRE_FALSE(report.HasRule("combined length in S is always 4"));
   REQUIRE_FALSE(report.HasRule("hand 1 length in S is always 2"));
+  REQUIRE(report.ToString().find("Invariant Rules for 2 card ending:") != std::string::npos);
 }
 
 TEST_CASE("SpotCardFiltering_IgnoresSpots", "[cross_hand_summarizer]") {

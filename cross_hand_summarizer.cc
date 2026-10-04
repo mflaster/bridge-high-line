@@ -149,7 +149,7 @@ std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {
 std::string CrossHandSummaryReport::ToString() const {
   std::string out = "Cross-Hand Deal Set Summary Report\n";
   out += "Total Deals: " + std::to_string(total_deals) + "\n";
-  out += "Invariant Rules:\n";
+  out += "Invariant Rules for " + std::to_string(cards_per_hand) + " card ending:\n";
   if (invariant_rules.empty()) {
     out += "  (None)\n";
   } else {
@@ -181,6 +181,9 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
           "All PairedDeals in a deal set must have the identical overall set of cards.");
     }
   }
+
+  report.unknown_cards = expected_overall;
+  report.cards_per_hand = CountCardsInHand(deals[0].hand1);
 
   JointSuitRuleExtractor suit_extractor(hand1_label, hand2_label);
   HonorPossessionClassifier honor_classifier(hand1_label, hand2_label);

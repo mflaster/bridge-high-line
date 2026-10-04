@@ -6,7 +6,7 @@
 Covers 4/20 (20.0%) [4, 5, 14, 19]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
-Invariant Rules:
+Invariant Rules for 6 card ending:
   - hand 1 length in S is between 2 and 4
   - hand 3 length in S is between 2 and 4
   - maximum length in S in any hand is 4

@@ -76,6 +76,8 @@ class HonorPossessionClassifier {
 
 struct CrossHandSummaryReport {
   int total_deals = 0;
+  uint64_t unknown_cards = 0;
+  int cards_per_hand = 0;
   std::vector<std::string> invariant_rules;
   std::map<Suit, JointSuitBounds> suit_bounds;
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats;
