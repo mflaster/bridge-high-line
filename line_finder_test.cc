@@ -730,10 +730,10 @@ struct LineFinderTestCase {
   static Suit ParseSuit(const std::string &s) {
     std::string lower;
     for (char c : s) lower += tolower(c);
-    if (lower.find("spade") != std::string::npos || lower == "s") return SPADES;
-    if (lower.find("heart") != std::string::npos || lower == "h") return HEARTS;
-    if (lower.find("diamond") != std::string::npos || lower == "d") return DIAMONDS;
-    if (lower.find("club") != std::string::npos || lower == "c") return CLUBS;
+    if (lower.find("spade") != std::string::npos || lower == "s" || lower.rfind("s", 0) == 0) return SPADES;
+    if (lower.find("heart") != std::string::npos || lower == "h" || lower.rfind("h", 0) == 0) return HEARTS;
+    if (lower.find("diamond") != std::string::npos || lower == "d" || lower.rfind("d", 0) == 0) return DIAMONDS;
+    if (lower.find("club") != std::string::npos || lower == "c" || lower.rfind("c", 0) == 0) return CLUBS;
     return NOTRUMP;
   }
 
@@ -749,49 +749,66 @@ struct LineFinderTestCase {
       std::string trimmed = line.substr(first, (last - first + 1));
       if (trimmed.empty() || trimmed[0] == '#') continue;
 
-      size_t colon = trimmed.find(':');
-      if (colon == std::string::npos) continue;
+      std::vector<std::string> parts;
+      std::stringstream lss(trimmed);
+      std::string part;
+      while (std::getline(lss, part, ',')) {
+        if (!part.empty()) parts.push_back(part);
+      }
+      std::vector<std::string> entries;
+      for (const auto &p : parts) {
+        if (entries.empty() || p.find(':') != std::string::npos) {
+          entries.push_back(p);
+        } else {
+          entries.back() += "," + p;
+        }
+      }
 
-      std::string key = trimmed.substr(0, colon);
-      std::string val = trimmed.substr(colon + 1);
+      for (const auto &entry : entries) {
+        size_t colon = entry.find(':');
+        if (colon == std::string::npos) continue;
 
-      auto trim_str = [](std::string str) {
-        size_t f = str.find_first_not_of(" \t\r\n");
-        if (f == std::string::npos) return std::string("");
-        size_t l = str.find_last_not_of(" \t\r\n");
-        return str.substr(f, l - f + 1);
-      };
-      key = trim_str(key);
-      val = trim_str(val);
+        std::string key = entry.substr(0, colon);
+        std::string val = entry.substr(colon + 1);
 
-      std::string key_lower;
-      for (char c : key) key_lower += tolower(c);
+        auto trim_str = [](std::string str) {
+          size_t f = str.find_first_not_of(" \t\r\n");
+          if (f == std::string::npos) return std::string("");
+          size_t l = str.find_last_not_of(" \t\r\n");
+          return str.substr(f, l - f + 1);
+        };
+        key = trim_str(key);
+        val = trim_str(val);
 
-      if (key_lower == "name") {
-        tc.name = val;
-      } else if (key_lower == "trump" || key_lower == "contract") {
-        tc.trump = ParseSuit(val);
-      } else if (key_lower == "leader" || key_lower == "lead") {
-        tc.leader = std::stoi(val);
-      } else if (key_lower == "min_tricks" || key_lower == "tricks" || key_lower == "min tricks") {
-        tc.min_tricks = std::stoi(val);
-      } else if (key_lower == "num_iters" || key_lower == "iters" || key_lower == "iterations") {
-        tc.num_iters = std::stoi(val);
-      } else if (key_lower == "seed") {
-        tc.seed = std::stoi(val);
-      } else if (key_lower == "hand 0" || key_lower == "hand0") {
-        tc.hand0 = val;
-      } else if (key_lower == "hand 1" || key_lower == "hand1") {
-        tc.hand1 = val;
-      } else if (key_lower == "hand 2" || key_lower == "hand2") {
-        tc.hand2 = val;
-      } else if (key_lower == "hand 3" || key_lower == "hand3") {
-        tc.hand3 = val;
-      } else if (key_lower == "unknown" || key_lower == "unknown_cards" ||
-                 key_lower == "unknown cards" || key_lower.find("hands 1 and 3") != std::string::npos) {
-        tc.unknown_cards = val;
-      } else if (key_lower == "description" || key_lower == "desc") {
-        tc.description = val;
+        std::string key_lower;
+        for (char c : key) key_lower += tolower(c);
+
+        if (key_lower == "name") {
+          tc.name = val;
+        } else if (key_lower == "trump" || key_lower == "contract") {
+          tc.trump = ParseSuit(val);
+        } else if (key_lower == "leader" || key_lower == "lead") {
+          tc.leader = std::stoi(val);
+        } else if (key_lower == "min_tricks" || key_lower == "tricks" || key_lower == "min tricks") {
+          tc.min_tricks = std::stoi(val);
+        } else if (key_lower == "num_iters" || key_lower == "iters" || key_lower == "iterations") {
+          tc.num_iters = std::stoi(val);
+        } else if (key_lower == "seed") {
+          tc.seed = std::stoi(val);
+        } else if (key_lower == "hand 0" || key_lower == "hand0" || key_lower.find("hand[0]") != std::string::npos) {
+          tc.hand0 = val;
+        } else if (key_lower == "hand 1" || key_lower == "hand1" || key_lower.find("hand[1]") != std::string::npos) {
+          tc.hand1 = val;
+        } else if (key_lower == "hand 2" || key_lower == "hand2" || key_lower.find("hand[2]") != std::string::npos) {
+          tc.hand2 = val;
+        } else if (key_lower == "hand 3" || key_lower == "hand3" || key_lower.find("hand[3]") != std::string::npos) {
+          tc.hand3 = val;
+        } else if (key_lower == "unknown" || key_lower == "unknown_cards" ||
+                   key_lower == "unknown cards" || key_lower.find("hands 1 and 3") != std::string::npos) {
+          tc.unknown_cards = val;
+        } else if (key_lower == "description" || key_lower == "desc") {
+          tc.description = val;
+        }
       }
     }
     return tc;
@@ -845,5 +862,15 @@ TEST_CASE("LineFinder_Squeeze1") {
     hand 2: S K2 H K D 432
     unknown: S QJT987 H AQJT98
   )", "squeeze_1"));
+}
+
+TEST_CASE("LineFinder_OnsideAce") {
+  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
+    name: OnsideAce
+    hand[0] (Declarer): S K73; H 9; D 93; C 9; 
+    hand[2] (Partner):  S -; H -; D K4; C QJT64; 
+    unknown_cards:      S AT854; H 87; D AQJT87; C 7; 
+    Trump: C (1-5), Leader: 2, Min Tricks: 6
+  )", "OnsideAce"));
 }
 

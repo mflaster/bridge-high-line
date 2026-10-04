@@ -1,0 +1,71 @@
+# Setup: OnsideAce: C contract, Hand 2 on lead
+# Hand 0: S K73; H 9; D 93; C 9;
+# Hand 1: 
+# Hand 2: S -; H -; D K4; C QJT64;
+# Hand 3: 
+# Unknown cards: S AT854; H 87; D AQJT87; C 7;
+# Trump: C
+Covers 20/20 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+Cross-Hand Deal Set Summary Report
+Total Deals: 20
+Invariant Rules for 7 card ending:
+  - hand 1 length in S is between 1 and 4
+  - hand 3 length in S is between 1 and 4
+  - maximum length in S in any hand is 4
+  - hand 1 length in H is between 0 and 2
+  - hand 3 length in H is between 0 and 2
+  - maximum length in H in any hand is 2
+  - hand 1 length in D is between 1 and 4
+  - hand 3 length in D is between 2 and 5
+  - maximum length in D in any hand is 5
+  - hand 1 length in C is between 0 and 1
+  - hand 3 length in C is between 0 and 1
+  - maximum length in C in any hand is 1
+
+  after C6 (__) C9 (__): C6 (__) C9 (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / C6 H8 C9 C7  / C6 S5 C9 C7  / C6 C7 C9 H8  / C6 C7 C9 S5  / C6 S5 C9 C7 
+    when 0 wins: 
+      after H9 (__) DK (__): H9 (__) DK (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / H9 D7 DK H7  / H9 H8 DK DQ  / H9 H7 DK D7  / H9 D7 DK H8  / H9 H8 DK H7 
+        when 0 wins: 
+          after SK (S_) D4 (S_): SK (S_) D4 (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / SK SA D4 S5  / SK S4 D4 SA  / SK S5 D4 SA  / SK SA D4 ST  / SK S4 D4 SA 
+            if 1 wins: 
+              after (D_) CQ (DT) D9: (D_) CQ (DT) D9 [14] / D7 CQ DT D9 
+                when 2 wins: 
+                  after CJ (R_) S7 (ST): CJ (R_) S7 (ST) [14] / CJ DA S7 ST 
+                    when 2 wins: 
+                      after CT (S_) S3 (S_): CT (S_) S3 (S_) [14] / CT S4 S3 S8 
+                        when 2 wins: 
+                          after C4 (R_) D3 (R_): C4 (R_) D3 (R_) [14] / C4 DQ D3 DJ 
+                            when 2 wins: HAND SUCCEEDED FOR: 14
+              after (H_) CQ (__) S7: (H_) CQ (__) S7 [13,16] / H7 CQ S4 S7  / H7 CQ DA S7 
+                when 2 wins: 
+                  after CJ (S_) S3 (__): CJ (S_) S3 (__) [13,16] / CJ S8 S3 D8  / CJ S4 S3 ST 
+                    when 2 wins: 
+                      after CT (R_) D9 (S_): CT (R_) D9 (S_) [13,16] / CT DA D9 ST  / CT DQ D9 S8 
+                        when 2 wins: 
+                          after C4 (R_) D3 (R_): C4 (R_) D3 (R_) [13,16] / C4 DJ D3 DT  / C4 DJ D3 DT 
+                            when 2 wins: HAND SUCCEEDED FOR: 13, 16
+              after (S_) CQ (__) S7: (S_) CQ (__) S7 [0,3,6,7,9,10,15,19] / S4 CQ ST S7  / S4 CQ H7 S7  / S4 CQ D7 S7  / S4 CQ S8 S7  / S5 CQ ST S7 
+                when 2 wins: 
+                  after CJ (__) S3 (__): CJ (__) S3 (__) [0,3,6,7,9,10,15,19] / CJ D8 S3 S8  / CJ D8 S3 S8  / CJ DT S3 ST  / CJ D8 S3 ST  / CJ S8 S3 D7 
+                    when 2 wins: 
+                      after CT (R_) D9 (__): CT (R_) D9 (__) [0,3,6,7,9,10,15,19] / CT DT D9 DQ  / CT DQ D9 DT  / CT DA D9 S8  / CT D7 D9 DJ  / CT DQ D9 DT 
+                        when 2 wins: 
+                          after C4 (R_) D3 (R_): C4 (R_) D3 (R_) [0,3,6,7,9,10,15,19] / C4 DA D3 DJ  / C4 DJ D3 DA  / C4 DQ D3 DJ  / C4 DA D3 DT  / C4 DJ D3 DA 
+                            when 2 wins: HAND SUCCEEDED FOR: 0, 3, 6, 7, 9, 10, 15, 19
+            if 3 wins: 
+              after (D_) D9 (D_) CQ: (D_) D9 (D_) CQ [4,18] / D7 D9 D8 CQ  / DT D9 D7 CQ 
+                when 2 wins: 
+                  after CJ (ST) S7 (R_): CJ (ST) S7 (R_) [4,18] / CJ ST S7 DJ  / CJ ST S7 DJ 
+                    when 2 wins: 
+                      after CT (S_) S3 (__): CT (S_) S3 (__) [4,18] / CT S8 S3 DT  / CT S8 S3 S4 
+                        when 2 wins: 
+                          after C4 (R_) D3 (R_): C4 (R_) D3 (R_) [4,18] / C4 DQ D3 DA  / C4 DQ D3 DA 
+                            when 2 wins: HAND SUCCEEDED FOR: 4, 18
+              after (S_) S7 (__) CQ: (S_) S7 (__) CQ [1,2,5,8,11,12,17] / ST S7 H7 CQ  / ST S7 S4 CQ  / S5 S7 ST CQ  / S5 S7 ST CQ  / S4 S7 ST CQ 
+                when 2 wins: 
+                  after CJ (__) S3 (__): CJ (__) S3 (__) [1,2,5,8,11,12,17] / CJ S8 S3 D8  / CJ S8 S3 D8  / CJ S8 S3 D8  / CJ D8 S3 S8  / CJ S8 S3 H7 
+                    when 2 wins: 
+                      after CT (R_) D9 (R_): CT (R_) D9 (R_) [1,2,5,8,11,12,17] / CT DA D9 D7  / CT DJ D9 DT  / CT DT D9 D7  / CT DT D9 DQ  / CT DA D9 DJ 
+                        when 2 wins: 
+                          after C4 (R_) D3 (R_): C4 (R_) D3 (R_) [1,2,5,8,11,12,17] / C4 DJ D3 DT  / C4 DA D3 DQ  / C4 DA D3 DQ  / C4 DA D3 DJ  / C4 DQ D3 DT 
+                            when 2 wins: HAND SUCCEEDED FOR: 1, 2, 5, 8, 11, 12, 17
