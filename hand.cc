@@ -52,20 +52,24 @@ std::vector<CardType> CardsInHand(uint64_t hand, uint64_t played_cards) {
 }
 
 int GetHighCardPoints(uint64_t hand) {
-  int total_hcp = 0;
-  while (hand > 0) {
-    for (int suit = 0; suit < 4; suit++) {
-      uint16_t cur_suit = hand & 0xffff;
-      hand = (hand >> 16);
-      for (int val = 0; val < 13; val++) {
-        if (val > 8 && cur_suit & 0x1) {
-          total_hcp += val - 8;
-        }
-        cur_suit = (cur_suit >> 1);
-      }
-    }
-  }
-  return total_hcp;
+  return 4 * PopCount64(hand & kAceMask64) +
+         3 * PopCount64(hand & kKingMask64) +
+         2 * PopCount64(hand & kQueenMask64) +
+         1 * PopCount64(hand & kJackMask64);
+}
+
+HonorPossessionMatrix ClassifyHonorPossession(uint64_t hand1, uint64_t hand2) {
+  assert((hand1 & hand2) == 0);
+  HonorPossessionMatrix matrix;
+  matrix.hand1_honors = ExtractHonors(hand1);
+  matrix.hand2_honors = ExtractHonors(hand2);
+  matrix.shared_honors = matrix.hand1_honors & matrix.hand2_honors;
+  matrix.joint_honors = matrix.hand1_honors | matrix.hand2_honors;
+  matrix.neither_honors = kHonorMask64 & ~matrix.joint_honors;
+  matrix.hand1_honor_count = CountHonorsInHand(hand1);
+  matrix.hand2_honor_count = CountHonorsInHand(hand2);
+  matrix.joint_honor_count = PopCount64(matrix.joint_honors);
+  return matrix;
 }
 
 void GetSuitDistribution(uint64_t hand, int *dist) {

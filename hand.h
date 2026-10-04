@@ -20,6 +20,40 @@ void GetSuitDistribution(uint64_t hand, int *dist);
 int CountCardsInHand(uint64_t hand);
 int GetHighCardPoints(uint64_t hand);
 
+struct HonorPossessionMatrix {
+  uint64_t hand1_honors = 0;
+  uint64_t hand2_honors = 0;
+  uint64_t shared_honors = 0;
+  uint64_t neither_honors = 0;
+  uint64_t joint_honors = 0;
+
+  int hand1_honor_count = 0;
+  int hand2_honor_count = 0;
+  int joint_honor_count = 0;
+
+  bool Hand1HasHonor(Suit suit, int rank) const {
+    return (hand1_honors & Card::GetSuitedCard(suit, rank)) != 0;
+  }
+
+  bool Hand2HasHonor(Suit suit, int rank) const {
+    return (hand2_honors & Card::GetSuitedCard(suit, rank)) != 0;
+  }
+
+  bool JointHasHonor(Suit suit, int rank) const {
+    return (joint_honors & Card::GetSuitedCard(suit, rank)) != 0;
+  }
+
+  uint16_t Hand1SuitHonors(Suit suit) const {
+    return static_cast<uint16_t>((hand1_honors >> (static_cast<int>(suit) * 16)) & 0xFFFF);
+  }
+
+  uint16_t Hand2SuitHonors(Suit suit) const {
+    return static_cast<uint16_t>((hand2_honors >> (static_cast<int>(suit) * 16)) & 0xFFFF);
+  }
+};
+
+HonorPossessionMatrix ClassifyHonorPossession(uint64_t hand1, uint64_t hand2);
+
 template <typename T>
 std::string StrJoin(const T &v, std::string delim) {
   std::string ans;
