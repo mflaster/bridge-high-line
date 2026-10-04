@@ -105,7 +105,7 @@ add_executable(bridge_server server_main.cc)
 target_link_libraries(bridge_server PRIVATE bridge_lib)
 
 # Executable: line_finder_perf
-add_executable(line_finder_perf line_finder_perf.cc)
+add_executable(line_finder_perf perf/line_finder_perf.cc)
 target_link_libraries(line_finder_perf PRIVATE bridge_lib)
 
 enable_testing()
