@@ -840,10 +840,10 @@ TEST_CASE("LineFinder_Squeeze1") {
     name: squeeze_1
     trump: no trump
     leader: 0
-    min_tricks: 4
-    hand 0: S A43 D A
-    hand 2: S K2 H K D 2
-    unknown: S QJT9 H AQJT
+    min_tricks: 6
+    hand 0: S A43 D AKQ
+    hand 2: S K2 H K D 432
+    unknown: S QJT987 H AQJT98
   )", "squeeze_1"));
 }
 
