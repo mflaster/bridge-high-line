@@ -15,6 +15,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
   httplib::Client client("127.0.0.1", port);
+  client.set_keep_alive(false);
 
   // Test static HTML serving
   auto res_index = client.Get("/");
@@ -50,6 +51,8 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
   httplib::Client client("127.0.0.1", port);
+  client.set_keep_alive(false);
+  client.set_read_timeout(60, 0);
 
   // Test 1: Simple 2-Card Deal Finesse
   nlohmann::json solve_req;
@@ -119,6 +122,29 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   auto res_bad = client.Post("/api/solve", "{invalid json}", "application/json");
   REQUIRE(res_bad);
   REQUIRE(res_bad->status == 400);
+
+  // Test 4: Fuzzy solve returning distribution summary
+  nlohmann::json fuzzy_req;
+  fuzzy_req["hands"]["N"] = "S AQ";
+  fuzzy_req["hands"]["E"] = "";
+  fuzzy_req["hands"]["S"] = "S 32";
+  fuzzy_req["hands"]["W"] = "";
+  fuzzy_req["trump"] = "SPADES";
+  fuzzy_req["leader"] = "NORTH";
+  fuzzy_req["min_tricks"] = 1;
+  fuzzy_req["num_iters"] = 1;
+
+  auto res_fuzzy = client.Post("/api/solve", fuzzy_req.dump(), "application/json");
+  REQUIRE(res_fuzzy);
+  REQUIRE(res_fuzzy->status == 200);
+
+  nlohmann::json fuzzy_json = nlohmann::json::parse(res_fuzzy->body);
+  REQUIRE(fuzzy_json["success"] == true);
+  REQUIRE(fuzzy_json.contains("distribution_summary"));
+  auto &dist_sum = fuzzy_json["distribution_summary"];
+  REQUIRE(dist_sum.contains("invariant_rules"));
+  REQUIRE(dist_sum.contains("suit_bounds"));
+  REQUIRE(dist_sum.contains("honor_stats"));
 
   server.Stop();
 }

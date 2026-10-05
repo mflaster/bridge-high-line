@@ -137,7 +137,7 @@ class ConditionalLine {  // ConditionalLineBranch
   bool has_summary() const { return summary_.total_deals > 0; }
 
   int CoveredFinalBoards() const;
-  std::set<int> CoveredFinalBoardsSet() const;
+  std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
 
   const GeneralizedTrick &do_first() const { return do_first_; }
   const std::vector<std::pair<std::shared_ptr<PlayCondition>,
