@@ -963,6 +963,10 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     double elapsed_ms =
         std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
+    nlohmann::json tree_json = nlohmann::json::object();
+    if (tree_node) {
+      tree_json = *tree_node;
+    }
     CollapseRedundantTreeNodes(tree_json);
 
     response["success"] = true;
@@ -973,11 +977,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["success_boards"] = success_boards;
     response["failure_boards"] = failure_boards;
     response["covered_boards"] = covered_boards;
-    if (tree_node) {
-      response["tree"] = *tree_node;
-    } else {
-      response["tree"] = nlohmann::json::object();
-    }
+    response["tree"] = tree_json;
     response["elapsed_ms"] = elapsed_ms;
 
     res.set_content(response.dump(), "application/json");
