@@ -26,10 +26,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="finesse">Simple Finesse (Spades)</option>
           <option value="endplay">4-Card Endplay Deal</option>
           <option value="squeeze">Squeeze Deal (NT)</option>
-          <option value="fuzzy">Fuzzy Requirements Deal</option>
-          <option value="simple_fuzzy">Simple Fuzzy Finesse (AQ vs 23)</option>
         </select>
-        <button id="loadPresetBtn" class="btn btn-secondary">Load Preset</button>
       </div>
     </div>
   </header>
@@ -40,104 +37,125 @@ inline const char* INDEX_HTML = R"rawhtml(
       <section class="card-panel deal-setup-panel">
         <div class="panel-header">
           <h2>Deal Configuration</h2>
-          <span class="panel-badge">Interactive SVG</span>
+          <span class="panel-badge" id="dealEndingBadge">Full deal</span>
         </div>
 
         <!-- SVG Deal Diagram -->
         <div class="svg-deal-container">
-          <svg id="dealSvg" viewBox="0 0 600 450" xmlns="http://www.w3.org/2000/svg">
-            <rect width="100%" height="100%" fill="#1a382b" rx="12"/>
-            
-            <!-- Compass Center Box -->
-            <g transform="translate(230, 160)">
-              <rect width="140" height="110" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="2"/>
-              <text x="70" y="25" class="compass-label" text-anchor="middle">COMPASS</text>
-              <text x="70" y="55" id="svgTrumpText" class="compass-trump" text-anchor="middle">Trump: ♠</text>
-              <text x="70" y="80" id="svgLeaderText" class="compass-leader" text-anchor="middle">Leader: North</text>
+          <svg id="dealSvg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#1a382b" rx="10"/>
+
+            <!-- Upper Left Compass Rose -->
+            <g id="svgCompassRose" transform="translate(100, 57)">
+              <circle r="14" fill="#0b1b13" stroke="#2d5e46" stroke-width="1.2"/>
+              <circle r="1.8" fill="#6ee7b7"/>
+              <line x1="0" y1="-10" x2="0" y2="10" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
+              <line x1="-10" y1="0" x2="10" y2="0" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
+              <text x="0" y="-18" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">N</text>
+              <text x="0" y="20" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">S</text>
+              <text x="-20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">W</text>
+              <text x="20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">E</text>
+            </g>
+
+            <!-- Upper Right Unknown Cards Box -->
+            <g class="hand-group" id="svgUnknownHand" transform="translate(415, 12)">
+              <rect width="170" height="90" rx="8" class="unknown-box" id="boxUnknown"/>
+              <text x="85" y="15" class="unknown-title" text-anchor="middle">UNKNOWN CARDS</text>
+              <g transform="translate(12, 18)" id="cardsUnknownGroup"></g>
             </g>
 
             <!-- North Hand -->
-            <g class="hand-group" id="svgNorthHand" transform="translate(180, 15)">
-              <rect width="240" height="130" rx="8" class="hand-box" id="boxNorth"/>
-              <text x="120" y="22" class="hand-title" text-anchor="middle">NORTH (0)</text>
-              <g transform="translate(15, 30)" id="cardsNorthGroup"></g>
+            <g class="hand-group" id="svgNorthHand" transform="translate(195, 12)">
+              <rect width="210" height="90" rx="8" class="hand-box" id="boxNorth"/>
+              <g transform="translate(12, 12)" id="cardsNorthGroup"></g>
             </g>
 
             <!-- West Hand -->
-            <g class="hand-group" id="svgWestHand" transform="translate(15, 150)">
-              <rect width="200" height="130" rx="8" class="hand-box" id="boxWest"/>
-              <text x="100" y="22" class="hand-title" text-anchor="middle">WEST (3)</text>
-              <g transform="translate(15, 30)" id="cardsWestGroup"></g>
+            <g class="hand-group" id="svgWestHand" transform="translate(15, 115)">
+              <rect width="170" height="90" rx="8" class="hand-box" id="boxWest"/>
+              <g transform="translate(12, 12)" id="cardsWestGroup"></g>
+            </g>
+
+            <!-- Center Box (Middle Controls: Trump / Leader / Target / Iters) -->
+            <g id="svgCenterBox" transform="translate(195, 115)">
+              <rect width="210" height="90" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
+              <foreignObject x="0" y="0" width="210" height="90">
+                <div class="middle-controls" xmlns="http://www.w3.org/1999/xhtml">
+                  <div class="middle-control-row">
+                    <div class="middle-control-group">
+                      <label for="trumpSelect">Trump:</label>
+                      <select id="trumpSelect" class="middle-select">
+                        <option value="SPADES">♠ S</option>
+                        <option value="HEARTS">♥ H</option>
+                        <option value="DIAMONDS">♦ D</option>
+                        <option value="CLUBS">♣ C</option>
+                        <option value="NOTRUMP">NT</option>
+                      </select>
+                    </div>
+                    <div class="middle-control-group">
+                      <label for="leaderSelect">Leader:</label>
+                      <select id="leaderSelect" class="middle-select">
+                        <option value="NORTH">N</option>
+                        <option value="EAST">E</option>
+                        <option value="SOUTH">S</option>
+                        <option value="WEST">W</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="middle-control-row">
+                    <div class="middle-control-group">
+                      <label for="targetTricks">Tricks:</label>
+                      <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
+                    </div>
+                    <div class="middle-control-group">
+                      <label for="numIters">Iters:</label>
+                      <input type="text" inputmode="numeric" id="numIters" value="10" class="middle-number-input">
+                    </div>
+                  </div>
+                </div>
+              </foreignObject>
             </g>
 
             <!-- East Hand -->
-            <g class="hand-group" id="svgEastHand" transform="translate(385, 150)">
-              <rect width="200" height="130" rx="8" class="hand-box" id="boxEast"/>
-              <text x="100" y="22" class="hand-title" text-anchor="middle">EAST (1)</text>
-              <g transform="translate(15, 30)" id="cardsEastGroup"></g>
+            <g class="hand-group" id="svgEastHand" transform="translate(415, 115)">
+              <rect width="170" height="90" rx="8" class="hand-box" id="boxEast"/>
+              <g transform="translate(12, 12)" id="cardsEastGroup"></g>
             </g>
 
             <!-- South Hand -->
-            <g class="hand-group" id="svgSouthHand" transform="translate(180, 285)">
-              <rect width="240" height="130" rx="8" class="hand-box" id="boxSouth"/>
-              <text x="120" y="22" class="hand-title" text-anchor="middle">SOUTH (2)</text>
-              <g transform="translate(15, 30)" id="cardsSouthGroup"></g>
+            <g class="hand-group" id="svgSouthHand" transform="translate(195, 218)">
+              <rect width="210" height="90" rx="8" class="hand-box" id="boxSouth"/>
+              <g transform="translate(12, 12)" id="cardsSouthGroup"></g>
             </g>
           </svg>
         </div>
 
-        <!-- Contract Controls -->
-        <div class="controls-grid">
-          <div class="control-group">
-            <label for="trumpSelect">Trump Suit:</label>
-            <select id="trumpSelect" class="select-input">
-              <option value="SPADES">♠ Spades</option>
-              <option value="HEARTS">♥ Hearts</option>
-              <option value="DIAMONDS">♦ Diamonds</option>
-              <option value="CLUBS">♣ Clubs</option>
-              <option value="NOTRUMP">NT No Trump</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label for="leaderSelect">Leader:</label>
-            <select id="leaderSelect" class="select-input">
-              <option value="NORTH">North (N)</option>
-              <option value="EAST">East (E)</option>
-              <option value="SOUTH">South (S)</option>
-              <option value="WEST">West (W)</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label for="targetTricks">Trick Target: <span id="targetTricksVal">2</span></label>
-            <input type="range" id="targetTricks" min="1" max="13" value="2" class="range-input">
-          </div>
-
-          <div class="control-group">
-            <label for="numIters">Simulations (Iters):</label>
-            <input type="number" id="numIters" min="1" max="500" value="10" class="number-input">
-          </div>
-        </div>
-
         <!-- Text Inputs for Hands -->
         <div class="hand-inputs-accordion">
-          <h3>Hand Text Inputs</h3>
-          <div class="hand-input-row">
-            <label>North:</label>
-            <input type="text" id="inputNorth" class="text-input" value="S AQ; H -; D -; C -;">
+          <div class="hand-inputs-header">
+            <h3>Hand Text Inputs</h3>
+            <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm">Load</button>
+            <input type="file" id="fileInputTxt" accept=".txt,.deal" style="display: none;">
           </div>
           <div class="hand-input-row">
-            <label>East:</label>
-            <input type="text" id="inputEast" class="text-input" value="S 54; H -; D -; C -;">
+            <div class="hand-input-group">
+              <label for="inputNorth">N:</label>
+              <input type="text" id="inputNorth" class="text-input mini-text-input" value="S AQ; H -; D -; C -;">
+            </div>
+            <div class="hand-input-group">
+              <label for="inputSouth">S:</label>
+              <input type="text" id="inputSouth" class="text-input mini-text-input" value="S 87; H -; D -; C -;">
+            </div>
           </div>
           <div class="hand-input-row">
-            <label>South:</label>
-            <input type="text" id="inputSouth" class="text-input" value="S 87; H -; D -; C -;">
-          </div>
-          <div class="hand-input-row">
-            <label>West:</label>
-            <input type="text" id="inputWest" class="text-input" value="S KJ; H -; D -; C -;">
+            <div class="hand-input-group">
+              <label for="inputEast">E:</label>
+              <input type="text" id="inputEast" class="text-input mini-text-input" value="S 54; H -; D -; C -;">
+            </div>
+            <div class="hand-input-group">
+              <label for="inputWest">W:</label>
+              <input type="text" id="inputWest" class="text-input mini-text-input" value="S KJ; H -; D -; C -;">
+            </div>
           </div>
         </div>
 
@@ -145,6 +163,12 @@ inline const char* INDEX_HTML = R"rawhtml(
         <details class="requirements-details">
           <summary>Hand Requirements (Fuzzy Search Constraints)</summary>
           <div class="requirements-form">
+            <div class="req-player req-unknown">
+              <h4>Unknown Cards (Defender Pool)</h4>
+              <div class="req-fields">
+                <input type="text" id="inputUnknownCards" class="text-input" placeholder="e.g. S Kxxx or H AT9 C 32" style="width: 100%;">
+              </div>
+            </div>
             <div class="req-player">
               <h4>West Requirements</h4>
               <div class="req-fields">
@@ -203,9 +227,13 @@ inline const char* INDEX_HTML = R"rawhtml(
             <span class="stat-label">Optimal Lead</span>
             <span id="statLead" class="stat-value">-</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-label">Covered Boards</span>
-            <span id="statBoards" class="stat-value">-</span>
+          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success distribution summary">
+            <span class="stat-label">Success Rate</span>
+            <span id="statSuccess" class="stat-value">-</span>
+          </div>
+          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure distribution summary">
+            <span class="stat-label">Failure Rate</span>
+            <span id="statFailure" class="stat-value">-</span>
           </div>
         </div>
 
@@ -236,6 +264,10 @@ inline const char* INDEX_HTML = R"rawhtml(
 
         <!-- Tab Panel 2: Distribution Summary -->
         <div id="panelDistributionSummary" class="tab-panel hidden">
+          <div id="summaryModeHeader" class="summary-mode-header hidden">
+            <span id="summaryModeBadge" class="mode-badge mode-success">Success Deals</span>
+            <span id="summaryModeSub" class="mode-sub"></span>
+          </div>
           <div id="summaryEmptyNotice" class="summary-empty">
             No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.
           </div>
@@ -357,11 +389,11 @@ body {
 
 .grid-container {
   max-width: 1600px;
-  margin: 20px auto 0;
-  padding: 0 24px;
+  margin: 12px auto 0;
+  padding: 0 20px;
   display: grid;
   grid-template-columns: 580px 1fr;
-  gap: 20px;
+  gap: 16px;
 }
 
 @media (max-width: 1200px) {
@@ -374,17 +406,17 @@ body {
   background-color: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
-  padding: 20px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -422,27 +454,41 @@ body {
   fill: #163327;
 }
 
-.hand-title {
+.unknown-box {
+  fill: #1a2332;
+  stroke: #f59e0b;
+  stroke-width: 1.5;
+  stroke-dasharray: 4,3;
+  transition: all 0.2s ease;
+}
+
+.unknown-box:hover {
+  fill: #222e42;
+  stroke: #fbbf24;
+}
+
+.compass-dir-label {
   fill: #6ee7b7;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: sans-serif;
+}
+
+.unknown-title {
+  fill: #f59e0b;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
 
-.compass-label {
-  fill: #94a3b8;
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .compass-trump, .compass-leader {
   fill: #f8fafc;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .card-suit-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -451,36 +497,82 @@ body {
 
 .card-values {
   fill: #cbd5e1;
-  font-size: 13px;
+  font-size: 12px;
   font-family: monospace;
 }
 
 /* Form Controls */
-.controls-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.control-group {
+.middle-controls {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-.control-group label {
-  font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 500;
+.middle-control-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.middle-control-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a7f3d0;
+}
+
+.middle-select, .middle-number-input {
+  background-color: #0b1b13;
+  color: #f8fafc;
+  border: 1px solid #2d5e46;
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.middle-select:hover, .middle-number-input:hover {
+  border-color: #6ee7b7;
+}
+
+.middle-select:focus, .middle-number-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.middle-number-input::-webkit-outer-spin-button,
+.middle-number-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.middle-number-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  width: 50px;
+  text-align: center;
 }
 
 .select-input, .text-input, .number-input, .mini-input {
   background-color: #0f172a;
   border: 1px solid var(--panel-border);
   color: var(--text-main);
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
 }
 
@@ -502,34 +594,51 @@ body {
 .hand-inputs-accordion {
   background-color: #0f172a;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.hand-inputs-accordion h3 {
+.hand-inputs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.hand-inputs-header h3 {
   font-size: 13px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin: 0;
 }
 
 .hand-input-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.hand-input-row label {
-  width: 50px;
+.hand-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.hand-input-group label {
+  width: auto;
+  min-width: 16px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: #94a3b8;
 }
 
-.hand-input-row input {
+.mini-text-input {
   flex: 1;
+  width: 100%;
 }
 
 .requirements-details {
@@ -555,6 +664,18 @@ body {
 .req-player h4 {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.req-player.req-unknown {
+  background-color: rgba(30, 41, 59, 0.7);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.req-player.req-unknown h4 {
+  color: #f59e0b;
+  font-weight: 600;
 }
 
 .req-fields {
@@ -649,17 +770,85 @@ body {
 
 .results-summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
 }
 
 .stat-card {
   background-color: #0f172a;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.stat-card-toggle {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.stat-card-toggle:hover {
+  border-color: var(--panel-border);
+  background-color: #1a2436;
+}
+
+#cardStatSuccess .stat-value {
+  color: #10b981;
+}
+
+#cardStatFailure .stat-value {
+  color: #f59e0b;
+}
+
+#cardStatSuccess.active {
+  border-color: #10b981;
+  background-color: #0d2820;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+#cardStatFailure.active {
+  border-color: #f59e0b;
+  background-color: #262115;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.summary-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background-color: #0f172a;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+}
+
+.mode-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mode-badge.mode-success {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.mode-badge.mode-failure {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.mode-sub {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .stat-label {
@@ -890,16 +1079,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const trumpSelect = document.getElementById('trumpSelect');
   const leaderSelect = document.getElementById('leaderSelect');
   const targetTricks = document.getElementById('targetTricks');
-  const targetTricksVal = document.getElementById('targetTricksVal');
   const numIters = document.getElementById('numIters');
   const presetSelect = document.getElementById('presetSelect');
-  const loadPresetBtn = document.getElementById('loadPresetBtn');
   const solveBtn = document.getElementById('solveBtn');
 
   const inputNorth = document.getElementById('inputNorth');
   const inputEast = document.getElementById('inputEast');
   const inputSouth = document.getElementById('inputSouth');
   const inputWest = document.getElementById('inputWest');
+  const inputUnknownCards = document.getElementById('inputUnknownCards');
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
@@ -907,7 +1095,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLead = document.getElementById('statLead');
-  const statBoards = document.getElementById('statBoards');
+  const cardStatSuccess = document.getElementById('cardStatSuccess');
+  const cardStatFailure = document.getElementById('cardStatFailure');
+  const statSuccess = document.getElementById('statSuccess');
+  const statFailure = document.getElementById('statFailure');
+  const summaryModeHeader = document.getElementById('summaryModeHeader');
+  const summaryModeBadge = document.getElementById('summaryModeBadge');
+  const summaryModeSub = document.getElementById('summaryModeSub');
 
   const svgTrumpText = document.getElementById('svgTrumpText');
   const svgLeaderText = document.getElementById('svgLeaderText');
@@ -958,28 +1152,102 @@ document.addEventListener('DOMContentLoaded', () => {
   let startX = 0;
   let startY = 0;
   let currentTreeData = null;
+  let currentSolveData = null;
+  let activeViewMode = 'success'; // 'success' or 'failure'
+
+  function updateViewMode(mode) {
+    activeViewMode = mode;
+    if (mode === 'success') {
+      if (cardStatSuccess) cardStatSuccess.classList.add('active');
+      if (cardStatFailure) cardStatFailure.classList.remove('active');
+      if (summaryModeBadge) {
+        summaryModeBadge.className = 'mode-badge mode-success';
+        summaryModeBadge.textContent = 'Success Deals';
+      }
+      if (summaryModeSub && currentSolveData) {
+        const total = currentSolveData.total_boards || 1;
+        const success = currentSolveData.success_boards !== undefined ? currentSolveData.success_boards : (currentSolveData.covered_boards || 0);
+        const pct = Math.round((success / total) * 100);
+        summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
+      }
+      if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (currentSolveData && currentSolveData.distribution_summary) {
+        renderDistributionSummary(currentSolveData.distribution_summary);
+      } else {
+        clearDistributionSummary('No distribution summary available for success deals.');
+      }
+    } else {
+      if (cardStatFailure) cardStatFailure.classList.add('active');
+      if (cardStatSuccess) cardStatSuccess.classList.remove('active');
+      if (summaryModeBadge) {
+        summaryModeBadge.className = 'mode-badge mode-failure';
+        summaryModeBadge.textContent = 'Failure Deals';
+      }
+      if (summaryModeSub && currentSolveData) {
+        const total = currentSolveData.total_boards || 1;
+        const success = currentSolveData.success_boards !== undefined ? currentSolveData.success_boards : (currentSolveData.covered_boards || 0);
+        const failure = currentSolveData.failure_boards !== undefined ? currentSolveData.failure_boards : Math.max(0, total - success);
+        const pct = Math.round((failure / total) * 100);
+        summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
+      }
+      if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (currentSolveData && currentSolveData.failure_distribution_summary) {
+        renderDistributionSummary(currentSolveData.failure_distribution_summary);
+      } else {
+        clearDistributionSummary('No failure distribution summary available (100% success rate or no failure deals).');
+      }
+    }
+  }
+
+  if (cardStatSuccess) {
+    cardStatSuccess.addEventListener('click', () => {
+      updateViewMode('success');
+      if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+    });
+    cardStatSuccess.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        updateViewMode('success');
+        if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+      }
+    });
+  }
+
+  if (cardStatFailure) {
+    cardStatFailure.addEventListener('click', () => {
+      updateViewMode('failure');
+      if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+    });
+    cardStatFailure.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        updateViewMode('failure');
+        if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+      }
+    });
+  }
 
   // Presets Definition
   const PRESETS = {
     finesse: {
       trump: 'SPADES',
-      leader: 'NORTH',
+      leader: 'SOUTH',
       target: 2,
       iters: 10,
       north: 'S AQ; H -; D -; C -;',
-      east: 'S 54; H -; D -; C -;',
+      east: '',
       south: 'S 87; H -; D -; C -;',
-      west: 'S KJ; H -; D -; C -;'
+      west: '',
+      unknown_cards: 'S Kxxx'
     },
     endplay: {
       trump: 'HEARTS',
-      leader: 'NORTH',
+      leader: 'SOUTH',
       target: 3,
-      iters: 20,
-      north: 'S AK; H K2; D -; C -;',
-      east: 'S 54; H QJ; D -; C -;',
-      south: 'S QJ; H A3; D -; C -;',
-      west: 'S 87; H T9; D -; C -;'
+      iters: 30,
+      north: 'S AQT; H 2; D -; C -;',
+      east: '',
+      south: 'S 876; H A; D -; C -;',
+      west: '',
+      unknown_cards: 'S KJ9543 D 34'
     },
     squeeze: {
       trump: 'NOTRUMP',
@@ -989,27 +1257,8 @@ document.addEventListener('DOMContentLoaded', () => {
       north: 'S AQ; H A; D K; C -;',
       east: 'S K9; H K; D A; C -;',
       south: 'S J8; H 2; D 2; C -;',
-      west: 'S T7; H Q; D Q; C -;'
-    },
-    fuzzy: {
-      trump: 'SPADES',
-      leader: 'NORTH',
-      target: 2,
-      iters: 30,
-      north: 'S AQ9',
-      east: 'S 543',
-      south: 'S 876',
-      west: 'S KJT'
-    },
-    simple_fuzzy: {
-      trump: 'SPADES',
-      leader: 'SOUTH',
-      target: 2,
-      iters: 50,
-      north: 'S AQ; H -; D -; C -;',
-      east: 'S -; H -; D -; C -;',
-      south: 'S 23; H -; D -; C -;',
-      west: 'S -; H -; D -; C -;'
+      west: 'S T7; H Q; D Q; C -;',
+      unknown_cards: ''
     }
   };
 
@@ -1055,8 +1304,66 @@ document.addEventListener('DOMContentLoaded', () => {
     return suits;
   }
 
-  // Render Hand on SVG Compass
-  function renderSvgHand(groupId, handStr) {
+  function countHandCards(str) {
+    if (!str) return 0;
+    const suits = parseHandToSuits(str);
+    let cnt = 0;
+    ['S', 'H', 'D', 'C'].forEach(s => {
+      const val = suits[s];
+      if (val && val !== '-') {
+        cnt += val.length;
+      }
+    });
+    return cnt;
+  }
+
+  function countUnknownCardsString(str) {
+    if (!str) return 0;
+    let cnt = 0;
+    let i = 0;
+    while (i < str.length) {
+      const c = str.charAt(i);
+      if (c === '1' && i + 1 < str.length && str.charAt(i + 1) === '0') {
+        cnt++;
+        i += 2;
+        continue;
+      }
+      if ("AKQJT23456789xX".indexOf(c) !== -1) {
+        cnt++;
+      }
+      i++;
+    }
+    return cnt;
+  }
+
+  function updateDealBadge() {
+    const dealEndingBadge = document.getElementById('dealEndingBadge');
+    if (!dealEndingBadge) return;
+
+    const nCards = countHandCards(inputNorth.value);
+    const eCards = countHandCards(inputEast.value);
+    const sCards = countHandCards(inputSouth.value);
+    const wCards = countHandCards(inputWest.value);
+
+    let unkCards = 0;
+    if (inputUnknownCards && inputUnknownCards.value.trim()) {
+      unkCards = countUnknownCardsString(inputUnknownCards.value.trim());
+    }
+
+    let maxCards = Math.max(nCards, eCards, sCards, wCards);
+    if (eCards === 0 && wCards === 0 && unkCards > 0) {
+      maxCards = Math.max(nCards, sCards, Math.ceil(unkCards / 2));
+    }
+
+    if (maxCards > 0 && maxCards <= 12) {
+      dealEndingBadge.textContent = `${maxCards} card ending`;
+    } else {
+      dealEndingBadge.textContent = 'Full deal';
+    }
+  }
+
+  // Render Hand or Unknown Cards on SVG Diagram
+  function renderSvgHand(groupId, handStr, isUnknown = false) {
     const group = document.getElementById(groupId);
     if (!group) return;
     group.innerHTML = '';
@@ -1070,11 +1377,29 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     let yOffset = 0;
+    let hasCards = false;
+    suitOrder.forEach(s => {
+      const cards = suitsData[s.key];
+      if (cards && cards !== '-') hasCards = true;
+    });
+
+    if (isUnknown && !hasCards) {
+      const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textNode.setAttribute('x', '0');
+      textNode.setAttribute('y', '22');
+      textNode.setAttribute('fill', '#64748b');
+      textNode.setAttribute('font-size', '12');
+      textNode.setAttribute('font-style', 'italic');
+      textNode.textContent = '(none)';
+      group.appendChild(textNode);
+      return;
+    }
+
     suitOrder.forEach(s => {
       const cards = suitsData[s.key] || '-';
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       textNode.setAttribute('x', '0');
-      textNode.setAttribute('y', yOffset + 15);
+      textNode.setAttribute('y', yOffset + 12);
       
       const symbolSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
       symbolSpan.setAttribute('class', `card-suit-label ${s.class}`);
@@ -1088,7 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textNode.appendChild(valSpan);
       group.appendChild(textNode);
 
-      yOffset += 22;
+      yOffset += 15;
     });
   }
 
@@ -1099,20 +1424,35 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSvgHand('cardsSouthGroup', inputSouth.value);
     renderSvgHand('cardsWestGroup', inputWest.value);
 
-    svgTrumpText.textContent = 'Trump: ' + getSuitSymbol(trumpSelect.value) + ' ' + trumpSelect.value;
-    svgLeaderText.textContent = 'Leader: ' + leaderSelect.value;
-    targetTricksVal.textContent = targetTricks.value;
+    if (inputUnknownCards) {
+      renderSvgHand('cardsUnknownGroup', inputUnknownCards.value.trim(), true);
+    }
+
+    const svgTrumpText = document.getElementById('svgTrumpText');
+    const svgLeaderText = document.getElementById('svgLeaderText');
+
+    if (svgTrumpText && trumpSelect) {
+      const trumpVal = trumpSelect.value;
+      const suitSym = getSuitSymbol(trumpVal);
+      const isRedTrump = (trumpVal === 'HEARTS' || trumpVal === 'DIAMONDS');
+      svgTrumpText.innerHTML = 'Trump: <tspan class="' + (isRedTrump ? 'card-suit-h' : '') + '">' + suitSym + '</tspan>';
+    }
+    if (svgLeaderText && leaderSelect) {
+      svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
+    }
+
+    updateDealBadge();
   }
 
   // Sync Input Events
-  [inputNorth, inputEast, inputSouth, inputWest, trumpSelect, leaderSelect, targetTricks].forEach(el => {
-    el.addEventListener('input', updateDealSvg);
-    el.addEventListener('change', updateDealSvg);
+  [inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards, trumpSelect, leaderSelect, targetTricks, numIters].forEach(el => {
+    if (el) {
+      el.addEventListener('input', updateDealSvg);
+      el.addEventListener('change', updateDealSvg);
+    }
   });
 
-  // Load Preset
-  loadPresetBtn.addEventListener('click', () => {
-    const key = presetSelect.value;
+  function loadPreset(key) {
     const p = PRESETS[key];
     if (!p) return;
 
@@ -1121,13 +1461,120 @@ document.addEventListener('DOMContentLoaded', () => {
     targetTricks.value = p.target;
     numIters.value = p.iters;
 
-    inputNorth.value = p.north;
-    inputEast.value = p.east;
-    inputSouth.value = p.south;
-    inputWest.value = p.west;
+    inputNorth.value = p.north || '';
+    inputEast.value = p.east || '';
+    inputSouth.value = p.south || '';
+    inputWest.value = p.west || '';
+    if (inputUnknownCards) {
+      inputUnknownCards.value = p.unknown_cards || '';
+    }
 
     updateDealSvg();
-  });
+  }
+
+  // Load Preset on Dropdown Selection
+  if (presetSelect) {
+    presetSelect.addEventListener('change', () => {
+      loadPreset(presetSelect.value);
+    });
+  }
+
+  // Load TXT / Deal File Handler
+  const loadTxtBtn = document.getElementById('loadTxtBtn');
+  const fileInputTxt = document.getElementById('fileInputTxt');
+
+  if (loadTxtBtn && fileInputTxt) {
+    loadTxtBtn.addEventListener('click', () => {
+      fileInputTxt.value = '';
+      fileInputTxt.click();
+    });
+
+    fileInputTxt.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        parseAndApplyDealText(text);
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function parseAndApplyDealText(text) {
+    if (!text) return;
+    const lines = text.split('\n');
+    let hasKeys = false;
+    const keyValues = {};
+    const plainLines = [];
+
+    lines.forEach(line => {
+      let cleaned = line.trim();
+      const hashPos = cleaned.indexOf('#');
+      if (hashPos !== -1) cleaned = cleaned.substring(0, hashPos).trim();
+      const slashPos = cleaned.indexOf('//');
+      if (slashPos !== -1) cleaned = cleaned.substring(0, slashPos).trim();
+      if (!cleaned) return;
+
+      if (cleaned.includes('=') || cleaned.includes(':')) {
+        const delim = cleaned.includes('=') ? '=' : ':';
+        const parts = cleaned.split(delim);
+        const k = parts[0].trim().toLowerCase();
+        const v = parts.slice(1).join(delim).trim();
+        keyValues[k] = v;
+        hasKeys = true;
+      } else {
+        plainLines.push(cleaned);
+      }
+    });
+
+    if (hasKeys) {
+      if (keyValues.north !== undefined || keyValues.n !== undefined) inputNorth.value = keyValues.north || keyValues.n || '';
+      if (keyValues.east !== undefined || keyValues.e !== undefined) inputEast.value = keyValues.east || keyValues.e || '';
+      if (keyValues.south !== undefined || keyValues.s !== undefined) inputSouth.value = keyValues.south || keyValues.s || '';
+      if (keyValues.west !== undefined || keyValues.w !== undefined) inputWest.value = keyValues.west || keyValues.w || '';
+
+      const unknownVal = keyValues.unknown_cards || keyValues.unknown || keyValues.unknowns;
+      if (unknownVal !== undefined && inputUnknownCards) {
+        inputUnknownCards.value = unknownVal;
+      }
+
+      if (keyValues.trump || keyValues.trumps) {
+        const tVal = (keyValues.trump || keyValues.trumps).toUpperCase();
+        if (tVal.includes('SPADE') || tVal === 'S') trumpSelect.value = 'SPADES';
+        else if (tVal.includes('HEART') || tVal === 'H') trumpSelect.value = 'HEARTS';
+        else if (tVal.includes('DIAMOND') || tVal === 'D') trumpSelect.value = 'DIAMONDS';
+        else if (tVal.includes('CLUB') || tVal === 'C') trumpSelect.value = 'CLUBS';
+        else if (tVal.includes('NO') || tVal.includes('NT')) trumpSelect.value = 'NOTRUMP';
+      }
+
+      if (keyValues.leader || keyValues.lead) {
+        const lVal = (keyValues.leader || keyValues.lead).toUpperCase();
+        if (lVal.startsWith('N')) leaderSelect.value = 'NORTH';
+        else if (lVal.startsWith('E')) leaderSelect.value = 'EAST';
+        else if (lVal.startsWith('S')) leaderSelect.value = 'SOUTH';
+        else if (lVal.startsWith('W')) leaderSelect.value = 'WEST';
+      }
+
+      if (keyValues.target || keyValues.target_tricks || keyValues.min_tricks) {
+        const tgt = parseInt(keyValues.target || keyValues.target_tricks || keyValues.min_tricks, 10);
+        if (!isNaN(tgt)) targetTricks.value = tgt;
+      }
+
+      if (keyValues.iters || keyValues.num_iters || keyValues.iterations) {
+        const it = parseInt(keyValues.iters || keyValues.num_iters || keyValues.iterations, 10);
+        if (!isNaN(it)) numIters.value = it;
+      }
+    } else if (plainLines.length >= 4) {
+      inputNorth.value = plainLines[0];
+      inputEast.value = plainLines[1];
+      inputSouth.value = plainLines[2];
+      inputWest.value = plainLines[3];
+    }
+
+    updateDealSvg();
+  }
 
   // Solve Deal Event
   solveBtn.addEventListener('click', async () => {
@@ -1144,9 +1591,13 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       trump: trumpSelect.value,
       leader: leaderSelect.value,
-      min_tricks: parseInt(targetTricks.value, 10),
-      num_iters: parseInt(numIters.value, 10)
+      min_tricks: isNaN(parseInt(targetTricks.value, 10)) ? 1 : parseInt(targetTricks.value, 10),
+      num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10)
     };
+
+    if (inputUnknownCards && inputUnknownCards.value.trim()) {
+      payload.unknown_cards = inputUnknownCards.value.trim();
+    }
 
     // Include hand requirements if entered
     const wHcpLow = document.getElementById('wHcpLow').value;
@@ -1179,11 +1630,21 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('success', 'Solve complete!', `${elapsed} ms`);
       execTime.textContent = `${elapsed} ms`;
 
+      currentSolveData = data;
+
       // Show summary
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
       statLead.textContent = data.best_lead || '-';
-      statBoards.textContent = data.covered_boards !== undefined ? data.covered_boards : '-';
+
+      const total = data.total_boards || 1;
+      const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
+      const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
+      const successPct = Math.round((success / total) * 100);
+      const failurePct = Math.round((failure / total) * 100);
+
+      if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
+      if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
       // Render Decision Tree
       if (data.tree) {
@@ -1193,12 +1654,8 @@ document.addEventListener('DOMContentLoaded', () => {
         treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
       }
 
-      // Render Distribution Summary if present
-      if (data.distribution_summary) {
-        renderDistributionSummary(data.distribution_summary);
-      } else {
-        clearDistributionSummary();
-      }
+      // Update View Mode (Success vs Failure)
+      updateViewMode(activeViewMode);
 
     } catch (err) {
       console.error(err);
@@ -1334,8 +1791,14 @@ document.addEventListener('DOMContentLoaded', () => {
       detail.setAttribute('x', '12');
       detail.setAttribute('y', '48');
       detail.setAttribute('class', 'node-text-detail');
-      const boardsText = node.covered_boards !== undefined ? `Boards: ${node.covered_boards}` : '';
-      detail.textContent = `${node.type.toUpperCase()} | ${boardsText}`;
+      let detailText = '';
+      if (node.success_boards !== undefined && node.total_boards !== undefined) {
+        const pct = Math.round((node.success_boards / node.total_boards) * 100);
+        detailText = `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
+      } else if (node.covered_boards !== undefined) {
+        detailText = `Success: ${node.covered_boards}`;
+      }
+      detail.textContent = `${node.type.toUpperCase()} | ${detailText}`;
       g.appendChild(detail);
 
       // Expand/Collapse Indicator if children exist
@@ -1381,7 +1844,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showNodeDetails(node) {
     nodeDetailBanner.classList.remove('hidden');
-    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}" | Boards: ${node.covered_boards || 0}`;
+    let boardsInfo = '';
+    if (node.success_boards !== undefined && node.total_boards !== undefined) {
+      const sPct = Math.round((node.success_boards / node.total_boards) * 100);
+      const fPct = Math.round((node.failure_boards / node.total_boards) * 100);
+      boardsInfo = `Success: ${node.success_boards}/${node.total_boards} (${sPct}%) | Failure: ${node.failure_boards}/${node.total_boards} (${fPct}%)`;
+    } else {
+      boardsInfo = `Success: ${node.covered_boards || 0}`;
+    }
+    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}" | ${boardsInfo}`;
   }
 
   // Pan & Zoom Implementation
@@ -1513,17 +1984,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (summaryContent) summaryContent.classList.remove('hidden');
   }
 
-  function clearDistributionSummary() {
+  function clearDistributionSummary(msg = 'No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.') {
     if (ruleCounterBadge) {
       ruleCounterBadge.textContent = '0';
       ruleCounterBadge.classList.add('hidden');
     }
     if (summaryContent) summaryContent.classList.add('hidden');
-    if (summaryEmptyNotice) summaryEmptyNotice.classList.remove('hidden');
+    if (summaryEmptyNotice) {
+      summaryEmptyNotice.textContent = msg;
+      summaryEmptyNotice.classList.remove('hidden');
+    }
   }
 
   // Initial UI Render
-  updateDealSvg();
+  if (presetSelect) {
+    loadPreset(presetSelect.value);
+  } else {
+    updateDealSvg();
+  }
 });
 )rawjs";
 

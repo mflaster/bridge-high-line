@@ -209,6 +209,21 @@ std::vector<ConditionalLine> LineFinder::Solve(
         }
       }
     }
+
+    // Also summarize non-covered (failure) boards if any exist
+    std::vector<PairedDeal> failure_deals;
+    for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
+      if (covered.find(b_idx) == covered.end()) {
+        failure_deals.emplace_back(boards[b_idx].GetHand(1), boards[b_idx].GetHand(3));
+      }
+    }
+    if (!failure_deals.empty()) {
+      try {
+        line.set_failure_summary(summarizer.Summarize(failure_deals, "hand 1", "hand 3"));
+      } catch (const std::exception &e) {
+        LOG(WARNING) << "Failed to summarize failure line: " << e.what();
+      }
+    }
   }
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
             << get_line_from_trick_calls;
