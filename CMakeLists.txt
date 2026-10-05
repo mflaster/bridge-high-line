@@ -68,6 +68,19 @@ if(NOT dds_POPULATED)
   target_link_libraries(dds PUBLIC OpenMP::OpenMP_CXX boost_headers)
 endif()
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/web/web_assets.h
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/web/generate_web_assets.py
+  DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/index.html
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
+  COMMENT "Generating web/web_assets.h from static web assets"
+)
+
 # Core bridge solver library
 add_library(bridge_lib STATIC
   card.cc
@@ -80,13 +93,15 @@ add_library(bridge_lib STATIC
   line_finder.cc
   interface_dds.cc
   golden_serializer.cc
-  web_server.cc
+  web/web_server.cc
+  web/web_assets.h
   unknown_cards_invariant.cc
   cross_hand_summarizer.cc
 )
 
 target_include_directories(bridge_lib PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/web
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
@@ -103,7 +118,7 @@ if(WIN32)
 endif()
 
 # Executable: bridge_server
-add_executable(bridge_server server_main.cc)
+add_executable(bridge_server web/server_main.cc)
 target_link_libraries(bridge_server PRIVATE bridge_lib)
 
 # Executable: line_finder_perf
@@ -126,7 +141,12 @@ set(TEST_NAMES
 )
 
 foreach(test_name IN LISTS TEST_NAMES)
-  add_executable(${test_name} ${test_name}.cc)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/${test_name}.cc")
+    set(TEST_SRC "web/${test_name}.cc")
+  else()
+    set(TEST_SRC "${test_name}.cc")
+  endif()
+  add_executable(${test_name} ${TEST_SRC})
   target_link_libraries(${test_name} PRIVATE
     bridge_lib
     Catch2::Catch2WithMain

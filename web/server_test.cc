@@ -33,6 +33,19 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js);
   REQUIRE(res_js->status == 200);
 
+  // Test Presets Endpoints
+  auto res_presets_file = client.Get("/presets.json");
+  REQUIRE(res_presets_file);
+  REQUIRE(res_presets_file->status == 200);
+  nlohmann::json presets_file_json = nlohmann::json::parse(res_presets_file->body);
+  REQUIRE(presets_file_json.contains("finesse"));
+
+  auto res_presets_api = client.Get("/api/presets");
+  REQUIRE(res_presets_api);
+  REQUIRE(res_presets_api->status == 200);
+  nlohmann::json presets_api_json = nlohmann::json::parse(res_presets_api->body);
+  REQUIRE(presets_api_json.contains("endplay"));
+
   // Test Health Endpoint
   auto res_health = client.Get("/api/health");
   REQUIRE(res_health);

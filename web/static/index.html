@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bridge Deal Solver & Decision Tree Explorer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="spade-icon">♠</span>
+        <h1>Bridge Deal Solver</h1>
+      </div>
+      <div class="preset-selector">
+        <label for="presetSelect">Presets:</label>
+        <select id="presetSelect" class="select-input">
+          <option value="finesse">Simple Finesse (Spades)</option>
+          <option value="endplay">4-Card Endplay Deal</option>
+          <option value="squeeze">Squeeze Deal (NT)</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="grid-container">
+      <!-- Left Column: Deal Setup & SVG Deal Diagram -->
+      <section class="card-panel deal-setup-panel">
+        <div class="panel-header">
+          <h2>Deal Configuration</h2>
+          <span class="panel-badge" id="dealEndingBadge">Full deal</span>
+        </div>
+
+        <!-- SVG Deal Diagram -->
+        <div class="svg-deal-container">
+          <svg id="dealSvg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#1a382b" rx="10"/>
+
+            <!-- Upper Left Compass Rose -->
+            <g id="svgCompassRose" transform="translate(100, 57)">
+              <circle r="14" fill="#0b1b13" stroke="#2d5e46" stroke-width="1.2"/>
+              <circle r="1.8" fill="#6ee7b7"/>
+              <line x1="0" y1="-10" x2="0" y2="10" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
+              <line x1="-10" y1="0" x2="10" y2="0" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
+              <text x="0" y="-18" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">N</text>
+              <text x="0" y="20" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">S</text>
+              <text x="-20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">W</text>
+              <text x="20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">E</text>
+            </g>
+
+            <!-- Upper Right Unknown Cards Box -->
+            <g class="hand-group" id="svgUnknownHand" transform="translate(415, 12)">
+              <rect width="170" height="90" rx="8" class="unknown-box" id="boxUnknown"/>
+              <text x="85" y="15" class="unknown-title" text-anchor="middle">UNKNOWN CARDS</text>
+              <g transform="translate(12, 18)" id="cardsUnknownGroup"></g>
+            </g>
+
+            <!-- North Hand -->
+            <g class="hand-group" id="svgNorthHand" transform="translate(195, 12)">
+              <rect width="210" height="90" rx="8" class="hand-box" id="boxNorth"/>
+              <g transform="translate(12, 12)" id="cardsNorthGroup"></g>
+            </g>
+
+            <!-- West Hand -->
+            <g class="hand-group" id="svgWestHand" transform="translate(15, 115)">
+              <rect width="170" height="90" rx="8" class="hand-box" id="boxWest"/>
+              <g transform="translate(12, 12)" id="cardsWestGroup"></g>
+            </g>
+
+            <!-- Center Box (Middle Controls: Trump / Leader / Target / Iters) -->
+            <g id="svgCenterBox" transform="translate(195, 115)">
+              <rect width="210" height="90" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
+              <foreignObject x="0" y="0" width="210" height="90">
+                <div class="middle-controls" xmlns="http://www.w3.org/1999/xhtml">
+                  <div class="middle-control-row">
+                    <div class="middle-control-group">
+                      <label for="trumpSelect">Trump:</label>
+                      <select id="trumpSelect" class="middle-select">
+                        <option value="SPADES">♠ S</option>
+                        <option value="HEARTS">♥ H</option>
+                        <option value="DIAMONDS">♦ D</option>
+                        <option value="CLUBS">♣ C</option>
+                        <option value="NOTRUMP">NT</option>
+                      </select>
+                    </div>
+                    <div class="middle-control-group">
+                      <label for="leaderSelect">Leader:</label>
+                      <select id="leaderSelect" class="middle-select">
+                        <option value="NORTH">N</option>
+                        <option value="EAST">E</option>
+                        <option value="SOUTH">S</option>
+                        <option value="WEST">W</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="middle-control-row">
+                    <div class="middle-control-group">
+                      <label for="targetTricks">Tricks:</label>
+                      <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
+                    </div>
+                    <div class="middle-control-group">
+                      <label for="numIters">Iters:</label>
+                      <input type="text" inputmode="numeric" id="numIters" value="10" class="middle-number-input">
+                    </div>
+                  </div>
+                </div>
+              </foreignObject>
+            </g>
+
+            <!-- East Hand -->
+            <g class="hand-group" id="svgEastHand" transform="translate(415, 115)">
+              <rect width="170" height="90" rx="8" class="hand-box" id="boxEast"/>
+              <g transform="translate(12, 12)" id="cardsEastGroup"></g>
+            </g>
+
+            <!-- South Hand -->
+            <g class="hand-group" id="svgSouthHand" transform="translate(195, 218)">
+              <rect width="210" height="90" rx="8" class="hand-box" id="boxSouth"/>
+              <g transform="translate(12, 12)" id="cardsSouthGroup"></g>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Text Inputs for Hands -->
+        <div class="hand-inputs-accordion">
+          <div class="hand-inputs-header">
+            <h3>Hand Text Inputs</h3>
+            <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm">Load</button>
+            <input type="file" id="fileInputTxt" accept=".txt,.deal" style="display: none;">
+          </div>
+          <div class="hand-input-row">
+            <div class="hand-input-group">
+              <label for="inputNorth">N:</label>
+              <input type="text" id="inputNorth" class="text-input mini-text-input" value="S AQ; H -; D -; C -;">
+            </div>
+            <div class="hand-input-group">
+              <label for="inputSouth">S:</label>
+              <input type="text" id="inputSouth" class="text-input mini-text-input" value="S 87; H -; D -; C -;">
+            </div>
+          </div>
+          <div class="hand-input-row">
+            <div class="hand-input-group">
+              <label for="inputEast">E:</label>
+              <input type="text" id="inputEast" class="text-input mini-text-input" value="S 54; H -; D -; C -;">
+            </div>
+            <div class="hand-input-group">
+              <label for="inputWest">W:</label>
+              <input type="text" id="inputWest" class="text-input mini-text-input" value="S KJ; H -; D -; C -;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Hand Requirements Toggle -->
+        <details class="requirements-details">
+          <summary>Hand Requirements (Fuzzy Search Constraints)</summary>
+          <div class="requirements-form">
+            <div class="req-player req-unknown">
+              <h4>Unknown Cards (Defender Pool)</h4>
+              <div class="req-fields">
+                <input type="text" id="inputUnknownCards" class="text-input" placeholder="e.g. S Kxxx or H AT9 C 32" style="width: 100%;">
+              </div>
+            </div>
+            <div class="req-player">
+              <h4>West Requirements</h4>
+              <div class="req-fields">
+                <label>HCP Range: <input type="number" id="wHcpLow" placeholder="Min" class="mini-input"> - <input type="number" id="wHcpHigh" placeholder="Max" class="mini-input"></label>
+                <label>Spades Min: <input type="number" id="wSpadesMin" placeholder="0" class="mini-input"></label>
+              </div>
+            </div>
+            <div class="req-player">
+              <h4>East Requirements</h4>
+              <div class="req-fields">
+                <label>HCP Range: <input type="number" id="eHcpLow" placeholder="Min" class="mini-input"> - <input type="number" id="eHcpHigh" placeholder="Max" class="mini-input"></label>
+                <label>Spades Min: <input type="number" id="eSpadesMin" placeholder="0" class="mini-input"></label>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Solve Action Button -->
+        <div class="solve-action-container">
+          <button id="solveBtn" class="btn btn-primary btn-large">
+            <span class="btn-icon">⚡</span> Solve Deal & Build Tree
+          </button>
+        </div>
+      </section>
+
+      <!-- Right Column: Results & Decision Tree -->
+      <section class="card-panel decision-tree-panel">
+        <div class="panel-header">
+          <div class="tab-buttons">
+            <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>
+            <button id="tabSummaryBtn" class="tab-btn" type="button">Distribution Summary <span id="ruleCounterBadge" class="badge-counter hidden">0</span></button>
+          </div>
+          <div class="zoom-controls">
+            <button id="expandAllBtn" class="btn btn-secondary-sm">Expand All</button>
+            <button id="collapseAllBtn" class="btn btn-secondary-sm">Collapse All</button>
+            <button id="zoomInBtn" class="btn btn-icon-only" title="Zoom In">+</button>
+            <button id="zoomOutBtn" class="btn btn-icon-only" title="Zoom Out">-</button>
+            <button id="resetZoomBtn" class="btn btn-secondary-sm">Reset View</button>
+          </div>
+        </div>
+
+        <!-- Progress / Status Bar -->
+        <div id="statusBox" class="status-box status-idle">
+          <div class="status-indicator"></div>
+          <span id="statusMessage">Ready to solve. Configure hands and click "Solve Deal".</span>
+          <span id="execTime" class="exec-time"></span>
+        </div>
+
+        <!-- Result Stats Cards -->
+        <div id="resultsSummary" class="results-summary hidden">
+          <div class="stat-card">
+            <span class="stat-label">Tricks Won</span>
+            <span id="statTricks" class="stat-value">-</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Optimal Lead</span>
+            <span id="statLead" class="stat-value">-</span>
+          </div>
+          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success distribution summary">
+            <span class="stat-label">Success Rate</span>
+            <span id="statSuccess" class="stat-value">-</span>
+          </div>
+          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure distribution summary">
+            <span class="stat-label">Failure Rate</span>
+            <span id="statFailure" class="stat-value">-</span>
+          </div>
+        </div>
+
+        <!-- Tab Panel 1: Decision Tree -->
+        <div id="panelDecisionTree" class="tab-panel active">
+          <!-- SVG Interactive Decision Tree -->
+          <div class="tree-viewport" id="treeViewport">
+            <svg id="treeSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
+                </marker>
+              </defs>
+              <g id="treeRootGroup">
+                <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
+                  Click "Solve Deal" to render the interactive SVG decision tree.
+                </text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Node Detail Banner -->
+          <div id="nodeDetailBanner" class="node-detail-banner hidden">
+            <h4>Selected Node Details</h4>
+            <p id="nodeDetailContent"></p>
+          </div>
+        </div>
+
+        <!-- Tab Panel 2: Distribution Summary -->
+        <div id="panelDistributionSummary" class="tab-panel hidden">
+          <div id="summaryModeHeader" class="summary-mode-header hidden">
+            <span id="summaryModeBadge" class="mode-badge mode-success">Success Deals</span>
+            <span id="summaryModeSub" class="mode-sub"></span>
+          </div>
+          <div id="summaryEmptyNotice" class="summary-empty">
+            No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.
+          </div>
+          <div id="summaryContent" class="summary-content hidden">
+            <div class="summary-section">
+              <h4>Invariant Rules</h4>
+              <ul id="summaryRulesList" class="summary-rules-list"></ul>
+            </div>
+            <div class="summary-section">
+              <h4>Suit Length Bounds</h4>
+              <div class="table-responsive">
+                <table id="summaryBoundsTable" class="summary-table">
+                  <thead>
+                    <tr>
+                      <th>Suit</th>
+                      <th>Hand 1 (East) Range</th>
+                      <th>Hand 2 (West) Range</th>
+                      <th>Combined Range</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="summary-section">
+              <h4>Honor Card Possession Stats</h4>
+              <div class="table-responsive">
+                <table id="summaryHonorTable" class="summary-table">
+                  <thead>
+                    <tr>
+                      <th>Suit</th>
+                      <th>Honor</th>
+                      <th>Hand 1 (East) %</th>
+                      <th>Hand 2 (West) %</th>
+                      <th>Both %</th>
+                      <th>Neither %</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

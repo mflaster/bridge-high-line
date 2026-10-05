@@ -35,7 +35,8 @@ The `bridge_server` executable embeds a lightweight HTTP microserver that delive
 
 ## Architecture
 
-- **Zero Web Runtime Dependencies**: Built entirely in C++17. All HTML, CSS, JavaScript, and SVG assets are compiled directly into the binary header (`web_assets.h`), requiring no Node.js, npm, or external static file servers at runtime.
+- **Zero Web Runtime Dependencies**: Built entirely in C++17. All static HTML, CSS, JavaScript (`web/static/`), and deal presets (`web/presets.json`) are housed in the dedicated `web/` directory and automatically compiled into `web/web_assets.h` during build, requiring no external file server at runtime.
+- **Factored Deal Presets**: Quick-load deal presets are defined in a clean, human-readable JSON format at `web/presets.json` and served via `/api/presets` / `/presets.json` endpoints.
 - **Microserver Backend**: Utilizes embedded `cpp-httplib` and `nlohmann/json` under `third_party/` to handle HTTP requests and JSON REST API endpoints asynchronously or synchronously.
 - **Interactive SVG Renderer**: Uses native browser SVG rendering for high-performance rendering of decision trees and deal cards without heavy external JS framework dependencies.
 
