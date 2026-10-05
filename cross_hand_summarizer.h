@@ -111,6 +111,19 @@ struct CrossHandSummaryReport {
   std::string ToString() const;
 };
 
+bool EvaluateRuleOnDeal(const std::string& rule,
+                        const PairedDeal& deal,
+                        const std::string& hand1_label = "hand 1",
+                        const std::string& hand2_label = "hand 2");
+
+std::vector<std::string> FilterUninterestingRules(
+    const std::vector<std::string>& candidate_rules,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& hand1_label = "hand 1",
+    const std::string& hand2_label = "hand 2",
+    int num_bifurcations = 200);
+
 class CrossHandDealSetSummarizer {
  public:
   CrossHandDealSetSummarizer() = default;

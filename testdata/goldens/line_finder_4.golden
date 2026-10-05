@@ -11,15 +11,8 @@ Total Deals: 4
 Invariant Rules for 4 card ending:
   - hand 1 length in S is between 0 and 1
   - hand 3 length in S is between 1 and 2
-  - maximum length in S in any hand is 2
-  - hand 1 length in H is between 0 and 1
-  - hand 3 length in H is between 0 and 1
-  - maximum length in H in any hand is 1
   - hand 1 length in D is between 2 and 4
   - hand 3 length in D is between 1 and 3
-  - maximum length in D in any hand is 4
-  - the hand with the HT also has exactly 1 H
-  - the hand with the HT also has at most 3 D
   - the hand with the DT also has at most 1 S
   - the hand with the DT also has at least 3 D
   - the hand with the DT also has the DQ
