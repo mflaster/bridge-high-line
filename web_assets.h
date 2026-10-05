@@ -44,94 +44,92 @@ inline const char* INDEX_HTML = R"rawhtml(
 
         <!-- SVG Deal Diagram -->
         <div class="svg-deal-container">
-          <svg id="dealSvg" viewBox="0 0 600 284" xmlns="http://www.w3.org/2000/svg">
+          <svg id="dealSvg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="#1a382b" rx="10"/>
+
+            <!-- Upper Left Compass Rose -->
+            <g id="svgCompassRose" transform="translate(100, 57)">
+              <circle r="14" fill="#0b1b13" stroke="#2d5e46" stroke-width="1.2"/>
+              <circle r="1.8" fill="#6ee7b7"/>
+              <line x1="0" y1="-10" x2="0" y2="10" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
+              <line x1="-10" y1="0" x2="10" y2="0" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
+              <text x="0" y="-18" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">N</text>
+              <text x="0" y="20" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">S</text>
+              <text x="-20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">W</text>
+              <text x="20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">E</text>
+            </g>
 
             <!-- Upper Right Unknown Cards Box -->
             <g class="hand-group" id="svgUnknownHand" transform="translate(415, 12)">
-              <rect width="170" height="80" rx="8" class="unknown-box" id="boxUnknown"/>
+              <rect width="170" height="90" rx="8" class="unknown-box" id="boxUnknown"/>
               <text x="85" y="15" class="unknown-title" text-anchor="middle">UNKNOWN CARDS</text>
               <g transform="translate(12, 18)" id="cardsUnknownGroup"></g>
             </g>
 
             <!-- North Hand -->
             <g class="hand-group" id="svgNorthHand" transform="translate(195, 12)">
-              <rect width="210" height="80" rx="8" class="hand-box" id="boxNorth"/>
-              <g transform="translate(12, 10)" id="cardsNorthGroup"></g>
+              <rect width="210" height="90" rx="8" class="hand-box" id="boxNorth"/>
+              <g transform="translate(12, 12)" id="cardsNorthGroup"></g>
             </g>
 
             <!-- West Hand -->
-            <g class="hand-group" id="svgWestHand" transform="translate(15, 102)">
-              <rect width="170" height="80" rx="8" class="hand-box" id="boxWest"/>
-              <g transform="translate(12, 10)" id="cardsWestGroup"></g>
+            <g class="hand-group" id="svgWestHand" transform="translate(15, 115)">
+              <rect width="170" height="90" rx="8" class="hand-box" id="boxWest"/>
+              <g transform="translate(12, 12)" id="cardsWestGroup"></g>
             </g>
 
-            <!-- Center Box (Compass / Trump / Leader) -->
-            <g id="svgCenterBox" transform="translate(195, 102)">
-              <rect width="210" height="80" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
-              
-              <!-- Mini Compass Symbol -->
-              <g id="svgCompassRose" transform="translate(48, 40)">
-                <circle r="14" fill="#0b1b13" stroke="#2d5e46" stroke-width="1.2"/>
-                <circle r="1.8" fill="#6ee7b7"/>
-                <line x1="0" y1="-10" x2="0" y2="10" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
-                <line x1="-10" y1="0" x2="10" y2="0" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
-                <text x="0" y="-18" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">N</text>
-                <text x="0" y="20" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">S</text>
-                <text x="-20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">W</text>
-                <text x="20" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">E</text>
-              </g>
-
-              <text x="96" y="32" id="svgTrumpText" class="compass-trump" text-anchor="start">Trump: ♠</text>
-              <text x="96" y="54" id="svgLeaderText" class="compass-leader" text-anchor="start">Leader: N</text>
+            <!-- Center Box (Middle Controls: Trump / Leader / Target / Iters) -->
+            <g id="svgCenterBox" transform="translate(195, 115)">
+              <rect width="210" height="90" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
+              <foreignObject x="0" y="0" width="210" height="90">
+                <div class="middle-controls" xmlns="http://www.w3.org/1999/xhtml">
+                  <div class="middle-control-row">
+                    <div class="middle-control-group">
+                      <label for="trumpSelect">Trump:</label>
+                      <select id="trumpSelect" class="middle-select">
+                        <option value="SPADES">♠ S</option>
+                        <option value="HEARTS">♥ H</option>
+                        <option value="DIAMONDS">♦ D</option>
+                        <option value="CLUBS">♣ C</option>
+                        <option value="NOTRUMP">NT</option>
+                      </select>
+                    </div>
+                    <div class="middle-control-group">
+                      <label for="leaderSelect">Leader:</label>
+                      <select id="leaderSelect" class="middle-select">
+                        <option value="NORTH">N</option>
+                        <option value="EAST">E</option>
+                        <option value="SOUTH">S</option>
+                        <option value="WEST">W</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="middle-control-row">
+                    <div class="middle-control-group">
+                      <label for="targetTricks">Target:</label>
+                      <input type="number" id="targetTricks" min="1" max="13" value="2" class="middle-number-input">
+                    </div>
+                    <div class="middle-control-group">
+                      <label for="numIters">Iters:</label>
+                      <input type="number" id="numIters" min="1" max="500" value="10" class="middle-number-input">
+                    </div>
+                  </div>
+                </div>
+              </foreignObject>
             </g>
 
             <!-- East Hand -->
-            <g class="hand-group" id="svgEastHand" transform="translate(415, 102)">
-              <rect width="170" height="80" rx="8" class="hand-box" id="boxEast"/>
-              <g transform="translate(12, 10)" id="cardsEastGroup"></g>
+            <g class="hand-group" id="svgEastHand" transform="translate(415, 115)">
+              <rect width="170" height="90" rx="8" class="hand-box" id="boxEast"/>
+              <g transform="translate(12, 12)" id="cardsEastGroup"></g>
             </g>
 
             <!-- South Hand -->
-            <g class="hand-group" id="svgSouthHand" transform="translate(195, 192)">
-              <rect width="210" height="80" rx="8" class="hand-box" id="boxSouth"/>
-              <g transform="translate(12, 10)" id="cardsSouthGroup"></g>
+            <g class="hand-group" id="svgSouthHand" transform="translate(195, 218)">
+              <rect width="210" height="90" rx="8" class="hand-box" id="boxSouth"/>
+              <g transform="translate(12, 12)" id="cardsSouthGroup"></g>
             </g>
           </svg>
-        </div>
-
-        <!-- Contract Controls -->
-        <div class="controls-grid">
-          <div class="control-group">
-            <label for="trumpSelect">Trump Suit:</label>
-            <select id="trumpSelect" class="select-input">
-              <option value="SPADES">♠ Spades</option>
-              <option value="HEARTS">♥ Hearts</option>
-              <option value="DIAMONDS">♦ Diamonds</option>
-              <option value="CLUBS">♣ Clubs</option>
-              <option value="NOTRUMP">NT No Trump</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label for="leaderSelect">Leader:</label>
-            <select id="leaderSelect" class="select-input">
-              <option value="NORTH">North (N)</option>
-              <option value="EAST">East (E)</option>
-              <option value="SOUTH">South (S)</option>
-              <option value="WEST">West (W)</option>
-            </select>
-          </div>
-
-          <div class="control-group">
-            <label for="targetTricks">Trick Target: <span id="targetTricksVal">2</span></label>
-            <input type="range" id="targetTricks" min="1" max="13" value="2" class="range-input">
-          </div>
-
-          <div class="control-group">
-            <label for="numIters">Simulations (Iters):</label>
-            <input type="number" id="numIters" min="1" max="500" value="10" class="number-input">
-          </div>
         </div>
 
         <!-- Text Inputs for Hands -->
@@ -498,22 +496,60 @@ body {
 }
 
 /* Form Controls */
-.controls-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.middle-controls {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.middle-control-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
   gap: 8px;
 }
 
-.control-group {
+.middle-control-group {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #a7f3d0;
 }
 
-.control-group label {
+.middle-select, .middle-number-input {
+  background-color: #0b1b13;
+  color: #f8fafc;
+  border: 1px solid #2d5e46;
+  border-radius: 4px;
+  padding: 3px 5px;
   font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.middle-select:hover, .middle-number-input:hover {
+  border-color: #6ee7b7;
+}
+
+.middle-select:focus, .middle-number-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.middle-number-input {
+  width: 50px;
+  text-align: center;
 }
 
 .select-input, .text-input, .number-input, .mini-input {
@@ -1384,18 +1420,28 @@ document.addEventListener('DOMContentLoaded', () => {
       renderSvgHand('cardsUnknownGroup', inputUnknownCards.value.trim(), true);
     }
 
-    const trumpVal = trumpSelect.value;
-    const suitSym = getSuitSymbol(trumpVal);
-    const isRedTrump = (trumpVal === 'HEARTS' || trumpVal === 'DIAMONDS');
-    svgTrumpText.innerHTML = 'Trump: <tspan class="' + (isRedTrump ? 'card-suit-h' : '') + '">' + suitSym + '</tspan>';
-    svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
-    targetTricksVal.textContent = targetTricks.value;
+    const svgTrumpText = document.getElementById('svgTrumpText');
+    const svgLeaderText = document.getElementById('svgLeaderText');
+    const targetTricksVal = document.getElementById('targetTricksVal');
+
+    if (svgTrumpText && trumpSelect) {
+      const trumpVal = trumpSelect.value;
+      const suitSym = getSuitSymbol(trumpVal);
+      const isRedTrump = (trumpVal === 'HEARTS' || trumpVal === 'DIAMONDS');
+      svgTrumpText.innerHTML = 'Trump: <tspan class="' + (isRedTrump ? 'card-suit-h' : '') + '">' + suitSym + '</tspan>';
+    }
+    if (svgLeaderText && leaderSelect) {
+      svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
+    }
+    if (targetTricksVal && targetTricks) {
+      targetTricksVal.textContent = targetTricks.value;
+    }
 
     updateDealBadge();
   }
 
   // Sync Input Events
-  [inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards, trumpSelect, leaderSelect, targetTricks].forEach(el => {
+  [inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards, trumpSelect, leaderSelect, targetTricks, numIters].forEach(el => {
     if (el) {
       el.addEventListener('input', updateDealSvg);
       el.addEventListener('change', updateDealSvg);
