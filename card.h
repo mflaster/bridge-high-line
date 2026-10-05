@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bit>
 #include <cassert>
 #include <cstdint>
 #include <string>
@@ -46,11 +47,7 @@ class Card {
 std::string PrintCards(const CardType *cards, int num, int leader);
 
 inline int PopCount64(uint64_t v) {
-#if defined(_MSC_VER) && !defined(__clang__)
-  return static_cast<int>(__popcnt64(v));
-#else
-  return __builtin_popcountll(v);
-#endif
+  return std::popcount(v);
 }
 
 // 64-bit rank and honor bitmask constants across all 4 suits

@@ -75,35 +75,13 @@ HonorPossessionMatrix ClassifyHonorPossession(uint64_t hand1, uint64_t hand2) {
 }
 
 void GetSuitDistribution(uint64_t hand, int *dist) {
-  CHECK_GT(hand, 0);
-  while (hand > 0) {
-    for (int suit = 0; suit < 4; suit++) {
-      dist[suit] = 0;
-      uint16_t cur_suit = hand & 0xffff;
-      hand = (hand >> 16);
-      int cards_in_suit = 0;
-      for (int val = 0; val < 13; val++) {
-        if (cur_suit & 0x1) {
-          cards_in_suit++;
-        }
-        cur_suit = (cur_suit >> 1);
-      }
-      dist[suit] = cards_in_suit;
-    }
+  for (int suit = 0; suit < 4; suit++) {
+    dist[suit] = PopCount64((hand >> (suit * 16)) & 0xffff);
   }
 }
 
 int CountCardsInHand(uint64_t hand) {
-  if (hand == 0) {
-    return 0;
-  }
-  int dist[4];
-  GetSuitDistribution(hand, dist);
-  int sum = 0;
-  for (int i = 0; i < 4; i++) {
-    sum += dist[i];
-  }
-  return sum;
+  return PopCount64(hand);
 }
 
 std::vector<CardType> CardsInHandInSuit(

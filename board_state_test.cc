@@ -33,6 +33,32 @@ TEST_CASE("SuitDistribution") {
   REQUIRE(dist[HEARTS] == 3);
   REQUIRE(dist[DIAMONDS] == 1);
   REQUIRE(dist[CLUBS] == 2);
+
+  // Zero hand mask
+  int zero_dist[4] = {-1, -1, -1, -1};
+  GetSuitDistribution(0, zero_dist);
+  REQUIRE(zero_dist[SPADES] == 0);
+  REQUIRE(zero_dist[HEARTS] == 0);
+  REQUIRE(zero_dist[DIAMONDS] == 0);
+  REQUIRE(zero_dist[CLUBS] == 0);
+
+  // Full 52 card hand mask
+  uint64_t full_hand = ParseHand("S AKQJT98765432; H AKQJT98765432; D AKQJT98765432; C AKQJT98765432");
+  int full_dist[4];
+  GetSuitDistribution(full_hand, full_dist);
+  REQUIRE(full_dist[SPADES] == 13);
+  REQUIRE(full_dist[HEARTS] == 13);
+  REQUIRE(full_dist[DIAMONDS] == 13);
+  REQUIRE(full_dist[CLUBS] == 13);
+}
+
+TEST_CASE("CountCardsInHand") {
+  REQUIRE(CountCardsInHand(0) == 0);
+  REQUIRE(CountCardsInHand(ParseHand("S AQ")) == 2);
+  REQUIRE(CountCardsInHand(ParseHand("S A; H 543; D 2; C 87")) == 7);
+
+  uint64_t full_hand = ParseHand("S AKQJT98765432; H AKQJT98765432; D AKQJT98765432; C AKQJT98765432");
+  REQUIRE(CountCardsInHand(full_hand) == 52);
 }
 
 TEST_CASE("FindBestDiscard_GuardHonorAgainstDrop") {
