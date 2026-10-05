@@ -688,3 +688,18 @@ TEST_CASE("LineFinder_OnsideAce") {
   });
 }
 
+TEST_CASE("LineFinder_4CardEndplay") {
+  RunLineFinderTestCase({
+    .name = "line_finder_4_card_endplay",
+    .trump = HEARTS,
+    .leader = 2,
+    .min_tricks = 3,
+    .num_iters = 30,
+    .hand0 = "S AQT; H 2; D -; C -;",
+    .hand2 = "S 876; H A; D -; C -;",
+    .unknown_cards = "S KJ9543 D 34",
+    .description = "LineFinder 4-Card Endplay Deal: lines for heart contract with 4-card endplay",
+  });
+}
+
+
