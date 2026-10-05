@@ -380,10 +380,10 @@ struct LineFinderTestCase {
   static Suit ParseSuit(const std::string &s) {
     std::string lower;
     for (char c : s) lower += tolower(c);
-    if (lower == "spades" || lower == "spade" || lower == "s") return SPADES;
-    if (lower == "hearts" || lower == "heart" || lower == "h") return HEARTS;
-    if (lower == "diamonds" || lower == "diamond" || lower == "d") return DIAMONDS;
-    if (lower == "clubs" || lower == "club" || lower == "c") return CLUBS;
+    if (lower == "spades" || lower == "s") return SPADES;
+    if (lower == "hearts" || lower == "h") return HEARTS;
+    if (lower == "diamonds" || lower == "d") return DIAMONDS;
+    if (lower == "clubs" || lower == "c") return CLUBS;
     if (lower == "notrump" || lower == "no trump" || lower == "nt") return NOTRUMP;
     LOG(FATAL) << "Unknown suit in test spec: " << s;
     return NOTRUMP;

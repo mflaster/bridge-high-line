@@ -28,10 +28,10 @@ std::string SuitToString(Suit s) {
 Suit ParseSuitString(const std::string &s) {
   std::string lower;
   for (char c : Trim(s)) lower += tolower(c);
-  if (lower == "spades" || lower == "spade" || lower == "s") return SPADES;
-  if (lower == "hearts" || lower == "heart" || lower == "h") return HEARTS;
-  if (lower == "diamonds" || lower == "diamond" || lower == "d") return DIAMONDS;
-  if (lower == "clubs" || lower == "club" || lower == "c") return CLUBS;
+  if (lower == "spades" || lower == "s") return SPADES;
+  if (lower == "hearts" || lower == "h") return HEARTS;
+  if (lower == "diamonds" || lower == "d") return DIAMONDS;
+  if (lower == "clubs" || lower == "c") return CLUBS;
   if (lower == "notrump" || lower == "nt") return NOTRUMP;
   LOG(WARNING) << "Unknown suit string: " << s;
   return SPADES;
