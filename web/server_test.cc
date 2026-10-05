@@ -176,6 +176,18 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_finesse->status == 200);
   nlohmann::json finesse_json = nlohmann::json::parse(res_finesse->body);
   REQUIRE(finesse_json["success"] == true);
+  REQUIRE(finesse_json.contains("tree"));
+  auto &finesse_tree = finesse_json["tree"];
+  REQUIRE(finesse_tree.contains("label"));
+  // Ensure the tree is collapsed and does not contain redundant 'Hand Succeeded' or 'after ...' single-child wrappers
+  std::string root_label = finesse_tree["label"].get<std::string>();
+  REQUIRE(root_label.find("Hand Succeeded") == std::string::npos);
+  if (finesse_tree.contains("children") && !finesse_tree["children"].empty()) {
+    for (const auto &c : finesse_tree["children"]) {
+      std::string child_label = c["label"].get<std::string>();
+      REQUIRE(child_label.find("Hand Succeeded") == std::string::npos);
+    }
+  }
 
   // Test 6: Unknown cards with wildcard 'x' format (H Axxxx C xxxxx for 5-card ending)
   nlohmann::json wildcard_req;

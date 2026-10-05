@@ -254,6 +254,126 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
   return root_node;
 }
 
+bool IsGenericOutcomeLabel(const std::string &l) {
+  if (l.empty()) return true;
+  if (l.rfind("Hand Succeeded", 0) == 0) return true;
+  if (l.rfind("Success:", 0) == 0) return true;
+  if (l.rfind("Success (", 0) == 0) return true;
+  if (l.rfind("Contract Result:", 0) == 0) return true;
+  if (l == "Success") return true;
+  return false;
+}
+
+std::string StripAfterPrefix(const std::string &l) {
+  if (l.rfind("after ", 0) == 0) {
+    return l.substr(6);
+  }
+  return l;
+}
+
+bool IsRedundantLabel(const std::string &sub, const std::string &main) {
+  if (sub == main) return true;
+  std::string stripped_sub = StripAfterPrefix(sub);
+  std::string stripped_main = StripAfterPrefix(main);
+  if (stripped_sub == stripped_main) return true;
+  if (!stripped_sub.empty() && main.find(stripped_sub) != std::string::npos) return true;
+  if (!stripped_main.empty() && sub.find(stripped_main) != std::string::npos) return true;
+  return false;
+}
+
+void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return;
+
+  for (auto &child : node->children) {
+    CollapseRedundantNodes(child);
+  }
+
+  while (node->children.size() == 1) {
+    auto child = node->children[0];
+
+    // Don't merge if node is root header "Optimal Lines" and child is a Trick step
+    if (node->label.rfind("Optimal Lines", 0) == 0 && child->label.rfind("Trick ", 0) == 0) {
+      break;
+    }
+
+    // Don't merge two distinct "Trick N:" steps into each other
+    if (node->label.rfind("Trick ", 0) == 0 && child->label.rfind("Trick ", 0) == 0) {
+      break;
+    }
+
+    std::string l1 = node->label;
+    std::string l2 = child->label;
+    std::string merged_label = l1;
+
+    bool g1 = IsGenericOutcomeLabel(l1);
+    bool g2 = IsGenericOutcomeLabel(l2);
+
+    if (g1 && !g2) {
+      merged_label = l2;
+    } else if (!g1 && g2) {
+      merged_label = l1;
+    } else if (g1 && g2) {
+      merged_label = l1.empty() ? l2 : l1;
+    } else {
+      if (IsRedundantLabel(l2, l1)) {
+        merged_label = l1;
+      } else if (IsRedundantLabel(l1, l2)) {
+        merged_label = l2;
+      } else if (l1.rfind("after ", 0) == 0) {
+        merged_label = l2;
+      } else if (l2.rfind("after ", 0) == 0) {
+        merged_label = l1;
+      } else if (l1.rfind("when ", 0) == 0 || l1.rfind("if ", 0) == 0) {
+        merged_label = l1 + ": " + l2;
+      } else if (l2.rfind("when ", 0) == 0 || l2.rfind("if ", 0) == 0) {
+        merged_label = l1;
+      } else {
+        merged_label = l1 + " → " + l2;
+      }
+    }
+
+    node->label = merged_label;
+
+    if (node->type == "outcome" || child->type == "outcome") {
+      if (child->children.empty()) {
+        node->type = "outcome";
+      } else if (node->type == "action" || child->type == "action") {
+        node->type = "action";
+      } else {
+        node->type = "condition";
+      }
+    } else if (node->type == "action" || child->type == "action") {
+      node->type = "action";
+    }
+
+    if (node->trick.empty()) {
+      node->trick = child->trick;
+      node->trick_full = child->trick_full;
+    }
+    if (node->description.empty()) {
+      node->description = child->description;
+    }
+    if (node->boards.empty()) {
+      node->boards = child->boards;
+    }
+
+    if (node->success_boards == 0 && child->success_boards > 0) {
+      node->success_boards = child->success_boards;
+      node->total_boards = child->total_boards;
+      node->covered_boards = child->covered_boards;
+      node->failure_boards = child->failure_boards;
+    }
+
+    node->children = std::move(child->children);
+  }
+
+  if (node->label.rfind("after ", 0) == 0 && !node->trick.empty()) {
+    if (node->label.find(node->trick) != std::string::npos) {
+      node->label = node->trick;
+    }
+  }
+}
+
 void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   j = nlohmann::json{
       {"id", node.id},
@@ -688,6 +808,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["failure_boards"] = failure_boards;
     response["covered_boards"] = covered_boards;
     if (tree_node) {
+      CollapseRedundantNodes(tree_node);
       response["tree"] = *tree_node;
     } else {
       response["tree"] = nlohmann::json::object();
