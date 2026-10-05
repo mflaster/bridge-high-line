@@ -222,9 +222,13 @@ inline const char* INDEX_HTML = R"rawhtml(
             <span class="stat-label">Optimal Lead</span>
             <span id="statLead" class="stat-value">-</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-label">Covered Boards</span>
-            <span id="statBoards" class="stat-value">-</span>
+          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success distribution summary">
+            <span class="stat-label">Success Rate</span>
+            <span id="statSuccess" class="stat-value">-</span>
+          </div>
+          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure distribution summary">
+            <span class="stat-label">Failure Rate</span>
+            <span id="statFailure" class="stat-value">-</span>
           </div>
         </div>
 
@@ -255,6 +259,10 @@ inline const char* INDEX_HTML = R"rawhtml(
 
         <!-- Tab Panel 2: Distribution Summary -->
         <div id="panelDistributionSummary" class="tab-panel hidden">
+          <div id="summaryModeHeader" class="summary-mode-header hidden">
+            <span id="summaryModeBadge" class="mode-badge mode-success">Success Deals</span>
+            <span id="summaryModeSub" class="mode-sub"></span>
+          </div>
           <div id="summaryEmptyNotice" class="summary-empty">
             No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.
           </div>
@@ -669,17 +677,85 @@ body {
 
 .results-summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
 }
 
 .stat-card {
   background-color: #0f172a;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+.stat-card-toggle {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.stat-card-toggle:hover {
+  border-color: var(--panel-border);
+  background-color: #1a2436;
+}
+
+#cardStatSuccess .stat-value {
+  color: #10b981;
+}
+
+#cardStatFailure .stat-value {
+  color: #f59e0b;
+}
+
+#cardStatSuccess.active {
+  border-color: #10b981;
+  background-color: #0d2820;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+#cardStatFailure.active {
+  border-color: #f59e0b;
+  background-color: #262115;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.summary-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background-color: #0f172a;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+}
+
+.mode-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mode-badge.mode-success {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.mode-badge.mode-failure {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.mode-sub {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .stat-label {
@@ -927,7 +1003,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLead = document.getElementById('statLead');
-  const statBoards = document.getElementById('statBoards');
+  const cardStatSuccess = document.getElementById('cardStatSuccess');
+  const cardStatFailure = document.getElementById('cardStatFailure');
+  const statSuccess = document.getElementById('statSuccess');
+  const statFailure = document.getElementById('statFailure');
+  const summaryModeHeader = document.getElementById('summaryModeHeader');
+  const summaryModeBadge = document.getElementById('summaryModeBadge');
+  const summaryModeSub = document.getElementById('summaryModeSub');
 
   const svgTrumpText = document.getElementById('svgTrumpText');
   const svgLeaderText = document.getElementById('svgLeaderText');
@@ -978,6 +1060,78 @@ document.addEventListener('DOMContentLoaded', () => {
   let startX = 0;
   let startY = 0;
   let currentTreeData = null;
+  let currentSolveData = null;
+  let activeViewMode = 'success'; // 'success' or 'failure'
+
+  function updateViewMode(mode) {
+    activeViewMode = mode;
+    if (mode === 'success') {
+      if (cardStatSuccess) cardStatSuccess.classList.add('active');
+      if (cardStatFailure) cardStatFailure.classList.remove('active');
+      if (summaryModeBadge) {
+        summaryModeBadge.className = 'mode-badge mode-success';
+        summaryModeBadge.textContent = 'Success Deals';
+      }
+      if (summaryModeSub && currentSolveData) {
+        const total = currentSolveData.total_boards || 1;
+        const success = currentSolveData.success_boards !== undefined ? currentSolveData.success_boards : (currentSolveData.covered_boards || 0);
+        const pct = Math.round((success / total) * 100);
+        summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
+      }
+      if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (currentSolveData && currentSolveData.distribution_summary) {
+        renderDistributionSummary(currentSolveData.distribution_summary);
+      } else {
+        clearDistributionSummary('No distribution summary available for success deals.');
+      }
+    } else {
+      if (cardStatFailure) cardStatFailure.classList.add('active');
+      if (cardStatSuccess) cardStatSuccess.classList.remove('active');
+      if (summaryModeBadge) {
+        summaryModeBadge.className = 'mode-badge mode-failure';
+        summaryModeBadge.textContent = 'Failure Deals';
+      }
+      if (summaryModeSub && currentSolveData) {
+        const total = currentSolveData.total_boards || 1;
+        const success = currentSolveData.success_boards !== undefined ? currentSolveData.success_boards : (currentSolveData.covered_boards || 0);
+        const failure = currentSolveData.failure_boards !== undefined ? currentSolveData.failure_boards : Math.max(0, total - success);
+        const pct = Math.round((failure / total) * 100);
+        summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
+      }
+      if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (currentSolveData && currentSolveData.failure_distribution_summary) {
+        renderDistributionSummary(currentSolveData.failure_distribution_summary);
+      } else {
+        clearDistributionSummary('No failure distribution summary available (100% success rate or no failure deals).');
+      }
+    }
+  }
+
+  if (cardStatSuccess) {
+    cardStatSuccess.addEventListener('click', () => {
+      updateViewMode('success');
+      if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+    });
+    cardStatSuccess.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        updateViewMode('success');
+        if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+      }
+    });
+  }
+
+  if (cardStatFailure) {
+    cardStatFailure.addEventListener('click', () => {
+      updateViewMode('failure');
+      if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+    });
+    cardStatFailure.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        updateViewMode('failure');
+        if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
+      }
+    });
+  }
 
   // Presets Definition
   const PRESETS = {
@@ -1300,11 +1454,21 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('success', 'Solve complete!', `${elapsed} ms`);
       execTime.textContent = `${elapsed} ms`;
 
+      currentSolveData = data;
+
       // Show summary
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
       statLead.textContent = data.best_lead || '-';
-      statBoards.textContent = data.covered_boards !== undefined ? data.covered_boards : '-';
+
+      const total = data.total_boards || 1;
+      const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
+      const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
+      const successPct = Math.round((success / total) * 100);
+      const failurePct = Math.round((failure / total) * 100);
+
+      if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
+      if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
       // Render Decision Tree
       if (data.tree) {
@@ -1314,12 +1478,8 @@ document.addEventListener('DOMContentLoaded', () => {
         treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
       }
 
-      // Render Distribution Summary if present
-      if (data.distribution_summary) {
-        renderDistributionSummary(data.distribution_summary);
-      } else {
-        clearDistributionSummary();
-      }
+      // Update View Mode (Success vs Failure)
+      updateViewMode(activeViewMode);
 
     } catch (err) {
       console.error(err);
@@ -1455,8 +1615,14 @@ document.addEventListener('DOMContentLoaded', () => {
       detail.setAttribute('x', '12');
       detail.setAttribute('y', '48');
       detail.setAttribute('class', 'node-text-detail');
-      const boardsText = node.covered_boards !== undefined ? `Boards: ${node.covered_boards}` : '';
-      detail.textContent = `${node.type.toUpperCase()} | ${boardsText}`;
+      let detailText = '';
+      if (node.success_boards !== undefined && node.total_boards !== undefined) {
+        const pct = Math.round((node.success_boards / node.total_boards) * 100);
+        detailText = `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
+      } else if (node.covered_boards !== undefined) {
+        detailText = `Success: ${node.covered_boards}`;
+      }
+      detail.textContent = `${node.type.toUpperCase()} | ${detailText}`;
       g.appendChild(detail);
 
       // Expand/Collapse Indicator if children exist
@@ -1502,7 +1668,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showNodeDetails(node) {
     nodeDetailBanner.classList.remove('hidden');
-    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}" | Boards: ${node.covered_boards || 0}`;
+    let boardsInfo = '';
+    if (node.success_boards !== undefined && node.total_boards !== undefined) {
+      const sPct = Math.round((node.success_boards / node.total_boards) * 100);
+      const fPct = Math.round((node.failure_boards / node.total_boards) * 100);
+      boardsInfo = `Success: ${node.success_boards}/${node.total_boards} (${sPct}%) | Failure: ${node.failure_boards}/${node.total_boards} (${fPct}%)`;
+    } else {
+      boardsInfo = `Success: ${node.covered_boards || 0}`;
+    }
+    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}" | ${boardsInfo}`;
   }
 
   // Pan & Zoom Implementation
@@ -1634,13 +1808,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (summaryContent) summaryContent.classList.remove('hidden');
   }
 
-  function clearDistributionSummary() {
+  function clearDistributionSummary(msg = 'No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.') {
     if (ruleCounterBadge) {
       ruleCounterBadge.textContent = '0';
       ruleCounterBadge.classList.add('hidden');
     }
     if (summaryContent) summaryContent.classList.add('hidden');
-    if (summaryEmptyNotice) summaryEmptyNotice.classList.remove('hidden');
+    if (summaryEmptyNotice) {
+      summaryEmptyNotice.textContent = msg;
+      summaryEmptyNotice.classList.remove('hidden');
+    }
   }
 
   // Initial UI Render
