@@ -20,11 +20,7 @@
 namespace {
 
 Suit ParseSuitName(const std::string &s) {
-  if (s == "SPADES" || s == "S" || s == "spades") return SPADES;
-  if (s == "HEARTS" || s == "H" || s == "hearts") return HEARTS;
-  if (s == "DIAMONDS" || s == "D" || s == "diamonds") return DIAMONDS;
-  if (s == "CLUBS" || s == "C" || s == "clubs") return CLUBS;
-  return NOTRUMP;
+  return Card::ParseSuit(s);
 }
 
 int ParsePlayerDirection(const std::string &d) {

@@ -14,6 +14,23 @@ TEST_CASE("Cards") {
   REQUIRE(Card::GetSuitedCard(HEARTS, 0) == (1 << 16));
 }
 
+TEST_CASE("ParseSuit") {
+  REQUIRE(Card::ParseSuit('S') == SPADES);
+  REQUIRE(Card::ParseSuit('h') == HEARTS);
+  REQUIRE(Card::ParseSuit("spades") == SPADES);
+  REQUIRE(Card::ParseSuit("Spades") == SPADES);
+  REQUIRE(Card::ParseSuit("  S  ") == SPADES);
+  REQUIRE(Card::ParseSuit("hearts") == HEARTS);
+  REQUIRE(Card::ParseSuit("H") == HEARTS);
+  REQUIRE(Card::ParseSuit("diamonds") == DIAMONDS);
+  REQUIRE(Card::ParseSuit("D") == DIAMONDS);
+  REQUIRE(Card::ParseSuit("clubs") == CLUBS);
+  REQUIRE(Card::ParseSuit("c") == CLUBS);
+  REQUIRE(Card::ParseSuit("notrump") == NOTRUMP);
+  REQUIRE(Card::ParseSuit("no trump") == NOTRUMP);
+  REQUIRE(Card::ParseSuit("NT") == NOTRUMP);
+}
+
 TEST_CASE("PrintCards") {
   REQUIRE(Card::PrintCard(Card::GetSuitedCard(SPADES, 0)) == "S2");
   REQUIRE(Card::PrintCard(Card::GetSuitedCard(DIAMONDS, 12)) == "DA");
