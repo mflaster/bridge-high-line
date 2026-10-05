@@ -27,6 +27,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="endplay">4-Card Endplay Deal</option>
           <option value="squeeze">Squeeze Deal (NT)</option>
           <option value="fuzzy">Fuzzy Requirements Deal</option>
+          <option value="simple_fuzzy">Simple Fuzzy Finesse (AQ vs 23)</option>
         </select>
         <button id="loadPresetBtn" class="btn btn-secondary">Load Preset</button>
       </div>
@@ -250,8 +251,8 @@ inline const char* INDEX_HTML = R"rawhtml(
                   <thead>
                     <tr>
                       <th>Suit</th>
-                      <th>Hand 1 Range</th>
-                      <th>Hand 2 Range</th>
+                      <th>Hand 1 (East) Range</th>
+                      <th>Hand 2 (West) Range</th>
                       <th>Combined Range</th>
                     </tr>
                   </thead>
@@ -267,8 +268,8 @@ inline const char* INDEX_HTML = R"rawhtml(
                     <tr>
                       <th>Suit</th>
                       <th>Honor</th>
-                      <th>Hand 1 %</th>
-                      <th>Hand 2 %</th>
+                      <th>Hand 1 (East) %</th>
+                      <th>Hand 2 (West) %</th>
                       <th>Both %</th>
                       <th>Neither %</th>
                     </tr>
@@ -999,6 +1000,16 @@ document.addEventListener('DOMContentLoaded', () => {
       east: 'S 543',
       south: 'S 876',
       west: 'S KJT'
+    },
+    simple_fuzzy: {
+      trump: 'SPADES',
+      leader: 'SOUTH',
+      target: 2,
+      iters: 50,
+      north: 'S AQ; H -; D -; C -;',
+      east: 'S -; H -; D -; C -;',
+      south: 'S 23; H -; D -; C -;',
+      west: 'S -; H -; D -; C -;'
     }
   };
 
@@ -1429,7 +1440,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rules.length > 0) {
         rules.forEach(r => {
           const li = document.createElement('li');
-          li.textContent = r;
+          let formattedRule = r.replace(/\bhand 1\b/gi, 'Hand 1 (East)')
+                               .replace(/\bhand 3\b/gi, 'Hand 2 (West)')
+                               .replace(/\bhand 2\b/gi, 'Hand 2 (West)');
+          li.textContent = formattedRule;
           summaryRulesList.appendChild(li);
         });
       } else {
