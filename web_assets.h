@@ -26,8 +26,6 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="finesse">Simple Finesse (Spades)</option>
           <option value="endplay">4-Card Endplay Deal</option>
           <option value="squeeze">Squeeze Deal (NT)</option>
-          <option value="fuzzy">Fuzzy Requirements Deal</option>
-          <option value="simple_fuzzy">Simple Fuzzy Finesse (AQ vs 23)</option>
         </select>
       </div>
     </div>
@@ -134,22 +132,30 @@ inline const char* INDEX_HTML = R"rawhtml(
 
         <!-- Text Inputs for Hands -->
         <div class="hand-inputs-accordion">
-          <h3>Hand Text Inputs</h3>
-          <div class="hand-input-row">
-            <label>North:</label>
-            <input type="text" id="inputNorth" class="text-input" value="S AQ; H -; D -; C -;">
+          <div class="hand-inputs-header">
+            <h3>Hand Text Inputs</h3>
+            <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm">Load</button>
+            <input type="file" id="fileInputTxt" accept=".txt,.deal" style="display: none;">
           </div>
           <div class="hand-input-row">
-            <label>East:</label>
-            <input type="text" id="inputEast" class="text-input" value="S 54; H -; D -; C -;">
+            <div class="hand-input-group">
+              <label for="inputNorth">N:</label>
+              <input type="text" id="inputNorth" class="text-input mini-text-input" value="S AQ; H -; D -; C -;">
+            </div>
+            <div class="hand-input-group">
+              <label for="inputSouth">S:</label>
+              <input type="text" id="inputSouth" class="text-input mini-text-input" value="S 87; H -; D -; C -;">
+            </div>
           </div>
           <div class="hand-input-row">
-            <label>South:</label>
-            <input type="text" id="inputSouth" class="text-input" value="S 87; H -; D -; C -;">
-          </div>
-          <div class="hand-input-row">
-            <label>West:</label>
-            <input type="text" id="inputWest" class="text-input" value="S KJ; H -; D -; C -;">
+            <div class="hand-input-group">
+              <label for="inputEast">E:</label>
+              <input type="text" id="inputEast" class="text-input mini-text-input" value="S 54; H -; D -; C -;">
+            </div>
+            <div class="hand-input-group">
+              <label for="inputWest">W:</label>
+              <input type="text" id="inputWest" class="text-input mini-text-input" value="S KJ; H -; D -; C -;">
+            </div>
           </div>
         </div>
 
@@ -583,31 +589,48 @@ body {
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.hand-inputs-accordion h3 {
+.hand-inputs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.hand-inputs-header h3 {
   font-size: 13px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin: 0;
 }
 
 .hand-input-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.hand-input-row label {
-  width: 50px;
+.hand-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.hand-input-group label {
+  width: auto;
+  min-width: 16px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: #94a3b8;
 }
 
-.hand-input-row input {
+.mini-text-input {
   flex: 1;
+  width: 100%;
 }
 
 .requirements-details {
@@ -1210,14 +1233,14 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     endplay: {
       trump: 'HEARTS',
-      leader: 'NORTH',
+      leader: 'SOUTH',
       target: 3,
-      iters: 20,
-      north: 'S AK; H K2; D -; C -;',
-      east: 'S 54; H QJ; D -; C -;',
-      south: 'S QJ; H A3; D -; C -;',
-      west: 'S 87; H T9; D -; C -;',
-      unknown_cards: ''
+      iters: 30,
+      north: 'S AQT; H 2; D -; C -;',
+      east: '',
+      south: 'S 876; H A; D -; C -;',
+      west: '',
+      unknown_cards: 'S KJ9543 D 34'
     },
     squeeze: {
       trump: 'NOTRUMP',
@@ -1229,28 +1252,6 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S J8; H 2; D 2; C -;',
       west: 'S T7; H Q; D Q; C -;',
       unknown_cards: ''
-    },
-    fuzzy: {
-      trump: 'SPADES',
-      leader: 'NORTH',
-      target: 2,
-      iters: 30,
-      north: 'S AQ9',
-      east: '',
-      south: 'S 876',
-      west: '',
-      unknown_cards: 'S KJT543'
-    },
-    simple_fuzzy: {
-      trump: 'SPADES',
-      leader: 'SOUTH',
-      target: 2,
-      iters: 50,
-      north: 'S AQ; H -; D -; C -;',
-      east: '',
-      south: 'S 23; H -; D -; C -;',
-      west: '',
-      unknown_cards: 'S Kxxx'
     }
   };
 
@@ -1473,6 +1474,103 @@ document.addEventListener('DOMContentLoaded', () => {
     presetSelect.addEventListener('change', () => {
       loadPreset(presetSelect.value);
     });
+  }
+
+  // Load TXT / Deal File Handler
+  const loadTxtBtn = document.getElementById('loadTxtBtn');
+  const fileInputTxt = document.getElementById('fileInputTxt');
+
+  if (loadTxtBtn && fileInputTxt) {
+    loadTxtBtn.addEventListener('click', () => {
+      fileInputTxt.value = '';
+      fileInputTxt.click();
+    });
+
+    fileInputTxt.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        parseAndApplyDealText(text);
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function parseAndApplyDealText(text) {
+    if (!text) return;
+    const lines = text.split('\n');
+    let hasKeys = false;
+    const keyValues = {};
+    const plainLines = [];
+
+    lines.forEach(line => {
+      let cleaned = line.trim();
+      const hashPos = cleaned.indexOf('#');
+      if (hashPos !== -1) cleaned = cleaned.substring(0, hashPos).trim();
+      const slashPos = cleaned.indexOf('//');
+      if (slashPos !== -1) cleaned = cleaned.substring(0, slashPos).trim();
+      if (!cleaned) return;
+
+      if (cleaned.includes('=') || cleaned.includes(':')) {
+        const delim = cleaned.includes('=') ? '=' : ':';
+        const parts = cleaned.split(delim);
+        const k = parts[0].trim().toLowerCase();
+        const v = parts.slice(1).join(delim).trim();
+        keyValues[k] = v;
+        hasKeys = true;
+      } else {
+        plainLines.push(cleaned);
+      }
+    });
+
+    if (hasKeys) {
+      if (keyValues.north !== undefined || keyValues.n !== undefined) inputNorth.value = keyValues.north || keyValues.n || '';
+      if (keyValues.east !== undefined || keyValues.e !== undefined) inputEast.value = keyValues.east || keyValues.e || '';
+      if (keyValues.south !== undefined || keyValues.s !== undefined) inputSouth.value = keyValues.south || keyValues.s || '';
+      if (keyValues.west !== undefined || keyValues.w !== undefined) inputWest.value = keyValues.west || keyValues.w || '';
+
+      const unknownVal = keyValues.unknown_cards || keyValues.unknown || keyValues.unknowns;
+      if (unknownVal !== undefined && inputUnknownCards) {
+        inputUnknownCards.value = unknownVal;
+      }
+
+      if (keyValues.trump || keyValues.trumps) {
+        const tVal = (keyValues.trump || keyValues.trumps).toUpperCase();
+        if (tVal.includes('SPADE') || tVal === 'S') trumpSelect.value = 'SPADES';
+        else if (tVal.includes('HEART') || tVal === 'H') trumpSelect.value = 'HEARTS';
+        else if (tVal.includes('DIAMOND') || tVal === 'D') trumpSelect.value = 'DIAMONDS';
+        else if (tVal.includes('CLUB') || tVal === 'C') trumpSelect.value = 'CLUBS';
+        else if (tVal.includes('NO') || tVal.includes('NT')) trumpSelect.value = 'NOTRUMP';
+      }
+
+      if (keyValues.leader || keyValues.lead) {
+        const lVal = (keyValues.leader || keyValues.lead).toUpperCase();
+        if (lVal.startsWith('N')) leaderSelect.value = 'NORTH';
+        else if (lVal.startsWith('E')) leaderSelect.value = 'EAST';
+        else if (lVal.startsWith('S')) leaderSelect.value = 'SOUTH';
+        else if (lVal.startsWith('W')) leaderSelect.value = 'WEST';
+      }
+
+      if (keyValues.target || keyValues.target_tricks || keyValues.min_tricks) {
+        const tgt = parseInt(keyValues.target || keyValues.target_tricks || keyValues.min_tricks, 10);
+        if (!isNaN(tgt)) targetTricks.value = tgt;
+      }
+
+      if (keyValues.iters || keyValues.num_iters || keyValues.iterations) {
+        const it = parseInt(keyValues.iters || keyValues.num_iters || keyValues.iterations, 10);
+        if (!isNaN(it)) numIters.value = it;
+      }
+    } else if (plainLines.length >= 4) {
+      inputNorth.value = plainLines[0];
+      inputEast.value = plainLines[1];
+      inputSouth.value = plainLines[2];
+      inputWest.value = plainLines[3];
+    }
+
+    updateDealSvg();
   }
 
   // Solve Deal Event
