@@ -168,7 +168,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   nlohmann::json wildcard_req;
   wildcard_req["hands"]["N"] = "H 43 C 432";
   wildcard_req["hands"]["E"] = "";
-  wildcard_req["hands"]["S"] = "H 65 C 654";
+  wildcard_req["hands"]["S"] = "H 65 C 876";
   wildcard_req["hands"]["W"] = "";
   wildcard_req["trump"] = "HEARTS";
   wildcard_req["leader"] = "SOUTH";

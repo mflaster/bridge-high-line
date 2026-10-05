@@ -147,7 +147,7 @@ inline const char* INDEX_HTML = R"rawhtml(
             <div class="req-player">
               <h4>Unknown Cards (Defender Pool)</h4>
               <div class="req-fields">
-                <input type="text" id="inputUnknownCards" class="text-input" placeholder="e.g. S Kxxxx or H AT9 C 32" style="width: 100%;">
+                <input type="text" id="inputUnknownCards" class="text-input" placeholder="e.g. S Kxxx or H AT9 C 32" style="width: 100%;">
               </div>
             </div>
             <div class="req-player">
@@ -975,7 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
       east: '',
       south: 'S 87; H -; D -; C -;',
       west: '',
-      unknown_cards: 'S Kxxxx'
+      unknown_cards: 'S Kxxx'
     },
     endplay: {
       trump: 'HEARTS',
@@ -1008,7 +1008,7 @@ document.addEventListener('DOMContentLoaded', () => {
       east: '',
       south: 'S 876',
       west: '',
-      unknown_cards: 'S KJT54'
+      unknown_cards: 'S KJT543'
     },
     simple_fuzzy: {
       trump: 'SPADES',
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
       east: '',
       south: 'S 23; H -; D -; C -;',
       west: '',
-      unknown_cards: 'S Kxxxx'
+      unknown_cards: 'S Kxxx'
     }
   };
 
