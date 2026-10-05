@@ -6,9 +6,14 @@ A C++17 library and test suite for double-dummy bridge analysis, deal generation
 
 Comprehensive architectural documentation, interactive Mermaid diagrams, sequence diagrams, and component layer descriptions are available in [docs/architecture.md](docs/architecture.md):
 
-- **[Component Topology Diagram](docs/architecture.md#1-top-level-component-topology)**: Visual map of analytical engines, solvers, state management, and core data primitives.
-- **[Line-Finding Sequence Diagram](docs/architecture.md#2-line-finding-evaluation-sequence-diagram)**: Runtime workflow detailing stochastic deal sampling, hand constraint validation, DDS solver invocation, and conditional decision tree construction.
-- **[Module Overview Tables](docs/architecture.md#3-module-overview-tables)**: Header locations, architectural responsibilities, and public routines for all system modules.
+- **[Component Topology Diagram](docs/architecture.md#1-top-level-component-topology)**: Visual map of analytical engines (including `CrossHandDealSetSummarizer`), performance utilities (`line_finder_perf`), solvers, state management, and core data primitives.
+- **[Line-Finding Sequence Diagram](docs/architecture.md#2-line-finding-evaluation-sequence-diagram)**: Runtime workflow detailing stochastic deal sampling, hand constraint validation, DDS solver invocation, conditional decision tree construction, and cross-hand deal set summarization.
+- **[Module Overview Tables](docs/architecture.md#3-module-overview-tables)**: Header locations, architectural responsibilities, and public routines for system modules across:
+  - **[Analytical Engines Layer](docs/architecture.md#31-analytical-engines-layer)** (`LineFinder`, `FuzzyBoardState`, `ConditionalLine`, `CrossHandDealSetSummarizer`)
+  - **[Solvers & Strategy Layer](docs/architecture.md#32-solvers--strategy-layer)** (`OptimalPlayTree`, `DDS C++ Interface`, `Solver`, `SolverCache`)
+  - **[State Management Layer](docs/architecture.md#33-state-management-layer)** (`BoardState`)
+  - **[Core Data Primitives Layer](docs/architecture.md#34-core-data-primitives-layer)** (`Card`, `Hand`, `HandRequirements`, `Deal`)
+  - **[Performance Utilities Layer](docs/architecture.md#35-performance-utilities-layer)** (`line_finder_perf`)
 
 ## Features & Third-Party Dependencies
 
@@ -146,7 +151,7 @@ For complete details on web application usage, configuration, and REST JSON API 
 - **`test_play`**: Executable for testing interactive play lines.
 
 ### Performance Benchmark
-- **`line_finder_perf`**: Standalone performance test binary evaluating `LineFinder::Solve` scaling across deal ending sizes (6 to 13 cards per hand) and recording execution benchmarks in `perf/summary.log` and `perf/details.log`.
+- **`line_finder_perf`**: Standalone performance test binary evaluating `LineFinder::Solve` scaling across deal ending sizes (6 to 13 cards per hand) and recording execution benchmarks in `perf/summary.log` and `perf/details.log`. Detailed module specifications are in the [Performance Utilities Layer](docs/architecture.md#35-performance-utilities-layer).
 
 ## Running Tests
 
@@ -196,7 +201,7 @@ make run_server_test
 
 ## Performance Benchmarks
 
-A standalone performance benchmark suite evaluating `LineFinder::Solve` execution times and search scaling is located in the `perf/` directory.
+A standalone performance benchmark suite evaluating `LineFinder::Solve` execution times and search scaling is located in the `perf/` directory (see [Performance Utilities in Architecture Specification](docs/architecture.md#35-performance-utilities-layer)).
 
 ### Running the Performance Test
 

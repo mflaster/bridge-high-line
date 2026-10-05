@@ -16,6 +16,11 @@ flowchart TB
         CL["ConditionalLine<br/><code>conditional_line.h</code>"]
         GTF["GeneralizedTrickFinder / GeneralizedDemiPlay<br/><code>conditional_line.h</code>"]
         PC["PlayCondition<br/>(WinnerPlayCondition, TrickPlayCondition)<br/><code>conditional_line.h</code>"]
+        CHDS["CrossHandDealSetSummarizer<br/><code>cross_hand_summarizer.h</code>"]
+    end
+
+    subgraph PerfUtils["Performance Utilities Layer"]
+        LFP["line_finder_perf<br/><code>perf/line_finder_perf.cc</code>"]
     end
 
     subgraph SolversLayer["Solvers & Strategy Layer"]
@@ -38,12 +43,19 @@ flowchart TB
     end
 
     %% Dependencies & Interaction Paths
+    LFP --> LF
+
     LF --> FBS
     LF --> OPT
     LF --> IDDS
     LF --> SC
     LF --> GTF
     LF --> CL
+    LF --> CHDS
+
+    CHDS --> CL
+    CHDS --> HAND
+    CHDS --> CARD
 
     FBS --> HR
     FBS --> DEAL
@@ -97,6 +109,7 @@ sequenceDiagram
     participant DDS as DDS C Library
     participant GTF as GeneralizedTrickFinder
     participant CL as ConditionalLine
+    participant CHDS as CrossHandDealSetSummarizer
 
     Client->>LF: Solve(min_tricks, hands, unknown_cards, leader, trump, cur_trick)
     activate LF
@@ -159,6 +172,18 @@ sequenceDiagram
     CL-->>LF: Root ConditionalLine
     deactivate CL
 
+    loop Cross-Hand Deal Set Summarization
+        LF->>CHDS: Summarize(covered_deals, "hand 1", "hand 3")
+        activate CHDS
+        CHDS->>CHDS: Extract joint suit bounds & honor stats
+        CHDS-->>LF: CrossHandSummaryReport
+        deactivate CHDS
+        LF->>CL: set_summary(report)
+        activate CL
+        CL-->>LF: Updated ConditionalLine
+        deactivate CL
+    end
+
     LF-->>Client: std::vector<ConditionalLine>
     deactivate LF
 ```
@@ -178,6 +203,7 @@ The system modules are categorized below by their primary architectural layer, h
 | **ConditionalLine** | `conditional_line.h` | Decision tree structure representing branching lines of play conditioned on opponent actions or trick outcomes. | - `AddCondition()`: Adds a conditional branch.<br/>- `SetAction()`: Sets the initial generalized trick action.<br/>- `Describe()`: Generates human-readable line output. |
 | **GeneralizedTrickFinder & DemiPlay** | `conditional_line.h` | Aggregates and simplifies specific card plays into generalized suit/rank trick structures across board samples. | - `RecordOptimalTrick()`: Records trick results.<br/>- `GetGeneralizedTricks()`: Extracts top generalized tricks.<br/>- `GroupTricks()`: Groups compatible tricks. |
 | **PlayCondition** | `conditional_line.h` | Base class and implementations (`WinnerPlayCondition`, `TrickPlayCondition`) for evaluating decision tree branch conditions. | - `Describe()`: Formats condition description string. |
+| **CrossHandDealSetSummarizer** | `cross_hand_summarizer.h` | Analyzes sets of paired deals across covered board states to compute joint suit distribution bounds and honor card possession statistics. | - `Summarize()`: Generates `CrossHandSummaryReport` for paired deal sets.<br/>- `JointSuitRuleExtractor`: Extracts suit length bounds across deals.<br/>- `HonorPossessionClassifier`: Computes honor card distribution statistics. |
 
 ### 3.2 Solvers & Strategy Layer
 
@@ -202,6 +228,12 @@ The system modules are categorized below by their primary architectural layer, h
 | **Hand** | `hand.h` | Bitmanipulation routines for evaluating 64-bit hand masks, card extraction, HCP calculation, and suit distributions. | - `CardsInHand()` / `CardsInHandInSuit()`: Unpacks card vectors.<br/>- `ParseHand()` / `MakeHandFromCards()`: Hand creation.<br/>- `GetHighCardPoints()`: Calculates HCP.<br/>- `GetSuitDistribution()`: Computes suit counts. |
 | **HandRequirements** | `hand_requirements.h` | Polymorphic constraint system (`SuitAtLeast`, `SuitLength`, `BalancedHand`, `AntiRequirement`, `HighCardRange`, `HandHasCard`, `AtLeastAces`) for hand filtering. | - `MeetsRequirement()`: Evaluates whether a hand satisfies specific shape, HCP, or card constraints. |
 | **Deal** | `deal.h` | Random deal generator, conditional hand dealer, and key-value file configuration parser. | - `LoadDealFromKeyValueFile()`: Parses plain-text deal files.<br/>- `DealHands()` / `DealTwoHands()`: Random card allocation.<br/>- `DealMissingCards()` / `DealTwoRequiredHands()`: Constraint-satisfied dealing. |
+
+### 3.5 Performance Utilities Layer
+
+| Module Name | Header File | Architectural Responsibility | Key Public Interface Routines |
+| :--- | :--- | :--- | :--- |
+| **line_finder_perf** | `perf/line_finder_perf.cc` | Standalone performance benchmark binary evaluating `LineFinder::Solve` search scaling and timing metrics across deal ending sizes (6 to 13 cards per hand). | - `main()`: Executes benchmark trials across deal ending sizes.<br/>- `GetHandSuitDistribution()`: Computes suit length profiles for deal setup. |
 
 ---
 
