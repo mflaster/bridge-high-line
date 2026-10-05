@@ -376,78 +376,6 @@ struct LineFinderTestCase {
   std::string description;
   std::vector<std::shared_ptr<HandRequirements>> reqs1;
   std::vector<std::shared_ptr<HandRequirements>> reqs3;
-
-  static Suit ParseSuit(const std::string &s) {
-    return Card::ParseSuit(s);
-  }
-
-  static LineFinderTestCase Parse(const std::string &spec, const std::string &default_name = "") {
-    LineFinderTestCase tc;
-    tc.name = default_name;
-    tc.min_tricks = -1;
-    std::stringstream ss(spec);
-    std::string line;
-
-    auto trim = [](const std::string &str) {
-      size_t f = str.find_first_not_of(" \t\r\n");
-      if (f == std::string::npos) return std::string("");
-      size_t l = str.find_last_not_of(" \t\r\n");
-      return str.substr(f, l - f + 1);
-    };
-
-    while (std::getline(ss, line)) {
-      std::string trimmed = trim(line);
-      if (trimmed.empty() || trimmed[0] == '#') continue;
-
-      size_t colon = trimmed.find(':');
-      if (colon == std::string::npos) continue;
-
-      std::string key = trim(trimmed.substr(0, colon));
-      std::string val = trim(trimmed.substr(colon + 1));
-
-      std::string key_lower;
-      for (char c : key) key_lower += tolower(c);
-
-      if (key_lower == "name") {
-        tc.name = val;
-      } else if (key_lower == "trump") {
-        tc.trump = ParseSuit(val);
-      } else if (key_lower == "leader") {
-        tc.leader = std::stoi(val);
-      } else if (key_lower == "min_tricks") {
-        tc.min_tricks = std::stoi(val);
-      } else if (key_lower == "num_iters") {
-        tc.num_iters = std::stoi(val);
-      } else if (key_lower == "seed") {
-        tc.seed = std::stoi(val);
-      } else if (key_lower == "pre_solve_deals") {
-        tc.pre_solve_deals = std::stoi(val);
-      } else if (key_lower == "hand_0" || key_lower == "hand 0") {
-        tc.hand0 = val;
-      } else if (key_lower == "hand_1" || key_lower == "hand 1") {
-        tc.hand1 = val;
-      } else if (key_lower == "hand_2" || key_lower == "hand 2") {
-        tc.hand2 = val;
-      } else if (key_lower == "hand_3" || key_lower == "hand 3") {
-        tc.hand3 = val;
-      } else if (key_lower == "hand_1_req" || key_lower == "hand_1_restrictions") {
-        if (auto req = HandRequirements::FromString(val)) {
-          tc.reqs1.push_back(req);
-        }
-      } else if (key_lower == "hand_3_req" || key_lower == "hand_3_restrictions") {
-        if (auto req = HandRequirements::FromString(val)) {
-          tc.reqs3.push_back(req);
-        }
-      } else if (key_lower == "unknown" || key_lower == "unknown_cards") {
-        tc.unknown_cards = val;
-      } else if (key_lower == "description") {
-        tc.description = val;
-      } else {
-        LOG(FATAL) << "Unknown key in LineFinderTestCase: " << key;
-      }
-    }
-    return tc;
-  }
 };
 
 void RunLineFinderTestCase(const LineFinderTestCase &tc) {
@@ -496,181 +424,181 @@ void RunLineFinderTestCase(const LineFinderTestCase &tc) {
 }
 
 TEST_CASE("LineFinder2") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_2
-    trump: spades
-    leader: 0
-    min_tricks: 2
-    num_iters: 10
-    hand_0: S32
-    hand_2: SAQ
-    unknown: SK987
-    description: LineFinder2: lines for spade contract with 2 known hands, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_2",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 2,
+    .num_iters = 10,
+    .hand0 = "S32",
+    .hand2 = "SAQ",
+    .unknown_cards = "SK987",
+    .description = "LineFinder2: lines for spade contract with 2 known hands, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder3") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_3
-    trump: spades
-    leader: 0
-    min_tricks: 3
-    num_iters: 20
-    seed: 5
-    hand_0: SK32
-    hand_2: SAJ4
-    unknown: SQT9876 H -
-    description: LineFinder3: lines for spade contract with 2 known hands, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_3",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 3,
+    .num_iters = 20,
+    .seed = 5,
+    .hand0 = "SK32",
+    .hand2 = "SAJ4",
+    .unknown_cards = "SQT9876 H -",
+    .description = "LineFinder3: lines for spade contract with 2 known hands, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder4") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_4
-    trump: spades
-    leader: 0
-    min_tricks: 0
-    num_iters: 4
-    hand_0: SAK HAK
-    hand_2: SQJ HQJ
-    unknown: ST9 HT DAKQJT
-    description: LineFinder4: lines for spade contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_4",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 0,
+    .num_iters = 4,
+    .hand0 = "SAK HAK",
+    .hand2 = "SQJ HQJ",
+    .unknown_cards = "ST9 HT DAKQJT",
+    .description = "LineFinder4: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_5
-    trump: spades
-    leader: 0
-    min_tricks: 5
-    num_iters: 20
-    hand_0: SA HQJT9
-    hand_2: SK HA876
-    unknown: HK5432 DAKQJT
-    description: LineFinder5: lines for spade contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_5",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .hand0 = "SA HQJT9",
+    .hand2 = "SK HA876",
+    .unknown_cards = "HK5432 DAKQJT",
+    .description = "LineFinder5: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5b", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_5b
-    trump: spades
-    leader: 0
-    min_tricks: 5
-    num_iters: 20
-    pre_solve_deals: 500
-    hand_0: SA HKJT9
-    hand_2: SK HA876
-    unknown: HQ5432 DAKQJT
-    description: LineFinder5b: lines for spade contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_5b",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .pre_solve_deals = 500,
+    .hand0 = "SA HKJT9",
+    .hand2 = "SK HA876",
+    .unknown_cards = "HQ5432 DAKQJT",
+    .description = "LineFinder5b: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5c", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_5c
-    trump: spades
-    leader: 0
-    min_tricks: 5
-    num_iters: 20
-    seed: 1
-    pre_solve_deals: 25
-    hand_0: SKT2 D32
-    hand_2: SAJ987
-    unknown: S Q654 D 987654
-    description: LineFinder5c: lines for spade contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_5c",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .seed = 1,
+    .pre_solve_deals = 25,
+    .hand0 = "SKT2 D32",
+    .hand2 = "SAJ987",
+    .unknown_cards = "S Q654 D 987654",
+    .description = "LineFinder5c: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5d", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_5d
-    trump: diamonds
-    leader: 0
-    min_tricks: 5
-    num_iters: 100
-    seed: 5
-    pre_solve_deals: 8
-    hand_0: D AKT9; C A
-    hand_2: D Q876; C K
-    unknown: DJ543 SAKQ HAKQ
-    description: LineFinder5d: lines for diamond contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_5d",
+    .trump = DIAMONDS,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 100,
+    .seed = 5,
+    .pre_solve_deals = 8,
+    .hand0 = "D AKT9; C A",
+    .hand2 = "D Q876; C K",
+    .unknown_cards = "DJ543 SAKQ HAKQ",
+    .description = "LineFinder5d: lines for diamond contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5e", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_5e
-    trump: spades
-    leader: 0
-    min_tricks: 5
-    num_iters: 100
-    seed: 1
-    pre_solve_deals: 1
-    hand_0: SKT2 D32
-    hand_2: SAJ987
-    unknown: S Q6543 D 98765
-    description: LineFinder5e: lines for spade contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_5e",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 100,
+    .seed = 1,
+    .pre_solve_deals = 1,
+    .hand0 = "SKT2 D32",
+    .hand2 = "SAJ987",
+    .unknown_cards = "S Q6543 D 98765",
+    .description = "LineFinder5e: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder7", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_7
-    trump: spades
-    leader: 0
-    min_tricks: 5
-    num_iters: 20
-    hand_0: H Q7; D KQT9; C A;
-    hand_2: H KJ98; D 2; C T9;
-    unknown: H T5; D A754; C Q; H A4; D J863; C 5;
-    description: LineFinder7: lines for spade contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_7",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .hand0 = "H Q7; D KQT9; C A;",
+    .hand2 = "H KJ98; D 2; C T9;",
+    .unknown_cards = "H T5; D A754; C Q; H A4; D J863; C 5;",
+    .description = "LineFinder7: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder9", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_9
-    trump: notrump
-    leader: 0
-    min_tricks: 6
-    num_iters: 19
-    hand_0: S KQJ; H KQJ; D KQJ
-    hand_2: C AKQJT9876
-    unknown: S AT8; H AT8; D 876; S 976; H 976; D AT9;
-    description: LineFinder9: lines for NT contract, Hand 0 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_9",
+    .trump = NOTRUMP,
+    .leader = 0,
+    .min_tricks = 6,
+    .num_iters = 19,
+    .hand0 = "S KQJ; H KQJ; D KQJ",
+    .hand2 = "C AKQJT9876",
+    .unknown_cards = "S AT8; H AT8; D 876; S 976; H 976; D AT9;",
+    .description = "LineFinder9: lines for NT contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder11", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_11
-    trump: hearts
-    leader: 2
-    min_tricks: 8
-    num_iters: 20
-    hand_0: S 764 HA32 D K64 C82
-    hand_2: H Q74 D 53 C AQT754
-    unknown: D AQT9872; C J6; S QJT852; H T98; DJ; C K93
-    hand_3_req: SuitAtLeast(Spades, 6)
-    description: LineFinder11: lines for heart contract with Spade requirements, Hand 2 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_11",
+    .trump = HEARTS,
+    .leader = 2,
+    .min_tricks = 8,
+    .num_iters = 20,
+    .hand0 = "S 764 HA32 D K64 C82",
+    .hand2 = "H Q74 D 53 C AQT754",
+    .unknown_cards = "D AQT9872; C J6; S QJT852; H T98; DJ; C K93",
+    .description = "LineFinder11: lines for heart contract with Spade requirements, Hand 2 on lead",
+    .reqs3 = {HandRequirements::FromString("SuitAtLeast(Spades, 6)")},
+  });
 }
 
 TEST_CASE("LineFinder12", "[.slow]") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: line_finder_12
-    trump: notrump
-    leader: 2
-    min_tricks: 12
-    num_iters: 20
-    hand_0: SAJ4 HAKQJ74 DA5 CJ
-    hand_2: SK65 H6 DKQT73 C832
-    unknown: SQT98732 HT98532 DJ98642 CQT976
-    hand_1_req: HandHasCard(CQ)
-    description: LineFinder12: lines for NT contract with CQ requirement, Hand 2 on lead
-  )"));
+  RunLineFinderTestCase({
+    .name = "line_finder_12",
+    .trump = NOTRUMP,
+    .leader = 2,
+    .min_tricks = 12,
+    .num_iters = 20,
+    .hand0 = "SAJ4 HAKQJ74 DA5 CJ",
+    .hand2 = "SK65 H6 DKQT73 C832",
+    .unknown_cards = "SQT98732 HT98532 DJ98642 CQT976",
+    .description = "LineFinder12: lines for NT contract with CQ requirement, Hand 2 on lead",
+    .reqs1 = {HandRequirements::FromString("HandHasCard(CQ)")},
+  });
 }
 
 TEST_CASE("LineFinder13", "[.slow]") {
@@ -721,28 +649,29 @@ TEST_CASE("LineFinder13", "[.slow]") {
 }
 
 TEST_CASE("LineFinder_Squeeze1") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: squeeze_1
-    trump: notrump
-    leader: 0
-    min_tricks: 6
-    hand_0: S A43 D AKQ
-    hand_2: S K2 H K D 432
-    unknown: S QJT987 H AQJT98
-  )"));
+  RunLineFinderTestCase({
+    .name = "squeeze_1",
+    .trump = NOTRUMP,
+    .leader = 0,
+    .min_tricks = 6,
+    .hand0 = "S A43 D AKQ",
+    .hand2 = "S K2 H K D 432",
+    .unknown_cards = "S QJT987 H AQJT98",
+  });
 }
 
 TEST_CASE("LineFinder_TrumpSafety") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: trump_safety
-    trump: spades
-    leader: 0
-    hand_0: S AKT9
-    hand_2: S Q876
-    unknown: S J543 D 5432
-    hand_1_req: Anti(SuitLength(Spades,1,3))
-    hand_3_req: Anti(SuitLength(Spades,1,3))
-  )"));
+  RunLineFinderTestCase({
+    .name = "trump_safety",
+    .trump = SPADES,
+    .leader = 0,
+    .num_iters = 20,
+    .hand0 = "S AKT9",
+    .hand2 = "S Q876",
+    .unknown_cards = "S J543 D 5432",
+    .reqs1 = {HandRequirements::FromString("Anti(SuitLength(Spades,1,3))")},
+    .reqs3 = {HandRequirements::FromString("Anti(SuitLength(Spades,1,3))")},
+  });
 }
 
 
