@@ -1,17 +1,18 @@
 #include "solver.h"
 
 #include <memory>
+#include <random>
 #include <thread>
 #include <unordered_map>
 
 #include "glog/logging.h"
 
-bool PLAY_SMART = 0;
-bool FOURTH_SMART = 0;
-bool ALLOW_CLAIMS = false;
-bool SEARCH_EQUIVALENT = false; // true;
+thread_local bool PLAY_SMART = 0;
+thread_local bool FOURTH_SMART = 0;
+thread_local bool ALLOW_CLAIMS = false;
+thread_local bool SEARCH_EQUIVALENT = false; // true;
 
-static uint64_t num_solver_iters_ = 0;
+static thread_local uint64_t num_solver_iters_ = 0;
 uint64_t num_solver_iters() { return num_solver_iters_; }
 std::string num_solver_iters_str() {
   if (num_solver_iters_ > 1000 * 1000 * 1000) {
@@ -37,8 +38,9 @@ void SwapCards(CardType *cards_to_try, int i, int other) {
 }
 
 void ScrambleCards(CardType *cards_to_try, int num_cards_to_try) {
+  static thread_local std::mt19937 rng(1337);
   for (int i = 0; i < num_cards_to_try; i += 2) {
-    int other = lrand48() % num_cards_to_try;
+    int other = rng() % num_cards_to_try;
     SwapCards(cards_to_try, i, other);
   }
 }
