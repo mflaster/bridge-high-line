@@ -226,10 +226,9 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
 
-    auto derived = CrossSuitConditionalInvariant::FromString(rule_str);
+    auto derived = dynamic_cast<CrossSuitCardConditionalInvariant*>(inv.get());
     REQUIRE(derived != nullptr);
     REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
-    REQUIRE(derived->target_type() == ConditionalTargetType::kCard);
     REQUIRE(derived->target_card() == Card::ParseStringCard("SK"));
   }
 
@@ -240,9 +239,9 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
 
-    auto derived = CrossSuitConditionalInvariant::FromString(rule_str);
+    auto derived = dynamic_cast<CrossSuitExactSuitLengthInvariant*>(inv.get());
     REQUIRE(derived != nullptr);
-    REQUIRE(derived->target_type() == ConditionalTargetType::kExactSuitLength);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
     REQUIRE(derived->target_suit() == Suit::HEARTS);
     REQUIRE(derived->length() == 1);
   }
@@ -254,11 +253,11 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
 
-    auto derived = CrossSuitConditionalInvariant::FromString(rule_str);
+    auto derived = dynamic_cast<CrossSuitMinSuitLengthInvariant*>(inv.get());
     REQUIRE(derived != nullptr);
-    REQUIRE(derived->target_type() == ConditionalTargetType::kMinSuitLength);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
     REQUIRE(derived->target_suit() == Suit::SPADES);
-    REQUIRE(derived->length() == 2);
+    REQUIRE(derived->min_len() == 2);
   }
 
   {
@@ -268,11 +267,11 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
 
-    auto derived = CrossSuitConditionalInvariant::FromString(rule_str);
+    auto derived = dynamic_cast<CrossSuitMaxSuitLengthInvariant*>(inv.get());
     REQUIRE(derived != nullptr);
-    REQUIRE(derived->target_type() == ConditionalTargetType::kMaxSuitLength);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
     REQUIRE(derived->target_suit() == Suit::DIAMONDS);
-    REQUIRE(derived->length() == 1);
+    REQUIRE(derived->max_len() == 1);
   }
 
   // 2. HonorPossessionInvariant

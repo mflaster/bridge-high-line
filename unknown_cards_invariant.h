@@ -42,26 +42,46 @@ class UnknownCardsInvariant {
       const std::string& hand2_label = "hand 2");
 };
 
-enum class ConditionalTargetType {
-  kCard,
-  kExactSuitLength,
-  kMinSuitLength,
-  kMaxSuitLength
-};
-
 class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
  public:
-  CrossSuitConditionalInvariant(CardType condition_card, CardType target_card)
-      : condition_card_(condition_card),
-        target_type_(ConditionalTargetType::kCard),
-        target_card_(target_card) {}
+  explicit CrossSuitConditionalInvariant(CardType condition_card)
+      : condition_card_(condition_card) {}
 
-  CrossSuitConditionalInvariant(CardType condition_card,
-                                ConditionalTargetType target_type,
-                                Suit target_suit,
-                                int length)
-      : condition_card_(condition_card),
-        target_type_(target_type),
+  static std::unique_ptr<CrossSuitConditionalInvariant> FromString(
+      const std::string& str,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2");
+
+  CardType condition_card() const { return condition_card_; }
+
+ private:
+  CardType condition_card_ = 0;
+};
+
+class CrossSuitCardConditionalInvariant : public CrossSuitConditionalInvariant {
+ public:
+  CrossSuitCardConditionalInvariant(CardType condition_card, CardType target_card)
+      : CrossSuitConditionalInvariant(condition_card), target_card_(target_card) {}
+
+  std::string ToString() const override;
+
+  bool HoldsOnDeal(
+      const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  CardType target_card() const { return target_card_; }
+
+ private:
+  CardType target_card_ = 0;
+};
+
+class CrossSuitExactSuitLengthInvariant : public CrossSuitConditionalInvariant {
+ public:
+  CrossSuitExactSuitLengthInvariant(CardType condition_card,
+                                    Suit target_suit,
+                                    int length)
+      : CrossSuitConditionalInvariant(condition_card),
         target_suit_(target_suit),
         length_(length) {}
 
@@ -72,23 +92,60 @@ class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
-  static std::unique_ptr<CrossSuitConditionalInvariant> FromString(
-      const std::string& str,
-      const std::string& hand1_label = "hand 1",
-      const std::string& hand2_label = "hand 2");
-
-  CardType condition_card() const { return condition_card_; }
-  ConditionalTargetType target_type() const { return target_type_; }
-  CardType target_card() const { return target_card_; }
   Suit target_suit() const { return target_suit_; }
   int length() const { return length_; }
 
  private:
-  CardType condition_card_ = 0;
-  ConditionalTargetType target_type_ = ConditionalTargetType::kCard;
-  CardType target_card_ = 0;
   Suit target_suit_ = Suit::SPADES;
   int length_ = 0;
+};
+
+class CrossSuitMinSuitLengthInvariant : public CrossSuitConditionalInvariant {
+ public:
+  CrossSuitMinSuitLengthInvariant(CardType condition_card,
+                                  Suit target_suit,
+                                  int min_len)
+      : CrossSuitConditionalInvariant(condition_card),
+        target_suit_(target_suit),
+        min_len_(min_len) {}
+
+  std::string ToString() const override;
+
+  bool HoldsOnDeal(
+      const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  Suit target_suit() const { return target_suit_; }
+  int min_len() const { return min_len_; }
+
+ private:
+  Suit target_suit_ = Suit::SPADES;
+  int min_len_ = 0;
+};
+
+class CrossSuitMaxSuitLengthInvariant : public CrossSuitConditionalInvariant {
+ public:
+  CrossSuitMaxSuitLengthInvariant(CardType condition_card,
+                                  Suit target_suit,
+                                  int max_len)
+      : CrossSuitConditionalInvariant(condition_card),
+        target_suit_(target_suit),
+        max_len_(max_len) {}
+
+  std::string ToString() const override;
+
+  bool HoldsOnDeal(
+      const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  Suit target_suit() const { return target_suit_; }
+  int max_len() const { return max_len_; }
+
+ private:
+  Suit target_suit_ = Suit::SPADES;
+  int max_len_ = 0;
 };
 
 enum class HonorPossessionTargetHand {

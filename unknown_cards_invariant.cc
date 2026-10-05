@@ -60,31 +60,28 @@ CrossSuitConditionalInvariant::FromString(const std::string& str,
       std::string card2_str = target_str.substr(4);
       if (card2_str.size() != 2) return nullptr;
       CardType card2 = Card::ParseStringCard(card2_str);
-      return std::make_unique<CrossSuitConditionalInvariant>(card1, card2);
+      return std::make_unique<CrossSuitCardConditionalInvariant>(card1, card2);
     } else if (target_str.rfind("exactly ", 0) == 0) {
       size_t space_pos = target_str.find(' ', 8);
       if (space_pos == std::string::npos) return nullptr;
       int n = std::stoi(target_str.substr(8, space_pos - 8));
       std::string s_str = target_str.substr(space_pos + 1);
       Suit s = Card::ParseSuit(s_str);
-      return std::make_unique<CrossSuitConditionalInvariant>(
-          card1, ConditionalTargetType::kExactSuitLength, s, n);
+      return std::make_unique<CrossSuitExactSuitLengthInvariant>(card1, s, n);
     } else if (target_str.rfind("at least ", 0) == 0) {
       size_t space_pos = target_str.find(' ', 9);
       if (space_pos == std::string::npos) return nullptr;
       int n = std::stoi(target_str.substr(9, space_pos - 9));
       std::string s_str = target_str.substr(space_pos + 1);
       Suit s = Card::ParseSuit(s_str);
-      return std::make_unique<CrossSuitConditionalInvariant>(
-          card1, ConditionalTargetType::kMinSuitLength, s, n);
+      return std::make_unique<CrossSuitMinSuitLengthInvariant>(card1, s, n);
     } else if (target_str.rfind("at most ", 0) == 0) {
       size_t space_pos = target_str.find(' ', 8);
       if (space_pos == std::string::npos) return nullptr;
       int n = std::stoi(target_str.substr(8, space_pos - 8));
       std::string s_str = target_str.substr(space_pos + 1);
       Suit s = Card::ParseSuit(s_str);
-      return std::make_unique<CrossSuitConditionalInvariant>(
-          card1, ConditionalTargetType::kMaxSuitLength, s, n);
+      return std::make_unique<CrossSuitMaxSuitLengthInvariant>(card1, s, n);
     }
   } catch (...) {
     return nullptr;
@@ -92,47 +89,82 @@ CrossSuitConditionalInvariant::FromString(const std::string& str,
   return nullptr;
 }
 
-std::string CrossSuitConditionalInvariant::ToString() const {
-  std::string res = "the hand with the " + Card::PrintCard(condition_card_) + " also has ";
-  switch (target_type_) {
-    case ConditionalTargetType::kCard:
-      res += "the " + Card::PrintCard(target_card_);
-      break;
-    case ConditionalTargetType::kExactSuitLength:
-      res += "exactly " + std::to_string(length_) + " " + SuitDebugString(target_suit_);
-      break;
-    case ConditionalTargetType::kMinSuitLength:
-      res += "at least " + std::to_string(length_) + " " + SuitDebugString(target_suit_);
-      break;
-    case ConditionalTargetType::kMaxSuitLength:
-      res += "at most " + std::to_string(length_) + " " + SuitDebugString(target_suit_);
-      break;
-  }
-  return res;
+// --- CrossSuitCardConditionalInvariant Implementation ---
+
+std::string CrossSuitCardConditionalInvariant::ToString() const {
+  return "the hand with the " + Card::PrintCard(condition_card()) +
+         " also has the " + Card::PrintCard(target_card_);
 }
 
-bool CrossSuitConditionalInvariant::HoldsOnDeal(
+bool CrossSuitCardConditionalInvariant::HoldsOnDeal(
     const PairedDeal& deal,
     const std::string& /* hand1_label */,
     const std::string& /* hand2_label */) const {
-  uint64_t target_hand = 0;
-  if ((deal.hand1 & condition_card_) != 0) {
-    target_hand = deal.hand1;
-  } else if ((deal.hand2 & condition_card_) != 0) {
-    target_hand = deal.hand2;
-  } else {
-    return false;
+  if ((deal.hand1 & condition_card()) != 0) {
+    return (deal.hand1 & target_card_) != 0;
   }
+  if ((deal.hand2 & condition_card()) != 0) {
+    return (deal.hand2 & target_card_) != 0;
+  }
+  return false;
+}
 
-  switch (target_type_) {
-    case ConditionalTargetType::kCard:
-      return (target_hand & target_card_) != 0;
-    case ConditionalTargetType::kExactSuitLength:
-      return CardsInSuit(target_hand, target_suit_) == length_;
-    case ConditionalTargetType::kMinSuitLength:
-      return CardsInSuit(target_hand, target_suit_) >= length_;
-    case ConditionalTargetType::kMaxSuitLength:
-      return CardsInSuit(target_hand, target_suit_) <= length_;
+// --- CrossSuitExactSuitLengthInvariant Implementation ---
+
+std::string CrossSuitExactSuitLengthInvariant::ToString() const {
+  return "the hand with the " + Card::PrintCard(condition_card()) +
+         " also has exactly " + std::to_string(length_) + " " + SuitDebugString(target_suit_);
+}
+
+bool CrossSuitExactSuitLengthInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  if ((deal.hand1 & condition_card()) != 0) {
+    return CardsInSuit(deal.hand1, target_suit_) == length_;
+  }
+  if ((deal.hand2 & condition_card()) != 0) {
+    return CardsInSuit(deal.hand2, target_suit_) == length_;
+  }
+  return false;
+}
+
+// --- CrossSuitMinSuitLengthInvariant Implementation ---
+
+std::string CrossSuitMinSuitLengthInvariant::ToString() const {
+  return "the hand with the " + Card::PrintCard(condition_card()) +
+         " also has at least " + std::to_string(min_len_) + " " + SuitDebugString(target_suit_);
+}
+
+bool CrossSuitMinSuitLengthInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  if ((deal.hand1 & condition_card()) != 0) {
+    return CardsInSuit(deal.hand1, target_suit_) >= min_len_;
+  }
+  if ((deal.hand2 & condition_card()) != 0) {
+    return CardsInSuit(deal.hand2, target_suit_) >= min_len_;
+  }
+  return false;
+}
+
+// --- CrossSuitMaxSuitLengthInvariant Implementation ---
+
+std::string CrossSuitMaxSuitLengthInvariant::ToString() const {
+  return "the hand with the " + Card::PrintCard(condition_card()) +
+         " also has at most " + std::to_string(max_len_) + " " + SuitDebugString(target_suit_);
+}
+
+bool CrossSuitMaxSuitLengthInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  if ((deal.hand1 & condition_card()) != 0) {
+    return CardsInSuit(deal.hand1, target_suit_) <= max_len_;
+  }
+  if ((deal.hand2 & condition_card()) != 0) {
+    return CardsInSuit(deal.hand2, target_suit_) <= max_len_;
   }
   return false;
 }

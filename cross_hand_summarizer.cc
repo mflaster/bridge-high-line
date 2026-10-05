@@ -225,10 +225,12 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtr
 
       if (min_len_X > 0) {
         if (min_len_notX < min_len_X) {
-          ConditionalTargetType ttype = (min_len_X == max_len_X)
-                                            ? ConditionalTargetType::kExactSuitLength
-                                            : ConditionalTargetType::kMinSuitLength;
-          auto inv = std::make_unique<CrossSuitConditionalInvariant>(card, ttype, suit, min_len_X);
+          std::unique_ptr<CrossSuitConditionalInvariant> inv;
+          if (min_len_X == max_len_X) {
+            inv = std::make_unique<CrossSuitExactSuitLengthInvariant>(card, suit, min_len_X);
+          } else {
+            inv = std::make_unique<CrossSuitMinSuitLengthInvariant>(card, suit, min_len_X);
+          }
           std::string rule = inv->ToString();
           if (emitted_rules.insert(rule).second) {
             invariants.push_back(std::move(inv));
@@ -238,8 +240,7 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtr
 
       if (min_len_X < max_len_X && max_len_X < cards_per_hand) {
         if (max_len_notX > max_len_X) {
-          auto inv = std::make_unique<CrossSuitConditionalInvariant>(
-              card, ConditionalTargetType::kMaxSuitLength, suit, max_len_X);
+          auto inv = std::make_unique<CrossSuitMaxSuitLengthInvariant>(card, suit, max_len_X);
           std::string rule = inv->ToString();
           if (emitted_rules.insert(rule).second) {
             invariants.push_back(std::move(inv));
@@ -261,7 +262,7 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtr
       }
 
       if (always_co_held) {
-        auto inv = std::make_unique<CrossSuitConditionalInvariant>(card, card2);
+        auto inv = std::make_unique<CrossSuitCardConditionalInvariant>(card, card2);
         std::string rule = inv->ToString();
         if (emitted_rules.insert(rule).second) {
           invariants.push_back(std::move(inv));
