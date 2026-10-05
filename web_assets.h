@@ -29,7 +29,6 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="fuzzy">Fuzzy Requirements Deal</option>
           <option value="simple_fuzzy">Simple Fuzzy Finesse (AQ vs 23)</option>
         </select>
-        <button id="loadPresetBtn" class="btn btn-secondary">Load Preset</button>
       </div>
     </div>
   </header>
@@ -40,7 +39,7 @@ inline const char* INDEX_HTML = R"rawhtml(
       <section class="card-panel deal-setup-panel">
         <div class="panel-header">
           <h2>Deal Configuration</h2>
-          <span class="panel-badge">Interactive SVG</span>
+          <span class="panel-badge" id="dealEndingBadge">Full deal</span>
         </div>
 
         <!-- SVG Deal Diagram -->
@@ -145,6 +144,12 @@ inline const char* INDEX_HTML = R"rawhtml(
         <details class="requirements-details">
           <summary>Hand Requirements (Fuzzy Search Constraints)</summary>
           <div class="requirements-form">
+            <div class="req-player">
+              <h4>Unknown Cards (Defender Pool)</h4>
+              <div class="req-fields">
+                <input type="text" id="inputUnknownCards" class="text-input" placeholder="e.g. S Kxxxx or H AT9 C 32" style="width: 100%;">
+              </div>
+            </div>
             <div class="req-player">
               <h4>West Requirements</h4>
               <div class="req-fields">
@@ -893,13 +898,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const targetTricksVal = document.getElementById('targetTricksVal');
   const numIters = document.getElementById('numIters');
   const presetSelect = document.getElementById('presetSelect');
-  const loadPresetBtn = document.getElementById('loadPresetBtn');
   const solveBtn = document.getElementById('solveBtn');
 
   const inputNorth = document.getElementById('inputNorth');
   const inputEast = document.getElementById('inputEast');
   const inputSouth = document.getElementById('inputSouth');
   const inputWest = document.getElementById('inputWest');
+  const inputUnknownCards = document.getElementById('inputUnknownCards');
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
@@ -963,13 +968,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const PRESETS = {
     finesse: {
       trump: 'SPADES',
-      leader: 'NORTH',
+      leader: 'SOUTH',
       target: 2,
       iters: 10,
       north: 'S AQ; H -; D -; C -;',
-      east: 'S 54; H -; D -; C -;',
+      east: '',
       south: 'S 87; H -; D -; C -;',
-      west: 'S KJ; H -; D -; C -;'
+      west: '',
+      unknown_cards: 'S Kxxxx'
     },
     endplay: {
       trump: 'HEARTS',
@@ -979,7 +985,8 @@ document.addEventListener('DOMContentLoaded', () => {
       north: 'S AK; H K2; D -; C -;',
       east: 'S 54; H QJ; D -; C -;',
       south: 'S QJ; H A3; D -; C -;',
-      west: 'S 87; H T9; D -; C -;'
+      west: 'S 87; H T9; D -; C -;',
+      unknown_cards: ''
     },
     squeeze: {
       trump: 'NOTRUMP',
@@ -989,7 +996,8 @@ document.addEventListener('DOMContentLoaded', () => {
       north: 'S AQ; H A; D K; C -;',
       east: 'S K9; H K; D A; C -;',
       south: 'S J8; H 2; D 2; C -;',
-      west: 'S T7; H Q; D Q; C -;'
+      west: 'S T7; H Q; D Q; C -;',
+      unknown_cards: ''
     },
     fuzzy: {
       trump: 'SPADES',
@@ -997,9 +1005,10 @@ document.addEventListener('DOMContentLoaded', () => {
       target: 2,
       iters: 30,
       north: 'S AQ9',
-      east: 'S 543',
+      east: '',
       south: 'S 876',
-      west: 'S KJT'
+      west: '',
+      unknown_cards: 'S KJT54'
     },
     simple_fuzzy: {
       trump: 'SPADES',
@@ -1007,9 +1016,10 @@ document.addEventListener('DOMContentLoaded', () => {
       target: 2,
       iters: 50,
       north: 'S AQ; H -; D -; C -;',
-      east: 'S -; H -; D -; C -;',
+      east: '',
       south: 'S 23; H -; D -; C -;',
-      west: 'S -; H -; D -; C -;'
+      west: '',
+      unknown_cards: 'S Kxxxx'
     }
   };
 
@@ -1053,6 +1063,64 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     return suits;
+  }
+
+  function countHandCards(str) {
+    if (!str) return 0;
+    const suits = parseHandToSuits(str);
+    let cnt = 0;
+    ['S', 'H', 'D', 'C'].forEach(s => {
+      const val = suits[s];
+      if (val && val !== '-') {
+        cnt += val.length;
+      }
+    });
+    return cnt;
+  }
+
+  function countUnknownCardsString(str) {
+    if (!str) return 0;
+    let cnt = 0;
+    let i = 0;
+    while (i < str.length) {
+      const c = str.charAt(i);
+      if (c === '1' && i + 1 < str.length && str.charAt(i + 1) === '0') {
+        cnt++;
+        i += 2;
+        continue;
+      }
+      if ("AKQJT23456789xX".indexOf(c) !== -1) {
+        cnt++;
+      }
+      i++;
+    }
+    return cnt;
+  }
+
+  function updateDealBadge() {
+    const dealEndingBadge = document.getElementById('dealEndingBadge');
+    if (!dealEndingBadge) return;
+
+    const nCards = countHandCards(inputNorth.value);
+    const eCards = countHandCards(inputEast.value);
+    const sCards = countHandCards(inputSouth.value);
+    const wCards = countHandCards(inputWest.value);
+
+    let unkCards = 0;
+    if (inputUnknownCards && inputUnknownCards.value.trim()) {
+      unkCards = countUnknownCardsString(inputUnknownCards.value.trim());
+    }
+
+    let maxCards = Math.max(nCards, eCards, sCards, wCards);
+    if (eCards === 0 && wCards === 0 && unkCards > 0) {
+      maxCards = Math.max(nCards, sCards, Math.ceil(unkCards / 2));
+    }
+
+    if (maxCards > 0 && maxCards <= 12) {
+      dealEndingBadge.textContent = `${maxCards} card ending`;
+    } else {
+      dealEndingBadge.textContent = 'Full deal';
+    }
   }
 
   // Render Hand on SVG Compass
@@ -1102,17 +1170,19 @@ document.addEventListener('DOMContentLoaded', () => {
     svgTrumpText.textContent = 'Trump: ' + getSuitSymbol(trumpSelect.value) + ' ' + trumpSelect.value;
     svgLeaderText.textContent = 'Leader: ' + leaderSelect.value;
     targetTricksVal.textContent = targetTricks.value;
+
+    updateDealBadge();
   }
 
   // Sync Input Events
-  [inputNorth, inputEast, inputSouth, inputWest, trumpSelect, leaderSelect, targetTricks].forEach(el => {
-    el.addEventListener('input', updateDealSvg);
-    el.addEventListener('change', updateDealSvg);
+  [inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards, trumpSelect, leaderSelect, targetTricks].forEach(el => {
+    if (el) {
+      el.addEventListener('input', updateDealSvg);
+      el.addEventListener('change', updateDealSvg);
+    }
   });
 
-  // Load Preset
-  loadPresetBtn.addEventListener('click', () => {
-    const key = presetSelect.value;
+  function loadPreset(key) {
     const p = PRESETS[key];
     if (!p) return;
 
@@ -1121,13 +1191,23 @@ document.addEventListener('DOMContentLoaded', () => {
     targetTricks.value = p.target;
     numIters.value = p.iters;
 
-    inputNorth.value = p.north;
-    inputEast.value = p.east;
-    inputSouth.value = p.south;
-    inputWest.value = p.west;
+    inputNorth.value = p.north || '';
+    inputEast.value = p.east || '';
+    inputSouth.value = p.south || '';
+    inputWest.value = p.west || '';
+    if (inputUnknownCards) {
+      inputUnknownCards.value = p.unknown_cards || '';
+    }
 
     updateDealSvg();
-  });
+  }
+
+  // Load Preset on Dropdown Selection
+  if (presetSelect) {
+    presetSelect.addEventListener('change', () => {
+      loadPreset(presetSelect.value);
+    });
+  }
 
   // Solve Deal Event
   solveBtn.addEventListener('click', async () => {
@@ -1147,6 +1227,10 @@ document.addEventListener('DOMContentLoaded', () => {
       min_tricks: parseInt(targetTricks.value, 10),
       num_iters: parseInt(numIters.value, 10)
     };
+
+    if (inputUnknownCards && inputUnknownCards.value.trim()) {
+      payload.unknown_cards = inputUnknownCards.value.trim();
+    }
 
     // Include hand requirements if entered
     const wHcpLow = document.getElementById('wHcpLow').value;
@@ -1523,7 +1607,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Initial UI Render
-  updateDealSvg();
+  if (presetSelect) {
+    loadPreset(presetSelect.value);
+  } else {
+    updateDealSvg();
+  }
 });
 )rawjs";
 
