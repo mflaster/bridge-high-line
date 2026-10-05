@@ -2,6 +2,7 @@
 #include <stdexcept>
 
 #include "cross_hand_summarizer.h"
+#include "unknown_cards_invariant.h"
 
 TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
   // All paired deals contain S K432, bifurcated differently
@@ -214,13 +215,13 @@ TEST_CASE("CrossSuitConditionalRuleExtractor_SuppressesTautologiesAndFixedCards"
   REQUIRE_FALSE(report.HasRule("the hand with the CJ"));
 }
 
-TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_hand_summarizer]") {
+TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_hand_summarizer]") {
   PairedDeal deal("S AK H Q D 4", "S QJ H 2 D 32");
 
   // 1. CrossSuitConditionalInvariant
   {
     std::string rule_str = "the hand with the SA also has the SK";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -234,7 +235,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
 
   {
     std::string rule_str = "the hand with the SA also has exactly 1 H";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -248,7 +249,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
 
   {
     std::string rule_str = "the hand with the SA also has at least 2 S";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -262,7 +263,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
 
   {
     std::string rule_str = "the hand with the SA also has at most 1 D";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -277,7 +278,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
   // 2. HonorPossessionInvariant
   {
     std::string rule_str = "hand 1 always contains the SA";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -290,7 +291,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
 
   {
     std::string rule_str = "both hands always contain the SA";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE_FALSE(inv->HoldsOnDeal(deal));
@@ -299,7 +300,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
   // 3. MaxSuitLengthInvariant
   {
     std::string rule_str = "maximum length in S in any hand is 2";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -313,7 +314,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
   // 4. ExactSuitLengthInvariant
   {
     std::string rule_str = "hand 1 length in S is always 2";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -328,7 +329,7 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
   // 5. SuitLengthRangeInvariant
   {
     std::string rule_str = "hand 1 length in S is between 1 and 3";
-    auto inv = Invariant::FromString(rule_str);
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
     REQUIRE(inv != nullptr);
     REQUIRE(inv->ToString() == rule_str);
     REQUIRE(inv->HoldsOnDeal(deal));
@@ -343,9 +344,9 @@ TEST_CASE("InvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_ha
 
   // 6. Invalid String Parsing Returns nullptr
   {
-    REQUIRE(Invariant::FromString("this is an invalid rule") == nullptr);
-    REQUIRE(Invariant::FromString("the hand with the SA also has bad format") == nullptr);
-    REQUIRE(Invariant::FromString("hand 1 length in S is between invalid") == nullptr);
+    REQUIRE(UnknownCardsInvariant::FromString("this is an invalid rule") == nullptr);
+    REQUIRE(UnknownCardsInvariant::FromString("the hand with the SA also has bad format") == nullptr);
+    REQUIRE(UnknownCardsInvariant::FromString("hand 1 length in S is between invalid") == nullptr);
     REQUIRE(CrossSuitConditionalInvariant::FromString("hand 1 always contains the SA") == nullptr);
     REQUIRE(HonorPossessionInvariant::FromString("maximum length in S in any hand is 2") == nullptr);
     REQUIRE(MaxSuitLengthInvariant::FromString("hand 1 always contains the SA") == nullptr);

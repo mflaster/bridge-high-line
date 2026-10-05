@@ -81,6 +81,7 @@ add_library(bridge_lib STATIC
   interface_dds.cc
   golden_serializer.cc
   web_server.cc
+  unknown_cards_invariant.cc
   cross_hand_summarizer.cc
 )
 
