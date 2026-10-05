@@ -56,10 +56,10 @@ struct SolverCache {
 };
 
 
-extern thread_local bool PLAY_SMART;
-extern thread_local bool FOURTH_SMART;
-extern thread_local bool ALLOW_CLAIMS;
-extern thread_local bool SEARCH_EQUIVALENT;
+inline constexpr bool PLAY_SMART = false;
+inline constexpr bool FOURTH_SMART = false;
+inline constexpr bool ALLOW_CLAIMS = false;
+inline constexpr bool SEARCH_EQUIVALENT = false;
 
 int MostTricksCanBeWon(const BoardState &bs, int pair, std::string *sequence,
                        OptimalLines *optimal_lines = nullptr,

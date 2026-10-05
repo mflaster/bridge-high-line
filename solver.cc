@@ -7,11 +7,6 @@
 
 #include "glog/logging.h"
 
-thread_local bool PLAY_SMART = 0;
-thread_local bool FOURTH_SMART = 0;
-thread_local bool ALLOW_CLAIMS = false;
-thread_local bool SEARCH_EQUIVALENT = false; // true;
-
 static thread_local uint64_t num_solver_iters_ = 0;
 uint64_t num_solver_iters() { return num_solver_iters_; }
 std::string num_solver_iters_str() {
