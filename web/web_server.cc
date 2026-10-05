@@ -465,6 +465,14 @@ void WebServer::RegisterRoutes() {
     res.set_content(web_assets::APP_JS, "application/javascript");
   });
 
+  svr_.Get("/presets.json", [](const httplib::Request &, httplib::Response &res) {
+    res.set_content(web_assets::PRESETS_JSON, "application/json");
+  });
+
+  svr_.Get("/api/presets", [](const httplib::Request &, httplib::Response &res) {
+    res.set_content(web_assets::PRESETS_JSON, "application/json");
+  });
+
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {
     HandleHealth(req, res);
   });
