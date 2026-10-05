@@ -26,15 +26,7 @@ std::string SuitToString(Suit s) {
 }
 
 Suit ParseSuitString(const std::string &s) {
-  std::string lower;
-  for (char c : Trim(s)) lower += tolower(c);
-  if (lower == "spades" || lower == "s") return SPADES;
-  if (lower == "hearts" || lower == "h") return HEARTS;
-  if (lower == "diamonds" || lower == "d") return DIAMONDS;
-  if (lower == "clubs" || lower == "c") return CLUBS;
-  if (lower == "notrump" || lower == "nt") return NOTRUMP;
-  LOG(WARNING) << "Unknown suit string: " << s;
-  return SPADES;
+  return Card::ParseSuit(s);
 }
 
 std::vector<std::string> SplitTopLevelArgs(const std::string &args_str) {

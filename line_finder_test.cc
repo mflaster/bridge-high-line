@@ -378,15 +378,7 @@ struct LineFinderTestCase {
   std::vector<std::shared_ptr<HandRequirements>> reqs3;
 
   static Suit ParseSuit(const std::string &s) {
-    std::string lower;
-    for (char c : s) lower += tolower(c);
-    if (lower == "spades" || lower == "s") return SPADES;
-    if (lower == "hearts" || lower == "h") return HEARTS;
-    if (lower == "diamonds" || lower == "d") return DIAMONDS;
-    if (lower == "clubs" || lower == "c") return CLUBS;
-    if (lower == "notrump" || lower == "no trump" || lower == "nt") return NOTRUMP;
-    LOG(FATAL) << "Unknown suit in test spec: " << s;
-    return NOTRUMP;
+    return Card::ParseSuit(s);
   }
 
   static LineFinderTestCase Parse(const std::string &spec, const std::string &default_name = "") {

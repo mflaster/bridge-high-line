@@ -259,14 +259,7 @@ static std::string ToLowerString(const std::string &s) {
 }
 
 static Suit ParseSuitName(const std::string &val_str) {
-  std::string s = ToLowerString(TrimString(val_str));
-  if (s == "spades" || s == "spade" || s == "s") return SPADES;
-  if (s == "hearts" || s == "heart" || s == "h") return HEARTS;
-  if (s == "diamonds" || s == "diamond" || s == "d") return DIAMONDS;
-  if (s == "clubs" || s == "club" || s == "c") return CLUBS;
-  if (s == "notrump" || s == "no_trump" || s == "notrumps" || s == "nt" || s == "n") return NOTRUMP;
-  LOG(ERROR) << "Unrecognized trump suit name: " << val_str;
-  throw std::runtime_error("Unrecognized trump suit name: " + val_str);
+  return Card::ParseSuit(val_str);
 }
 
 static PlayerDirection ParseDirectionName(const std::string &val_str) {
