@@ -235,15 +235,24 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(collapse_json["success"] == true);
   REQUIRE(collapse_json.contains("tree"));
   auto &collapsed_tree = collapse_json["tree"];
-  // Ensure the tree collapsed single-path redundant nodes into a concise root/node
-  // that does not contain redundant child nodes like "after ..." or repeated labels.
-  std::string root_label = collapsed_tree["label"].get<std::string>();
-  REQUIRE(root_label.find("after ") == std::string::npos);
-  if (collapsed_tree["children"].size() == 1) {
-    std::string child_label = collapsed_tree["children"][0]["label"].get<std::string>();
-    REQUIRE(child_label != root_label);
-    REQUIRE(child_label.find("after ") == std::string::npos);
-  }
+  // Verify that single-path redundant wrapper nodes and win condition nodes are merged cleanly
+  // into node labels formatted like "after ... (N wins)"
+  bool found_merged_label = false;
+  std::function<void(const nlohmann::json &)> check_node = [&](const nlohmann::json &node) {
+    if (node.contains("label") && node["label"].is_string()) {
+      std::string l = node["label"].get<std::string>();
+      if (l.find("after ") == 0 && l.find("(N wins)") != std::string::npos) {
+        found_merged_label = true;
+      }
+    }
+    if (node.contains("children") && node["children"].is_array()) {
+      for (const auto &c : node["children"]) {
+        check_node(c);
+      }
+    }
+  };
+  check_node(collapsed_tree);
+  REQUIRE(found_merged_label);
 
   // Test 10: 4-Card Ending Decision Tree Node Depth Verification
   // Ensure different tricks are never collapsed together, yielding depth 4 for 4 tricks.

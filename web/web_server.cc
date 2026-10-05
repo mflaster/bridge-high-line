@@ -144,6 +144,94 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
   return node;
 }
 
+bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child);
+
+std::string NormalizeDirectionAndCondition(const std::string &s) {
+  std::string res = s;
+  struct Replacement {
+    std::string from;
+    std::string to;
+  };
+  static const std::vector<Replacement> repls = {
+      {"when 0 wins", "N wins"}, {"when 1 wins", "E wins"},
+      {"when 2 wins", "S wins"}, {"when 3 wins", "W wins"},
+      {"if 0 wins", "N wins"},   {"if 1 wins", "E wins"},
+      {"if 2 wins", "S wins"},   {"if 3 wins", "W wins"},
+      {"when N wins", "N wins"}, {"when E wins", "E wins"},
+      {"when S wins", "S wins"}, {"when W wins", "W wins"},
+      {"if N wins", "N wins"},   {"if E wins", "E wins"},
+      {"if S wins", "S wins"},   {"if W wins", "W wins"},
+      {"0 wins", "N wins"},      {"1 wins", "E wins"},
+      {"2 wins", "S wins"},      {"3 wins", "W wins"}};
+
+  for (const auto &r : repls) {
+    size_t pos = 0;
+    while ((pos = res.find(r.from, pos)) != std::string::npos) {
+      res.replace(pos, r.from.length(), r.to);
+      pos += r.to.length();
+    }
+  }
+  return res;
+}
+
+struct LabelParts {
+  std::string trick;
+  std::string cond;
+};
+
+LabelParts ParseLabelParts(const std::string &raw) {
+  std::string s = NormalizeDirectionAndCondition(raw);
+  if (s.rfind("after ", 0) == 0) s = s.substr(6);
+
+  LabelParts parts;
+  static const std::vector<std::string> cond_strings = {
+      "N wins", "E wins", "S wins", "W wins"};
+
+  for (const auto &c : cond_strings) {
+    if (s == c) {
+      parts.cond = c;
+      return parts;
+    }
+    std::string parenthesized = "(" + c + ")";
+    size_t pos = s.find(parenthesized);
+    if (pos != std::string::npos) {
+      parts.cond = c;
+      std::string t = s;
+      t.erase(pos, parenthesized.length());
+      size_t last = t.find_last_not_of(" \t");
+      if (last != std::string::npos) t = t.substr(0, last + 1);
+      parts.trick = t;
+      return parts;
+    }
+    std::string when_cond = "when " + c;
+    pos = s.find(when_cond);
+    if (pos != std::string::npos) {
+      parts.cond = c;
+      std::string t = s;
+      t.erase(pos, when_cond.length());
+      size_t last = t.find_last_not_of(" \t()");
+      if (last != std::string::npos) t = t.substr(0, last + 1);
+      parts.trick = t;
+      return parts;
+    }
+  }
+
+  parts.trick = s;
+  return parts;
+}
+
+std::string ExtractTrickFromNode(const nlohmann::json &node) {
+  if (node.contains("trick") && node["trick"].is_string()) {
+    std::string t = node["trick"].get<std::string>();
+    if (!t.empty()) return t;
+  }
+  if (!node.contains("label") || !node["label"].is_string()) {
+    return "";
+  }
+  LabelParts parts = ParseLabelParts(node["label"].get<std::string>());
+  return parts.trick;
+}
+
 bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child) {
   if (!parent.contains("type") || !child.contains("type")) {
     return false;
@@ -151,12 +239,7 @@ bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child)
   std::string p_type = parent["type"].get<std::string>();
   std::string c_type = child["type"].get<std::string>();
 
-  // Never collapse two action nodes together as they represent different tricks/play steps.
-  if (p_type == "action" && c_type == "action") {
-    return false;
-  }
-
-  // Never collapse an action node with an outcome node, nor outcome nodes with anything.
+  // Never collapse an outcome node with anything, nor anything into an outcome node.
   if (p_type == "outcome" || c_type == "outcome") {
     return false;
   }
@@ -174,16 +257,33 @@ bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child)
     }
   }
 
-  // Allow collapsing non-branching condition wrapper nodes into parent action nodes.
-  if (p_type == "action" && c_type == "condition") {
-    return true;
+  std::string p_trick = ExtractTrickFromNode(parent);
+  std::string c_trick = ExtractTrickFromNode(child);
+
+  auto is_win_cond = [](const std::string &t) {
+    return (t == "N wins" || t == "E wins" || t == "S wins" || t == "W wins" ||
+            t == "0 wins" || t == "1 wins" || t == "2 wins" || t == "3 wins" ||
+            t.find("wins") != std::string::npos);
+  };
+
+  // If both nodes describe trick play steps and the tricks are different,
+  // then they represent different tricks/play steps and MUST NOT be collapsed.
+  if (!p_trick.empty() && !c_trick.empty() && !is_win_cond(p_trick) && !is_win_cond(c_trick)) {
+    if (p_trick != c_trick) {
+      return false;
+    }
   }
 
-  return false;
+  return true;
 }
 
 std::string CombineLabels(const std::string &l1, const std::string &l2) {
-  if (l1 == l2) return l1;
+  if (l1 == l2) return NormalizeDirectionAndCondition(l1);
+
+  std::string s1 = NormalizeDirectionAndCondition(l1);
+  std::string s2 = NormalizeDirectionAndCondition(l2);
+
+  if (s1 == s2) return s1;
 
   auto is_generic = [](const std::string &s) {
     return (s.rfind("Success:", 0) == 0 ||
@@ -192,43 +292,33 @@ std::string CombineLabels(const std::string &l1, const std::string &l2) {
             s.rfind("Max depth reached", 0) == 0);
   };
 
-  std::string clean_l1 = l1;
-  std::string clean_l2 = l2;
-  if (clean_l1.rfind("after ", 0) == 0) clean_l1 = clean_l1.substr(6);
-  if (clean_l2.rfind("after ", 0) == 0) clean_l2 = clean_l2.substr(6);
+  if (is_generic(s1) && !is_generic(s2)) return s2;
+  if (is_generic(s2) && !is_generic(s1)) return s1;
 
-  if (is_generic(clean_l1) && !is_generic(clean_l2)) return clean_l2;
-  if (is_generic(clean_l2) && !is_generic(clean_l1)) return clean_l1;
+  bool has_after = (s1.rfind("after ", 0) == 0 || s2.rfind("after ", 0) == 0);
 
-  if (l2.rfind("after ", 0) == 0) {
-    if (!clean_l1.empty() && !is_generic(l1)) return clean_l1;
-    return clean_l2;
-  }
-  if (l1.rfind("after ", 0) == 0) {
-    if (!clean_l2.empty() && !is_generic(l2)) return clean_l2;
-    return clean_l1;
+  LabelParts p1 = ParseLabelParts(s1);
+  LabelParts p2 = ParseLabelParts(s2);
+
+  std::string merged_trick = !p1.trick.empty() ? p1.trick : p2.trick;
+  if (!p1.trick.empty() && !p2.trick.empty() && p1.trick != p2.trick) {
+    merged_trick = p1.trick + " → " + p2.trick;
   }
 
-  if (clean_l1.find(clean_l2) != std::string::npos) return clean_l1;
-  if (clean_l2.find(clean_l1) != std::string::npos) return clean_l2;
+  std::string merged_cond = !p1.cond.empty() ? p1.cond : p2.cond;
 
-  if (clean_l1.empty()) return clean_l2;
-  if (clean_l2.empty()) return clean_l1;
-
-  if ((clean_l2.rfind("when ", 0) == 0 || clean_l2.rfind("if ", 0) == 0) &&
-      clean_l1.find(" (when ") == std::string::npos && clean_l1.find(" (if ") == std::string::npos) {
-    size_t arrow_pos = clean_l2.find(" → ");
-    if (arrow_pos == std::string::npos) arrow_pos = clean_l2.find(" -> ");
-    if (arrow_pos != std::string::npos) {
-      std::string cond = clean_l2.substr(0, arrow_pos);
-      std::string rest = clean_l2.substr(arrow_pos);
-      return clean_l1 + " (" + cond + ")" + rest;
-    } else {
-      return clean_l1 + " (" + clean_l2 + ")";
+  if (merged_trick.empty()) {
+    if (!merged_cond.empty()) {
+      return (has_after ? "after " : "") + merged_cond;
     }
+    return "";
   }
 
-  return clean_l1 + " → " + clean_l2;
+  std::string result = (has_after ? "after " : "") + merged_trick;
+  if (!merged_cond.empty()) {
+    result += " (" + merged_cond + ")";
+  }
+  return result;
 }
 
 void CollapseRedundantTreeNodes(nlohmann::json &node) {
@@ -250,10 +340,14 @@ void CollapseRedundantTreeNodes(nlohmann::json &node) {
     std::string c_label = child.contains("label") ? child["label"].get<std::string>() : "";
     node["label"] = CombineLabels(p_label, c_label);
 
-    if (child.contains("trick") && !node.contains("trick")) {
+    if (child.contains("type") && child["type"] == "action") {
+      node["type"] = "action";
+    }
+
+    if (child.contains("trick") && (!node.contains("trick") || node["trick"].get<std::string>().empty())) {
       node["trick"] = child["trick"];
     }
-    if (child.contains("trick_full") && !node.contains("trick_full")) {
+    if (child.contains("trick_full") && (!node.contains("trick_full") || node["trick_full"].get<std::string>().empty())) {
       node["trick_full"] = child["trick_full"];
     }
 
