@@ -4,6 +4,8 @@
 #include <thread>
 #include <unordered_map>
 
+#include "glog/logging.h"
+
 bool PLAY_SMART = 0;
 bool FOURTH_SMART = 0;
 bool ALLOW_CLAIMS = false;

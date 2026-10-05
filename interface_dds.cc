@@ -1,5 +1,7 @@
 #include "interface_dds.h"
 
+#include "glog/logging.h"
+
 namespace {
 class InitThreads {
  public:

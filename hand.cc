@@ -5,6 +5,8 @@
 #include <utility>
 #include <stdlib.h>
 
+#include "glog/logging.h"
+
 std::string HandDebugString(uint64_t hand, bool compact) {
   std::string ans;
   while (hand > 0) {

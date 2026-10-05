@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_all.hpp>
 
 #include "golden_serializer.h"
@@ -28,7 +29,7 @@ TEST_CASE("GroupTricks") {
       GroupTricks(input);
   REQUIRE(grouped_tricks.size() >= 1);
   REQUIRE(grouped_tricks[0].size() == 1);
-  LOG(INFO) << "grouped_tricks[0] " << grouped_tricks[0][0].ToString();
+  std::cout << "grouped_tricks[0] " << grouped_tricks[0][0].ToString() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_1.golden", "GroupTricks: grouping single trick");
 }
 
@@ -48,9 +49,9 @@ TEST_CASE("GroupTricks2") {
   std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
       GroupTricks(input);
   for (const auto &grp : grouped_tricks) {
-    LOG(INFO) << "See group:";
+    std::cout << "See group:" << "\n";
     for (const auto &trick : grp) {
-      LOG(INFO) << "   " << trick.ToString();
+      std::cout << "   " << trick.ToString() << "\n";
     }
   }
   REQUIRE(grouped_tricks.size() == 1);
@@ -90,9 +91,9 @@ TEST_CASE("GroupTricks3") {
   std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
       GroupTricks(input);
   for (const auto &grp : grouped_tricks) {
-    LOG(INFO) << "See group:";
+    std::cout << "See group:" << "\n";
     for (const auto &trick : grp) {
-      LOG(INFO) << "   " << trick.ToString();
+      std::cout << "   " << trick.ToString() << "\n";
     }
   }
   REQUIRE(grouped_tricks.size() == 4);
@@ -133,9 +134,9 @@ TEST_CASE("GroupTricks4") {
   std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
       GroupTricks(input);
   for (const auto &grp : grouped_tricks) {
-    LOG(INFO) << "See group:";
+    std::cout << "See group:" << "\n";
     for (const auto &trick : grp) {
-      LOG(INFO) << "   " << trick.ToString();
+      std::cout << "   " << trick.ToString() << "\n";
     }
   }
   REQUIRE(grouped_tricks.size() == 2);
@@ -176,9 +177,9 @@ TEST_CASE("GroupTricksFinesse") {
   std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
       GroupTricks(input);
   for (const auto &grp : grouped_tricks) {
-    LOG(INFO) << "See group:";
+    std::cout << "See group:" << "\n";
     for (const auto &trick : grp) {
-      LOG(INFO) << "   " << trick.ToString();
+      std::cout << "   " << trick.ToString() << "\n";
     }
   }
   REQUIRE(grouped_tricks.size() == 3);
@@ -229,9 +230,9 @@ TEST_CASE("GroupTricksFinesse2") {
   std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
       GroupTricks(input);
   for (const auto &grp : grouped_tricks) {
-    LOG(INFO) << "See group:";
+    std::cout << "See group:" << "\n";
     for (const auto &trick : grp) {
-      LOG(INFO) << "   " << trick.ToString();
+      std::cout << "   " << trick.ToString() << "\n";
     }
   }
   REQUIRE(grouped_tricks.size() == 2);

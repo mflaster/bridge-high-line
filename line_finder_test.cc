@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_all.hpp>
 
 #include "golden_serializer.h"
@@ -17,8 +18,8 @@ TEST_CASE("GeneralizedDemiPlay1") {
   }
 
   GeneralizedPlaysVector top_plays = line.GetGeneralizedPlays(0, HEARTS);
-  LOG(INFO) << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
-      top_plays);
+  std::cout << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
+      top_plays) << "\n";
   REQUIRE(top_plays.size() == 3);
   REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
                              "generalized_demi_play_1.golden",
@@ -45,8 +46,8 @@ TEST_CASE("GeneralizedDemiPlay2") {
   }
 
   GeneralizedPlaysVector top_plays = line.GetGeneralizedPlays(0, HEARTS, 40);
-  VLOG(1) << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
-      top_plays);
+  std::cout << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
+      top_plays) << "\n";
   // 14 if you consider low cards, 9 cards otherwise
   REQUIRE((top_plays.size() == 9 || top_plays.size() == 10));
   REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
@@ -135,8 +136,8 @@ TEST_CASE("GeneralizedTrickFinders") {
     }
 
     GeneralizedTricksVector gen_tricks = gen_trick.GetGeneralizedTricks(20);
-    LOG(INFO) << "Leader " << leader << ": got top tricks\n"
-              << GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks);
+    std::cout << "Leader " << leader << ": got top tricks\n"
+              << GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks) << "\n";
     REQUIRE(gen_tricks.size() == 20);
     REQUIRE_GOLDEN_LINE_RESULT(GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks),
                                "generalized_trick_finder_leader_" + std::to_string(leader) + ".golden",
@@ -166,7 +167,7 @@ TEST_CASE("GeneralizedTrickFinders") {
 }
 
 std::string PrintBestLine(const std::vector<ConditionalLine> &lines) {
-  VLOG(1) << "PrintBestLine on " << lines.size();
+  std::cout << "PrintBestLine on " << lines.size() << "\n";
   uint shortest = 0;
   std::string text;
   for (const ConditionalLine &line : lines) {
@@ -176,13 +177,13 @@ std::string PrintBestLine(const std::vector<ConditionalLine> &lines) {
       text = x;
     }
   }
-  VLOG(1) << "Done with PrintBestLine";
+  std::cout << "Done with PrintBestLine" << "\n";
   return text;
 }
 
 
 TEST_CASE("BestLead1") {
-  LOG(INFO) << "BestLead1";
+  std::cout << "BestLead1" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   uint64_t hand = ParseHand("S97; HQJ3; DQ972; CJ876");
@@ -212,13 +213,13 @@ TEST_CASE("BestLead1") {
   int min_tricks = 0;
   std::set<std::string> leads =
       lf.FindBestLead(min_tricks, hands, unknown_cards, leader, SPADES);
-  LOG(INFO) << "Found best leads " << StrJoin(leads, ", ");
+  std::cout << "Found best leads " << StrJoin(leads, ", ") << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(StrJoin(leads, ", "), "best_lead_1.golden", hands, unknown_cards, SPADES, "BestLead1: best lead for spades contract, Hand 1 on lead");
   // REQUIRE(leads.size() == 1);
 }
 
 TEST_CASE("BestContract1", "[.slow]") {
-  LOG(INFO) << "BestContract1";
+  std::cout << "BestContract1" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   // uint64_t hand = ParseHand("SQJT98; H3; DKQ9; CQT42");
@@ -247,14 +248,14 @@ TEST_CASE("BestContract1", "[.slow]") {
       lf.FindTricksWon(hands, unknown_cards, leader, SPADES);
   std::multiset<int> notrump_tricks =
       lf.FindTricksWon(hands, unknown_cards, leader, NOTRUMP);
-  LOG(INFO) << "Spades:\n" << lf.TricksWonDebugString(spade_tricks);
-  LOG(INFO) << "Notrump:\n" << lf.TricksWonDebugString(notrump_tricks);
+  std::cout << "Spades:\n" << lf.TricksWonDebugString(spade_tricks) << "\n";
+  std::cout << "Notrump:\n" << lf.TricksWonDebugString(notrump_tricks) << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(spade_tricks, "best_contract_1_spades.golden", hands, unknown_cards, SPADES, "BestContract1: spade contract trick distribution, Hand 1 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(notrump_tricks, "best_contract_1_notrump.golden", hands, unknown_cards, NOTRUMP, "BestContract1: NT contract trick distribution, Hand 1 on lead");
 }
 
 TEST_CASE("BestContract2", "[.slow]") {
-  LOG(INFO) << "BestContract2";
+  std::cout << "BestContract2" << "\n";
   srand48(0);
   std::set<uint64_t> better_for_spades;
   for (int i = 0; i < 50; i++) {
@@ -284,7 +285,7 @@ TEST_CASE("BestContract2", "[.slow]") {
       hands.push_back(0);
       std::vector<uint64_t> dealt_hands = DealMissingCards(hands, reqs);
       responder = dealt_hands[2];
-      LOG(INFO) << "Considering responder " << HandDebugString(responder);
+      std::cout << "Considering responder " << HandDebugString(responder) << "\n";
     }
 
     std::vector<uint64_t> hands;
@@ -304,30 +305,30 @@ TEST_CASE("BestContract2", "[.slow]") {
         lf.FindTricksWon(hands, unknown_cards, leader, SPADES);
     std::multiset<int> notrump_tricks =
         lf.FindTricksWon(hands, unknown_cards, leader, NOTRUMP);
-    LOG(INFO) << "Spades:\n" << lf.TricksWonDebugString(spade_tricks);
-    LOG(INFO) << "Notrump:\n" << lf.TricksWonDebugString(notrump_tricks);
+    std::cout << "Spades:\n" << lf.TricksWonDebugString(spade_tricks) << "\n";
+    std::cout << "Notrump:\n" << lf.TricksWonDebugString(notrump_tricks) << "\n";
     int spade_game = lf.CountAtLeast(spade_tricks, 10);
     int nt_game = lf.CountAtLeast(notrump_tricks, 9);
     if (abs(spade_game - nt_game) <= 5) {
-      LOG(INFO) << "Better for neither "
+      std::cout << "Better for neither "
                 << i << ", " << spade_game << " vs " << nt_game
-                << ": " << HandDebugString(responder);
+                << ": " << HandDebugString(responder) << "\n";
     } else if (spade_game >= nt_game) {
       better_for_spades.insert(responder);
-      LOG(INFO) << "Better for spades "
+      std::cout << "Better for spades "
                 << i << ", " << spade_game << " vs " << nt_game
-                << ": " << HandDebugString(responder);
+                << ": " << HandDebugString(responder) << "\n";
     } else {
-      LOG(INFO) << "Better for NT "
+      std::cout << "Better for NT "
                 << i << ", " << nt_game << " vs " << spade_game
-                << ": " << HandDebugString(responder);
+                << ": " << HandDebugString(responder) << "\n";
     }
   }
-  LOG(INFO) << "Total hands better for spades: " << better_for_spades.size();
+  std::cout << "Total hands better for spades: " << better_for_spades.size() << "\n";
 }
 
 TEST_CASE("BestContract3", "[.slow]") {
-  LOG(INFO) << "BestContract3";
+  std::cout << "BestContract3" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   // uint64_t hand = ParseHand("SKQJT9; H3; DA92; CT432");
@@ -355,7 +356,7 @@ TEST_CASE("BestContract3", "[.slow]") {
   int leader = 1;
   std::multiset<int> heart_tricks =
       lf.FindTricksWon(hands, unknown_cards, leader, HEARTS);
-  LOG(INFO) << "Hearts:\n" << lf.TricksWonDebugString(heart_tricks);
+  std::cout << "Hearts:\n" << lf.TricksWonDebugString(heart_tricks) << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(heart_tricks, "best_contract_3_hearts.golden", hands, unknown_cards, HEARTS, "BestContract3: heart contract trick distribution, Hand 0 on lead");
 }
 
@@ -379,7 +380,7 @@ struct LineFinderTestCase {
 };
 
 void RunLineFinderTestCase(const LineFinderTestCase &tc) {
-  LOG(INFO) << "Running LineFinder test case: " << tc.name;
+  std::cout << "Running LineFinder test case: " << tc.name << "\n";
   srand48(tc.seed);
 
   std::vector<uint64_t> hands(4, 0);
@@ -411,7 +412,7 @@ void RunLineFinderTestCase(const LineFinderTestCase &tc) {
   std::vector<ConditionalLine> lines =
       lf.Solve(min_tricks, hands, unknown, tc.leader, tc.trump, cur_trick);
 
-  LOG(INFO) << "Found lines: " << lines.size();
+  std::cout << "Found lines: " << lines.size() << "\n";
   REQUIRE(!lines.empty());
 
   std::string desc = tc.description;
@@ -602,7 +603,7 @@ TEST_CASE("LineFinder12", "[.slow]") {
 }
 
 TEST_CASE("LineFinder13", "[.slow]") {
-  LOG(INFO) << "LineFinder13";
+  std::cout << "LineFinder13" << "\n";
   srand48(0);
   uint64_t known_hand = ParseHand("SQ6; HKQT983; DK7; CAJ3");
 
@@ -616,7 +617,7 @@ TEST_CASE("LineFinder13", "[.slow]") {
   int more_than_half = 0;
   double num_hands_to_try = 30;
   for (int i = 0; i < num_hands_to_try; i++) {
-    LOG(INFO) << "Trying hand " << i;
+    std::cout << "Trying hand " << i << "\n";
     uint64_t decl_hand = DealOneRequiredHand(orig_unknown_cards, req);
     std::vector<uint64_t> hands;
     hands.push_back(decl_hand);
@@ -632,20 +633,20 @@ TEST_CASE("LineFinder13", "[.slow]") {
     uint64_t unknown_cards = ~dealt_cards;
     std::vector<ConditionalLine> lines =
         lf.Solve(12, hands, unknown_cards, leader, HEARTS, cur_trick);
-    LOG(INFO) << "Found lines " << lines.size();
-    LOG(INFO) << PrintBestLine(lines);
+    std::cout << "Found lines " << lines.size() << "\n";
+    std::cout << PrintBestLine(lines) << "\n";
     if (lines.size() > 0 && lines[0].CoveredBoards() > num_boards * 0.5) {
-      LOG(INFO) << "**Success on " << i << " with frac "
-                << lines[0].CoveredBoards() / num_boards;
+      std::cout << "**Success on " << i << " with frac "
+                << lines[0].CoveredBoards() / num_boards << "\n";
       more_than_half++;
     }
     // int j = 0;
         //for (const auto &line : lines) {
-      // LOG(INFO) << "line " << ++j << ":\n" << line.Describe();
+      // std::cout << "line " << ++j << ":\n" << line.Describe() << "\n";
         // }
   }
-  LOG(INFO) << "Found > 50% lines for " << more_than_half << " / "
-            << num_hands_to_try << " = " << (more_than_half / num_hands_to_try);
+  std::cout << "Found > 50% lines for " << more_than_half << " / "
+            << num_hands_to_try << " = " << (more_than_half / num_hands_to_try) << "\n";
 }
 
 TEST_CASE("LineFinder_Squeeze1") {

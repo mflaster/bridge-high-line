@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_all.hpp>
 
 #include "interface_dds.h"
@@ -17,7 +18,7 @@ TEST_CASE("Basic") {
   OptimalLines lines;
   int ans = DDSFindOptimalLines(bs, 1, &lines, nullptr);
   for (const auto &line : lines) {
-    LOG(INFO) << "See line: " << line;
+    std::cout << "See line: " << line << "\n";
   }
   REQUIRE(ans == 1);
 }
@@ -40,11 +41,11 @@ TEST_CASE("PlayTree") {
 
   std::shared_ptr<OptimalPlayTree> all_plays = FindOptimalPlayTree(
       bs, 1);
-  LOG(INFO) << "Got " << all_plays->DebugString();
+  std::cout << "Got " << all_plays->DebugString() << "\n";
   REQUIRE(all_plays->TotalCount() == 1);
 
   all_plays->Deepen(10, nullptr);
-  LOG(INFO) << "Got " << all_plays->DebugString();
+  std::cout << "Got " << all_plays->DebugString() << "\n";
   REQUIRE(all_plays->TotalCount() == 2);
 }
 
@@ -62,7 +63,7 @@ TEST_CASE("PlayTree2") {
   std::shared_ptr<OptimalPlayTree> all_plays = FindOptimalPlayTree(
       bs, 1);
   all_plays->Deepen(10, nullptr);
-  LOG(INFO) << "Got " << all_plays->DebugString();
+  std::cout << "Got " << all_plays->DebugString() << "\n";
   REQUIRE(all_plays->TotalCount() == 4);
 }
 
@@ -79,7 +80,7 @@ TEST_CASE("PlayTree3") {
 
   std::shared_ptr<OptimalPlayTree> all_plays = FindOptimalPlayTree(bs, 2);
   all_plays->Deepen(10, nullptr);
-  LOG(INFO) << "Got " << all_plays->DebugString();
+  std::cout << "Got " << all_plays->DebugString() << "\n";
   REQUIRE(all_plays->TotalCount() == 10);
 }
 
@@ -97,7 +98,7 @@ TEST_CASE("PlayTree8", "[.slow]") {
   std::shared_ptr<OptimalPlayTree> all_plays = FindOptimalPlayTree(bs, 3);
   SolverCache cache;
   all_plays->Deepen(10, &cache);
-  LOG(INFO) << "TotalCount " << all_plays->TotalCount();
+  std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
   REQUIRE(all_plays->TotalCount() > 10);
 }
 
@@ -116,11 +117,11 @@ TEST_CASE("PlayTree11", "[.slow]") {
   SolverCache cache;
   all_plays->Deepen(1, &cache);
 
-  LOG(INFO) << "Got " << all_plays->DebugString();
-  LOG(INFO) << "TotalCount " << all_plays->TotalCount();
+  std::cout << "Got " << all_plays->DebugString() << "\n";
+  std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
   all_plays->Deepen(3, &cache);
-  LOG(INFO) << "TotalCount " << all_plays->TotalCount();
+  std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
   all_plays->Deepen(5, &cache);
-  LOG(INFO) << "TotalCount " << all_plays->TotalCount();
+  std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
   REQUIRE(all_plays->TotalCount() > 10);
 }
