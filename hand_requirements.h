@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 #include "hand.h"
 
 class HandRequirements {
@@ -9,6 +11,9 @@ class HandRequirements {
   virtual ~HandRequirements() {}
 
   virtual bool MeetsRequirement(uint64_t hand) const { return false; }
+  virtual std::string ToString() const { return ""; }
+
+  static std::shared_ptr<HandRequirements> FromString(const std::string &str);
 };
 
 class SuitAtLeast : public HandRequirements {
@@ -17,6 +22,7 @@ class SuitAtLeast : public HandRequirements {
   ~SuitAtLeast() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 
  private:
   Suit suit_;
@@ -29,6 +35,7 @@ class SuitLength : public HandRequirements {
   ~SuitLength() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 
  private:
   Suit suit_;
@@ -42,6 +49,7 @@ class BalancedHand : public HandRequirements {
   ~BalancedHand() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 };
 
 class AntiRequirement : public HandRequirements {
@@ -51,6 +59,7 @@ class AntiRequirement : public HandRequirements {
   ~AntiRequirement() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 
  private:
   std::shared_ptr<HandRequirements> other_;
@@ -62,6 +71,7 @@ class HighCardRange : public HandRequirements {
   ~HighCardRange() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 
  private:
   int low_;
@@ -74,6 +84,7 @@ class HandHasCard : public HandRequirements {
   ~HandHasCard() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 
  private:
   CardType card_;
@@ -85,7 +96,22 @@ class AtLeastAces : public HandRequirements {
   ~AtLeastAces() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
 
  private:
   int n_;
 };
+
+class AnyOfRequirement : public HandRequirements {
+ public:
+  AnyOfRequirement(std::vector<std::shared_ptr<HandRequirements>> reqs)
+      : reqs_(std::move(reqs)) {}
+  ~AnyOfRequirement() override = default;
+
+  bool MeetsRequirement(uint64_t hand) const override;
+  std::string ToString() const override;
+
+ private:
+  std::vector<std::shared_ptr<HandRequirements>> reqs_;
+};
+

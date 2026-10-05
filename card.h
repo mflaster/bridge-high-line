@@ -34,6 +34,7 @@ class Card {
   }
   static uint64_t ParseStringCard(std::string c);
   static Suit ParseSuit(char c);
+  static Suit ParseSuit(const std::string &s);
 
   static std::string PrintDDSCard(Suit s, int dds_val);
   static std::string PrintCard(CardType c);
