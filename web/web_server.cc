@@ -214,6 +214,16 @@ LabelParts ParseLabelParts(const std::string &raw) {
       parts.trick = t;
       return parts;
     }
+    std::string trailing_cond = " " + c;
+    if (s.length() > trailing_cond.length() &&
+        s.rfind(trailing_cond) == s.length() - trailing_cond.length()) {
+      parts.cond = c;
+      std::string t = s.substr(0, s.length() - trailing_cond.length());
+      size_t last = t.find_last_not_of(" \t()");
+      if (last != std::string::npos) t = t.substr(0, last + 1);
+      parts.trick = t;
+      return parts;
+    }
   }
 
   parts.trick = s;
@@ -251,13 +261,6 @@ bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child)
     return false;
   }
 
-  // A condition node describes the outcome/condition of its parent action,
-  // NOT its child action. Therefore, a condition parent should NEVER collapse
-  // an action child into itself.
-  if (p_type == "condition" && c_type == "action") {
-    return false;
-  }
-
   if (parent.contains("label")) {
     std::string p_label = parent["label"].get<std::string>();
     if (p_label.rfind("Optimal Lines", 0) == 0 || p_label.rfind("Trick ", 0) == 0) {
@@ -279,6 +282,15 @@ bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child)
             t == "0 wins" || t == "1 wins" || t == "2 wins" || t == "3 wins" ||
             t.find("wins") != std::string::npos);
   };
+
+  // A condition node describes the outcome/condition of its parent action,
+  // NOT its child action. Therefore, a condition parent should NOT collapse
+  // an action child into itself, UNLESS parent and child describe the exact same trick.
+  if (p_type == "condition" && c_type == "action") {
+    if (p_trick.empty() || c_trick.empty() || is_win_cond(p_trick) || is_win_cond(c_trick) || p_trick != c_trick) {
+      return false;
+    }
+  }
 
   // If both nodes describe trick play steps and the tricks are different,
   // then they represent different tricks/play steps and MUST NOT be collapsed.
