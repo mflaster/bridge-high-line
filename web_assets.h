@@ -44,43 +44,57 @@ inline const char* INDEX_HTML = R"rawhtml(
 
         <!-- SVG Deal Diagram -->
         <div class="svg-deal-container">
-          <svg id="dealSvg" viewBox="0 0 600 450" xmlns="http://www.w3.org/2000/svg">
-            <rect width="100%" height="100%" fill="#1a382b" rx="12"/>
+          <svg id="dealSvg" viewBox="0 0 600 284" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#1a382b" rx="10"/>
             
-            <!-- Compass Center Box -->
-            <g transform="translate(230, 160)">
-              <rect width="140" height="110" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="2"/>
-              <text x="70" y="25" class="compass-label" text-anchor="middle">COMPASS</text>
-              <text x="70" y="55" id="svgTrumpText" class="compass-trump" text-anchor="middle">Trump: ♠</text>
-              <text x="70" y="80" id="svgLeaderText" class="compass-leader" text-anchor="middle">Leader: North</text>
+            <!-- Upper Left Compass Symbol -->
+            <g id="svgCompassRose" transform="translate(90, 52)">
+              <circle r="26" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
+              <circle r="2" fill="#6ee7b7"/>
+              <line x1="0" y1="-18" x2="0" y2="18" stroke="#2d5e46" stroke-width="1.5" stroke-dasharray="2,2"/>
+              <line x1="-18" y1="0" x2="18" y2="0" stroke="#2d5e46" stroke-width="1.5" stroke-dasharray="2,2"/>
+              <text x="0" y="-30" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">N</text>
+              <text x="0" y="32" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">S</text>
+              <text x="-32" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">W</text>
+              <text x="32" y="1" class="compass-dir-label" text-anchor="middle" dominant-baseline="middle">E</text>
+            </g>
+
+            <!-- Upper Right Unknown Cards Box -->
+            <g class="hand-group" id="svgUnknownHand" transform="translate(415, 12)">
+              <rect width="170" height="80" rx="8" class="hand-box" id="boxUnknown" stroke-dasharray="3,3"/>
+              <text x="85" y="15" class="unknown-title" text-anchor="middle">UNKNOWN CARDS</text>
+              <g transform="translate(12, 18)" id="cardsUnknownGroup"></g>
             </g>
 
             <!-- North Hand -->
-            <g class="hand-group" id="svgNorthHand" transform="translate(180, 15)">
-              <rect width="240" height="130" rx="8" class="hand-box" id="boxNorth"/>
-              <text x="120" y="22" class="hand-title" text-anchor="middle">NORTH (0)</text>
-              <g transform="translate(15, 30)" id="cardsNorthGroup"></g>
+            <g class="hand-group" id="svgNorthHand" transform="translate(195, 12)">
+              <rect width="210" height="80" rx="8" class="hand-box" id="boxNorth"/>
+              <g transform="translate(12, 10)" id="cardsNorthGroup"></g>
             </g>
 
             <!-- West Hand -->
-            <g class="hand-group" id="svgWestHand" transform="translate(15, 150)">
-              <rect width="200" height="130" rx="8" class="hand-box" id="boxWest"/>
-              <text x="100" y="22" class="hand-title" text-anchor="middle">WEST (3)</text>
-              <g transform="translate(15, 30)" id="cardsWestGroup"></g>
+            <g class="hand-group" id="svgWestHand" transform="translate(15, 102)">
+              <rect width="170" height="80" rx="8" class="hand-box" id="boxWest"/>
+              <g transform="translate(12, 10)" id="cardsWestGroup"></g>
+            </g>
+
+            <!-- Center Box (Trump / Leader) -->
+            <g id="svgCenterBox" transform="translate(205, 104)">
+              <rect width="190" height="76" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
+              <text x="95" y="30" id="svgTrumpText" class="compass-trump" text-anchor="middle">Trump: ♠</text>
+              <text x="95" y="52" id="svgLeaderText" class="compass-leader" text-anchor="middle">Leader: North</text>
             </g>
 
             <!-- East Hand -->
-            <g class="hand-group" id="svgEastHand" transform="translate(385, 150)">
-              <rect width="200" height="130" rx="8" class="hand-box" id="boxEast"/>
-              <text x="100" y="22" class="hand-title" text-anchor="middle">EAST (1)</text>
-              <g transform="translate(15, 30)" id="cardsEastGroup"></g>
+            <g class="hand-group" id="svgEastHand" transform="translate(415, 102)">
+              <rect width="170" height="80" rx="8" class="hand-box" id="boxEast"/>
+              <g transform="translate(12, 10)" id="cardsEastGroup"></g>
             </g>
 
             <!-- South Hand -->
-            <g class="hand-group" id="svgSouthHand" transform="translate(180, 285)">
-              <rect width="240" height="130" rx="8" class="hand-box" id="boxSouth"/>
-              <text x="120" y="22" class="hand-title" text-anchor="middle">SOUTH (2)</text>
-              <g transform="translate(15, 30)" id="cardsSouthGroup"></g>
+            <g class="hand-group" id="svgSouthHand" transform="translate(195, 192)">
+              <rect width="210" height="80" rx="8" class="hand-box" id="boxSouth"/>
+              <g transform="translate(12, 10)" id="cardsSouthGroup"></g>
             </g>
           </svg>
         </div>
@@ -362,11 +376,11 @@ body {
 
 .grid-container {
   max-width: 1600px;
-  margin: 20px auto 0;
-  padding: 0 24px;
+  margin: 12px auto 0;
+  padding: 0 20px;
   display: grid;
   grid-template-columns: 580px 1fr;
-  gap: 20px;
+  gap: 16px;
 }
 
 @media (max-width: 1200px) {
@@ -379,17 +393,17 @@ body {
   background-color: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
-  padding: 20px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -427,27 +441,28 @@ body {
   fill: #163327;
 }
 
-.hand-title {
+.compass-dir-label {
   fill: #6ee7b7;
   font-size: 12px;
+  font-weight: 700;
+  font-family: sans-serif;
+}
+
+.unknown-title {
+  fill: #f59e0b;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
 
-.compass-label {
-  fill: #94a3b8;
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .compass-trump, .compass-leader {
   fill: #f8fafc;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .card-suit-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -456,7 +471,7 @@ body {
 
 .card-values {
   fill: #cbd5e1;
-  font-size: 13px;
+  font-size: 12px;
   font-family: monospace;
 }
 
@@ -464,17 +479,17 @@ body {
 .controls-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 8px;
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .control-group label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted);
   font-weight: 500;
 }
@@ -483,9 +498,9 @@ body {
   background-color: #0f172a;
   border: 1px solid var(--panel-border);
   color: var(--text-main);
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
 }
 
@@ -507,10 +522,10 @@ body {
 .hand-inputs-accordion {
   background-color: #0f172a;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .hand-inputs-accordion h3 {
@@ -1123,8 +1138,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Render Hand on SVG Compass
-  function renderSvgHand(groupId, handStr) {
+  // Render Hand or Unknown Cards on SVG Diagram
+  function renderSvgHand(groupId, handStr, isUnknown = false) {
     const group = document.getElementById(groupId);
     if (!group) return;
     group.innerHTML = '';
@@ -1138,11 +1153,29 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     let yOffset = 0;
+    let hasCards = false;
+    suitOrder.forEach(s => {
+      const cards = suitsData[s.key];
+      if (cards && cards !== '-') hasCards = true;
+    });
+
+    if (isUnknown && !hasCards) {
+      const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textNode.setAttribute('x', '0');
+      textNode.setAttribute('y', '22');
+      textNode.setAttribute('fill', '#64748b');
+      textNode.setAttribute('font-size', '12');
+      textNode.setAttribute('font-style', 'italic');
+      textNode.textContent = '(none)';
+      group.appendChild(textNode);
+      return;
+    }
+
     suitOrder.forEach(s => {
       const cards = suitsData[s.key] || '-';
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       textNode.setAttribute('x', '0');
-      textNode.setAttribute('y', yOffset + 15);
+      textNode.setAttribute('y', yOffset + 12);
       
       const symbolSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
       symbolSpan.setAttribute('class', `card-suit-label ${s.class}`);
@@ -1156,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textNode.appendChild(valSpan);
       group.appendChild(textNode);
 
-      yOffset += 22;
+      yOffset += 15;
     });
   }
 
@@ -1166,6 +1199,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderSvgHand('cardsEastGroup', inputEast.value);
     renderSvgHand('cardsSouthGroup', inputSouth.value);
     renderSvgHand('cardsWestGroup', inputWest.value);
+
+    if (inputUnknownCards) {
+      renderSvgHand('cardsUnknownGroup', inputUnknownCards.value.trim(), true);
+    }
 
     svgTrumpText.textContent = 'Trump: ' + getSuitSymbol(trumpSelect.value) + ' ' + trumpSelect.value;
     svgLeaderText.textContent = 'Leader: ' + leaderSelect.value;
