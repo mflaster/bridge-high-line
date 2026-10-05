@@ -104,7 +104,7 @@ inline const char* INDEX_HTML = R"rawhtml(
                   </div>
                   <div class="middle-control-row">
                     <div class="middle-control-group">
-                      <label for="targetTricks">Target:</label>
+                      <label for="targetTricks">Tricks:</label>
                       <input type="number" id="targetTricks" min="1" max="13" value="2" class="middle-number-input">
                     </div>
                     <div class="middle-control-group">
@@ -553,7 +553,15 @@ body {
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
+.middle-number-input::-webkit-outer-spin-button,
+.middle-number-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .middle-number-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
   width: 50px;
   text-align: center;
 }
