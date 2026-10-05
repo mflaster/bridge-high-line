@@ -146,5 +146,65 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(dist_sum.contains("suit_bounds"));
   REQUIRE(dist_sum.contains("honor_stats"));
 
+  // Test 5: Simple Finesse (Spades) fuzzy solve with leader SOUTH and unknown_cards S Kxxx
+  nlohmann::json finesse_req;
+  finesse_req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  finesse_req["hands"]["E"] = "";
+  finesse_req["hands"]["S"] = "S 87; H -; D -; C -;";
+  finesse_req["hands"]["W"] = "";
+  finesse_req["trump"] = "SPADES";
+  finesse_req["leader"] = "SOUTH";
+  finesse_req["min_tricks"] = 2;
+  finesse_req["num_iters"] = 10;
+  finesse_req["unknown_cards"] = "S Kxxx";
+
+  auto res_finesse = client.Post("/api/solve", finesse_req.dump(), "application/json");
+  REQUIRE(res_finesse);
+  REQUIRE(res_finesse->status == 200);
+  nlohmann::json finesse_json = nlohmann::json::parse(res_finesse->body);
+  REQUIRE(finesse_json["success"] == true);
+
+  // Test 6: Unknown cards with wildcard 'x' format (H Axxxx C xxxxx for 5-card ending)
+  nlohmann::json wildcard_req;
+  wildcard_req["hands"]["N"] = "H 43 C 432";
+  wildcard_req["hands"]["E"] = "";
+  wildcard_req["hands"]["S"] = "H 65 C 876";
+  wildcard_req["hands"]["W"] = "";
+  wildcard_req["trump"] = "HEARTS";
+  wildcard_req["leader"] = "SOUTH";
+  wildcard_req["min_tricks"] = 1;
+  wildcard_req["num_iters"] = 5;
+  wildcard_req["unknown_cards"] = "H Axxxx C xxxxx";
+
+  auto res_wildcard = client.Post("/api/solve", wildcard_req.dump(), "application/json");
+  REQUIRE(res_wildcard);
+  REQUIRE(res_wildcard->status == 200);
+  nlohmann::json wildcard_json = nlohmann::json::parse(res_wildcard->body);
+  REQUIRE(wildcard_json["success"] == true);
+
+  // Test 7: Error handling - conflicting unknown card
+  nlohmann::json conflict_req;
+  conflict_req["hands"]["N"] = "S AQ";
+  conflict_req["hands"]["S"] = "S 87";
+  conflict_req["unknown_cards"] = "S SAxx"; // SA already in North
+  auto res_conflict = client.Post("/api/solve", conflict_req.dump(), "application/json");
+  REQUIRE(res_conflict);
+  REQUIRE(res_conflict->status == 400);
+  nlohmann::json conflict_json = nlohmann::json::parse(res_conflict->body);
+  REQUIRE(conflict_json["success"] == false);
+  REQUIRE(conflict_json["error"].get<std::string>().find("conflicts") != std::string::npos);
+
+  // Test 8: Error handling - invalid unknown card count (5 provided vs 4 expected)
+  nlohmann::json count_err_req;
+  count_err_req["hands"]["N"] = "S AQ";
+  count_err_req["hands"]["S"] = "S 87";
+  count_err_req["unknown_cards"] = "S Kxxxx"; // 5 cards provided, but 4 expected for 2-card ending
+  auto res_count_err = client.Post("/api/solve", count_err_req.dump(), "application/json");
+  REQUIRE(res_count_err);
+  REQUIRE(res_count_err->status == 400);
+  nlohmann::json count_err_json = nlohmann::json::parse(res_count_err->body);
+  REQUIRE(count_err_json["success"] == false);
+  REQUIRE(count_err_json["error"].get<std::string>().find("Invalid unknown cards count") != std::string::npos);
+
   server.Stop();
 }
