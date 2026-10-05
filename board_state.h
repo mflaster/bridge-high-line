@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <set>
 #include <utility>
 #include <vector>
@@ -55,7 +56,7 @@ class BoardState {
   }
 
   const CardType *PreviousTrick() const {
-    CHECK_EQ(num_trick_cards_played_, 0);
+    assert(num_trick_cards_played_ == 0);
     return trick_cards_played_;
   }
   int prev_trick_leader() const { return prev_trick_leader_; }

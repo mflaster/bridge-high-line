@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_all.hpp>
 
 #include "golden_serializer.h"
@@ -133,7 +134,7 @@ TEST_CASE("HandsKey") {
   srand48(0);
   for (int suit = 0; suit < 4; suit++) {
     std::string suit_str = SuitDebugString((Suit)suit);
-    LOG(INFO) << "Testing " << suit_str;
+    std::cout << "Testing " << suit_str << "\n";
     std::pair<uint64_t, uint64_t> key1, key2, key3;
     {
       std::vector<uint64_t> hands;
@@ -145,7 +146,7 @@ TEST_CASE("HandsKey") {
       bs.SetHands(hands);
       bs.SetLead(0);
 
-      LOG(INFO) << "key1";
+      std::cout << "key1" << "\n";
       key1 = bs.RemainingHandsKey();
     }
     {
@@ -158,7 +159,7 @@ TEST_CASE("HandsKey") {
       bs.SetHands(hands);
       bs.SetLead(0);
 
-      LOG(INFO) << "key2";
+      std::cout << "key2" << "\n";
       key2 = bs.RemainingHandsKey();
     }
     REQUIRE(key1 == key2);
@@ -172,7 +173,7 @@ TEST_CASE("HandsKey") {
       bs.SetHands(hands);
       bs.SetLead(0);
 
-      LOG(INFO) << "key3";
+      std::cout << "key3" << "\n";
       key3 = bs.RemainingHandsKey();
     }
     REQUIRE(key1 != key3);
@@ -193,7 +194,7 @@ TEST_CASE("HandsKey2") {
     bs.SetHands(hands);
     bs.SetLead(0);
 
-    LOG(INFO) << "key1";
+    std::cout << "key1" << "\n";
     key1 = bs.RemainingHandsKey();
   }
   {
@@ -206,7 +207,7 @@ TEST_CASE("HandsKey2") {
     bs.SetHands(hands);
     bs.SetLead(0);
 
-    LOG(INFO) << "key2";
+    std::cout << "key2" << "\n";
     key2 = bs.RemainingHandsKey();
   }
   REQUIRE(key1 == key2);
@@ -220,7 +221,7 @@ TEST_CASE("HandsKey2") {
     bs.SetHands(hands);
     bs.SetLead(0);
 
-    LOG(INFO) << "key3";
+    std::cout << "key3" << "\n";
     key3 = bs.RemainingHandsKey();
   }
   REQUIRE(key1.first != key3.first);
@@ -241,7 +242,7 @@ TEST_CASE("HandsKey3") {
     bs.SetHands(hands);
     bs.SetLead(0);
 
-    LOG(INFO) << "key1";
+    std::cout << "key1" << "\n";
     key1 = bs.RemainingHandsKey();
   }
   {
@@ -255,23 +256,23 @@ TEST_CASE("HandsKey3") {
     bs.SetHands(hands);
     bs.SetLead(0);
 
-    LOG(INFO) << "key1";
+    std::cout << "key1" << "\n";
     key2 = bs.RemainingHandsKey();
   }
   REQUIRE(key1 != key2);
 }
 
 void PrintOutResults(const OptimalLines &lines) {
-  LOG(INFO) << "Total optimal lines: " << lines.size();
+  std::cout << "Total optimal lines: " << lines.size() << "\n";
   int ctr = 0;
   for (const auto &line : lines) {
-    LOG(INFO) << "Optimal line: " << PrintLine(line);
+    std::cout << "Optimal line: " << PrintLine(line) << "\n";
     if (ctr++ > 20) { break; }
   }
 }
 
 TEST_CASE("Solver2") {
-  LOG(INFO) << "Solver2";
+  std::cout << "Solver2" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AQ"));
@@ -286,7 +287,7 @@ TEST_CASE("Solver2") {
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
-  LOG(INFO) << "seq " << seq;
+  std::cout << "seq " << seq << "\n";
   REQUIRE(ans == 1);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(seq == "/ SA SJ S7 S4 / SQ SK S8 S5 ");
@@ -307,7 +308,7 @@ TEST_CASE("Solver2") {
 
 
 TEST_CASE("Solver2b") {
-  LOG(INFO) << "Solver2b";
+  std::cout << "Solver2b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("SA HA"));
@@ -324,7 +325,7 @@ TEST_CASE("Solver2b") {
 }
 
 TEST_CASE("Solver2c") {
-  LOG(INFO) << "Solver2";
+  std::cout << "Solver2" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 87"));
@@ -339,7 +340,7 @@ TEST_CASE("Solver2c") {
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
-  LOG(INFO) << "seq " << seq;
+  std::cout << "seq " << seq << "\n";
   REQUIRE(ans == 2);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(lines.size() == 1);
@@ -348,7 +349,7 @@ TEST_CASE("Solver2c") {
 }
 
 TEST_CASE("Solver3a") {
-  LOG(INFO) << "Solver3a";
+  std::cout << "Solver3a" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AQ9"));
@@ -371,7 +372,7 @@ TEST_CASE("Solver3a") {
 }
 
 TEST_CASE("Solver3") {
-  LOG(INFO) << "Solver3";
+  std::cout << "Solver3" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   // hands.push_back(ParseHand("S 42; H T82; D KQT93; C Q92; "));
@@ -395,7 +396,7 @@ TEST_CASE("Solver3") {
 }
 
 TEST_CASE("Solver3b") {
-  LOG(INFO) << "Solver3b";
+  std::cout << "Solver3b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("HA DA CA"));
@@ -413,7 +414,7 @@ TEST_CASE("Solver3b") {
 }
 
 TEST_CASE("Solver3c") {
-  LOG(INFO) << "Solver3c";
+  std::cout << "Solver3c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H -; D KJT97; C -; "));
@@ -432,7 +433,7 @@ TEST_CASE("Solver3c") {
 }
 
 TEST_CASE("Solver3d") {
-  LOG(INFO) << "Solver3d";
+  std::cout << "Solver3d" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 87 HA"));
@@ -447,7 +448,7 @@ TEST_CASE("Solver3d") {
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
-  LOG(INFO) << "seq " << seq;
+  std::cout << "seq " << seq << "\n";
   REQUIRE(ans == 3);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   REQUIRE(lines.size() == 3);
@@ -456,7 +457,7 @@ TEST_CASE("Solver3d") {
 }
 
 TEST_CASE("Solver4") {
-  LOG(INFO) << "Solver4";
+  std::cout << "Solver4" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q; D KQT9; C -; "));
@@ -475,12 +476,12 @@ TEST_CASE("Solver4") {
   // 4th hand win if you can: 14,799,576
   std::string seq;
   REQUIRE(MostTricksCanBeWon(bs, 1, &seq) == 3);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters() == 5581);
 }
 
 TEST_CASE("Solver4b") {
-  LOG(INFO) << "Solver4b";
+  std::cout << "Solver4b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q; D KQJ; C 9; "));
@@ -496,11 +497,11 @@ TEST_CASE("Solver4b") {
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 2);
   REQUIRE(num_solver_iters() == 1873);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
 TEST_CASE("Solver4c") {
-  LOG(INFO) << "Solver4c";
+  std::cout << "Solver4c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S KQ; H KQ"));
@@ -513,12 +514,12 @@ TEST_CASE("Solver4c") {
   bs.SetLead(0);
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 2);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters() == 171);
 }
 
 TEST_CASE("Solver4d") {
-  LOG(INFO) << "Solver4d";
+  std::cout << "Solver4d" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 875 HA"));
@@ -533,7 +534,7 @@ TEST_CASE("Solver4d") {
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
-  LOG(INFO) << "seq " << seq;
+  std::cout << "seq " << seq << "\n";
   REQUIRE(ans == 4);
   REQUIRE(lines.size() == 1);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4d_seq.golden", hands, "Solver4d: optimal play sequence for 4-trick deal, Hand 0 on lead");
@@ -541,7 +542,7 @@ TEST_CASE("Solver4d") {
 }
 
 TEST_CASE("Solver4e") {
-  LOG(INFO) << "Solver4e";
+  std::cout << "Solver4e" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AK; H AK"));
@@ -556,7 +557,7 @@ TEST_CASE("Solver4e") {
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
-  LOG(INFO) << "seq " << seq;
+  std::cout << "seq " << seq << "\n";
   REQUIRE(ans == 4);
   REQUIRE(lines.size() == 6);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4e_seq.golden", hands, "Solver4e: optimal play sequence for 4-card deal, Hand 0 on lead");
@@ -564,7 +565,7 @@ TEST_CASE("Solver4e") {
 }
 
 TEST_CASE("Solver4f") {
-  LOG(INFO) << "Solver4f";
+  std::cout << "Solver4f" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("D AT9; C A;  "));
@@ -578,14 +579,14 @@ TEST_CASE("Solver4f") {
   bs.SetTrump(DIAMONDS);
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, nullptr, &lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   PrintOutResults(lines);
   REQUIRE(ans == 4);
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4f_lines.golden", hands, DIAMONDS, "Solver4f: optimal lines with diamond trump contract, Hand 2 on lead");
 }
 
 TEST_CASE("Solver5") {
-  LOG(INFO) << "Solver5";
+  std::cout << "Solver5" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q; D KQT9; C A; "));
@@ -599,11 +600,11 @@ TEST_CASE("Solver5") {
   REQUIRE(MostTricksCanBeWon(bs, 1, nullptr) == 3);
   REQUIRE(num_solver_iters() == 17285);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
 TEST_CASE("Solver5b") {
-  LOG(INFO) << "Solver5b";
+  std::cout << "Solver5b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S KT2; D 32;"));
@@ -618,12 +619,12 @@ TEST_CASE("Solver5b") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 5);
   REQUIRE(lines.size() == 62);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, SPADES, "Solver5b: optimal lines with spade contract, Hand 0 on lead");
 }
 
 TEST_CASE("Solver5c") {
-  LOG(INFO) << "Solver5c";
+  std::cout << "Solver5c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("      D AKT9; C A;  "));
@@ -638,17 +639,17 @@ TEST_CASE("Solver5c") {
   OptimalLines lines;
   std::string seq;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
-  LOG(INFO) << "seq " << seq;
+  std::cout << "seq " << seq << "\n";
   PrintOutResults(lines);
   REQUIRE(ans == 5);
   REQUIRE(lines.size() == 10);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, DIAMONDS, "Solver5c: optimal play sequence with diamond trump, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, DIAMONDS, "Solver5c: optimal lines with diamond trump, Hand 0 on lead");
 }
 
 TEST_CASE("Solver6") {
-  LOG(INFO) << "Solver6";
+  std::cout << "Solver6" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S KQJ; H KQJ"));
@@ -662,11 +663,11 @@ TEST_CASE("Solver6") {
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 4);
   REQUIRE(num_solver_iters() == 1695);
   // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
 TEST_CASE("Solver7") {
-  LOG(INFO) << "Solver7";
+  std::cout << "Solver7" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q7; D KQT9; C A; "));
@@ -680,13 +681,13 @@ TEST_CASE("Solver7") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 2);
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters_str() == "262K");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_7_lines.golden", hands, "Solver7: optimal lines for 7-trick layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver8", "[.slow]") {
-  LOG(INFO) << "Solver8";
+  std::cout << "Solver8" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q7; D KQT9; C A2; "));
@@ -701,13 +702,13 @@ TEST_CASE("Solver8", "[.slow]") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 3);  // ???
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters_str() == "1M");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8_lines.golden", hands, "Solver8: optimal lines for solver8 layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver8b", "[.slow]") {
-  LOG(INFO) << "Solver8b";
+  std::cout << "Solver8b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q7; D KQT9; C A2; "));
@@ -722,13 +723,13 @@ TEST_CASE("Solver8b", "[.slow]") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 3);  // ???
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters_str() == "1M");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8b_lines.golden", hands, "Solver8b: optimal lines for solver8b layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver8c", "[.slow]") {
-  LOG(INFO) << "Solver8c";
+  std::cout << "Solver8c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q7; D KQT9; C A2; "));
@@ -743,14 +744,14 @@ TEST_CASE("Solver8c", "[.slow]") {
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 1, nullptr, &lines);
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters_str() == "1M");
   REQUIRE(ans == 2);
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8c_lines.golden", hands, "Solver8c: optimal lines for solver8c layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver9") {
-  LOG(INFO) << "Solver9";
+  std::cout << "Solver9" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S KQJ; H KQJ; D KQJ"));
@@ -764,12 +765,12 @@ TEST_CASE("Solver9") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_9_lines.golden", hands, "Solver9: optimal lines for 9-trick layout, Hand 0 on lead");
 }
 
 TEST_CASE("Solver9b", "[.slow]") {
-  LOG(INFO) << "Solver9b";
+  std::cout << "Solver9b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S -; H T8; D KQT9; C Q94; "));
@@ -783,11 +784,11 @@ TEST_CASE("Solver9b", "[.slow]") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);  // ??
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
 TEST_CASE("Solver10", "[.slow]") {
-  LOG(INFO) << "Solver10";
+  std::cout << "Solver10" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 764; H 32; D K64; C 82"));
@@ -809,9 +810,9 @@ TEST_CASE("Solver10", "[.slow]") {
   OptimalLines lines;
   REQUIRE(MostTricksCanBeWon(bs, 0, &seq, &lines) == 6);  // ??
   PrintOutResults(lines);
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE(num_solver_iters_str() == "11M");
-  LOG(INFO) << "Line: " << seq;
+  std::cout << "Line: " << seq << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_10_seq.golden", hands, HEARTS, "Solver10: optimal play sequence for hearts contract, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_10_lines.golden", hands, HEARTS, "Solver10: optimal lines for hearts contract, Hand 0 on lead");
   // MostTricksCanBeWon solved after 7111325 with cache having 206653
@@ -820,7 +821,7 @@ TEST_CASE("Solver10", "[.slow]") {
 
 #if 0
 TEST_CASE("Solver11") {
-  LOG(INFO) << "Solver11";
+  std::cout << "Solver11" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 94; H T8; D KQT9; C Q94; "));
@@ -833,7 +834,7 @@ TEST_CASE("Solver11") {
   bs.SetLead(0);
   std::string seq;
   REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 7);  // ??
-  LOG(INFO) << "Total iterations: " << num_solver_iters();
+  std::cout << "Total iterations: " << num_solver_iters() << "\n";
   // MostTricksCanBeWon solved after 8,709,766,653 with cache having 192,416,041
   // 1473.068u 5.119s 24:39.18 99.9% 0+0k 0+0io 0pf+0w
 
@@ -843,7 +844,7 @@ TEST_CASE("Solver11") {
 }
 
 TEST_CASE("Solver12") {
-  LOG(INFO) << "Solver12";
+  std::cout << "Solver12" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 4; H T83; D KQT93; C Q93; "));
@@ -855,9 +856,9 @@ TEST_CASE("Solver12") {
   bs.SetHands(hands);
   bs.SetLead(0);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
-  LOG(INFO) << "MostTricksCanBeWon " << dd;
+  std::cout << "MostTricksCanBeWon " << dd << "\n";
   REQUIRE(dd == 7);
-  LOG(INFO) << "Total iterations: " << num_solver_iters_str();
+  std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   // MostTricksCanBeWon solved after 3,454,569,914 with cache having 45,501,969
   // 762.230u 1.336s 12:43.95 99.9%  0+0k 0+0io 0pf+0w
 
@@ -868,7 +869,7 @@ TEST_CASE("Solver12") {
 
 TEST_CASE("Solver13") {
   // Hand 1, 3/8/23
-  LOG(INFO) << "Solver13";
+  std::cout << "Solver13" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S KQ96; HA; DJK93; CT982"));
@@ -881,8 +882,8 @@ TEST_CASE("Solver13") {
   bs.SetLead(1);
   bs.SetTrump(CLUBS);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
-  LOG(INFO) << "dd is " << dd;
-  LOG(INFO) << "Total iterations: " << num_solver_iters_str();
+  std::cout << "dd is " << dd << "\n";
+  std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   REQUIRE(dd == 10);
   // MostTricksCanBeWon solved after 4,353,698,625 with cache having 65,178,868
   // 912.467u 1.884s 15:14.83 99.9%  0+0k 0+0io 0pf+0w
@@ -897,7 +898,7 @@ TEST_CASE("Solver13") {
 }
 
 TEST_CASE("Solver13b") {
-  LOG(INFO) << "Solver13b";
+  std::cout << "Solver13b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 42; H T82; D KQT93; C Q92; "));
@@ -910,9 +911,9 @@ TEST_CASE("Solver13b") {
   bs.SetLead(0);
   bs.SetTrump(NOTRUMP);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
-  LOG(INFO) << "dd is " << dd;
+  std::cout << "dd is " << dd << "\n";
   REQUIRE(dd >= 5);
-  LOG(INFO) << "Total iterations: " << num_solver_iters_str();
+  std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   // MostTricksCanBeWon solved 27,785,173,522 with cache having 330,146,725
   // 1hr 40.
 
@@ -921,7 +922,7 @@ TEST_CASE("Solver13b") {
 }
 
 TEST_CASE("Solver13c") {
-  LOG(INFO) << "Solver13c";
+  std::cout << "Solver13c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 42; H T82; D KQT93; C Q92; "));
@@ -934,9 +935,9 @@ TEST_CASE("Solver13c") {
   bs.SetLead(1);
   bs.SetTrump(HEARTS);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
-  LOG(INFO) << "dd is " << dd;
+  std::cout << "dd is " << dd << "\n";
   REQUIRE(dd >= 5);
-  LOG(INFO) << "Total iterations: " << num_solver_iters_str();
+  std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   // MostTricksCanBeWon solved 27,785,173,522 with cache having 330,146,725
   // 1hr 40.
 

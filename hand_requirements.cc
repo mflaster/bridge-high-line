@@ -4,6 +4,7 @@
 #include <sstream>
 #include <vector>
 #include "card.h"
+#include "glog/logging.h"
 
 namespace {
 

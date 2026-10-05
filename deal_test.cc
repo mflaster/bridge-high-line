@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_all.hpp>
 
 #include "deal.h"
@@ -44,7 +45,7 @@ TEST_CASE("DealMissing") {
   std::vector<uint64_t> hands = DealMissingCards(
       std::vector<uint64_t>({0, hand, 0, 0}), reqs);
   for (uint64_t h : hands) {
-    LOG(INFO) << "Dealt hand: " << HandDebugString(h);
+    std::cout << "Dealt hand: " << HandDebugString(h) << "\n";
   }
 }
 
@@ -89,7 +90,7 @@ TEST_CASE("LoadDealFromKeyValueFile - Performance") {
   auto end = std::chrono::high_resolution_clock::now();
 
   double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
-  LOG(INFO) << "LoadDealFromKeyValueFile execution time: " << elapsed_ms << " ms";
+  std::cout << "LoadDealFromKeyValueFile execution time: " << elapsed_ms << " ms" << "\n";
   REQUIRE(elapsed_ms < 0.1);
   REQUIRE(bs.GetHand(NORTH) != 0);
 }

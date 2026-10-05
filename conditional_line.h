@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <map>
 #include <set>
@@ -74,7 +75,7 @@ struct GeneralizedTrick {
 
   std::string GetTrickForBoard(int b) const {
     auto it = demi2.board_to_trick.find(b);
-    CHECK(it != demi2.board_to_trick.end());
+    assert(it != demi2.board_to_trick.end());
     return it->second;
   }
 };
@@ -115,7 +116,7 @@ class ConditionalLine {  // ConditionalLineBranch
       : final_covered_boards_(boards) {}
   void AddCondition(PlayCondition *c,
                     const ConditionalLine &continue_with) {
-    CHECK(final_covered_boards_.empty());
+    assert(final_covered_boards_.empty());
     conditions_.emplace_back(std::shared_ptr<PlayCondition>(c),
                              std::shared_ptr<ConditionalLine>(
                                  new ConditionalLine(continue_with)));

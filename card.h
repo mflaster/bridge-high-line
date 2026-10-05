@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <string>
 #include <utility>
-#include "glog/logging.h"
 
 enum Suit {
   SPADES = 0,

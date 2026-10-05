@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include "cross_hand_summarizer.h"
 #include "deal.h"
+#include "glog/logging.h"
 #include "interface_dds.h"
 
 void FuzzyBoardState::SetHands(const std::vector<uint64_t> &hands,

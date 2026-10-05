@@ -1,7 +1,7 @@
 #include <catch2/catch_all.hpp>
+#include <iostream>
 
 #include "dll.h"
-#include "glog/logging.h"
 #include "card.h"
 
 TEST_CASE("Basic") {
@@ -26,15 +26,15 @@ TEST_CASE("Basic") {
   d1.currentTrickRank[2] = 0;
 
   strcpy(d1.remainCards, "N:AQJ... KT9... 876... 543...");
-  LOG(INFO) << "Calling SolveBoardPBN";
+  std::cout << "Calling SolveBoardPBN\n";
   SolveBoardPBN(d1, target, solutions, mode, &futp, threadindex);
 
-  LOG(INFO) << "nodes searched " << futp.nodes;
-  LOG(INFO) << "solutions: " << futp.cards;
+  std::cout << "nodes searched " << futp.nodes << "\n";
+  std::cout << "solutions: " << futp.cards << "\n";
   for (int i = 0; i < futp.cards; i++) {
-    LOG(INFO) << "Card " << i << ": "
+    std::cout << "Card " << i << ": "
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
-              << " (equals " << futp.equals[i] << "), score: " << futp.score[i];
+              << " (equals " << futp.equals[i] << "), score: " << futp.score[i] << "\n";
   }
   REQUIRE(futp.cards == 2);
   REQUIRE(futp.score[0] == 2);
@@ -64,15 +64,15 @@ TEST_CASE("Basic2") {
   d1.currentTrickRank[2] = 0;
 
   strcpy(d1.remainCards, "N:KQJ... A98... 654... 32.3..");
-  LOG(INFO) << "Calling SolveBoardPBN";
+  std::cout << "Calling SolveBoardPBN\n";
   SolveBoardPBN(d1, target, solutions, mode, &futp, threadindex);
 
-  LOG(INFO) << "nodes searched " << futp.nodes;
-  LOG(INFO) << "solutions: " << futp.cards;
+  std::cout << "nodes searched " << futp.nodes << "\n";
+  std::cout << "solutions: " << futp.cards << "\n";
   for (int i = 0; i < futp.cards; i++) {
-    LOG(INFO) << "Card " << i << ": "
+    std::cout << "Card " << i << ": "
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
-              << " (equals " << futp.equals[i] << "), score: " << futp.score[i];
+              << " (equals " << futp.equals[i] << "), score: " << futp.score[i] << "\n";
   }
   REQUIRE(futp.cards == 1);
   REQUIRE(futp.score[0] == 2);
@@ -101,15 +101,15 @@ TEST_CASE("Basic3") {
   d1.currentTrickRank[2] = 0;
 
   strcpy(d1.remainCards, "N:J... AQ... 87... 54...");
-  LOG(INFO) << "Calling SolveBoardPBN";
+  std::cout << "Calling SolveBoardPBN\n";
   SolveBoardPBN(d1, target, solutions, mode, &futp, threadindex);
 
-  LOG(INFO) << "nodes searched " << futp.nodes;
-  LOG(INFO) << "solutions: " << futp.cards;
+  std::cout << "nodes searched " << futp.nodes << "\n";
+  std::cout << "solutions: " << futp.cards << "\n";
   for (int i = 0; i < futp.cards; i++) {
-    LOG(INFO) << "Card " << i << ": "
+    std::cout << "Card " << i << ": "
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
-              << " (equals " << futp.equals[i] << "), score: " << futp.score[i];
+              << " (equals " << futp.equals[i] << "), score: " << futp.score[i] << "\n";
   }
   REQUIRE(futp.cards == 1);
   REQUIRE(futp.score[0] == 2);

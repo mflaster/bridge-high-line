@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "assert.h"
+#include "glog/logging.h"
 
 
 uint64_t Card::saved_suited_cards[64];
