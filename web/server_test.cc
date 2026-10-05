@@ -219,5 +219,35 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(count_err_json["success"] == false);
   REQUIRE(count_err_json["error"].get<std::string>().find("Invalid unknown cards count") != std::string::npos);
 
+  // Test 9: Error handling - invalid character in hand string
+  nlohmann::json invalid_char_req;
+  invalid_char_req["hands"]["N"] = "S AQX";
+  invalid_char_req["hands"]["S"] = "S 87";
+  auto res_invalid_char = client.Post("/api/solve", invalid_char_req.dump(), "application/json");
+  REQUIRE(res_invalid_char);
+  REQUIRE(res_invalid_char->status == 400);
+  nlohmann::json invalid_char_json = nlohmann::json::parse(res_invalid_char->body);
+  REQUIRE(invalid_char_json["success"] == false);
+
+  // Test 10: Error handling - missing suit header before cards in hand string
+  nlohmann::json missing_suit_req;
+  missing_suit_req["hands"]["N"] = "AQ";
+  missing_suit_req["hands"]["S"] = "S 87";
+  auto res_missing_suit = client.Post("/api/solve", missing_suit_req.dump(), "application/json");
+  REQUIRE(res_missing_suit);
+  REQUIRE(res_missing_suit->status == 400);
+  nlohmann::json missing_suit_json = nlohmann::json::parse(res_missing_suit->body);
+  REQUIRE(missing_suit_json["success"] == false);
+
+  // Test 11: Error handling - invalid digit '1' not followed by '0'
+  nlohmann::json invalid_digit_req;
+  invalid_digit_req["hands"]["N"] = "S A1";
+  invalid_digit_req["hands"]["S"] = "S 87";
+  auto res_invalid_digit = client.Post("/api/solve", invalid_digit_req.dump(), "application/json");
+  REQUIRE(res_invalid_digit);
+  REQUIRE(res_invalid_digit->status == 400);
+  nlohmann::json invalid_digit_json = nlohmann::json::parse(res_invalid_digit->body);
+  REQUIRE(invalid_digit_json["success"] == false);
+
   server.Stop();
 }

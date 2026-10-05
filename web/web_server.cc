@@ -20,6 +20,37 @@
 
 namespace {
 
+bool IsValidHandString(const std::string &hand_str) {
+  bool suit_specified = false;
+  for (size_t i = 0; i < hand_str.size(); ++i) {
+    char c = hand_str[i];
+    if (c == '1') {
+      if (i + 1 < hand_str.size() && hand_str[i + 1] == '0') {
+        if (!suit_specified) return false;
+        i++;
+        continue;
+      }
+      return false;
+    }
+    if (std::isspace(static_cast<unsigned char>(c)) || c == ';' || c == '-') {
+      continue;
+    }
+    if (c == 'S' || c == 's' || c == 'H' || c == 'h' ||
+        c == 'D' || c == 'd' || c == 'C' || c == 'c') {
+      suit_specified = true;
+      continue;
+    }
+    if (c == 'A' || c == 'a' || c == 'K' || c == 'k' ||
+        c == 'Q' || c == 'q' || c == 'J' || c == 'j' ||
+        c == 'T' || c == 't' || (c >= '2' && c <= '9')) {
+      if (!suit_specified) return false;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
 Suit ParseSuitName(const std::string &s) {
   return Card::ParseSuit(s);
 }
@@ -503,10 +534,19 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
     if (req_json.contains("hands")) {
       auto &h = req_json["hands"];
-      if (h.contains("N")) north_str = h["N"].get<std::string>();
-      if (h.contains("E")) east_str = h["E"].get<std::string>();
-      if (h.contains("S")) south_str = h["S"].get<std::string>();
-      if (h.contains("W")) west_str = h["W"].get<std::string>();
+      if (h.contains("N") && h["N"].is_string()) north_str = h["N"].get<std::string>();
+      if (h.contains("E") && h["E"].is_string()) east_str = h["E"].get<std::string>();
+      if (h.contains("S") && h["S"].is_string()) south_str = h["S"].get<std::string>();
+      if (h.contains("W") && h["W"].is_string()) west_str = h["W"].get<std::string>();
+    }
+
+    if (!IsValidHandString(north_str) || !IsValidHandString(east_str) ||
+        !IsValidHandString(south_str) || !IsValidHandString(west_str)) {
+      response["success"] = false;
+      response["error"] = "Invalid hand string format or missing suit header.";
+      res.status = 400;
+      res.set_content(response.dump(), "application/json");
+      return;
     }
 
     std::vector<uint64_t> hands(4, 0);
