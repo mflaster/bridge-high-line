@@ -254,36 +254,37 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
   return root_node;
 }
 
-nlohmann::json DecisionTreeNodeToJSON(const std::shared_ptr<DecisionTreeNode> &node) {
-  if (!node) return nlohmann::json::object();
-  nlohmann::json json_node;
-  json_node["id"] = node->id;
-  json_node["type"] = node->type;
-  json_node["label"] = node->label;
-  if (!node->description.empty()) {
-    json_node["description"] = node->description;
+void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
+  j = nlohmann::json{
+      {"id", node.id},
+      {"type", node.type},
+      {"label", node.label},
+      {"collapsed", node.collapsed},
+      {"success_boards", node.success_boards},
+      {"failure_boards", node.failure_boards},
+      {"total_boards", node.total_boards},
+      {"covered_boards", node.covered_boards},
+  };
+  if (!node.description.empty()) {
+    j["description"] = node.description;
   }
-  if (!node->trick.empty()) {
-    json_node["trick"] = node->trick;
+  if (!node.trick.empty()) {
+    j["trick"] = node.trick;
   }
-  if (!node->trick_full.empty()) {
-    json_node["trick_full"] = node->trick_full;
+  if (!node.trick_full.empty()) {
+    j["trick_full"] = node.trick_full;
   }
-  json_node["collapsed"] = node->collapsed;
-  json_node["success_boards"] = node->success_boards;
-  json_node["failure_boards"] = node->failure_boards;
-  json_node["total_boards"] = node->total_boards;
-  json_node["covered_boards"] = node->covered_boards;
-  if (!node->boards.empty() || node->type == "action" || node->type == "condition") {
-    json_node["boards"] = node->boards;
+  if (!node.boards.empty() || node.type == "action" || node.type == "condition") {
+    j["boards"] = node.boards;
   }
 
   nlohmann::json children = nlohmann::json::array();
-  for (const auto &child : node->children) {
-    children.push_back(DecisionTreeNodeToJSON(child));
+  for (const auto &child : node.children) {
+    if (child) {
+      children.push_back(*child);
+    }
   }
-  json_node["children"] = children;
-  return json_node;
+  j["children"] = children;
 }
 
 uint64_t ParseUnknownCards(const std::string &unknown_str,
@@ -428,8 +429,9 @@ uint64_t ComputeUnknownCards(const std::vector<uint64_t>& hands) {
   return unknown_cards;
 }
 
-nlohmann::json CrossHandSummaryToJSON(const CrossHandSummaryReport &summary) {
-  nlohmann::json j;
+}  // namespace
+
+void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
   j["total_deals"] = summary.total_deals;
   j["cards_per_hand"] = summary.cards_per_hand;
   j["unknown_cards"] = summary.unknown_cards;
@@ -465,11 +467,7 @@ nlohmann::json CrossHandSummaryToJSON(const CrossHandSummaryReport &summary) {
     honor_stats_json[suit_key] = rank_json;
   }
   j["honor_stats"] = honor_stats_json;
-
-  return j;
 }
-
-}  // namespace
 
 WebServer::WebServer(const std::string &host, int port)
     : host_(host), port_(port) {
@@ -607,7 +605,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     int tricks_won = 0;
     std::string best_lead;
 
-    nlohmann::json tree_json;
+    std::shared_ptr<DecisionTreeNode> tree_node;
     int node_counter = 0;
     int covered_boards = 1;
     int total_boards = 1;
@@ -641,8 +639,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit, {});
 
       if (!lines.empty()) {
-        auto tree_node = BuildTreeFromConditionalLine(lines[0], node_counter);
-        tree_json = DecisionTreeNodeToJSON(tree_node);
+        tree_node = BuildTreeFromConditionalLine(lines[0], node_counter);
         success_boards = lines[0].CoveredBoards();
         failure_boards = std::max(0, total_boards - success_boards);
         covered_boards = success_boards;
@@ -651,17 +648,16 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           best_lead = lines[0].do_first().ToString(true);
         }
         if (lines[0].has_summary()) {
-          response["distribution_summary"] = CrossHandSummaryToJSON(lines[0].summary());
+          response["distribution_summary"] = lines[0].summary();
         }
         if (lines[0].has_failure_summary()) {
-          response["failure_distribution_summary"] = CrossHandSummaryToJSON(lines[0].failure_summary());
+          response["failure_distribution_summary"] = lines[0].failure_summary();
         }
       } else {
         success_boards = 0;
         failure_boards = total_boards;
         covered_boards = 0;
-        auto tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
-        tree_json = DecisionTreeNodeToJSON(tree_node);
+        tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
       }
     } else {
       BoardState bs;
@@ -672,8 +668,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
       tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
       best_lead = ExtractFirstCard(best_seq);
-      auto tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
-      tree_json = DecisionTreeNodeToJSON(tree_node);
+      tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
       total_boards = 1;
       success_boards = 1;
       failure_boards = 0;
@@ -692,7 +687,11 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["success_boards"] = success_boards;
     response["failure_boards"] = failure_boards;
     response["covered_boards"] = covered_boards;
-    response["tree"] = tree_json;
+    if (tree_node) {
+      response["tree"] = *tree_node;
+    } else {
+      response["tree"] = nlohmann::json::object();
+    }
     response["elapsed_ms"] = elapsed_ms;
 
     res.set_content(response.dump(), "application/json");
