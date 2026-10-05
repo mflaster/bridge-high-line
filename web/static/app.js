@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
       title.setAttribute('x', '12');
       title.setAttribute('y', '26');
       title.setAttribute('class', 'node-text-title');
-      title.textContent = truncateText(node.label || node.trick || 'Node', 26);
+      title.textContent = truncateText(node.label || node.trick || 'Node', 32);
       g.appendChild(title);
 
       // Detail Text
