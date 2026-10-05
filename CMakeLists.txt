@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.20)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+cmake_minimum_required(VERSION 3.20)
 project(bridge CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
