@@ -35,7 +35,7 @@ class UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const = 0;
 
-  static std::unique_ptr<UnknownCardsInvariant> FromString(
+  static std::shared_ptr<UnknownCardsInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2");
@@ -49,7 +49,7 @@ class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
   explicit CrossSuitConditionalInvariant(CardType condition_card)
       : condition_card_(condition_card) {}
 
-  static std::unique_ptr<CrossSuitConditionalInvariant> FromString(
+  static std::shared_ptr<CrossSuitConditionalInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2");
@@ -189,7 +189,7 @@ class HonorPossessionInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
-  static std::unique_ptr<HonorPossessionInvariant> FromString(
+  static std::shared_ptr<HonorPossessionInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2");
@@ -218,7 +218,7 @@ class MaxSuitLengthInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
-  static std::unique_ptr<MaxSuitLengthInvariant> FromString(
+  static std::shared_ptr<MaxSuitLengthInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2");
@@ -256,7 +256,7 @@ class ExactSuitLengthInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
-  static std::unique_ptr<ExactSuitLengthInvariant> FromString(
+  static std::shared_ptr<ExactSuitLengthInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2");
@@ -295,7 +295,7 @@ class SuitLengthRangeInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
-  static std::unique_ptr<SuitLengthRangeInvariant> FromString(
+  static std::shared_ptr<SuitLengthRangeInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2");

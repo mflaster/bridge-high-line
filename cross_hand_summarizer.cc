@@ -39,8 +39,8 @@ void JointSuitRuleExtractor::ProcessDeal(const PairedDeal& deal) {
   }
 }
 
-std::vector<std::unique_ptr<UnknownCardsInvariant>> JointSuitRuleExtractor::ExtractInvariants() const {
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> invariants;
+std::vector<std::shared_ptr<UnknownCardsInvariant>> JointSuitRuleExtractor::ExtractInvariants() const {
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> invariants;
   if (total_deals_ == 0) return invariants;
 
   int total_unknown_cards = 0;
@@ -64,24 +64,24 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> JointSuitRuleExtractor::Extr
     }
 
     if (bounds.min_hand1 == bounds.max_hand1) {
-      invariants.push_back(std::make_unique<ExactSuitLengthInvariant>(
+      invariants.push_back(std::make_shared<ExactSuitLengthInvariant>(
           InvariantHandChoice::kHand1, suit, bounds.min_hand1, hand1_label_));
     } else if (bounds.min_hand1 > 0 || bounds.max_hand1 < bounds.max_combined) {
-      invariants.push_back(std::make_unique<SuitLengthRangeInvariant>(
+      invariants.push_back(std::make_shared<SuitLengthRangeInvariant>(
           InvariantHandChoice::kHand1, suit, bounds.min_hand1, bounds.max_hand1, hand1_label_));
     }
 
     if (bounds.min_hand2 == bounds.max_hand2) {
-      invariants.push_back(std::make_unique<ExactSuitLengthInvariant>(
+      invariants.push_back(std::make_shared<ExactSuitLengthInvariant>(
           InvariantHandChoice::kHand2, suit, bounds.min_hand2, hand2_label_));
     } else if (bounds.min_hand2 > 0 || bounds.max_hand2 < bounds.max_combined) {
-      invariants.push_back(std::make_unique<SuitLengthRangeInvariant>(
+      invariants.push_back(std::make_shared<SuitLengthRangeInvariant>(
           InvariantHandChoice::kHand2, suit, bounds.min_hand2, bounds.max_hand2, hand2_label_));
     }
 
     int max_either = std::max(bounds.max_hand1, bounds.max_hand2);
     if (max_either < bounds.max_combined) {
-      invariants.push_back(std::make_unique<MaxSuitLengthInvariant>(suit, max_either));
+      invariants.push_back(std::make_shared<MaxSuitLengthInvariant>(suit, max_either));
     }
   }
   return invariants;
@@ -120,8 +120,8 @@ void HonorPossessionClassifier::ProcessDeal(const PairedDeal& deal) {
   }
 }
 
-std::vector<std::unique_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::ExtractInvariants() const {
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> invariants;
+std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::ExtractInvariants() const {
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> invariants;
   if (total_deals_ == 0) return invariants;
 
   for (int s = 0; s < 4; ++s) {
@@ -137,13 +137,13 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
       CardType card = Card::GetSuitedCard(suit, r);
 
       if (stats.hand1_count == total_deals_) {
-        invariants.push_back(std::make_unique<HonorPossessionInvariant>(
+        invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand1, card, hand1_label_));
       } else if (stats.hand2_count == total_deals_) {
-        invariants.push_back(std::make_unique<HonorPossessionInvariant>(
+        invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand2, card, hand2_label_));
       } else if (stats.both_count == total_deals_) {
-        invariants.push_back(std::make_unique<HonorPossessionInvariant>(
+        invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kBoth, card, "both hands"));
       }
     }
@@ -166,8 +166,8 @@ void CrossSuitConditionalRuleExtractor::ProcessDeal(const PairedDeal& deal) {
   deals_.push_back(deal);
 }
 
-std::vector<std::unique_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtractor::ExtractInvariants() const {
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> invariants;
+std::vector<std::shared_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtractor::ExtractInvariants() const {
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> invariants;
   if (total_deals_ == 0 || deals_.empty()) return invariants;
 
   uint64_t unknown_cards = deals_[0].hand1 | deals_[0].hand2;
@@ -225,25 +225,25 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtr
 
       if (min_len_X > 0) {
         if (min_len_notX < min_len_X) {
-          std::unique_ptr<CrossSuitConditionalInvariant> inv;
+          std::shared_ptr<CrossSuitConditionalInvariant> inv;
           if (min_len_X == max_len_X) {
-            inv = std::make_unique<CrossSuitExactSuitLengthInvariant>(card, suit, min_len_X);
+            inv = std::make_shared<CrossSuitExactSuitLengthInvariant>(card, suit, min_len_X);
           } else {
-            inv = std::make_unique<CrossSuitMinSuitLengthInvariant>(card, suit, min_len_X);
+            inv = std::make_shared<CrossSuitMinSuitLengthInvariant>(card, suit, min_len_X);
           }
           std::string rule = inv->ToString();
           if (emitted_rules.insert(rule).second) {
-            invariants.push_back(std::move(inv));
+            invariants.push_back(inv);
           }
         }
       }
 
       if (min_len_X < max_len_X && max_len_X < cards_per_hand) {
         if (max_len_notX > max_len_X) {
-          auto inv = std::make_unique<CrossSuitMaxSuitLengthInvariant>(card, suit, max_len_X);
+          auto inv = std::make_shared<CrossSuitMaxSuitLengthInvariant>(card, suit, max_len_X);
           std::string rule = inv->ToString();
           if (emitted_rules.insert(rule).second) {
-            invariants.push_back(std::move(inv));
+            invariants.push_back(inv);
           }
         }
       }
@@ -262,10 +262,10 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> CrossSuitConditionalRuleExtr
       }
 
       if (always_co_held) {
-        auto inv = std::make_unique<CrossSuitCardConditionalInvariant>(card, card2);
+        auto inv = std::make_shared<CrossSuitCardConditionalInvariant>(card, card2);
         std::string rule = inv->ToString();
         if (emitted_rules.insert(rule).second) {
-          invariants.push_back(std::move(inv));
+          invariants.push_back(inv);
         }
       }
     }
@@ -307,8 +307,8 @@ bool EvaluateRuleOnDeal(const std::string& rule,
   return inv->HoldsOnDeal(deal, hand1_label, hand2_label);
 }
 
-std::vector<std::unique_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
-    std::vector<std::unique_ptr<UnknownCardsInvariant>> candidate_invariants,
+std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
     uint64_t unknown_cards,
     int hand1_size,
     const std::string& hand1_label,
@@ -351,8 +351,8 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
     bifurcations.emplace_back(h1, h2);
   }
 
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> filtered;
-  for (auto& inv : candidate_invariants) {
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> filtered;
+  for (const auto& inv : candidate_invariants) {
     if (!inv) continue;
     bool true_for_all_random = true;
     for (const auto& deal : bifurcations) {
@@ -362,7 +362,7 @@ std::vector<std::unique_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
       }
     }
     if (!true_for_all_random) {
-      filtered.push_back(std::move(inv));
+      filtered.push_back(inv);
     }
   }
   return filtered;
@@ -375,14 +375,14 @@ std::vector<std::string> FilterUninterestingRules(
     const std::string& hand1_label,
     const std::string& hand2_label,
     int num_bifurcations) {
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> candidates;
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> candidates;
   for (const auto& rule : candidate_rules) {
     if (auto inv = UnknownCardsInvariant::FromString(rule, hand1_label, hand2_label)) {
-      candidates.push_back(std::move(inv));
+      candidates.push_back(inv);
     }
   }
   auto filtered = FilterUninterestingInvariants(
-      std::move(candidates), unknown_cards, hand1_size, hand1_label, hand2_label, num_bifurcations);
+      candidates, unknown_cards, hand1_size, hand1_label, hand2_label, num_bifurcations);
   std::vector<std::string> result;
   for (const auto& inv : filtered) {
     if (inv) {
@@ -434,13 +434,13 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   auto conditional_invariants = conditional_extractor.ExtractInvariants();
   auto honor_invariants = honor_classifier.ExtractInvariants();
 
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> candidate_invariants;
-  for (auto& inv : suit_invariants) candidate_invariants.push_back(std::move(inv));
-  for (auto& inv : conditional_invariants) candidate_invariants.push_back(std::move(inv));
-  for (auto& inv : honor_invariants) candidate_invariants.push_back(std::move(inv));
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants;
+  candidate_invariants.insert(candidate_invariants.end(), suit_invariants.begin(), suit_invariants.end());
+  candidate_invariants.insert(candidate_invariants.end(), conditional_invariants.begin(), conditional_invariants.end());
+  candidate_invariants.insert(candidate_invariants.end(), honor_invariants.begin(), honor_invariants.end());
 
   auto filtered_invariants = FilterUninterestingInvariants(
-      std::move(candidate_invariants), report.unknown_cards, report.cards_per_hand,
+      candidate_invariants, report.unknown_cards, report.cards_per_hand,
       hand1_label, hand2_label, 200);
 
   report.invariant_rules.clear();

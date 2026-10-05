@@ -36,7 +36,7 @@ class JointSuitRuleExtractor {
 
   void ProcessDeal(const PairedDeal& deal);
   const std::map<Suit, JointSuitBounds>& GetSuitBounds() const { return suit_bounds_; }
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
@@ -55,7 +55,7 @@ class HonorPossessionClassifier {
 
   void ProcessDeal(const PairedDeal& deal);
   const std::map<Suit, std::map<int, HonorPossessionStats>>& GetHonorStats() const { return honor_stats_; }
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
@@ -74,7 +74,7 @@ class CrossSuitConditionalRuleExtractor {
         hand2_label_(std::move(hand2_label)) {}
 
   void ProcessDeal(const PairedDeal& deal);
-  std::vector<std::unique_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
@@ -109,8 +109,8 @@ bool EvaluateRuleOnDeal(const std::string& rule,
                         const std::string& hand1_label = "hand 1",
                         const std::string& hand2_label = "hand 2");
 
-std::vector<std::unique_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
-    std::vector<std::unique_ptr<UnknownCardsInvariant>> candidate_invariants,
+std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
     uint64_t unknown_cards,
     int hand1_size,
     const std::string& hand1_label = "hand 1",

@@ -16,7 +16,7 @@ static int CardsInSuit(uint64_t hand, Suit s) {
 
 // --- UnknownCardsInvariant Implementation ---
 
-std::unique_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
+std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
     const std::string& str,
     const std::string& hand1_label,
     const std::string& hand2_label) {
@@ -40,7 +40,7 @@ std::unique_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
 
 // --- CrossSuitConditionalInvariant Implementation ---
 
-std::unique_ptr<CrossSuitConditionalInvariant>
+std::shared_ptr<CrossSuitConditionalInvariant>
 CrossSuitConditionalInvariant::FromString(const std::string& str,
                                            const std::string& /* hand1_label */,
                                            const std::string& /* hand2_label */) {
@@ -60,28 +60,28 @@ CrossSuitConditionalInvariant::FromString(const std::string& str,
       std::string card2_str = target_str.substr(4);
       if (card2_str.size() != 2) return nullptr;
       CardType card2 = Card::ParseStringCard(card2_str);
-      return std::make_unique<CrossSuitCardConditionalInvariant>(card1, card2);
+      return std::make_shared<CrossSuitCardConditionalInvariant>(card1, card2);
     } else if (target_str.rfind("exactly ", 0) == 0) {
       size_t space_pos = target_str.find(' ', 8);
       if (space_pos == std::string::npos) return nullptr;
       int n = std::stoi(target_str.substr(8, space_pos - 8));
       std::string s_str = target_str.substr(space_pos + 1);
       Suit s = Card::ParseSuit(s_str);
-      return std::make_unique<CrossSuitExactSuitLengthInvariant>(card1, s, n);
+      return std::make_shared<CrossSuitExactSuitLengthInvariant>(card1, s, n);
     } else if (target_str.rfind("at least ", 0) == 0) {
       size_t space_pos = target_str.find(' ', 9);
       if (space_pos == std::string::npos) return nullptr;
       int n = std::stoi(target_str.substr(9, space_pos - 9));
       std::string s_str = target_str.substr(space_pos + 1);
       Suit s = Card::ParseSuit(s_str);
-      return std::make_unique<CrossSuitMinSuitLengthInvariant>(card1, s, n);
+      return std::make_shared<CrossSuitMinSuitLengthInvariant>(card1, s, n);
     } else if (target_str.rfind("at most ", 0) == 0) {
       size_t space_pos = target_str.find(' ', 8);
       if (space_pos == std::string::npos) return nullptr;
       int n = std::stoi(target_str.substr(8, space_pos - 8));
       std::string s_str = target_str.substr(space_pos + 1);
       Suit s = Card::ParseSuit(s_str);
-      return std::make_unique<CrossSuitMaxSuitLengthInvariant>(card1, s, n);
+      return std::make_shared<CrossSuitMaxSuitLengthInvariant>(card1, s, n);
     }
   } catch (...) {
     return nullptr;
@@ -171,7 +171,7 @@ bool CrossSuitMaxSuitLengthInvariant::HoldsOnDeal(
 
 // --- HonorPossessionInvariant Implementation ---
 
-std::unique_ptr<HonorPossessionInvariant>
+std::shared_ptr<HonorPossessionInvariant>
 HonorPossessionInvariant::FromString(const std::string& str,
                                      const std::string& hand1_label,
                                      const std::string& hand2_label) {
@@ -200,7 +200,7 @@ HonorPossessionInvariant::FromString(const std::string& str,
     } else {
       return nullptr;
     }
-    return std::make_unique<HonorPossessionInvariant>(target, card, label);
+    return std::make_shared<HonorPossessionInvariant>(target, card, label);
   } catch (...) {
     return nullptr;
   }
@@ -237,7 +237,7 @@ bool HonorPossessionInvariant::HoldsOnDeal(
 
 // --- MaxSuitLengthInvariant Implementation ---
 
-std::unique_ptr<MaxSuitLengthInvariant>
+std::shared_ptr<MaxSuitLengthInvariant>
 MaxSuitLengthInvariant::FromString(const std::string& str,
                                    const std::string& /* hand1_label */,
                                    const std::string& /* hand2_label */) {
@@ -249,7 +249,7 @@ MaxSuitLengthInvariant::FromString(const std::string& str,
     std::string s_str = str.substr(18, pos_in_any - 18);
     int n = std::stoi(str.substr(pos_in_any + 16));
     Suit s = Card::ParseSuit(s_str);
-    return std::make_unique<MaxSuitLengthInvariant>(s, n);
+    return std::make_shared<MaxSuitLengthInvariant>(s, n);
   } catch (...) {
     return nullptr;
   }
@@ -269,7 +269,7 @@ bool MaxSuitLengthInvariant::HoldsOnDeal(
 
 // --- ExactSuitLengthInvariant Implementation ---
 
-std::unique_ptr<ExactSuitLengthInvariant>
+std::shared_ptr<ExactSuitLengthInvariant>
 ExactSuitLengthInvariant::FromString(const std::string& str,
                                      const std::string& hand1_label,
                                      const std::string& hand2_label) {
@@ -293,7 +293,7 @@ ExactSuitLengthInvariant::FromString(const std::string& str,
     } else {
       return nullptr;
     }
-    return std::make_unique<ExactSuitLengthInvariant>(choice, s, n, label);
+    return std::make_shared<ExactSuitLengthInvariant>(choice, s, n, label);
   } catch (...) {
     return nullptr;
   }
@@ -324,7 +324,7 @@ bool ExactSuitLengthInvariant::HoldsOnDeal(
 
 // --- SuitLengthRangeInvariant Implementation ---
 
-std::unique_ptr<SuitLengthRangeInvariant>
+std::shared_ptr<SuitLengthRangeInvariant>
 SuitLengthRangeInvariant::FromString(const std::string& str,
                                      const std::string& hand1_label,
                                      const std::string& hand2_label) {
@@ -352,7 +352,7 @@ SuitLengthRangeInvariant::FromString(const std::string& str,
     } else {
       return nullptr;
     }
-    return std::make_unique<SuitLengthRangeInvariant>(choice, s, n1, n2, label);
+    return std::make_shared<SuitLengthRangeInvariant>(choice, s, n1, n2, label);
   } catch (...) {
     return nullptr;
   }
