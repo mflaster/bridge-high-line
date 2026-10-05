@@ -130,3 +130,86 @@ TEST_CASE("EmptyDealSet", "[cross_hand_summarizer]") {
   REQUIRE(report.total_deals == 0);
   REQUIRE(report.invariant_rules.empty());
 }
+
+TEST_CASE("CrossSuitConditionalRuleExtractor_ExtractsHandWithXAlsoHasYRules", "[cross_hand_summarizer]") {
+  // Deal 1: Hand 1 = S AK4 H Q43 (3 S, 3 H); Hand 2 = S J3 H JT2 (2 S, 3 H)
+  // Deal 2: Hand 1 = S A4 H Q4 (2 S, 2 H); Hand 2 = S KJ3 H JT32 (3 S, 4 H)
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S AK4 H Q43", "S J3 H JT2"),
+      PairedDeal("S A4 H Q4", "S KJ3 H JT32")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("the hand with the SK also has exactly 3 S"));
+}
+
+TEST_CASE("CrossSuitConditionalRuleExtractor_CoPossessionOfCards", "[cross_hand_summarizer]") {
+  // S A and S T are always in the same hand across all deals
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S AT H 5", "S K43 H 2"),
+      PairedDeal("S K43 H 2", "S AT H 5")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("the hand with the SA also has the ST"));
+  REQUIRE(report.HasRule("the hand with the ST also has the SA"));
+}
+
+TEST_CASE("RandomBifurcation_TautologyElimination", "[cross_hand_summarizer]") {
+  // Unknown cards pool: 1 Heart (HT), 3 Spades (S T98), 4 Diamonds (D AKQJ)
+  // Total cards = 8, 4 cards per hand.
+  // In any bifurcation, whichever hand gets HT has 4 cards, so it ALWAYS has 1 Heart (as HT is the only Heart)
+  // and at most 3 Diamonds (since 4 - 1 = 3).
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S T9 H T D A", "S 8 D KQJ"),
+      PairedDeal("S T8 H T D K", "S 9 D AQJ")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  // Rule "the hand with the HT also has exactly 1 H" is tautological for ALL random bifurcations and must be omitted
+  REQUIRE_FALSE(report.HasRule("the hand with the HT also has exactly 1 H"));
+  REQUIRE_FALSE(report.HasRule("the hand with the HT also has at most 3 D"));
+}
+
+TEST_CASE("EvaluateRuleOnDeal_DirectTests", "[cross_hand_summarizer]") {
+  PairedDeal deal("S AK H Q D 4", "S QJ H 2 D 32");
+
+  REQUIRE(EvaluateRuleOnDeal("the hand with the SA also has the SK", deal));
+  REQUIRE(EvaluateRuleOnDeal("the hand with the SA also has exactly 1 H", deal));
+  REQUIRE(EvaluateRuleOnDeal("the hand with the SA also has at least 2 S", deal));
+  REQUIRE(EvaluateRuleOnDeal("the hand with the SA also has at most 1 D", deal));
+
+  REQUIRE(EvaluateRuleOnDeal("hand 1 always contains the SA", deal));
+  REQUIRE(EvaluateRuleOnDeal("hand 2 always contains the SQ", deal));
+  REQUIRE_FALSE(EvaluateRuleOnDeal("both hands always contain the SA", deal));
+
+  REQUIRE(EvaluateRuleOnDeal("hand 1 length in S is always 2", deal));
+  REQUIRE(EvaluateRuleOnDeal("hand 1 length in S is between 1 and 3", deal));
+  REQUIRE(EvaluateRuleOnDeal("maximum length in S in any hand is 2", deal));
+}
+
+TEST_CASE("CrossSuitConditionalRuleExtractor_SuppressesTautologiesAndFixedCards", "[cross_hand_summarizer]") {
+  // S A is statically fixed in Hand 1 across all deals -> no "the hand with the SA" rule
+  // Card CJ is not in unknown cards -> no "the hand with the CJ" rule
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S A4 H 54", "S T3 H 32"),
+      PairedDeal("S A3 H 53", "S T4 H 42")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("hand 1 always contains the SA"));
+  REQUIRE_FALSE(report.HasRule("the hand with the SA"));
+  REQUIRE_FALSE(report.HasRule("the hand with the CJ"));
+}

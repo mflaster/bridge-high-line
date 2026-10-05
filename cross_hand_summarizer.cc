@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <random>
+#include <set>
 #include <stdexcept>
 
 static int CardsInSuit(uint64_t hand, Suit s) {
@@ -146,6 +148,138 @@ std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {
   return rules;
 }
 
+void CrossSuitConditionalRuleExtractor::ProcessDeal(const PairedDeal& deal) {
+  total_deals_++;
+  deals_.push_back(deal);
+}
+
+std::vector<std::string> CrossSuitConditionalRuleExtractor::ExtractRules() const {
+  std::vector<std::string> rules;
+  if (total_deals_ == 0 || deals_.empty()) return rules;
+
+  uint64_t unknown_cards = deals_[0].hand1 | deals_[0].hand2;
+  int cards_per_hand = PopCount64(deals_[0].hand1);
+
+  // Collect all honor cards (ranks 10, J, Q, K, A) present in unknown_cards
+  std::vector<CardType> unknown_card_list;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    for (int r = 8; r <= 12; ++r) {
+      CardType card_bit = Card::GetSuitedCard(suit, r);
+      if ((unknown_cards & card_bit) != 0) {
+        unknown_card_list.push_back(card_bit);
+      }
+    }
+  }
+
+  std::set<std::string> emitted_rules;
+
+  for (CardType card : unknown_card_list) {
+    // Condition 1: For every DealPair, card must be true for exactly one of the 2 hands.
+    // Since card is in unknown_cards and hand1/hand2 partition unknown_cards in every deal,
+    // card is held by hand1 XOR hand2 for every DealPair.
+    int hand1_deals = 0;
+    int hand2_deals = 0;
+    for (const auto& deal : deals_) {
+      if ((deal.hand1 & card) != 0) {
+        hand1_deals++;
+      } else {
+        hand2_deals++;
+      }
+    }
+
+    // Skip cards that do not move between hands across deals (i.e. statically fixed in one hand)
+    // as those are already covered by unconditional rules.
+    if (hand1_deals == 0 || hand2_deals == 0) {
+      continue;
+    }
+
+    std::string x_str = "the " + Card::PrintCard(card);
+
+    // Evaluate suit length bounds for the hand holding card
+    for (int s = 0; s < 4; ++s) {
+      Suit suit = static_cast<Suit>(s);
+      std::string suit_str = SuitDebugString(suit);
+
+      int min_len_X = 999;
+      int max_len_X = -1;
+      int min_len_notX = 999;
+      int max_len_notX = -1;
+
+      for (const auto& deal : deals_) {
+        bool in_hand1 = (deal.hand1 & card) != 0;
+        uint64_t handX = in_hand1 ? deal.hand1 : deal.hand2;
+        uint64_t handNotX = in_hand1 ? deal.hand2 : deal.hand1;
+
+        int lenX = CardsInSuit(handX, suit);
+        int lenNotX = CardsInSuit(handNotX, suit);
+
+        min_len_X = std::min(min_len_X, lenX);
+        max_len_X = std::max(max_len_X, lenX);
+        min_len_notX = std::min(min_len_notX, lenNotX);
+        max_len_notX = std::max(max_len_notX, lenNotX);
+      }
+
+      // Check Minimum Suit Length
+      if (min_len_X > 0) {
+        // Condition 2: Y ("at least min_len_X suit") shouldn't be true for the not-X hand.
+        // It is not true for not-X hand if min_len_notX < min_len_X.
+        if (min_len_notX < min_len_X) {
+          std::string y_str;
+          if (min_len_X == max_len_X) {
+            y_str = "exactly " + std::to_string(min_len_X) + " " + suit_str;
+          } else {
+            y_str = "at least " + std::to_string(min_len_X) + " " + suit_str;
+          }
+          std::string rule = "the hand with " + x_str + " also has " + y_str;
+          if (emitted_rules.insert(rule).second) {
+            rules.push_back(rule);
+          }
+        }
+      }
+
+      // Check Maximum Suit Length
+      if (min_len_X < max_len_X && max_len_X < cards_per_hand) {
+        // Condition 2: Y ("at most max_len_X suit") shouldn't be true for the not-X hand.
+        // It is not true for not-X hand if max_len_notX > max_len_X.
+        if (max_len_notX > max_len_X) {
+          std::string y_str = "at most " + std::to_string(max_len_X) + " " + suit_str;
+          std::string rule = "the hand with " + x_str + " also has " + y_str;
+          if (emitted_rules.insert(rule).second) {
+            rules.push_back(rule);
+          }
+        }
+      }
+    }
+
+    // Evaluate co-possession of another card c2
+    for (CardType card2 : unknown_card_list) {
+      if (card == card2) continue;
+
+      bool always_co_held = true;
+      for (const auto& deal : deals_) {
+        bool in_hand1 = (deal.hand1 & card) != 0;
+        uint64_t handX = in_hand1 ? deal.hand1 : deal.hand2;
+        if ((handX & card2) == 0) {
+          always_co_held = false;
+          break;
+        }
+      }
+
+      if (always_co_held) {
+        // Condition 2: Since card2 is in unknown_cards, not-X hand NEVER holds card2.
+        std::string y_str = "the " + Card::PrintCard(card2);
+        std::string rule = "the hand with " + x_str + " also has " + y_str;
+        if (emitted_rules.insert(rule).second) {
+          rules.push_back(rule);
+        }
+      }
+    }
+  }
+
+  return rules;
+}
+
 std::string CrossHandSummaryReport::ToString() const {
   std::string out = "Cross-Hand Deal Set Summary Report\n";
   out += "Total Deals: " + std::to_string(total_deals) + "\n";
@@ -158,6 +292,187 @@ std::string CrossHandSummaryReport::ToString() const {
     }
   }
   return out;
+}
+
+bool EvaluateRuleOnDeal(const std::string& rule,
+                        const PairedDeal& deal,
+                        const std::string& hand1_label,
+                        const std::string& hand2_label) {
+  // 1. Cross-suit conditional rules: "the hand with the <C1> also has <TARGET>"
+  if (rule.rfind("the hand with the ", 0) == 0) {
+    size_t pos1 = 18; // length of "the hand with the "
+    size_t pos_also = rule.find(" also has ", pos1);
+    if (pos_also == std::string::npos) return false;
+
+    std::string card1_str = rule.substr(pos1, pos_also - pos1);
+    if (card1_str.size() != 2) return false;
+
+    CardType card1 = Card::ParseStringCard(card1_str);
+    uint64_t target_hand = 0;
+    if ((deal.hand1 & card1) != 0) {
+      target_hand = deal.hand1;
+    } else if ((deal.hand2 & card1) != 0) {
+      target_hand = deal.hand2;
+    } else {
+      return false;
+    }
+
+    std::string target_str = rule.substr(pos_also + 10); // length of " also has " is 10
+    if (target_str.rfind("the ", 0) == 0) {
+      std::string card2_str = target_str.substr(4);
+      if (card2_str.size() != 2) return false;
+      CardType card2 = Card::ParseStringCard(card2_str);
+      return (target_hand & card2) != 0;
+    } else if (target_str.rfind("exactly ", 0) == 0) {
+      size_t space_pos = target_str.find(' ', 8);
+      if (space_pos == std::string::npos) return false;
+      int n = std::stoi(target_str.substr(8, space_pos - 8));
+      std::string s_str = target_str.substr(space_pos + 1);
+      Suit s = Card::ParseSuit(s_str);
+      return CardsInSuit(target_hand, s) == n;
+    } else if (target_str.rfind("at least ", 0) == 0) {
+      size_t space_pos = target_str.find(' ', 9);
+      if (space_pos == std::string::npos) return false;
+      int n = std::stoi(target_str.substr(9, space_pos - 9));
+      std::string s_str = target_str.substr(space_pos + 1);
+      Suit s = Card::ParseSuit(s_str);
+      return CardsInSuit(target_hand, s) >= n;
+    } else if (target_str.rfind("at most ", 0) == 0) {
+      size_t space_pos = target_str.find(' ', 8);
+      if (space_pos == std::string::npos) return false;
+      int n = std::stoi(target_str.substr(8, space_pos - 8));
+      std::string s_str = target_str.substr(space_pos + 1);
+      Suit s = Card::ParseSuit(s_str);
+      return CardsInSuit(target_hand, s) <= n;
+    }
+    return false;
+  }
+
+  // 2. Honor possession rules: "<label> always contains the <Card>" or "both hands always contain the <Card>"
+  size_t honor_pos = rule.find(" always contains the ");
+  if (honor_pos != std::string::npos) {
+    std::string label = rule.substr(0, honor_pos);
+    std::string card_str = rule.substr(honor_pos + 21);
+    if (card_str.size() != 2) return false;
+    CardType card = Card::ParseStringCard(card_str);
+    if (label == hand1_label) {
+      return (deal.hand1 & card) != 0;
+    } else if (label == hand2_label) {
+      return (deal.hand2 & card) != 0;
+    } else if (label == "both hands") {
+      return (deal.hand1 & card) != 0 && (deal.hand2 & card) != 0;
+    }
+    return false;
+  }
+
+  // 3. Joint Suit Bounds rules:
+  // 3a. "maximum length in <Suit> in any hand is <N>"
+  if (rule.rfind("maximum length in ", 0) == 0) {
+    size_t pos_in_any = rule.find(" in any hand is ");
+    if (pos_in_any != std::string::npos) {
+      std::string s_str = rule.substr(18, pos_in_any - 18);
+      int n = std::stoi(rule.substr(pos_in_any + 16));
+      Suit s = Card::ParseSuit(s_str);
+      int max_len = std::max(CardsInSuit(deal.hand1, s), CardsInSuit(deal.hand2, s));
+      return max_len <= n;
+    }
+    return false;
+  }
+
+  // 3b. "<label> length in <Suit> is always <N>"
+  size_t always_pos = rule.find(" is always ");
+  size_t len_pos = rule.find(" length in ");
+  if (always_pos != std::string::npos && len_pos != std::string::npos && len_pos < always_pos) {
+    std::string label = rule.substr(0, len_pos);
+    std::string s_str = rule.substr(len_pos + 11, always_pos - (len_pos + 11));
+    int n = std::stoi(rule.substr(always_pos + 11));
+    Suit s = Card::ParseSuit(s_str);
+    uint64_t target_hand = 0;
+    if (label == hand1_label) target_hand = deal.hand1;
+    else if (label == hand2_label) target_hand = deal.hand2;
+    else return false;
+    return CardsInSuit(target_hand, s) == n;
+  }
+
+  // 3c. "<label> length in <Suit> is between <N1> and <N2>"
+  size_t between_pos = rule.find(" is between ");
+  if (between_pos != std::string::npos && len_pos != std::string::npos && len_pos < between_pos) {
+    std::string label = rule.substr(0, len_pos);
+    std::string s_str = rule.substr(len_pos + 11, between_pos - (len_pos + 11));
+    size_t and_pos = rule.find(" and ", between_pos + 12);
+    if (and_pos == std::string::npos) return false;
+    int n1 = std::stoi(rule.substr(between_pos + 12, and_pos - (between_pos + 12)));
+    int n2 = std::stoi(rule.substr(and_pos + 5));
+    Suit s = Card::ParseSuit(s_str);
+    uint64_t target_hand = 0;
+    if (label == hand1_label) target_hand = deal.hand1;
+    else if (label == hand2_label) target_hand = deal.hand2;
+    else return false;
+    int len = CardsInSuit(target_hand, s);
+    return len >= n1 && len <= n2;
+  }
+
+  return false;
+}
+
+std::vector<std::string> FilterUninterestingRules(
+    const std::vector<std::string>& candidate_rules,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& hand1_label,
+    const std::string& hand2_label,
+    int num_bifurcations) {
+  if (candidate_rules.empty() || unknown_cards == 0) {
+    return candidate_rules;
+  }
+
+  std::vector<CardType> card_list;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    for (int r = 0; r < 13; ++r) {
+      CardType card = Card::GetSuitedCard(suit, r);
+      if ((unknown_cards & card) != 0) {
+        card_list.push_back(card);
+      }
+    }
+  }
+
+  if (hand1_size <= 0 || static_cast<size_t>(hand1_size) >= card_list.size()) {
+    return candidate_rules;
+  }
+
+  std::vector<PairedDeal> bifurcations;
+  bifurcations.reserve(num_bifurcations);
+  std::mt19937 rng(12345);
+  std::vector<CardType> cards = card_list;
+
+  for (int k = 0; k < num_bifurcations; ++k) {
+    std::shuffle(cards.begin(), cards.end(), rng);
+    uint64_t h1 = 0;
+    uint64_t h2 = 0;
+    for (int i = 0; i < hand1_size; ++i) {
+      h1 |= cards[i];
+    }
+    for (size_t i = hand1_size; i < cards.size(); ++i) {
+      h2 |= cards[i];
+    }
+    bifurcations.emplace_back(h1, h2);
+  }
+
+  std::vector<std::string> filtered;
+  for (const auto& rule : candidate_rules) {
+    bool true_for_all_random = true;
+    for (const auto& deal : bifurcations) {
+      if (!EvaluateRuleOnDeal(rule, deal, hand1_label, hand2_label)) {
+        true_for_all_random = false;
+        break;
+      }
+    }
+    if (!true_for_all_random) {
+      filtered.push_back(rule);
+    }
+  }
+  return filtered;
 }
 
 CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
@@ -187,20 +502,29 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
 
   JointSuitRuleExtractor suit_extractor(hand1_label, hand2_label);
   HonorPossessionClassifier honor_classifier(hand1_label, hand2_label);
+  CrossSuitConditionalRuleExtractor conditional_extractor(hand1_label, hand2_label);
 
   for (const auto& deal : deals) {
     suit_extractor.ProcessDeal(deal);
     honor_classifier.ProcessDeal(deal);
+    conditional_extractor.ProcessDeal(deal);
   }
 
   report.suit_bounds = suit_extractor.GetSuitBounds();
   report.honor_stats = honor_classifier.GetHonorStats();
 
   auto suit_rules = suit_extractor.ExtractRules();
+  auto conditional_rules = conditional_extractor.ExtractRules();
   auto honor_rules = honor_classifier.ExtractRules();
 
-  report.invariant_rules.insert(report.invariant_rules.end(), suit_rules.begin(), suit_rules.end());
-  report.invariant_rules.insert(report.invariant_rules.end(), honor_rules.begin(), honor_rules.end());
+  std::vector<std::string> candidate_rules;
+  candidate_rules.insert(candidate_rules.end(), suit_rules.begin(), suit_rules.end());
+  candidate_rules.insert(candidate_rules.end(), conditional_rules.begin(), conditional_rules.end());
+  candidate_rules.insert(candidate_rules.end(), honor_rules.begin(), honor_rules.end());
+
+  report.invariant_rules = FilterUninterestingRules(
+      candidate_rules, report.unknown_cards, report.cards_per_hand,
+      hand1_label, hand2_label, 200);
 
   return report;
 }

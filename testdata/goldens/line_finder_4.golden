@@ -5,26 +5,26 @@
 # Hand 3: 
 # Unknown cards: S T9; H T; D AKQJT; C -;
 # Trump: S
-Covers 4/4 (100.0%) [0, 1, 2, 3]
+Covers 10/10 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 Cross-Hand Deal Set Summary Report
-Total Deals: 4
+Total Deals: 10
 Invariant Rules for 4 card ending:
   - hand 1 length in S is between 0 and 1
   - hand 3 length in S is between 1 and 2
-  - maximum length in S in any hand is 2
-  - hand 1 length in H is between 0 and 1
-  - hand 3 length in H is between 0 and 1
-  - maximum length in H in any hand is 1
   - hand 1 length in D is between 2 and 4
   - hand 3 length in D is between 1 and 3
-  - maximum length in D in any hand is 4
-  - hand 3 always contains the ST
+  - the hand with the DT also has at most 1 S
+  - the hand with the DT also has at least 3 D
+  - the hand with the DJ also has at least 2 D
+  - the hand with the DQ also has at least 2 D
+  - the hand with the DK also has at most 3 D
+  - the hand with the DA also has at least 2 D
 
-  after SA (__) SQ (ST): SA (__) SQ (ST) [0,1,2,3] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST 
+  after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA ST SQ S9 
     when 0 wins: 
-      after SK (R_) SJ (__): SK (R_) SJ (__) [0,1,2,3] / SK DJ SJ DT  / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9 
+      after SK (R_) SJ (__): SK (R_) SJ (__) [0,1,2,3,4,5,6,7,8,9] / SK DJ SJ DT  / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9  / SK DQ SJ DT 
         when 0 wins: 
-          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3] / HA HT HQ DK  / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT 
+          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,4,5,6,7,8,9] / HA HT HQ DK  / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT  / HA HT HQ DA 
             when 0 wins: 
-              after HK (R_) HJ (R_): HK (R_) HJ (R_) [0,1,2,3] / HK DA HJ DQ  / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK 
-                when 0 wins: HAND SUCCEEDED FOR: 0, 1, 2, 3
+              after HK (R_) HJ (R_): HK (R_) HJ (R_) [0,1,2,3,4,5,6,7,8,9] / HK DA HJ DQ  / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK  / HK DJ HJ DK 
+                when 0 wins: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9

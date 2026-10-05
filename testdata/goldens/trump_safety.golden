@@ -9,12 +9,7 @@ Covers 20/20 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
 Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 4 card ending:
-  - hand 1 length in S is between 0 and 4
-  - hand 3 length in S is between 0 and 4
-  - maximum length in S in any hand is 4
-  - hand 1 length in D is between 0 and 4
-  - hand 3 length in D is between 0 and 4
-  - maximum length in D in any hand is 4
+  - the hand with the SJ also has exactly 4 S
 
   after SA (__) S8 (__): SA (__) S8 (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / SA D5 S8 S5  / SA D5 S8 S5  / SA S5 S8 D5  / SA D5 S8 S5  / SA S5 S8 D5 
     when 0 wins: 
