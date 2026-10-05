@@ -144,6 +144,114 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
   return node;
 }
 
+bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child) {
+  if (!parent.contains("label") || !child.contains("label")) {
+    return false;
+  }
+  std::string p_label = parent["label"].get<std::string>();
+  std::string c_label = child["label"].get<std::string>();
+
+  if (p_label.rfind("Optimal Lines", 0) == 0) {
+    return false;
+  }
+
+  if (p_label.rfind("Trick ", 0) == 0 && c_label.rfind("Trick ", 0) == 0) {
+    return false;
+  }
+
+  return true;
+}
+
+std::string CombineLabels(const std::string &l1, const std::string &l2) {
+  if (l1 == l2) return l1;
+
+  auto is_generic = [](const std::string &s) {
+    return (s.rfind("Success:", 0) == 0 ||
+            s.rfind("Hand Succeeded", 0) == 0 ||
+            s.rfind("Contract Result:", 0) == 0 ||
+            s.rfind("Max depth reached", 0) == 0);
+  };
+
+  if (is_generic(l1) && !is_generic(l2)) return l2;
+  if (is_generic(l2) && !is_generic(l1)) return l1;
+
+  if (l2.rfind("after ", 0) == 0) {
+    std::string after_target = l2.substr(6);
+    if (!after_target.empty() && l1.find(after_target) != std::string::npos) {
+      return l1;
+    }
+  }
+  if (l1.rfind("after ", 0) == 0) {
+    std::string after_target = l1.substr(6);
+    if (!after_target.empty() && l2.find(after_target) != std::string::npos) {
+      return l2;
+    }
+  }
+
+  if (l1.find(l2) != std::string::npos) return l1;
+  if (l2.find(l1) != std::string::npos) return l2;
+
+  if (l1.empty()) return l2;
+  if (l2.empty()) return l1;
+
+  if ((l2.rfind("when ", 0) == 0 || l2.rfind("if ", 0) == 0) &&
+      l1.find(" (when ") == std::string::npos && l1.find(" (if ") == std::string::npos) {
+    size_t arrow_pos = l2.find(" → ");
+    if (arrow_pos == std::string::npos) arrow_pos = l2.find(" -> ");
+    if (arrow_pos != std::string::npos) {
+      std::string cond = l2.substr(0, arrow_pos);
+      std::string rest = l2.substr(arrow_pos);
+      return l1 + " (" + cond + ")" + rest;
+    } else {
+      return l1 + " (" + l2 + ")";
+    }
+  }
+
+  return l1 + " → " + l2;
+}
+
+void CollapseRedundantTreeNodes(nlohmann::json &node) {
+  if (!node.contains("children") || !node["children"].is_array()) {
+    return;
+  }
+
+  for (auto &child : node["children"]) {
+    CollapseRedundantTreeNodes(child);
+  }
+
+  while (node["children"].size() == 1) {
+    auto &child = node["children"][0];
+    if (!CanCollapseNodes(node, child)) {
+      break;
+    }
+
+    std::string p_label = node.contains("label") ? node["label"].get<std::string>() : "";
+    std::string c_label = child.contains("label") ? child["label"].get<std::string>() : "";
+    node["label"] = CombineLabels(p_label, c_label);
+
+    if (child.contains("type")) {
+      if (child["type"] == "outcome" && (!child.contains("children") || child["children"].empty())) {
+        node["type"] = "outcome";
+      }
+    }
+
+    if (child.contains("trick") && !node.contains("trick")) {
+      node["trick"] = child["trick"];
+    }
+    if (child.contains("trick_full") && !node.contains("trick_full")) {
+      node["trick_full"] = child["trick_full"];
+    }
+
+    if (child.contains("success_boards")) node["success_boards"] = child["success_boards"];
+    if (child.contains("failure_boards")) node["failure_boards"] = child["failure_boards"];
+    if (child.contains("total_boards")) node["total_boards"] = child["total_boards"];
+    if (child.contains("covered_boards")) node["covered_boards"] = child["covered_boards"];
+    if (child.contains("boards")) node["boards"] = child["boards"];
+
+    node["children"] = child["children"];
+  }
+}
+
 std::vector<std::string> SplitTricks(const std::string &line_str) {
   std::vector<std::string> raw_segments;
   size_t start = 0;
@@ -678,6 +786,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     auto end_time = std::chrono::high_resolution_clock::now();
     double elapsed_ms =
         std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+    CollapseRedundantTreeNodes(tree_json);
 
     response["success"] = true;
     response["tricks_won"] = tricks_won;

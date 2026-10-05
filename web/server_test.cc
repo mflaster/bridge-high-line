@@ -219,5 +219,31 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(count_err_json["success"] == false);
   REQUIRE(count_err_json["error"].get<std::string>().find("Invalid unknown cards count") != std::string::npos);
 
+  // Test 9: Decision Tree Node Collapsing Verification
+  nlohmann::json collapse_req;
+  collapse_req["hands"]["N"] = "S AQ";
+  collapse_req["hands"]["S"] = "S 32";
+  collapse_req["trump"] = "SPADES";
+  collapse_req["leader"] = "NORTH";
+  collapse_req["min_tricks"] = 1;
+  collapse_req["num_iters"] = 1;
+
+  auto res_collapse = client.Post("/api/solve", collapse_req.dump(), "application/json");
+  REQUIRE(res_collapse);
+  REQUIRE(res_collapse->status == 200);
+  nlohmann::json collapse_json = nlohmann::json::parse(res_collapse->body);
+  REQUIRE(collapse_json["success"] == true);
+  REQUIRE(collapse_json.contains("tree"));
+  auto &collapsed_tree = collapse_json["tree"];
+  // Ensure the tree collapsed single-path redundant nodes into a concise root/node
+  // that does not contain redundant child nodes like "after ..." or repeated labels.
+  std::string root_label = collapsed_tree["label"].get<std::string>();
+  REQUIRE(root_label.find("after ") == std::string::npos);
+  if (collapsed_tree["children"].size() == 1) {
+    std::string child_label = collapsed_tree["children"][0]["label"].get<std::string>();
+    REQUIRE(child_label != root_label);
+    REQUIRE(child_label.find("after ") == std::string::npos);
+  }
+
   server.Stop();
 }
