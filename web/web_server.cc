@@ -61,6 +61,8 @@ struct DecisionTreeNode {
   std::map<std::string, std::shared_ptr<DecisionTreeNode>> child_map;
 };
 
+std::string NormalizeDirectionAndCondition(const std::string &s);
+
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     const ConditionalLine &line, int &node_id, int depth = 0, int root_total = 1) {
   int total = line.total_boards() > 0 ? line.total_boards() : root_total;
@@ -125,6 +127,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     cond_node->id = "node_" + std::to_string(++node_id);
     cond_node->type = "condition";
     std::string cond_desc = cond_ptr ? cond_ptr->Describe(conds.size() == 1) : "";
+    cond_desc = NormalizeDirectionAndCondition(cond_desc);
     cond_node->label = cond_desc;
     cond_node->description = cond_desc;
     cond_node->collapsed = true;
@@ -256,8 +259,13 @@ bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child)
   std::string p_type = parent["type"].get<std::string>();
   std::string c_type = child["type"].get<std::string>();
 
-  // Never collapse an outcome node with anything, nor anything into an outcome node.
-  if (p_type == "outcome" || c_type == "outcome") {
+  // Never collapse an outcome parent with anything.
+  if (p_type == "outcome") {
+    return false;
+  }
+
+  // An action parent CANNOT collapse directly into an outcome child.
+  if (p_type == "action" && c_type == "outcome") {
     return false;
   }
 
@@ -309,17 +317,45 @@ std::string CombineLabels(const std::string &l1, const std::string &l2) {
   std::string s1 = NormalizeDirectionAndCondition(l1);
   std::string s2 = NormalizeDirectionAndCondition(l2);
 
+  if (s1.empty()) return s2;
+  if (s2.empty()) return s1;
   if (s1 == s2) return s1;
 
-  auto is_generic = [](const std::string &s) {
+  auto is_outcome = [](const std::string &s) {
     return (s.rfind("Success:", 0) == 0 ||
             s.rfind("Hand Succeeded", 0) == 0 ||
             s.rfind("Contract Result:", 0) == 0 ||
             s.rfind("Max depth reached", 0) == 0);
   };
 
-  if (is_generic(s1) && !is_generic(s2)) return s2;
-  if (is_generic(s2) && !is_generic(s1)) return s1;
+  bool s1_outcome = is_outcome(s1);
+  bool s2_outcome = is_outcome(s2);
+
+  if (s1_outcome != s2_outcome) {
+    std::string outcome_str = s1_outcome ? s1 : s2;
+    std::string cond_str = s1_outcome ? s2 : s1;
+
+    LabelParts cp = ParseLabelParts(cond_str);
+    std::string win_cond = !cp.cond.empty() ? cp.cond : cond_str;
+    if (win_cond.rfind("if ", 0) == 0) win_cond = win_cond.substr(3);
+    if (win_cond.rfind("when ", 0) == 0) win_cond = win_cond.substr(5);
+
+    if (win_cond.empty() || win_cond.rfind("after ", 0) == 0) {
+      return outcome_str;
+    }
+
+    if (outcome_str.find(win_cond) != std::string::npos) {
+      return outcome_str;
+    }
+
+    if (outcome_str.rfind("Hand Succeeded (", 0) == 0) {
+      return "Hand Succeeded (" + win_cond + ") " + outcome_str.substr(15);
+    } else if (outcome_str == "Hand Succeeded") {
+      return "Hand Succeeded (" + win_cond + ")";
+    } else {
+      return outcome_str + " (" + win_cond + ")";
+    }
+  }
 
   bool has_after = (s1.rfind("after ", 0) == 0 || s2.rfind("after ", 0) == 0);
 
@@ -352,10 +388,6 @@ void CollapseRedundantTreeNodes(nlohmann::json &node) {
     return;
   }
 
-  for (auto &child : node["children"]) {
-    CollapseRedundantTreeNodes(child);
-  }
-
   while (node["children"].size() == 1) {
     auto &child = node["children"][0];
     if (!CanCollapseNodes(node, child)) {
@@ -366,8 +398,11 @@ void CollapseRedundantTreeNodes(nlohmann::json &node) {
     std::string c_label = child.contains("label") ? child["label"].get<std::string>() : "";
     node["label"] = CombineLabels(p_label, c_label);
 
-    if (child.contains("type") && child["type"] == "action") {
-      node["type"] = "action";
+    if (child.contains("type")) {
+      std::string c_type = child["type"].get<std::string>();
+      if (c_type == "action" || c_type == "outcome") {
+        node["type"] = c_type;
+      }
     }
 
     if (child.contains("trick") && (!node.contains("trick") || node["trick"].get<std::string>().empty())) {
@@ -384,6 +419,12 @@ void CollapseRedundantTreeNodes(nlohmann::json &node) {
     if (child.contains("boards")) node["boards"] = child["boards"];
 
     node["children"] = child["children"];
+  }
+
+  if (node.contains("children") && node["children"].is_array()) {
+    for (auto &child : node["children"]) {
+      CollapseRedundantTreeNodes(child);
+    }
   }
 }
 

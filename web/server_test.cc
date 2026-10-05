@@ -293,5 +293,42 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   }
   REQUIRE(trick_count == 4);
 
+  // Test 11: Branching Decision Tree Direction Normalization and Outcome Condition Collapsing
+  nlohmann::json branch_req;
+  branch_req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  branch_req["hands"]["E"] = "";
+  branch_req["hands"]["S"] = "S 87; H -; D -; C -;";
+  branch_req["hands"]["W"] = "";
+  branch_req["trump"] = "SPADES";
+  branch_req["leader"] = "SOUTH";
+  branch_req["min_tricks"] = 2;
+  branch_req["num_iters"] = 10;
+  branch_req["unknown_cards"] = "S Kxxx";
+
+  auto res_branch = client.Post("/api/solve", branch_req.dump(), "application/json");
+  REQUIRE(res_branch);
+  REQUIRE(res_branch->status == 200);
+  nlohmann::json branch_json = nlohmann::json::parse(res_branch->body);
+  REQUIRE(branch_json["success"] == true);
+  REQUIRE(branch_json.contains("tree"));
+
+  bool found_raw_direction_number = false;
+  std::function<void(const nlohmann::json &)> check_branch_tree = [&](const nlohmann::json &node) {
+    if (node.contains("label") && node["label"].is_string()) {
+      std::string l = node["label"].get<std::string>();
+      if (l.find("0 wins") != std::string::npos || l.find("1 wins") != std::string::npos ||
+          l.find("2 wins") != std::string::npos || l.find("3 wins") != std::string::npos) {
+        found_raw_direction_number = true;
+      }
+    }
+    if (node.contains("children") && node["children"].is_array()) {
+      for (const auto &c : node["children"]) {
+        check_branch_tree(c);
+      }
+    }
+  };
+  check_branch_tree(branch_json["tree"]);
+  REQUIRE_FALSE(found_raw_direction_number);
+
   server.Stop();
 }
