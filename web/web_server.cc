@@ -145,21 +145,41 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
 }
 
 bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child) {
-  if (!parent.contains("label") || !child.contains("label")) {
+  if (!parent.contains("type") || !child.contains("type")) {
     return false;
   }
-  std::string p_label = parent["label"].get<std::string>();
-  std::string c_label = child["label"].get<std::string>();
+  std::string p_type = parent["type"].get<std::string>();
+  std::string c_type = child["type"].get<std::string>();
 
-  if (p_label.rfind("Optimal Lines", 0) == 0) {
-    return false;
-  }
-
-  if (p_label.rfind("Trick ", 0) == 0 && c_label.rfind("Trick ", 0) == 0) {
+  // Never collapse two action nodes together as they represent different tricks/play steps.
+  if (p_type == "action" && c_type == "action") {
     return false;
   }
 
-  return true;
+  // Never collapse an action node with an outcome node, nor outcome nodes with anything.
+  if (p_type == "outcome" || c_type == "outcome") {
+    return false;
+  }
+
+  if (parent.contains("label")) {
+    std::string p_label = parent["label"].get<std::string>();
+    if (p_label.rfind("Optimal Lines", 0) == 0 || p_label.rfind("Trick ", 0) == 0) {
+      return false;
+    }
+  }
+  if (child.contains("label")) {
+    std::string c_label = child["label"].get<std::string>();
+    if (c_label.rfind("Trick ", 0) == 0) {
+      return false;
+    }
+  }
+
+  // Allow collapsing non-branching condition wrapper nodes into parent action nodes.
+  if (p_type == "action" && c_type == "condition") {
+    return true;
+  }
+
+  return false;
 }
 
 std::string CombineLabels(const std::string &l1, const std::string &l2) {
@@ -172,42 +192,43 @@ std::string CombineLabels(const std::string &l1, const std::string &l2) {
             s.rfind("Max depth reached", 0) == 0);
   };
 
-  if (is_generic(l1) && !is_generic(l2)) return l2;
-  if (is_generic(l2) && !is_generic(l1)) return l1;
+  std::string clean_l1 = l1;
+  std::string clean_l2 = l2;
+  if (clean_l1.rfind("after ", 0) == 0) clean_l1 = clean_l1.substr(6);
+  if (clean_l2.rfind("after ", 0) == 0) clean_l2 = clean_l2.substr(6);
+
+  if (is_generic(clean_l1) && !is_generic(clean_l2)) return clean_l2;
+  if (is_generic(clean_l2) && !is_generic(clean_l1)) return clean_l1;
 
   if (l2.rfind("after ", 0) == 0) {
-    std::string after_target = l2.substr(6);
-    if (!after_target.empty() && l1.find(after_target) != std::string::npos) {
-      return l1;
-    }
+    if (!clean_l1.empty() && !is_generic(l1)) return clean_l1;
+    return clean_l2;
   }
   if (l1.rfind("after ", 0) == 0) {
-    std::string after_target = l1.substr(6);
-    if (!after_target.empty() && l2.find(after_target) != std::string::npos) {
-      return l2;
-    }
+    if (!clean_l2.empty() && !is_generic(l2)) return clean_l2;
+    return clean_l1;
   }
 
-  if (l1.find(l2) != std::string::npos) return l1;
-  if (l2.find(l1) != std::string::npos) return l2;
+  if (clean_l1.find(clean_l2) != std::string::npos) return clean_l1;
+  if (clean_l2.find(clean_l1) != std::string::npos) return clean_l2;
 
-  if (l1.empty()) return l2;
-  if (l2.empty()) return l1;
+  if (clean_l1.empty()) return clean_l2;
+  if (clean_l2.empty()) return clean_l1;
 
-  if ((l2.rfind("when ", 0) == 0 || l2.rfind("if ", 0) == 0) &&
-      l1.find(" (when ") == std::string::npos && l1.find(" (if ") == std::string::npos) {
-    size_t arrow_pos = l2.find(" → ");
-    if (arrow_pos == std::string::npos) arrow_pos = l2.find(" -> ");
+  if ((clean_l2.rfind("when ", 0) == 0 || clean_l2.rfind("if ", 0) == 0) &&
+      clean_l1.find(" (when ") == std::string::npos && clean_l1.find(" (if ") == std::string::npos) {
+    size_t arrow_pos = clean_l2.find(" → ");
+    if (arrow_pos == std::string::npos) arrow_pos = clean_l2.find(" -> ");
     if (arrow_pos != std::string::npos) {
-      std::string cond = l2.substr(0, arrow_pos);
-      std::string rest = l2.substr(arrow_pos);
-      return l1 + " (" + cond + ")" + rest;
+      std::string cond = clean_l2.substr(0, arrow_pos);
+      std::string rest = clean_l2.substr(arrow_pos);
+      return clean_l1 + " (" + cond + ")" + rest;
     } else {
-      return l1 + " (" + l2 + ")";
+      return clean_l1 + " (" + clean_l2 + ")";
     }
   }
 
-  return l1 + " → " + l2;
+  return clean_l1 + " → " + clean_l2;
 }
 
 void CollapseRedundantTreeNodes(nlohmann::json &node) {
@@ -228,12 +249,6 @@ void CollapseRedundantTreeNodes(nlohmann::json &node) {
     std::string p_label = node.contains("label") ? node["label"].get<std::string>() : "";
     std::string c_label = child.contains("label") ? child["label"].get<std::string>() : "";
     node["label"] = CombineLabels(p_label, c_label);
-
-    if (child.contains("type")) {
-      if (child["type"] == "outcome" && (!child.contains("children") || child["children"].empty())) {
-        node["type"] = "outcome";
-      }
-    }
 
     if (child.contains("trick") && !node.contains("trick")) {
       node["trick"] = child["trick"];

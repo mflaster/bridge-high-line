@@ -245,5 +245,39 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
     REQUIRE(child_label.find("after ") == std::string::npos);
   }
 
+  // Test 10: 4-Card Ending Decision Tree Node Depth Verification
+  // Ensure different tricks are never collapsed together, yielding depth 4 for 4 tricks.
+  nlohmann::json req_4card;
+  req_4card["hands"]["N"] = "S AKQJ";
+  req_4card["hands"]["E"] = "S 9876";
+  req_4card["hands"]["S"] = "S 5432";
+  req_4card["hands"]["W"] = "H AKQJ";
+  req_4card["trump"] = "SPADES";
+  req_4card["leader"] = "NORTH";
+
+  auto res_4card = client.Post("/api/solve", req_4card.dump(), "application/json");
+  REQUIRE(res_4card);
+  REQUIRE(res_4card->status == 200);
+  nlohmann::json json_4card = nlohmann::json::parse(res_4card->body);
+  REQUIRE(json_4card["success"] == true);
+  REQUIRE(json_4card.contains("tree"));
+
+  // Traverse tree to count trick nodes along primary path
+  int trick_count = 0;
+  nlohmann::json curr = json_4card["tree"];
+  while (true) {
+    if (curr.contains("type") && curr["type"] == "action") {
+      if (curr.contains("label") && curr["label"].get<std::string>().rfind("Optimal Lines", 0) != 0) {
+        trick_count++;
+      }
+    }
+    if (curr.contains("children") && !curr["children"].empty()) {
+      curr = curr["children"][0];
+    } else {
+      break;
+    }
+  }
+  REQUIRE(trick_count == 4);
+
   server.Stop();
 }
