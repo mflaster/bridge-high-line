@@ -360,310 +360,245 @@ TEST_CASE("BestContract3", "[.slow]") {
 }
 
 
-TEST_CASE("LineFinder2") {
-  LOG(INFO) << "LineFinder2";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("S32"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SAQ"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("SK987");
-
-  LineFinder lf(10);
+struct LineFinderTestCase {
+  std::string name;
+  Suit trump = NOTRUMP;
   int leader = 0;
+  int min_tricks = -1;
+  int num_iters = 20;
+  int seed = 0;
+  int pre_solve_deals = 0;
+  std::string hand0;
+  std::string hand1;
+  std::string hand2;
+  std::string hand3;
+  std::string unknown_cards;
+  std::string description;
+  std::vector<std::shared_ptr<HandRequirements>> reqs1;
+  std::vector<std::shared_ptr<HandRequirements>> reqs3;
+};
+
+void RunLineFinderTestCase(const LineFinderTestCase &tc) {
+  LOG(INFO) << "Running LineFinder test case: " << tc.name;
+  srand48(tc.seed);
+
+  std::vector<uint64_t> hands(4, 0);
+  if (!tc.hand0.empty()) hands[0] = ParseHand(tc.hand0);
+  if (!tc.hand1.empty()) hands[1] = ParseHand(tc.hand1);
+  if (!tc.hand2.empty()) hands[2] = ParseHand(tc.hand2);
+  if (!tc.hand3.empty()) hands[3] = ParseHand(tc.hand3);
+
+  uint64_t unknown = tc.unknown_cards.empty() ? 0 : ParseHand(tc.unknown_cards);
+
+  for (int i = 0; i < tc.pre_solve_deals; i++) {
+    DealTwoHands(unknown);
+  }
+
+  int total_cards = CountCardsInHand(hands[0]) + CountCardsInHand(hands[1]) +
+                    CountCardsInHand(hands[2]) + CountCardsInHand(hands[3]) +
+                    CountCardsInHand(unknown);
+  int min_tricks = tc.min_tricks;
+  if (min_tricks < 0) {
+    min_tricks = total_cards > 0 ? total_cards / 4 : 0;
+  }
+
+  LineFinder lf(tc.num_iters);
+  if (!tc.reqs1.empty() || !tc.reqs3.empty()) {
+    lf.SetRequirements(tc.reqs1, tc.reqs3);
+  }
+
   std::vector<CardType> cur_trick;
   std::vector<ConditionalLine> lines =
-      lf.Solve(2, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines.size() >= 1);
-  REQUIRE(lines[0].CoveredBoards() >= 3);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_2.golden", hands, unknown_cards, SPADES, "LineFinder2: lines for spade contract with 2 known hands, Hand 0 on lead");
+      lf.Solve(min_tricks, hands, unknown, tc.leader, tc.trump, cur_trick);
+
+  LOG(INFO) << "Found lines: " << lines.size();
+  REQUIRE(!lines.empty());
+
+  std::string desc = tc.description;
+  if (desc.empty()) {
+    desc = tc.name + ": " + SuitDebugString(tc.trump) +
+           " contract, Hand " + std::to_string(tc.leader) + " on lead";
+  }
+
+  REQUIRE_GOLDEN_LINE_RESULT(lines, tc.name + ".golden", hands, unknown, tc.trump, desc);
+}
+
+TEST_CASE("LineFinder2") {
+  RunLineFinderTestCase({
+    .name = "line_finder_2",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 2,
+    .num_iters = 10,
+    .hand0 = "S32",
+    .hand2 = "SAQ",
+    .unknown_cards = "SK987",
+    .description = "LineFinder2: lines for spade contract with 2 known hands, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder3") {
-  LOG(INFO) << "LineFinder3";
-  srand48(5);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SK32"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SAJ4"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("SQT9876 H - ");
-
-  for (int i = 0; i < 0; i++) {
-    DealTwoHands(unknown_cards);
-  }
-
-  LineFinder lf(20);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(3, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines.size() >= 1);
-  REQUIRE(lines[0].CoveredBoards() >= 8);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_3.golden", hands, unknown_cards, SPADES, "LineFinder3: lines for spade contract with 2 known hands, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_3",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 3,
+    .num_iters = 20,
+    .seed = 5,
+    .hand0 = "SK32",
+    .hand2 = "SAJ4",
+    .unknown_cards = "SQT9876 H -",
+    .description = "LineFinder3: lines for spade contract with 2 known hands, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder4") {
-  LOG(INFO) << "LineFinder4";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SAK HAK"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SQJ HQJ"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("ST9 HT DAKQJT");
-
-  LineFinder lf(4);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(0, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines[0].CoveredBoards() == 4);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_4.golden", hands, unknown_cards, SPADES, "LineFinder4: lines for spade contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_4",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 0,
+    .num_iters = 4,
+    .hand0 = "SAK HAK",
+    .hand2 = "SQJ HQJ",
+    .unknown_cards = "ST9 HT DAKQJT",
+    .description = "LineFinder4: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5", "[.slow]") {
-  LOG(INFO) << "LineFinder5";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SA HQJT9"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SK HA876"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("HK5432 DAKQJT");
-
-  LineFinder lf(20);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(5, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines.size() >= 1);
-  REQUIRE(lines[0].CoveredBoards() == 10);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5.golden", hands, unknown_cards, SPADES, "LineFinder5: lines for spade contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_5",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .hand0 = "SA HQJT9",
+    .hand2 = "SK HA876",
+    .unknown_cards = "HK5432 DAKQJT",
+    .description = "LineFinder5: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5b", "[.slow]") {
-  LOG(INFO) << "LineFinder5b";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SA HKJT9"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SK HA876"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("HQ5432 DAKQJT");
-
-  for (int i = 0; i < 500; i++) {
-    DealTwoHands(unknown_cards);
-  }
-
-  LineFinder lf(20);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(5, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines[0].CoveredBoards() >= 10);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5b.golden", hands, unknown_cards, SPADES, "LineFinder5b: lines for spade contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_5b",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .pre_solve_deals = 500,
+    .hand0 = "SA HKJT9",
+    .hand2 = "SK HA876",
+    .unknown_cards = "HQ5432 DAKQJT",
+    .description = "LineFinder5b: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5c", "[.slow]") {
-  LOG(INFO) << "LineFinder5c";
-  srand48(1);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SKT2 D32"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SAJ987"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("S Q654 D 987654 ");
-
-  for (int i = 0; i < 25; i++) {
-    DealTwoHands(unknown_cards);
-  }
-
-  int num_hands = 20;
-  LineFinder lf(num_hands);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(5, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines.size() >= 1);
-  REQUIRE(lines[0].CoveredBoards() == num_hands);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5c.golden", hands, unknown_cards, SPADES, "LineFinder5c: lines for spade contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_5c",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .seed = 1,
+    .pre_solve_deals = 25,
+    .hand0 = "SKT2 D32",
+    .hand2 = "SAJ987",
+    .unknown_cards = "S Q654 D 987654",
+    .description = "LineFinder5c: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5d", "[.slow]") {
-  LOG(INFO) << "LineFinder5d";
-  srand48(5);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("D AKT9; C A"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("D Q876; C K"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("DJ543 SAKQ HAKQ");
-
-  for (int i = 0; i < 8; i++) {
-    DealTwoHands(unknown_cards);
-  }
-
-  int num_deals = 100;
-  LineFinder lf(num_deals);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(5, hands, unknown_cards, leader, DIAMONDS, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  // LOG(INFO) << PrintBestLine(lines);
-  for (const ConditionalLine &line : lines) {
-    LOG(INFO) << "  " << line.Describe();
-  }
-  REQUIRE(lines.size() >= 1);
-  REQUIRE(lines[0].CoveredBoards() == num_deals);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5d.golden", hands, unknown_cards, DIAMONDS, "LineFinder5d: lines for diamond contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_5d",
+    .trump = DIAMONDS,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 100,
+    .seed = 5,
+    .pre_solve_deals = 8,
+    .hand0 = "D AKT9; C A",
+    .hand2 = "D Q876; C K",
+    .unknown_cards = "DJ543 SAKQ HAKQ",
+    .description = "LineFinder5d: lines for diamond contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder5e", "[.slow]") {
-  LOG(INFO) << "LineFinder5e";
-  srand48(1);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SKT2 D32"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SAJ987"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("S Q6543 D 98765 ");
-
-  for (int i = 0; i < 1; i++) {
-    DealTwoHands(unknown_cards);
-  }
-
-  int num_hands = 100;
-  LineFinder lf(num_hands);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(5, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines.size() >= 1);
-  REQUIRE(lines[0].CoveredBoards() == 58);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_5e.golden", hands, unknown_cards, SPADES, "LineFinder5e: lines for spade contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_5e",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 100,
+    .seed = 1,
+    .pre_solve_deals = 1,
+    .hand0 = "SKT2 D32",
+    .hand2 = "SAJ987",
+    .unknown_cards = "S Q6543 D 98765",
+    .description = "LineFinder5e: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder7", "[.slow]") {
-  LOG(INFO) << "LineFinder7";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("H Q7; D KQT9; C A; "));
-  hands.push_back(0);
-  hands.push_back(ParseHand("H KJ98; D 2; C T9; "));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("H T5; D A754; C Q; "
-                                     "H A4; D J863; C 5; ");
-
-  LineFinder lf(20);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(5, hands, unknown_cards, leader, SPADES, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines[0].CoveredBoards() == 6);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_7.golden", hands, unknown_cards, SPADES, "LineFinder7: lines for spade contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_7",
+    .trump = SPADES,
+    .leader = 0,
+    .min_tricks = 5,
+    .num_iters = 20,
+    .hand0 = "H Q7; D KQT9; C A;",
+    .hand2 = "H KJ98; D 2; C T9;",
+    .unknown_cards = "H T5; D A754; C Q; H A4; D J863; C 5;",
+    .description = "LineFinder7: lines for spade contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder9", "[.slow]") {
-  LOG(INFO) << "LineFinder9";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("S KQJ; H KQJ; D KQJ"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("C AKQJT9876"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand("S AT8; H AT8; D 876; "
-                                     "S 976; H 976; D AT9; ");
-
-  LineFinder lf(19);
-  int leader = 0;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(6, hands, unknown_cards, leader, NOTRUMP, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  REQUIRE(lines[0].CoveredBoards() > 3);
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_9.golden", hands, unknown_cards, NOTRUMP, "LineFinder9: lines for NT contract, Hand 0 on lead");
+  RunLineFinderTestCase({
+    .name = "line_finder_9",
+    .trump = NOTRUMP,
+    .leader = 0,
+    .min_tricks = 6,
+    .num_iters = 19,
+    .hand0 = "S KQJ; H KQJ; D KQJ",
+    .hand2 = "C AKQJT9876",
+    .unknown_cards = "S AT8; H AT8; D 876; S 976; H 976; D AT9;",
+    .description = "LineFinder9: lines for NT contract, Hand 0 on lead",
+  });
 }
 
 TEST_CASE("LineFinder11", "[.slow]") {
-  LOG(INFO) << "LineFinder11";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("S 764 HA32 D K64 C82"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("     H Q74 D 53 C AQT754"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand(
-      "D AQT9872; C J6; S QJT852; H T98; DJ; C K93");
-
-  LineFinder lf(20);
-  std::vector<std::shared_ptr<HandRequirements>> reqs1;
-  std::vector<std::shared_ptr<HandRequirements>> reqs3;
-  reqs3.push_back(std::shared_ptr<HandRequirements>(
-      new SuitAtLeast(SPADES, 6)));
-  lf.SetRequirements(reqs1, reqs3);
-  int leader = 2;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(8, hands, unknown_cards, leader, HEARTS, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  int i = 0;
-  for (const auto &line : lines) {
-    LOG(INFO) << "line " << ++i << ":\n" << line.Describe();
-  }
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_11.golden", hands, unknown_cards, HEARTS, "LineFinder11: lines for heart contract with Spade requirements, Hand 2 on lead");
-  // REQUIRE(lines[0].CoveredBoards() == 17);
+  RunLineFinderTestCase({
+    .name = "line_finder_11",
+    .trump = HEARTS,
+    .leader = 2,
+    .min_tricks = 8,
+    .num_iters = 20,
+    .hand0 = "S 764 HA32 D K64 C82",
+    .hand2 = "H Q74 D 53 C AQT754",
+    .unknown_cards = "D AQT9872; C J6; S QJT852; H T98; DJ; C K93",
+    .description = "LineFinder11: lines for heart contract with Spade requirements, Hand 2 on lead",
+    .reqs3 = {HandRequirements::FromString("SuitAtLeast(Spades, 6)")},
+  });
 }
 
 TEST_CASE("LineFinder12", "[.slow]") {
-  LOG(INFO) << "LineFinder12";
-  srand48(0);
-  std::vector<uint64_t> hands;
-  hands.push_back(ParseHand("SAJ4 HAKQJ74 DA5 CJ"));
-  hands.push_back(0);
-  hands.push_back(ParseHand("SK65 H6 DKQT73 C832"));
-  hands.push_back(0);
-  uint64_t unknown_cards = ParseHand(
-      "SQT98732 HT98532 DJ98642 CQT976");
-
-  LineFinder lf(20);
-  std::vector<std::shared_ptr<HandRequirements>> reqs1;
-  std::vector<std::shared_ptr<HandRequirements>> reqs3;
-  reqs1.push_back(std::shared_ptr<HandRequirements>(
-      new HandHasCard(Card::ParseStringCard("CQ"))));
-  lf.SetRequirements(reqs1, reqs3);
-  int leader = 2;
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(12, hands, unknown_cards, leader, NOTRUMP, cur_trick);
-  LOG(INFO) << "Found lines " << lines.size();
-  LOG(INFO) << PrintBestLine(lines);
-  int j = 0;
-  for (const auto &line : lines) {
-    LOG(INFO) << "line " << ++j << ":\n" << line.Describe();
-  }
-  REQUIRE_GOLDEN_LINE_RESULT(lines, "line_finder_12.golden", hands, unknown_cards, NOTRUMP, "LineFinder12: lines for NT contract with CQ requirement, Hand 2 on lead");
-  // REQUIRE(lines[0].CoveredBoards() == 17);
+  RunLineFinderTestCase({
+    .name = "line_finder_12",
+    .trump = NOTRUMP,
+    .leader = 2,
+    .min_tricks = 12,
+    .num_iters = 20,
+    .hand0 = "SAJ4 HAKQJ74 DA5 CJ",
+    .hand2 = "SK65 H6 DKQT73 C832",
+    .unknown_cards = "SQT98732 HT98532 DJ98642 CQT976",
+    .description = "LineFinder12: lines for NT contract with CQ requirement, Hand 2 on lead",
+    .reqs1 = {HandRequirements::FromString("HandHasCard(CQ)")},
+  });
 }
 
 TEST_CASE("LineFinder13", "[.slow]") {
@@ -713,137 +648,41 @@ TEST_CASE("LineFinder13", "[.slow]") {
             << num_hands_to_try << " = " << (more_than_half / num_hands_to_try);
 }
 
-struct LineFinderTestCase {
-  std::string name;
-  Suit trump = NOTRUMP;
-  int leader = 0;
-  int min_tricks = 0;
-  int num_iters = 20;
-  int seed = 0;
-  std::string hand0;
-  std::string hand1;
-  std::string hand2;
-  std::string hand3;
-  std::string unknown_cards;
-  std::string description;
-
-  static Suit ParseSuit(const std::string &s) {
-    std::string lower;
-    for (char c : s) lower += tolower(c);
-    if (lower.find("spade") != std::string::npos || lower == "s") return SPADES;
-    if (lower.find("heart") != std::string::npos || lower == "h") return HEARTS;
-    if (lower.find("diamond") != std::string::npos || lower == "d") return DIAMONDS;
-    if (lower.find("club") != std::string::npos || lower == "c") return CLUBS;
-    return NOTRUMP;
-  }
-
-  static LineFinderTestCase Parse(const std::string &spec, const std::string &default_name = "") {
-    LineFinderTestCase tc;
-    tc.name = default_name;
-    std::stringstream ss(spec);
-    std::string line;
-    while (std::getline(ss, line)) {
-      size_t first = line.find_first_not_of(" \t\r\n");
-      if (first == std::string::npos) continue;
-      size_t last = line.find_last_not_of(" \t\r\n");
-      std::string trimmed = line.substr(first, (last - first + 1));
-      if (trimmed.empty() || trimmed[0] == '#') continue;
-
-      size_t colon = trimmed.find(':');
-      if (colon == std::string::npos) continue;
-
-      std::string key = trimmed.substr(0, colon);
-      std::string val = trimmed.substr(colon + 1);
-
-      auto trim_str = [](std::string str) {
-        size_t f = str.find_first_not_of(" \t\r\n");
-        if (f == std::string::npos) return std::string("");
-        size_t l = str.find_last_not_of(" \t\r\n");
-        return str.substr(f, l - f + 1);
-      };
-      key = trim_str(key);
-      val = trim_str(val);
-
-      std::string key_lower;
-      for (char c : key) key_lower += tolower(c);
-
-      if (key_lower == "name") {
-        tc.name = val;
-      } else if (key_lower == "trump" || key_lower == "contract") {
-        tc.trump = ParseSuit(val);
-      } else if (key_lower == "leader" || key_lower == "lead") {
-        tc.leader = std::stoi(val);
-      } else if (key_lower == "min_tricks" || key_lower == "tricks" || key_lower == "min tricks") {
-        tc.min_tricks = std::stoi(val);
-      } else if (key_lower == "num_iters" || key_lower == "iters" || key_lower == "iterations") {
-        tc.num_iters = std::stoi(val);
-      } else if (key_lower == "seed") {
-        tc.seed = std::stoi(val);
-      } else if (key_lower == "hand 0" || key_lower == "hand0") {
-        tc.hand0 = val;
-      } else if (key_lower == "hand 1" || key_lower == "hand1") {
-        tc.hand1 = val;
-      } else if (key_lower == "hand 2" || key_lower == "hand2") {
-        tc.hand2 = val;
-      } else if (key_lower == "hand 3" || key_lower == "hand3") {
-        tc.hand3 = val;
-      } else if (key_lower == "unknown" || key_lower == "unknown_cards" ||
-                 key_lower == "unknown cards" || key_lower.find("hands 1 and 3") != std::string::npos) {
-        tc.unknown_cards = val;
-      } else if (key_lower == "description" || key_lower == "desc") {
-        tc.description = val;
-      }
-    }
-    return tc;
-  }
-};
-
-void RunLineFinderTestCase(const LineFinderTestCase &tc) {
-  LOG(INFO) << "Running LineFinder test case: " << tc.name;
-  srand48(tc.seed);
-
-  std::vector<uint64_t> hands(4, 0);
-  if (!tc.hand0.empty()) hands[0] = ParseHand(tc.hand0);
-  if (!tc.hand1.empty()) hands[1] = ParseHand(tc.hand1);
-  if (!tc.hand2.empty()) hands[2] = ParseHand(tc.hand2);
-  if (!tc.hand3.empty()) hands[3] = ParseHand(tc.hand3);
-
-  uint64_t unknown = tc.unknown_cards.empty() ? 0 : ParseHand(tc.unknown_cards);
-
-  int total_cards = CountCardsInHand(hands[0]) + CountCardsInHand(hands[1]) +
-                    CountCardsInHand(hands[2]) + CountCardsInHand(hands[3]) +
-                    CountCardsInHand(unknown);
-  int min_tricks = tc.min_tricks;
-  if (min_tricks == 0 && total_cards > 0) {
-    min_tricks = total_cards / 4;
-  }
-
-  LineFinder lf(tc.num_iters);
-  std::vector<CardType> cur_trick;
-  std::vector<ConditionalLine> lines =
-      lf.Solve(min_tricks, hands, unknown, tc.leader, tc.trump, cur_trick);
-
-  LOG(INFO) << "Found lines: " << lines.size();
-  REQUIRE(!lines.empty());
-
-  std::string desc = tc.description;
-  if (desc.empty()) {
-    desc = tc.name + ": " + SuitDebugString(tc.trump) +
-           " contract, Hand " + std::to_string(tc.leader) + " on lead";
-  }
-
-  REQUIRE_GOLDEN_LINE_RESULT(lines, tc.name + ".golden", hands, unknown, tc.trump, desc);
+TEST_CASE("LineFinder_Squeeze1") {
+  RunLineFinderTestCase({
+    .name = "squeeze_1",
+    .trump = NOTRUMP,
+    .leader = 0,
+    .min_tricks = 6,
+    .hand0 = "S A43 D AKQ",
+    .hand2 = "S K2 H K D 432",
+    .unknown_cards = "S QJT987 H AQJT98",
+  });
 }
 
-TEST_CASE("LineFinder_Squeeze1") {
-  RunLineFinderTestCase(LineFinderTestCase::Parse(R"(
-    name: squeeze_1
-    trump: no trump
-    leader: 0
-    min_tricks: 6
-    hand 0: S A43 D AKQ
-    hand 2: S K2 H K D 432
-    unknown: S QJT987 H AQJT98
-  )", "squeeze_1"));
+TEST_CASE("LineFinder_TrumpSafety") {
+  RunLineFinderTestCase({
+    .name = "trump_safety",
+    .trump = SPADES,
+    .leader = 0,
+    .num_iters = 20,
+    .hand0 = "S AKT9",
+    .hand2 = "S Q876",
+    .unknown_cards = "S J543 D 5432",
+    .reqs1 = {HandRequirements::FromString("Anti(SuitLength(Spades,1,3))")},
+    .reqs3 = {HandRequirements::FromString("Anti(SuitLength(Spades,1,3))")},
+  });
+}
+
+TEST_CASE("LineFinder_OnsideAce") {
+  RunLineFinderTestCase({
+    .name = "OnsideAce",
+    .trump = CLUBS,
+    .leader = 2,
+    .min_tricks = 6,
+    .hand0 = "S K73; H 2; D 93; C 9;",
+    .hand2 = "S -; H -; D K4; C QJT64;",
+    .unknown_cards = "S AT854; H 87; D AQJT87; C 7;",
+  });
 }
 

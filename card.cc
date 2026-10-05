@@ -32,15 +32,39 @@ std::string SuitDebugString(Suit s) {
 
 /* static */
 Suit Card::ParseSuit(char c) {
-  Suit s;
-  switch(c) {
-    case 'S': s = SPADES; break;
-    case 'H': s = HEARTS; break;
-    case 'D': s = DIAMONDS; break;
-    case 'C': s = CLUBS; break;
-    default: LOG(FATAL) << c;
+  switch (c) {
+    case 'S': case 's': return SPADES;
+    case 'H': case 'h': return HEARTS;
+    case 'D': case 'd': return DIAMONDS;
+    case 'C': case 'c': return CLUBS;
+    case 'N': case 'n': return NOTRUMP;
+    default: LOG(FATAL) << "Unknown suit char: " << c;
   }
-  return s;
+  return SPADES;
+}
+
+/* static */
+Suit Card::ParseSuit(const std::string &s) {
+  size_t start = s.find_first_not_of(" \t\r\n");
+  if (start == std::string::npos) {
+    LOG(FATAL) << "Empty suit string";
+    return NOTRUMP;
+  }
+  size_t end = s.find_last_not_of(" \t\r\n");
+  std::string trimmed = s.substr(start, end - start + 1);
+
+  std::string lower;
+  lower.reserve(trimmed.size());
+  for (char c : trimmed) lower += static_cast<char>(tolower(c));
+
+  if (lower == "spades" || lower == "s") return SPADES;
+  if (lower == "hearts" || lower == "h") return HEARTS;
+  if (lower == "diamonds" || lower == "d") return DIAMONDS;
+  if (lower == "clubs" || lower == "c") return CLUBS;
+  if (lower == "notrump" || lower == "no trump" || lower == "no_trump" || lower == "nt" || lower == "n") return NOTRUMP;
+
+  LOG(FATAL) << "Unknown suit string: " << s;
+  return NOTRUMP;
 }
 
 /* static */
