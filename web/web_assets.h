@@ -319,6 +319,7 @@ inline const char* INDEX_HTML = R"rawhtml(
   <script src="/app.js"></script>
 </body>
 </html>
+
 )rawhtml";
 
 inline const char* STYLES_CSS = R"rawcss(
@@ -1071,6 +1072,7 @@ body {
 .summary-table tr:hover td {
   background-color: rgba(255, 255, 255, 0.02);
 }
+
 )rawcss";
 
 inline const char* APP_JS = R"rawjs(
@@ -1225,9 +1227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Presets Definition
-  const PRESETS = {
+  // Default Presets Definition
+  let PRESETS = {
     finesse: {
+      name: "Simple Finesse (Spades)",
       trump: 'SPADES',
       leader: 'SOUTH',
       target: 2,
@@ -1239,6 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
       unknown_cards: 'S Kxxx'
     },
     endplay: {
+      name: "4-Card Endplay Deal",
       trump: 'HEARTS',
       leader: 'SOUTH',
       target: 3,
@@ -1250,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
       unknown_cards: 'S KJ9543 D 34'
     },
     squeeze: {
+      name: "Squeeze Deal (NT)",
       trump: 'NOTRUMP',
       leader: 'NORTH',
       target: 3,
@@ -1261,6 +1266,41 @@ document.addEventListener('DOMContentLoaded', () => {
       unknown_cards: ''
     }
   };
+
+  async function fetchPresets() {
+    try {
+      const res = await fetch('/api/presets');
+      if (res.ok) {
+        const loaded = await res.json();
+        if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
+          PRESETS = loaded;
+          populatePresetSelect();
+        }
+      }
+    } catch (e) {
+      // Fall back to default embedded PRESETS
+    }
+  }
+
+  function populatePresetSelect() {
+    if (!presetSelect) return;
+    const currentVal = presetSelect.value;
+    presetSelect.innerHTML = '';
+    for (const [key, p] of Object.entries(PRESETS)) {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = p.name || key;
+      presetSelect.appendChild(opt);
+    }
+    if (PRESETS[currentVal]) {
+      presetSelect.value = currentVal;
+    } else if (presetSelect.options.length > 0) {
+      presetSelect.value = presetSelect.options[0].value;
+    }
+    if (presetSelect.value) {
+      loadPreset(presetSelect.value);
+    }
+  }
 
   // Suit Symbols & Formatting
   function getSuitSymbol(suitStr) {
@@ -1996,13 +2036,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Initial UI Render
-  if (presetSelect) {
-    loadPreset(presetSelect.value);
-  } else {
-    updateDealSvg();
-  }
+  // Initial UI Render & Fetch Presets
+  fetchPresets().then(() => {
+    if (presetSelect && presetSelect.value) {
+      loadPreset(presetSelect.value);
+    } else {
+      updateDealSvg();
+    }
+  });
 });
+
 )rawjs";
+
+inline const char* PRESETS_JSON = R"rawjson(
+{
+  "finesse": {
+    "name": "Simple Finesse (Spades)",
+    "trump": "SPADES",
+    "leader": "SOUTH",
+    "target": 2,
+    "iters": 10,
+    "north": "S AQ; H -; D -; C -;",
+    "east": "",
+    "south": "S 87; H -; D -; C -;",
+    "west": "",
+    "unknown_cards": "S Kxxx"
+  },
+  "endplay": {
+    "name": "4-Card Endplay Deal",
+    "trump": "HEARTS",
+    "leader": "SOUTH",
+    "target": 3,
+    "iters": 30,
+    "north": "S AQT; H 2; D -; C -;",
+    "east": "",
+    "south": "S 876; H A; D -; C -;",
+    "west": "",
+    "unknown_cards": "S KJ9543 D 34"
+  },
+  "squeeze": {
+    "name": "Squeeze Deal (NT)",
+    "trump": "NOTRUMP",
+    "leader": "NORTH",
+    "target": 3,
+    "iters": 15,
+    "north": "S AQ; H A; D K; C -;",
+    "east": "S K9; H K; D A; C -;",
+    "south": "S J8; H 2; D 2; C -;",
+    "west": "S T7; H Q; D Q; C -;",
+    "unknown_cards": ""
+  }
+}
+
+)rawjson";
 
 } // namespace web_assets
