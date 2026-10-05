@@ -1,3 +1,4 @@
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 cmake_minimum_required(VERSION 3.20)
 project(bridge CXX C)
 
@@ -22,7 +23,7 @@ set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   glog
-  URL https://github.com/google/glog/archive/refs/tags/v0.6.0.tar.gz
+  URL https://github.com/google/glog/archive/refs/tags/v0.7.1.tar.gz
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 

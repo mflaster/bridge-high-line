@@ -40,9 +40,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: cmake-${{ runner.os }}-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
+          key: cmake-v2-${{ runner.os }}-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
           restore-keys: |
-            cmake-${{ runner.os }}-${{ matrix.compiler }}-
+            cmake-v2-${{ runner.os }}-${{ matrix.compiler }}-
 
       - name: Build and Run Tests
         run: |

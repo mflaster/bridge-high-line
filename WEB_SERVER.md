@@ -51,10 +51,10 @@ The `bridge_server` executable embeds a lightweight HTTP microserver that delive
 ### Using CMake (Linux & macOS)
 
 ```bash
-# 1. Configure build directory
-cmake -S . -B build
+# Configure the build directory (if not already configured)
+cmake -B build
 
-# 2. Build the bridge_server binary
+# Build the bridge_server binary
 cmake --build build --target bridge_server -j4
 ```
 
@@ -72,19 +72,22 @@ make bridge_server
 
 #### Option 1: Visual Studio / MSVC (Developer Command Prompt)
 ```cmd
-cmake -S . -B build -G "Visual Studio 17 2022"
+# Configure using the Visual Studio generator
+cmake -B build -G "Visual Studio 17 2022"
+
+# Build bridge_server in Release mode
 cmake --build build --config Release --target bridge_server -j4
 ```
 
 #### Option 2: MSYS2 / MinGW-w64
 ```bash
-cmake -S . -B build
+cmake -B build
 cmake --build build --target bridge_server -j4
 ```
 
 #### Option 3: WSL2 (Windows Subsystem for Linux)
 ```bash
-cmake -S . -B build && cmake --build build --target bridge_server -j4
+cmake -B build && cmake --build build --target bridge_server -j4
 ```
 
 ---

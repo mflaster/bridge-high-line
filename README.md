@@ -93,6 +93,9 @@ The project includes an embedded web server (`bridge_server`) serving an interac
 ### Quick Start: Building and Running the Web Server
 
 ```bash
+# Configure the build directory (if not already configured)
+cmake -B build
+
 # Build the bridge_server binary
 cmake --build build --target bridge_server -j4
 
