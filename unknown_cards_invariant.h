@@ -25,6 +25,8 @@ struct PairedDeal {
 
 // --- UnknownCardsInvariant Class Hierarchy ---
 
+// Abstract base class representing a structural or distribution invariant that
+// holds across unknown card distributions in a set of paired deals.
 class UnknownCardsInvariant {
  public:
   virtual ~UnknownCardsInvariant() = default;
@@ -42,6 +44,9 @@ class UnknownCardsInvariant {
       const std::string& hand2_label = "hand 2");
 };
 
+// Abstract intermediate base class for conditional invariants where possession of a
+// specific card ("condition_card") in a hand implies a restriction on another suit or
+// card in that same hand.
 class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
  public:
   explicit CrossSuitConditionalInvariant(CardType condition_card)
@@ -58,6 +63,9 @@ class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
   CardType condition_card_ = 0;
 };
 
+// Describes card co-possession rules within the same hand: holding a specific
+// condition card implies holding another target card in the same hand.
+// Example string format: "the hand with the KH also has AC"
 class CrossSuitCardConditionalInvariant : public CrossSuitConditionalInvariant {
  public:
   CrossSuitCardConditionalInvariant(CardType condition_card, CardType target_card)
@@ -76,6 +84,9 @@ class CrossSuitCardConditionalInvariant : public CrossSuitConditionalInvariant {
   CardType target_card_ = 0;
 };
 
+// Describes cross-suit conditional exact length rules: holding a specific
+// condition card implies that hand has an exact card count in a target suit.
+// Example string format: "the hand with the KH length in C is always 3"
 class CrossSuitExactSuitLengthInvariant : public CrossSuitConditionalInvariant {
  public:
   CrossSuitExactSuitLengthInvariant(CardType condition_card,
@@ -100,6 +111,9 @@ class CrossSuitExactSuitLengthInvariant : public CrossSuitConditionalInvariant {
   int length_ = 0;
 };
 
+// Describes cross-suit conditional minimum length rules: holding a specific
+// condition card implies that hand has at least N cards in a target suit.
+// Example string format: "the hand with the KH length in C is at least 3"
 class CrossSuitMinSuitLengthInvariant : public CrossSuitConditionalInvariant {
  public:
   CrossSuitMinSuitLengthInvariant(CardType condition_card,
@@ -124,6 +138,9 @@ class CrossSuitMinSuitLengthInvariant : public CrossSuitConditionalInvariant {
   int min_len_ = 0;
 };
 
+// Describes cross-suit conditional maximum length rules: holding a specific
+// condition card implies that hand has at most N cards in a target suit.
+// Example string format: "the hand with the KH length in C is at most 3"
 class CrossSuitMaxSuitLengthInvariant : public CrossSuitConditionalInvariant {
  public:
   CrossSuitMaxSuitLengthInvariant(CardType condition_card,
@@ -154,6 +171,11 @@ enum class HonorPossessionTargetHand {
   kBoth
 };
 
+// Describes honor card possession invariants across paired hands: a specific hand
+// or both hands always contain a designated honor card (A, K, Q, J, 10).
+// Example string formats:
+//   "hand 1 always contains the AS"
+//   "both hands always contain the AS"
 class HonorPossessionInvariant : public UnknownCardsInvariant {
  public:
   HonorPossessionInvariant(HonorPossessionTargetHand target_hand,
@@ -185,6 +207,8 @@ class HonorPossessionInvariant : public UnknownCardsInvariant {
   std::string label_;
 };
 
+// Describes suit length upper bounds invariant across either hand in a paired deal.
+// Example string format: "maximum length in S in any hand is 4"
 class MaxSuitLengthInvariant : public UnknownCardsInvariant {
  public:
   MaxSuitLengthInvariant(Suit suit, int max_len)
@@ -215,6 +239,8 @@ enum class InvariantHandChoice {
   kHand2
 };
 
+// Describes exact suit length invariant for a specific hand in a paired deal.
+// Example string format: "hand 1 length in S is always 3"
 class ExactSuitLengthInvariant : public UnknownCardsInvariant {
  public:
   ExactSuitLengthInvariant(InvariantHandChoice hand_choice,
@@ -250,6 +276,8 @@ class ExactSuitLengthInvariant : public UnknownCardsInvariant {
   std::string label_;
 };
 
+// Describes suit length range invariant (min..max) for a specific hand in a paired deal.
+// Example string format: "hand 1 length in S is between 2 and 4"
 class SuitLengthRangeInvariant : public UnknownCardsInvariant {
  public:
   SuitLengthRangeInvariant(InvariantHandChoice hand_choice,
