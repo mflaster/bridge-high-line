@@ -674,4 +674,15 @@ TEST_CASE("LineFinder_TrumpSafety") {
   });
 }
 
+TEST_CASE("LineFinder_OnsideAce") {
+  RunLineFinderTestCase({
+    .name = "OnsideAce",
+    .trump = CLUBS,
+    .leader = 2,
+    .min_tricks = 6,
+    .hand0 = "S K73; H 2; D 93; C 9;",
+    .hand2 = "S -; H -; D K4; C QJT64;",
+    .unknown_cards = "S AT854; H 87; D AQJT87; C 7;",
+  });
+}
 

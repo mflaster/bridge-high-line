@@ -1,0 +1,40 @@
+# Setup: OnsideAce: C contract, Hand 2 on lead
+# Hand 0: S K73; H 2; D 93; C 9;
+# Hand 1: 
+# Hand 2: S -; H -; D K4; C QJT64;
+# Hand 3: 
+# Unknown cards: S AT854; H 87; D AQJT87; C 7;
+# Trump: C
+Covers 6/20 (30.0%) [3, 4, 9, 15, 18, 19]
+Cross-Hand Deal Set Summary Report
+Total Deals: 6
+Invariant Rules for 7 card ending:
+  - hand 1 length in S is between 1 and 4
+  - hand 3 length in S is between 1 and 4
+  - maximum length in S in any hand is 4
+  - hand 1 length in H is between 0 and 1
+  - hand 3 length in H is between 1 and 2
+  - maximum length in H in any hand is 2
+  - hand 1 length in D is between 3 and 4
+  - hand 3 length in D is between 2 and 3
+  - maximum length in D in any hand is 4
+  - hand 1 length in C is between 0 and 1
+  - hand 3 length in C is between 0 and 1
+  - maximum length in C in any hand is 1
+  - hand 1 always contains the DA
+  - hand 3 always contains the DQ
+
+  after C6 (__) C9 (__): C6 (__) C9 (__) [3,4,9,15,18,19] / C6 C7 C9 S5  / C6 S5 C9 C7  / C6 D8 C9 C7  / C6 C7 C9 D8  / C6 C7 C9 D8 
+    when 0 wins: 
+      after D9 (D_) DK (D_): D9 (D_) DK (D_) [3,4,9,15,18,19] / D9 D7 DK D8  / D9 D8 DK D7  / D9 D7 DK DQ  / D9 DT DK D7  / D9 D7 DK DT 
+        when 2 wins: 
+          after CQ (__) SK (__): CQ (__) SK (__) [3,4,9,15,18,19] / CQ H8 SK DT  / CQ H7 SK DJ  / CQ H8 SK DT  / CQ DQ SK H8  / CQ H7 SK DJ 
+            when 2 wins: 
+              after CJ (__) S7 (__): CJ (__) S7 (__) [3,4,9,15,18,19] / CJ DQ S7 S4  / CJ SA S7 DT  / CJ S4 S7 H7  / CJ H7 S7 S5  / CJ SA S7 S5 
+                when 2 wins: 
+                  after CT (__) S3 (S_): CT (__) S3 (S_) [3,4,9,15,18,19] / CT H7 S3 S8  / CT ST S3 S4  / CT ST S3 S5  / CT S4 S3 S8  / CT ST S3 S4 
+                    when 2 wins: 
+                      after C4 (S_) H2 (__): C4 (S_) H2 (__) [3,4,9,15,18,19] / C4 ST H2 SA  / C4 S8 H2 H8  / C4 S8 H2 SA  / C4 ST H2 SA  / C4 S8 H2 H8 
+                        when 2 wins: 
+                          after D4 (DX) D3 (DA): D4 (DX) D3 (DA) [3,4,9,15,18,19] / D4 DJ D3 DA  / D4 DQ D3 DA  / D4 DJ D3 DA  / D4 DJ D3 DA  / D4 DQ D3 DA 
+                            when 1 wins: HAND SUCCEEDED FOR: 3, 4, 9, 15, 18, 19
