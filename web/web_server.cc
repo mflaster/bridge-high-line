@@ -43,87 +43,103 @@ std::string ExtractFirstCard(const std::string &seq) {
   return "";
 }
 
-nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id, int depth = 0, int root_total = 1) {
+struct DecisionTreeNode {
+  std::string id;
+  std::string type;  // "action", "condition", "outcome"
+  std::string label;
+  std::string description;
+  std::string trick;
+  std::string trick_full;
+  bool collapsed = false;
+  int success_boards = 0;
+  int failure_boards = 0;
+  int total_boards = 0;
+  int covered_boards = 0;
+  std::vector<int> boards;
+  std::vector<std::shared_ptr<DecisionTreeNode>> children;
+
+  std::map<std::string, std::shared_ptr<DecisionTreeNode>> child_map;
+};
+
+std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
+    const ConditionalLine &line, int &node_id, int depth = 0, int root_total = 1) {
   int total = line.total_boards() > 0 ? line.total_boards() : root_total;
   if (depth > 20) {
-    nlohmann::json leaf;
-    leaf["id"] = "node_" + std::to_string(++node_id);
-    leaf["type"] = "outcome";
-    leaf["label"] = "Max depth reached";
-    leaf["success_boards"] = 0;
-    leaf["failure_boards"] = total;
-    leaf["total_boards"] = total;
-    leaf["covered_boards"] = 0;
-    leaf["children"] = nlohmann::json::array();
+    auto leaf = std::make_shared<DecisionTreeNode>();
+    leaf->id = "node_" + std::to_string(++node_id);
+    leaf->type = "outcome";
+    leaf->label = "Max depth reached";
+    leaf->success_boards = 0;
+    leaf->failure_boards = total;
+    leaf->total_boards = total;
+    leaf->covered_boards = 0;
     return leaf;
   }
-  nlohmann::json node;
-  node["id"] = "node_" + std::to_string(++node_id);
-  node["collapsed"] = (depth >= 1);
+
+  auto node = std::make_shared<DecisionTreeNode>();
+  node->id = "node_" + std::to_string(++node_id);
+  node->collapsed = (depth >= 1);
 
   const auto &final_boards = line.final_covered_boards();
   if (!final_boards.empty()) {
     int success_cnt = final_boards.size();
     int failure_cnt = std::max(0, total - success_cnt);
     int pct = total > 0 ? (100 * success_cnt) / total : 0;
-    node["type"] = "outcome";
-    node["label"] = "Hand Succeeded (" + std::to_string(success_cnt) + "/" + std::to_string(total) + " boards, " + std::to_string(pct) + "%)";
-    node["success_boards"] = success_cnt;
-    node["failure_boards"] = failure_cnt;
-    node["total_boards"] = total;
-    node["covered_boards"] = success_cnt;
-    node["boards"] = std::vector<int>(final_boards.begin(), final_boards.end());
-    node["children"] = nlohmann::json::array();
+    node->type = "outcome";
+    node->label = "Hand Succeeded (" + std::to_string(success_cnt) + "/" +
+                  std::to_string(total) + " boards, " + std::to_string(pct) + "%)";
+    node->success_boards = success_cnt;
+    node->failure_boards = failure_cnt;
+    node->total_boards = total;
+    node->covered_boards = success_cnt;
+    node->boards = std::vector<int>(final_boards.begin(), final_boards.end());
     return node;
   }
 
-  node["type"] = "action";
+  node->type = "action";
   std::set<int> boards_set = line.CoveredBoardsSet();
   int success_cnt = boards_set.size();
   int failure_cnt = std::max(0, total - success_cnt);
   int pct = total > 0 ? (100 * success_cnt) / total : 0;
 
-  node["success_boards"] = success_cnt;
-  node["failure_boards"] = failure_cnt;
-  node["total_boards"] = total;
-  node["covered_boards"] = success_cnt;
-  node["boards"] = std::vector<int>(boards_set.begin(), boards_set.end());
+  node->success_boards = success_cnt;
+  node->failure_boards = failure_cnt;
+  node->total_boards = total;
+  node->covered_boards = success_cnt;
+  node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
 
   const auto &gt = line.do_first();
   if (!gt.Empty() && !gt.demi1.opp_card.empty() && !gt.demi2.opp_card.empty()) {
-    node["trick"] = gt.ToString(true);
-    node["trick_full"] = gt.ToString(false);
-    node["label"] = gt.ToString(true);
+    node->trick = gt.ToString(true);
+    node->trick_full = gt.ToString(false);
+    node->label = gt.ToString(true);
   } else {
-    node["label"] = "Success: " + std::to_string(success_cnt) + "/" + std::to_string(total) + " (" + std::to_string(pct) + "%)";
+    node->label = "Success: " + std::to_string(success_cnt) + "/" +
+                  std::to_string(total) + " (" + std::to_string(pct) + "%)";
   }
 
-  nlohmann::json children = nlohmann::json::array();
   const auto &conds = line.conditions();
   for (size_t i = 0; i < conds.size(); ++i) {
     const auto &[cond_ptr, child_line_ptr] = conds[i];
-    nlohmann::json cond_node;
-    cond_node["id"] = "node_" + std::to_string(++node_id);
-    cond_node["type"] = "condition";
+    auto cond_node = std::make_shared<DecisionTreeNode>();
+    cond_node->id = "node_" + std::to_string(++node_id);
+    cond_node->type = "condition";
     std::string cond_desc = cond_ptr ? cond_ptr->Describe(conds.size() == 1) : "";
-    cond_node["label"] = cond_desc;
-    cond_node["description"] = cond_desc;
-    cond_node["collapsed"] = true;
+    cond_node->label = cond_desc;
+    cond_node->description = cond_desc;
+    cond_node->collapsed = true;
 
     if (child_line_ptr) {
-      nlohmann::json child_json = ConditionalLineToJSON(*child_line_ptr, node_id, depth + 1, total);
-      cond_node["success_boards"] = child_json["success_boards"];
-      cond_node["failure_boards"] = child_json["failure_boards"];
-      cond_node["total_boards"] = child_json["total_boards"];
-      cond_node["covered_boards"] = child_json["covered_boards"];
-      cond_node["boards"] = child_json["boards"];
-      cond_node["children"] = nlohmann::json::array({child_json});
-    } else {
-      cond_node["children"] = nlohmann::json::array();
+      auto child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id, depth + 1, total);
+      cond_node->success_boards = child_node->success_boards;
+      cond_node->failure_boards = child_node->failure_boards;
+      cond_node->total_boards = child_node->total_boards;
+      cond_node->covered_boards = child_node->covered_boards;
+      cond_node->boards = child_node->boards;
+      cond_node->children.push_back(child_node);
     }
-    children.push_back(cond_node);
+    node->children.push_back(cond_node);
   }
-  node["children"] = children;
 
   return node;
 }
@@ -179,51 +195,18 @@ std::vector<std::string> SplitTricks(const std::string &line_str) {
   return tricks;
 }
 
-struct LineTreeNode {
-  std::string label;
-  std::string trick_first_card;
-  std::map<std::string, std::shared_ptr<LineTreeNode>> children;
-  bool is_outcome = false;
-  int tricks_won = 0;
-};
-
-nlohmann::json LineTreeNodeToJSON(const std::shared_ptr<LineTreeNode> &node, int depth, int &node_id) {
-  nlohmann::json json_node;
-  json_node["id"] = "node_" + std::to_string(++node_id);
-  if (node->is_outcome) {
-    json_node["type"] = "outcome";
-    json_node["label"] = node->label;
-    json_node["success_boards"] = 1;
-    json_node["failure_boards"] = 0;
-    json_node["total_boards"] = 1;
-    json_node["covered_boards"] = 1;
-    json_node["collapsed"] = true;
-    json_node["children"] = nlohmann::json::array();
-    return json_node;
-  }
-
-  json_node["type"] = "action";
-  json_node["label"] = node->label;
-  if (!node->trick_first_card.empty()) {
-    json_node["trick"] = node->trick_first_card;
-  }
-  json_node["success_boards"] = 1;
-  json_node["failure_boards"] = 0;
-  json_node["total_boards"] = 1;
-  json_node["covered_boards"] = 1;
-  json_node["collapsed"] = (depth >= 1);
-
-  nlohmann::json children = nlohmann::json::array();
-  for (const auto &[key, child_ptr] : node->children) {
-    children.push_back(LineTreeNodeToJSON(child_ptr, depth + 1, node_id));
-  }
-  json_node["children"] = children;
-  return json_node;
-}
-
-nlohmann::json BuildTreeFromOptimalLines(const OptimalLines &lines, int tricks_won, int &node_id) {
-  auto root_node = std::make_shared<LineTreeNode>();
-  root_node->label = "Optimal Lines (" + std::to_string(lines.size()) + " variant" + (lines.size() == 1 ? "" : "s") + ")";
+std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
+    const OptimalLines &lines, int tricks_won, int &node_id) {
+  auto root_node = std::make_shared<DecisionTreeNode>();
+  root_node->id = "node_" + std::to_string(++node_id);
+  root_node->type = "action";
+  root_node->label = "Optimal Lines (" + std::to_string(lines.size()) +
+                     " variant" + (lines.size() == 1 ? "" : "s") + ")";
+  root_node->collapsed = false;
+  root_node->success_boards = 1;
+  root_node->failure_boards = 0;
+  root_node->total_boards = 1;
+  root_node->covered_boards = 1;
 
   for (const auto &line_str : lines) {
     std::vector<std::string> tricks = SplitTricks(line_str);
@@ -232,26 +215,75 @@ nlohmann::json BuildTreeFromOptimalLines(const OptimalLines &lines, int tricks_w
     auto current = root_node;
     for (size_t i = 0; i < tricks.size(); ++i) {
       std::string trick_label = "Trick " + std::to_string(i + 1) + ": " + tricks[i];
-      if (current->children.find(trick_label) == current->children.end()) {
-        auto child = std::make_shared<LineTreeNode>();
+      auto it = current->child_map.find(trick_label);
+      if (it == current->child_map.end()) {
+        auto child = std::make_shared<DecisionTreeNode>();
+        child->id = "node_" + std::to_string(++node_id);
+        child->type = "action";
         child->label = trick_label;
-        child->trick_first_card = ExtractFirstCard(tricks[i]);
-        current->children[trick_label] = child;
+        child->trick = ExtractFirstCard(tricks[i]);
+        child->collapsed = true;
+        child->success_boards = 1;
+        child->failure_boards = 0;
+        child->total_boards = 1;
+        child->covered_boards = 1;
+        current->child_map[trick_label] = child;
+        current->children.push_back(child);
+        current = child;
+      } else {
+        current = it->second;
       }
-      current = current->children[trick_label];
     }
 
     std::string outcome_label = "Contract Result: " + std::to_string(tricks_won) + " tricks won";
-    if (current->children.find(outcome_label) == current->children.end()) {
-      auto outcome = std::make_shared<LineTreeNode>();
+    if (current->child_map.find(outcome_label) == current->child_map.end()) {
+      auto outcome = std::make_shared<DecisionTreeNode>();
+      outcome->id = "node_" + std::to_string(++node_id);
+      outcome->type = "outcome";
       outcome->label = outcome_label;
-      outcome->is_outcome = true;
-      outcome->tricks_won = tricks_won;
-      current->children[outcome_label] = outcome;
+      outcome->collapsed = true;
+      outcome->success_boards = 1;
+      outcome->failure_boards = 0;
+      outcome->total_boards = 1;
+      outcome->covered_boards = 1;
+      current->child_map[outcome_label] = outcome;
+      current->children.push_back(outcome);
     }
   }
 
-  return LineTreeNodeToJSON(root_node, 0, node_id);
+  return root_node;
+}
+
+nlohmann::json DecisionTreeNodeToJSON(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return nlohmann::json::object();
+  nlohmann::json json_node;
+  json_node["id"] = node->id;
+  json_node["type"] = node->type;
+  json_node["label"] = node->label;
+  if (!node->description.empty()) {
+    json_node["description"] = node->description;
+  }
+  if (!node->trick.empty()) {
+    json_node["trick"] = node->trick;
+  }
+  if (!node->trick_full.empty()) {
+    json_node["trick_full"] = node->trick_full;
+  }
+  json_node["collapsed"] = node->collapsed;
+  json_node["success_boards"] = node->success_boards;
+  json_node["failure_boards"] = node->failure_boards;
+  json_node["total_boards"] = node->total_boards;
+  json_node["covered_boards"] = node->covered_boards;
+  if (!node->boards.empty() || node->type == "action" || node->type == "condition") {
+    json_node["boards"] = node->boards;
+  }
+
+  nlohmann::json children = nlohmann::json::array();
+  for (const auto &child : node->children) {
+    children.push_back(DecisionTreeNodeToJSON(child));
+  }
+  json_node["children"] = children;
+  return json_node;
 }
 
 uint64_t ParseUnknownCards(const std::string &unknown_str,
@@ -609,7 +641,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit, {});
 
       if (!lines.empty()) {
-        tree_json = ConditionalLineToJSON(lines[0], node_counter);
+        auto tree_node = BuildTreeFromConditionalLine(lines[0], node_counter);
+        tree_json = DecisionTreeNodeToJSON(tree_node);
         success_boards = lines[0].CoveredBoards();
         failure_boards = std::max(0, total_boards - success_boards);
         covered_boards = success_boards;
@@ -627,7 +660,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         success_boards = 0;
         failure_boards = total_boards;
         covered_boards = 0;
-        tree_json = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
+        auto tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
+        tree_json = DecisionTreeNodeToJSON(tree_node);
       }
     } else {
       BoardState bs;
@@ -638,7 +672,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
       tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
       best_lead = ExtractFirstCard(best_seq);
-      tree_json = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
+      auto tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
+      tree_json = DecisionTreeNodeToJSON(tree_node);
       total_boards = 1;
       success_boards = 1;
       failure_boards = 0;
