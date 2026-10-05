@@ -105,11 +105,11 @@ inline const char* INDEX_HTML = R"rawhtml(
                   <div class="middle-control-row">
                     <div class="middle-control-group">
                       <label for="targetTricks">Tricks:</label>
-                      <input type="number" id="targetTricks" min="1" max="13" value="2" class="middle-number-input">
+                      <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
                     </div>
                     <div class="middle-control-group">
                       <label for="numIters">Iters:</label>
-                      <input type="number" id="numIters" min="1" max="500" value="10" class="middle-number-input">
+                      <input type="text" inputmode="numeric" id="numIters" value="10" class="middle-number-input">
                     </div>
                   </div>
                 </div>
@@ -1079,7 +1079,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const trumpSelect = document.getElementById('trumpSelect');
   const leaderSelect = document.getElementById('leaderSelect');
   const targetTricks = document.getElementById('targetTricks');
-  const targetTricksVal = document.getElementById('targetTricksVal');
   const numIters = document.getElementById('numIters');
   const presetSelect = document.getElementById('presetSelect');
   const solveBtn = document.getElementById('solveBtn');
@@ -1431,7 +1430,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const svgTrumpText = document.getElementById('svgTrumpText');
     const svgLeaderText = document.getElementById('svgLeaderText');
-    const targetTricksVal = document.getElementById('targetTricksVal');
 
     if (svgTrumpText && trumpSelect) {
       const trumpVal = trumpSelect.value;
@@ -1441,9 +1439,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (svgLeaderText && leaderSelect) {
       svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
-    }
-    if (targetTricksVal && targetTricks) {
-      targetTricksVal.textContent = targetTricks.value;
     }
 
     updateDealBadge();
@@ -1596,8 +1591,8 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       trump: trumpSelect.value,
       leader: leaderSelect.value,
-      min_tricks: parseInt(targetTricks.value, 10),
-      num_iters: parseInt(numIters.value, 10)
+      min_tricks: isNaN(parseInt(targetTricks.value, 10)) ? 1 : parseInt(targetTricks.value, 10),
+      num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10)
     };
 
     if (inputUnknownCards && inputUnknownCards.value.trim()) {
