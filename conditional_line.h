@@ -136,6 +136,10 @@ class ConditionalLine {  // ConditionalLineBranch
   const CrossHandSummaryReport &summary() const { return summary_; }
   bool has_summary() const { return summary_.total_deals > 0; }
 
+  void set_failure_summary(const CrossHandSummaryReport &summary) { failure_summary_ = summary; }
+  const CrossHandSummaryReport &failure_summary() const { return failure_summary_; }
+  bool has_failure_summary() const { return failure_summary_.total_deals > 0; }
+
   int CoveredFinalBoards() const;
   std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
 
@@ -159,6 +163,7 @@ class ConditionalLine {  // ConditionalLineBranch
   std::set<int> final_covered_boards_;
   int total_boards_ = 0;
   CrossHandSummaryReport summary_;
+  CrossHandSummaryReport failure_summary_;
 };
 
 class WinnerPlayCondition : public PlayCondition {
