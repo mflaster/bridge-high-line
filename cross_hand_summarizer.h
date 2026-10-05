@@ -85,15 +85,10 @@ class CrossSuitConditionalRuleExtractor {
   std::vector<std::string> ExtractRules() const;
 
  private:
-  struct HandSuitLengths {
-    int hand1_len[4] = {0};
-    int hand2_len[4] = {0};
-  };
-
   std::string hand1_label_;
   std::string hand2_label_;
   int total_deals_ = 0;
-  std::vector<HandSuitLengths> deal_lengths_;
+  std::vector<PairedDeal> deals_;
 };
 
 struct CrossHandSummaryReport {

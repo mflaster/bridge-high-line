@@ -131,55 +131,49 @@ TEST_CASE("EmptyDealSet", "[cross_hand_summarizer]") {
   REQUIRE(report.invariant_rules.empty());
 }
 
-TEST_CASE("CrossSuitConditionalRuleExtractor_ExtractsDeterministicRules", "[cross_hand_summarizer]") {
-  // Overall unknown pool: S 5432, H 5432, D 2, C 2
-  // Deal 1: Hand 1 has S 32 (2), H 543 (3); Hand 2 has S 54 (2), H 2 (1), D 2 (1), C 2 (1)
-  // Deal 2: Hand 1 has S 432 (3), H 54 (2); Hand 2 has S 5 (1), H 32 (2), D 2 (1), C 2 (1)
+TEST_CASE("CrossSuitConditionalRuleExtractor_ExtractsHandWithXAlsoHasYRules", "[cross_hand_summarizer]") {
+  // Deal 1: Hand 1 = S AK4 H Q43 (3 S, 3 H); Hand 2 = S J3 H JT2 (2 S, 3 H)
+  // Deal 2: Hand 1 = S A4 H Q4 (2 S, 2 H); Hand 2 = S KJ3 H JT32 (3 S, 4 H)
   std::vector<PairedDeal> deals = {
-      PairedDeal("S 32 H 543", "S 54 H 2 D 2 C 2"),
-      PairedDeal("S 432 H 54", "S 5 H 32 D 2 C 2")
+      PairedDeal("S AK4 H Q43", "S J3 H JT2"),
+      PairedDeal("S A4 H Q4", "S KJ3 H JT32")
   };
 
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 
   REQUIRE(report.total_deals == 2);
-  REQUIRE(report.HasRule("when hand 1 has 2 S, it also has 3 H"));
-  REQUIRE(report.HasRule("when hand 1 has 3 S, it also has 2 H"));
-  REQUIRE(report.HasRule("when hand 2 has 2 S, it also has 1 H"));
-  REQUIRE(report.HasRule("when hand 2 has 1 S, it also has 2 H"));
+  REQUIRE(report.HasRule("the hand with the SK also has exactly 3 S"));
 }
 
-TEST_CASE("CrossSuitConditionalRuleExtractor_SuppressesRedundantUnconditionalRules", "[cross_hand_summarizer]") {
-  // Hand 1 always has 2 Spades (S 32) across all deals
-  // Hearts varies in Hand 1 (H 54 vs H 53)
-  // Diamonds varies in Hand 1 (D 2 vs D 3)
+TEST_CASE("CrossSuitConditionalRuleExtractor_CoPossessionOfCards", "[cross_hand_summarizer]") {
+  // S A and S T are always in the same hand across all deals
   std::vector<PairedDeal> deals = {
-      PairedDeal("S 32 H 54 D 2", "S 54 H 32 D 3"),
-      PairedDeal("S 32 H 53 D 3", "S 54 H 42 D 2")
+      PairedDeal("S AT H 5", "S K43 H 2"),
+      PairedDeal("S K43 H 2", "S AT H 5")
   };
 
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 
   REQUIRE(report.total_deals == 2);
-  // Unconditional suit bound should be present
-  REQUIRE(report.HasRule("hand 1 length in S is always 2"));
-
-  // Redundant conditional rules involving Spades for hand 1 should be suppressed
-  REQUIRE_FALSE(report.HasRule("when hand 1 has 2 S, it also has 2 H"));
-  REQUIRE_FALSE(report.HasRule("when hand 1 has 2 S, it also has 1 D"));
+  REQUIRE(report.HasRule("the hand with the SA also has the ST"));
+  REQUIRE(report.HasRule("the hand with the ST also has the SA"));
 }
 
-TEST_CASE("CrossSuitConditionalRuleExtractor_CustomLabels", "[cross_hand_summarizer]") {
+TEST_CASE("CrossSuitConditionalRuleExtractor_SuppressesTautologiesAndFixedCards", "[cross_hand_summarizer]") {
+  // S A is statically fixed in Hand 1 across all deals -> no "the hand with the SA" rule
+  // Card CJ is not in unknown cards -> no "the hand with the CJ" rule
   std::vector<PairedDeal> deals = {
-      PairedDeal("S 32 H 543", "S 54 H 2 D 2 C 2"),
-      PairedDeal("S 432 H 54", "S 5 H 32 D 2 C 2")
+      PairedDeal("S A4 H 54", "S T3 H 32"),
+      PairedDeal("S A3 H 53", "S T4 H 42")
   };
 
   CrossHandDealSetSummarizer summarizer;
-  CrossHandSummaryReport report = summarizer.Summarize(deals, "declarer", "defender");
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
 
-  REQUIRE(report.HasRule("when declarer has 2 S, it also has 3 H"));
-  REQUIRE(report.HasRule("when defender has 2 S, it also has 1 H"));
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("hand 1 always contains the SA"));
+  REQUIRE_FALSE(report.HasRule("the hand with the SA"));
+  REQUIRE_FALSE(report.HasRule("the hand with the CJ"));
 }

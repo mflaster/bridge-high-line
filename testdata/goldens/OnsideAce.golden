@@ -21,24 +21,11 @@ Invariant Rules for 7 card ending:
   - hand 1 length in C is between 0 and 1
   - hand 3 length in C is between 0 and 1
   - maximum length in C in any hand is 1
-  - when hand 1 has 1 S, it also has 1 H
-  - when hand 1 has 3 S, it also has 1 H
-  - when hand 1 has 4 S, it also has 0 H
-  - when hand 1 has 1 S, it also has 4 D
-  - when hand 1 has 3 S, it also has 3 D
-  - when hand 1 has 4 S, it also has 3 D
-  - when hand 1 has 1 S, it also has 1 C
-  - when hand 1 has 3 S, it also has 0 C
-  - when hand 1 has 4 S, it also has 0 C
-  - when hand 3 has 1 S, it also has 2 H
-  - when hand 3 has 2 S, it also has 1 H
-  - when hand 3 has 4 S, it also has 1 H
-  - when hand 3 has 1 S, it also has 3 D
-  - when hand 3 has 2 S, it also has 3 D
-  - when hand 3 has 4 S, it also has 2 D
-  - when hand 3 has 1 S, it also has 1 C
-  - when hand 3 has 2 S, it also has 1 C
-  - when hand 3 has 4 S, it also has 0 C
+  - the hand with the SA also has at least 2 S
+  - the hand with the SA also has at most 1 H
+  - the hand with the DT also has at most 1 H
+  - the hand with the DJ also has at most 3 S
+  - the hand with the DJ also has at least 3 D
   - hand 1 always contains the DA
   - hand 3 always contains the DQ
 

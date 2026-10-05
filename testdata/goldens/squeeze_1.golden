@@ -15,14 +15,11 @@ Invariant Rules for 6 card ending:
   - hand 1 length in H is between 2 and 4
   - hand 3 length in H is between 2 and 4
   - maximum length in H in any hand is 4
-  - when hand 1 has 2 S, it also has 4 H
-  - when hand 1 has 4 S, it also has 2 H
-  - when hand 1 has 2 H, it also has 4 S
-  - when hand 1 has 4 H, it also has 2 S
-  - when hand 3 has 2 S, it also has 4 H
-  - when hand 3 has 4 S, it also has 2 H
-  - when hand 3 has 2 H, it also has 4 S
-  - when hand 3 has 4 H, it also has 2 S
+  - the hand with the HT also has exactly 4 H
+  - the hand with the HT also has the HQ
+  - the hand with the HQ also has exactly 4 H
+  - the hand with the HQ also has the HT
+  - the hand with the HA also has exactly 4 S
 
   after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19] / DA H8 D4 S7  / DA H8 D4 S8  / DA HT D4 SJ  / DA S9 D4 HT 
     when 0 wins: 

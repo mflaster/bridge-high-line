@@ -149,72 +149,128 @@ std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {
 
 void CrossSuitConditionalRuleExtractor::ProcessDeal(const PairedDeal& deal) {
   total_deals_++;
-  HandSuitLengths lengths;
-  for (int s = 0; s < 4; ++s) {
-    Suit suit = static_cast<Suit>(s);
-    lengths.hand1_len[s] = CardsInSuit(deal.hand1, suit);
-    lengths.hand2_len[s] = CardsInSuit(deal.hand2, suit);
-  }
-  deal_lengths_.push_back(lengths);
+  deals_.push_back(deal);
 }
 
 std::vector<std::string> CrossSuitConditionalRuleExtractor::ExtractRules() const {
   std::vector<std::string> rules;
-  if (total_deals_ == 0) return rules;
+  if (total_deals_ == 0 || deals_.empty()) return rules;
 
-  struct HandConfig {
-    const std::string& label;
-    int hand_index;
-  } hands[2] = {
-      {hand1_label_, 1},
-      {hand2_label_, 2}
-  };
+  uint64_t unknown_cards = deals_[0].hand1 | deals_[0].hand2;
+  int cards_per_hand = PopCount64(deals_[0].hand1);
 
-  for (const auto& h : hands) {
-    int min_len[4] = {999, 999, 999, 999};
-    int max_len[4] = {-1, -1, -1, -1};
+  // Collect all honor cards (ranks 10, J, Q, K, A) present in unknown_cards
+  std::vector<CardType> unknown_card_list;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    for (int r = 8; r <= 12; ++r) {
+      CardType card_bit = Card::GetSuitedCard(suit, r);
+      if ((unknown_cards & card_bit) != 0) {
+        unknown_card_list.push_back(card_bit);
+      }
+    }
+  }
 
-    for (const auto& dl : deal_lengths_) {
-      const int* suit_lens = (h.hand_index == 1) ? dl.hand1_len : dl.hand2_len;
-      for (int s = 0; s < 4; ++s) {
-        min_len[s] = std::min(min_len[s], suit_lens[s]);
-        max_len[s] = std::max(max_len[s], suit_lens[s]);
+  std::set<std::string> emitted_rules;
+
+  for (CardType card : unknown_card_list) {
+    // Condition 1: For every DealPair, card must be true for exactly one of the 2 hands.
+    // Since card is in unknown_cards and hand1/hand2 partition unknown_cards in every deal,
+    // card is held by hand1 XOR hand2 for every DealPair.
+    int hand1_deals = 0;
+    int hand2_deals = 0;
+    for (const auto& deal : deals_) {
+      if ((deal.hand1 & card) != 0) {
+        hand1_deals++;
+      } else {
+        hand2_deals++;
       }
     }
 
-    // Evaluate all 12 ordered suit pairs (A, B) with A != B
-    for (int s1 = 0; s1 < 4; ++s1) {
-      if (min_len[s1] == max_len[s1]) {
-        // Suit A has fixed length across all deals in this hand -> suppress
-        continue;
+    // Skip cards that do not move between hands across deals (i.e. statically fixed in one hand)
+    // as those are already covered by unconditional rules.
+    if (hand1_deals == 0 || hand2_deals == 0) {
+      continue;
+    }
+
+    std::string x_str = "the " + Card::PrintCard(card);
+
+    // Evaluate suit length bounds for the hand holding card
+    for (int s = 0; s < 4; ++s) {
+      Suit suit = static_cast<Suit>(s);
+      std::string suit_str = SuitDebugString(suit);
+
+      int min_len_X = 999;
+      int max_len_X = -1;
+      int min_len_notX = 999;
+      int max_len_notX = -1;
+
+      for (const auto& deal : deals_) {
+        bool in_hand1 = (deal.hand1 & card) != 0;
+        uint64_t handX = in_hand1 ? deal.hand1 : deal.hand2;
+        uint64_t handNotX = in_hand1 ? deal.hand2 : deal.hand1;
+
+        int lenX = CardsInSuit(handX, suit);
+        int lenNotX = CardsInSuit(handNotX, suit);
+
+        min_len_X = std::min(min_len_X, lenX);
+        max_len_X = std::max(max_len_X, lenX);
+        min_len_notX = std::min(min_len_notX, lenNotX);
+        max_len_notX = std::max(max_len_notX, lenNotX);
       }
-      Suit suitA = static_cast<Suit>(s1);
 
-      for (int s2 = 0; s2 < 4; ++s2) {
-        if (s1 == s2) continue;
-        if (min_len[s2] == max_len[s2]) {
-          // Suit B has fixed length across all deals in this hand -> suppress
-          continue;
-        }
-        Suit suitB = static_cast<Suit>(s2);
-
-        // Map from suit A length (k1) -> set of observed suit B lengths (k2)
-        std::map<int, std::set<int>> k1_to_k2;
-        for (const auto& dl : deal_lengths_) {
-          const int* suit_lens = (h.hand_index == 1) ? dl.hand1_len : dl.hand2_len;
-          int k1 = suit_lens[s1];
-          int k2 = suit_lens[s2];
-          k1_to_k2[k1].insert(k2);
-        }
-
-        // For each observed k1, if k2 is unique, emit a conditional rule
-        for (const auto& [k1, k2_set] : k1_to_k2) {
-          if (k2_set.size() == 1) {
-            int k2 = *k2_set.begin();
-            rules.push_back("when " + h.label + " has " + std::to_string(k1) + " " +
-                            SuitDebugString(suitA) + ", it also has " + std::to_string(k2) + " " +
-                            SuitDebugString(suitB));
+      // Check Minimum Suit Length
+      if (min_len_X > 0) {
+        // Condition 2: Y ("at least min_len_X suit") shouldn't be true for the not-X hand.
+        // It is not true for not-X hand if min_len_notX < min_len_X.
+        if (min_len_notX < min_len_X) {
+          std::string y_str;
+          if (min_len_X == max_len_X) {
+            y_str = "exactly " + std::to_string(min_len_X) + " " + suit_str;
+          } else {
+            y_str = "at least " + std::to_string(min_len_X) + " " + suit_str;
           }
+          std::string rule = "the hand with " + x_str + " also has " + y_str;
+          if (emitted_rules.insert(rule).second) {
+            rules.push_back(rule);
+          }
+        }
+      }
+
+      // Check Maximum Suit Length
+      if (min_len_X < max_len_X && max_len_X < cards_per_hand) {
+        // Condition 2: Y ("at most max_len_X suit") shouldn't be true for the not-X hand.
+        // It is not true for not-X hand if max_len_notX > max_len_X.
+        if (max_len_notX > max_len_X) {
+          std::string y_str = "at most " + std::to_string(max_len_X) + " " + suit_str;
+          std::string rule = "the hand with " + x_str + " also has " + y_str;
+          if (emitted_rules.insert(rule).second) {
+            rules.push_back(rule);
+          }
+        }
+      }
+    }
+
+    // Evaluate co-possession of another card c2
+    for (CardType card2 : unknown_card_list) {
+      if (card == card2) continue;
+
+      bool always_co_held = true;
+      for (const auto& deal : deals_) {
+        bool in_hand1 = (deal.hand1 & card) != 0;
+        uint64_t handX = in_hand1 ? deal.hand1 : deal.hand2;
+        if ((handX & card2) == 0) {
+          always_co_held = false;
+          break;
+        }
+      }
+
+      if (always_co_held) {
+        // Condition 2: Since card2 is in unknown_cards, not-X hand NEVER holds card2.
+        std::string y_str = "the " + Card::PrintCard(card2);
+        std::string rule = "the hand with " + x_str + " also has " + y_str;
+        if (emitted_rules.insert(rule).second) {
+          rules.push_back(rule);
         }
       }
     }
