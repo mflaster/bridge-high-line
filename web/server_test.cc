@@ -236,12 +236,12 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(collapse_json.contains("tree"));
   auto &collapsed_tree = collapse_json["tree"];
   // Verify that single-path redundant wrapper nodes and win condition nodes are merged cleanly
-  // into node labels formatted like "after ... (N wins)"
+  // into node labels formatted like "... (N wins)"
   bool found_merged_label = false;
   std::function<void(const nlohmann::json &)> check_node = [&](const nlohmann::json &node) {
     if (node.contains("label") && node["label"].is_string()) {
       std::string l = node["label"].get<std::string>();
-      if (l.find("after ") == 0 && l.find("(N wins)") != std::string::npos) {
+      if (l.find("(N wins)") != std::string::npos) {
         found_merged_label = true;
       }
     }

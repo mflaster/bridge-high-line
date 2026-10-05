@@ -228,7 +228,14 @@ std::string ExtractTrickFromNode(const nlohmann::json &node) {
   if (!node.contains("label") || !node["label"].is_string()) {
     return "";
   }
-  LabelParts parts = ParseLabelParts(node["label"].get<std::string>());
+  std::string l = node["label"].get<std::string>();
+  if (l.rfind("Success:", 0) == 0 ||
+      l.rfind("Hand Succeeded", 0) == 0 ||
+      l.rfind("Contract Result:", 0) == 0 ||
+      l.rfind("Max depth reached", 0) == 0) {
+    return "";
+  }
+  LabelParts parts = ParseLabelParts(l);
   return parts.trick;
 }
 
@@ -241,6 +248,13 @@ bool CanCollapseNodes(const nlohmann::json &parent, const nlohmann::json &child)
 
   // Never collapse an outcome node with anything, nor anything into an outcome node.
   if (p_type == "outcome" || c_type == "outcome") {
+    return false;
+  }
+
+  // A condition node describes the outcome/condition of its parent action,
+  // NOT its child action. Therefore, a condition parent should NEVER collapse
+  // an action child into itself.
+  if (p_type == "condition" && c_type == "action") {
     return false;
   }
 
@@ -314,7 +328,7 @@ std::string CombineLabels(const std::string &l1, const std::string &l2) {
     return "";
   }
 
-  std::string result = (has_after ? "after " : "") + merged_trick;
+  std::string result = merged_trick;
   if (!merged_cond.empty()) {
     result += " (" + merged_cond + ")";
   }
