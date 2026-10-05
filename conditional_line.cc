@@ -20,18 +20,28 @@ int ConditionalLine::CoveredFinalBoards() const {
   return CoveredFinalBoardsSet().size();
 }
 
-std::set<int> ConditionalLine::CoveredFinalBoardsSet() const {
-  if (!final_covered_boards_.empty()) {
-    CHECK(conditions_.empty());
-    return final_covered_boards_;
+static std::set<int> CoveredFinalBoardsSetHelper(const ConditionalLine *line_ptr, std::set<const ConditionalLine*> &visited) {
+  if (!line_ptr || visited.count(line_ptr)) {
+    return {};
+  }
+  visited.insert(line_ptr);
+
+  if (!line_ptr->final_covered_boards().empty()) {
+    return line_ptr->final_covered_boards();
   }
 
   std::set<int> conditional;
-  for (const auto &[_condition, line] : conditions_) {
-    const auto &cb = line->CoveredBoardsSet();
-    conditional.insert(cb.begin(), cb.end());
+  for (const auto &[_condition, child_line] : line_ptr->conditions()) {
+    if (child_line) {
+      const auto &cb = CoveredFinalBoardsSetHelper(child_line.get(), visited);
+      conditional.insert(cb.begin(), cb.end());
+    }
   }
   return conditional;
+}
+
+std::set<int> ConditionalLine::CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited) const {
+  return CoveredFinalBoardsSetHelper(this, visited);
 }
 
 std::string ConditionalLine::Describe(int lvl) const {

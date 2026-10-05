@@ -9,6 +9,7 @@
 #include "board_state.h"
 #include "card.h"
 #include "conditional_line.h"
+#include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "glog/logging.h"
 #include "hand.h"
@@ -47,6 +48,15 @@ std::string ExtractFirstCard(const std::string &seq) {
 }
 
 nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id, int depth = 0) {
+  if (depth > 20) {
+    nlohmann::json leaf;
+    leaf["id"] = "node_" + std::to_string(++node_id);
+    leaf["type"] = "outcome";
+    leaf["label"] = "Max depth reached";
+    leaf["covered_boards"] = 0;
+    leaf["children"] = nlohmann::json::array();
+    return leaf;
+  }
   nlohmann::json node;
   node["id"] = "node_" + std::to_string(++node_id);
   node["collapsed"] = (depth >= 1);
@@ -62,16 +72,17 @@ nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id, 
   }
 
   node["type"] = "action";
-  node["covered_boards"] = line.CoveredBoards();
-  node["boards"] = std::vector<int>(line.CoveredBoardsSet().begin(), line.CoveredBoardsSet().end());
+  std::set<int> boards_set = line.CoveredBoardsSet();
+  node["covered_boards"] = boards_set.size();
+  node["boards"] = std::vector<int>(boards_set.begin(), boards_set.end());
 
   const auto &gt = line.do_first();
-  if (!gt.Empty()) {
+  if (!gt.Empty() && !gt.demi1.opp_card.empty() && !gt.demi2.opp_card.empty()) {
     node["trick"] = gt.ToString(true);
     node["trick_full"] = gt.ToString(false);
     node["label"] = gt.ToString(true);
   } else {
-    node["label"] = "Covers " + std::to_string(line.CoveredBoards()) + " board(s)";
+    node["label"] = "Covers " + std::to_string(boards_set.size()) + " board(s)";
   }
 
   nlohmann::json children = nlohmann::json::array();
@@ -87,7 +98,7 @@ nlohmann::json ConditionalLineToJSON(const ConditionalLine &line, int &node_id, 
     cond_node["collapsed"] = true;
 
     if (child_line_ptr) {
-      nlohmann::json child_json = ConditionalLineToJSON(*child_line_ptr, node_id, depth + 2);
+      nlohmann::json child_json = ConditionalLineToJSON(*child_line_ptr, node_id, depth + 1);
       cond_node["covered_boards"] = child_json["covered_boards"];
       cond_node["boards"] = child_json["boards"];
       cond_node["children"] = nlohmann::json::array({child_json});
@@ -221,6 +232,91 @@ nlohmann::json BuildTreeFromOptimalLines(const OptimalLines &lines, int tricks_w
   return LineTreeNodeToJSON(root_node, 0, node_id);
 }
 
+uint64_t ComputeUnknownCards(const std::vector<uint64_t>& hands) {
+  int n_cnt = CountCardsInHand(hands[0]);
+  int e_cnt = CountCardsInHand(hands[1]);
+  int s_cnt = CountCardsInHand(hands[2]);
+  int w_cnt = CountCardsInHand(hands[3]);
+
+  int max_cnt = std::max({n_cnt, e_cnt, s_cnt, w_cnt});
+  if (max_cnt == 0) max_cnt = 13;
+
+  int needed = (4 * max_cnt) - (n_cnt + e_cnt + s_cnt + w_cnt);
+  if (needed <= 0) return 0;
+
+  uint64_t total_known = hands[0] | hands[1] | hands[2] | hands[3];
+  uint64_t unknown_cards = 0;
+
+  int added = 0;
+  for (int s = 0; s < 4 && added < needed; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    uint16_t suit_known = (total_known >> (s * 16)) & 0xffff;
+    if (suit_known > 0) {
+      for (int r = 12; r >= 0 && added < needed; --r) {
+        uint64_t card_bit = Card::GetSuitedCard(suit, r);
+        if ((total_known & card_bit) == 0 && (unknown_cards & card_bit) == 0) {
+          unknown_cards |= card_bit;
+          added++;
+        }
+      }
+    }
+  }
+
+  for (int s = 0; s < 4 && added < needed; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    for (int r = 12; r >= 0 && added < needed; --r) {
+      uint64_t card_bit = Card::GetSuitedCard(suit, r);
+      if ((total_known & card_bit) == 0 && (unknown_cards & card_bit) == 0) {
+        unknown_cards |= card_bit;
+        added++;
+      }
+    }
+  }
+
+  return unknown_cards;
+}
+
+nlohmann::json CrossHandSummaryToJSON(const CrossHandSummaryReport &summary) {
+  nlohmann::json j;
+  j["total_deals"] = summary.total_deals;
+  j["cards_per_hand"] = summary.cards_per_hand;
+  j["unknown_cards"] = summary.unknown_cards;
+  j["invariant_rules"] = summary.invariant_rules;
+
+  nlohmann::json suit_bounds_json = nlohmann::json::object();
+  for (const auto &[suit, bounds] : summary.suit_bounds) {
+    std::string suit_key = SuitDebugString(suit);
+    nlohmann::json b;
+    b["min_hand1"] = bounds.min_hand1;
+    b["max_hand1"] = bounds.max_hand1;
+    b["min_hand2"] = bounds.min_hand2;
+    b["max_hand2"] = bounds.max_hand2;
+    b["min_combined"] = bounds.min_combined;
+    b["max_combined"] = bounds.max_combined;
+    suit_bounds_json[suit_key] = b;
+  }
+  j["suit_bounds"] = suit_bounds_json;
+
+  nlohmann::json honor_stats_json = nlohmann::json::object();
+  for (const auto &[suit, rank_map] : summary.honor_stats) {
+    std::string suit_key = SuitDebugString(suit);
+    nlohmann::json rank_json = nlohmann::json::object();
+    for (const auto &[rank, stats] : rank_map) {
+      std::string card_val = Card::PrintCardValue(rank);
+      nlohmann::json s;
+      s["hand1_count"] = stats.hand1_count;
+      s["hand2_count"] = stats.hand2_count;
+      s["both_count"] = stats.both_count;
+      s["neither_count"] = stats.neither_count;
+      rank_json[card_val] = s;
+    }
+    honor_stats_json[suit_key] = rank_json;
+  }
+  j["honor_stats"] = honor_stats_json;
+
+  return j;
+}
+
 }  // namespace
 
 WebServer::WebServer(const std::string &host, int port)
@@ -301,12 +397,10 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     int s_cnt = CountCardsInHand(hands[2]);
     int w_cnt = CountCardsInHand(hands[3]);
 
-    uint64_t total_known = hands[0] | hands[1] | hands[2] | hands[3];
-    uint64_t unknown_cards = 0;
+    uint64_t unknown_cards = ComputeUnknownCards(hands);
 
     bool is_fuzzy = false;
-    if ((n_cnt + e_cnt + s_cnt + w_cnt) < 52 && (n_cnt != e_cnt || s_cnt != w_cnt)) {
-      unknown_cards = ~total_known;
+    if (unknown_cards != 0 || req_json.contains("requirements")) {
       is_fuzzy = true;
     }
 
@@ -329,17 +423,10 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       min_tricks = req_json["min_tricks"].get<int>();
     }
 
-    // Solve using BoardState and MostTricksCanBeWon
-    BoardState bs;
-    bs.SetHands(hands);
-    bs.SetTrump(trump_suit);
-    bs.SetLead(leader);
-    bs.MarkMissingCardsAsPlayed();
-
     std::string best_seq;
     OptimalLines optimal_lines;
-    int tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
-    std::string best_lead = ExtractFirstCard(best_seq);
+    int tricks_won = 0;
+    std::string best_lead;
 
     nlohmann::json tree_json;
     int node_counter = 0;
@@ -373,10 +460,23 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       if (!lines.empty()) {
         tree_json = ConditionalLineToJSON(lines[0], node_counter);
         covered_boards = lines[0].CoveredBoards();
+        tricks_won = min_tricks;
+        if (!lines[0].do_first().Empty()) {
+          best_lead = lines[0].do_first().ToString(true);
+        }
+        response["distribution_summary"] = CrossHandSummaryToJSON(lines[0].summary());
       } else {
         tree_json = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
       }
     } else {
+      BoardState bs;
+      bs.SetHands(hands);
+      bs.SetTrump(trump_suit);
+      bs.SetLead(leader);
+      bs.MarkMissingCardsAsPlayed();
+
+      tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
+      best_lead = ExtractFirstCard(best_seq);
       tree_json = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter);
     }
 
@@ -426,6 +526,12 @@ bool WebServer::Start(bool async) {
 void WebServer::Stop() {
   if (running_ || svr_.is_running()) {
     svr_.stop();
+    try {
+      httplib::Client dummy_client(host_, port_);
+      dummy_client.set_connection_timeout(0, 100000);
+      dummy_client.Get("/api/health");
+    } catch (...) {}
+
     if (server_thread_ && server_thread_->joinable()) {
       server_thread_->join();
     }

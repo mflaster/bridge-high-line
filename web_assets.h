@@ -172,7 +172,10 @@ inline const char* INDEX_HTML = R"rawhtml(
       <!-- Right Column: Results & Decision Tree -->
       <section class="card-panel decision-tree-panel">
         <div class="panel-header">
-          <h2>Solver Results & Decision Tree</h2>
+          <div class="tab-buttons">
+            <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>
+            <button id="tabSummaryBtn" class="tab-btn" type="button">Distribution Summary <span id="ruleCounterBadge" class="badge-counter hidden">0</span></button>
+          </div>
           <div class="zoom-controls">
             <button id="expandAllBtn" class="btn btn-secondary-sm">Expand All</button>
             <button id="collapseAllBtn" class="btn btn-secondary-sm">Collapse All</button>
@@ -205,26 +208,76 @@ inline const char* INDEX_HTML = R"rawhtml(
           </div>
         </div>
 
-        <!-- SVG Interactive Decision Tree -->
-        <div class="tree-viewport" id="treeViewport">
-          <svg id="treeSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
-              </marker>
-            </defs>
-            <g id="treeRootGroup">
-              <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
-                Click "Solve Deal" to render the interactive SVG decision tree.
-              </text>
-            </g>
-          </svg>
+        <!-- Tab Panel 1: Decision Tree -->
+        <div id="panelDecisionTree" class="tab-panel active">
+          <!-- SVG Interactive Decision Tree -->
+          <div class="tree-viewport" id="treeViewport">
+            <svg id="treeSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
+                </marker>
+              </defs>
+              <g id="treeRootGroup">
+                <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
+                  Click "Solve Deal" to render the interactive SVG decision tree.
+                </text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Node Detail Banner -->
+          <div id="nodeDetailBanner" class="node-detail-banner hidden">
+            <h4>Selected Node Details</h4>
+            <p id="nodeDetailContent"></p>
+          </div>
         </div>
 
-        <!-- Node Detail Banner -->
-        <div id="nodeDetailBanner" class="node-detail-banner hidden">
-          <h4>Selected Node Details</h4>
-          <p id="nodeDetailContent"></p>
+        <!-- Tab Panel 2: Distribution Summary -->
+        <div id="panelDistributionSummary" class="tab-panel hidden">
+          <div id="summaryEmptyNotice" class="summary-empty">
+            No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.
+          </div>
+          <div id="summaryContent" class="summary-content hidden">
+            <div class="summary-section">
+              <h4>Invariant Rules</h4>
+              <ul id="summaryRulesList" class="summary-rules-list"></ul>
+            </div>
+            <div class="summary-section">
+              <h4>Suit Length Bounds</h4>
+              <div class="table-responsive">
+                <table id="summaryBoundsTable" class="summary-table">
+                  <thead>
+                    <tr>
+                      <th>Suit</th>
+                      <th>Hand 1 Range</th>
+                      <th>Hand 2 Range</th>
+                      <th>Combined Range</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="summary-section">
+              <h4>Honor Card Possession Stats</h4>
+              <div class="table-responsive">
+                <table id="summaryHonorTable" class="summary-table">
+                  <thead>
+                    <tr>
+                      <th>Suit</th>
+                      <th>Honor</th>
+                      <th>Hand 1 %</th>
+                      <th>Hand 2 %</th>
+                      <th>Both %</th>
+                      <th>Neither %</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -692,6 +745,142 @@ body {
   color: var(--text-main);
   font-family: monospace;
 }
+
+/* Tabbed Inspector Navigation Header */
+.tab-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: var(--text-main);
+}
+
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.badge-counter {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-counter.hidden, .tab-panel.hidden, .summary-content.hidden, .summary-empty.hidden {
+  display: none !important;
+}
+
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+}
+
+.tab-panel.hidden {
+  display: none !important;
+}
+
+/* Distribution Summary Tab Styles */
+.summary-empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  background-color: var(--bg-dark);
+  border-radius: 8px;
+  border: 1px dashed var(--panel-border);
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  max-height: 520px;
+  padding-right: 6px;
+}
+
+.summary-section {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.summary-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.summary-rules-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-rules-list li {
+  font-family: monospace;
+  font-size: 13px;
+  color: #34d399;
+  background-color: rgba(16, 185, 129, 0.1);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-green);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.summary-table th, .summary-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.summary-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.summary-table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
 )rawcss";
 
 inline const char* APP_JS = R"rawjs(
@@ -730,6 +919,35 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetZoomBtn = document.getElementById('resetZoomBtn');
   const nodeDetailBanner = document.getElementById('nodeDetailBanner');
   const nodeDetailContent = document.getElementById('nodeDetailContent');
+
+  // Tab Switcher Elements
+  const tabDecisionTreeBtn = document.getElementById('tabDecisionTreeBtn');
+  const tabSummaryBtn = document.getElementById('tabSummaryBtn');
+  const panelDecisionTree = document.getElementById('panelDecisionTree');
+  const panelDistributionSummary = document.getElementById('panelDistributionSummary');
+  const ruleCounterBadge = document.getElementById('ruleCounterBadge');
+  const summaryEmptyNotice = document.getElementById('summaryEmptyNotice');
+  const summaryContent = document.getElementById('summaryContent');
+  const summaryRulesList = document.getElementById('summaryRulesList');
+  const summaryBoundsTable = document.getElementById('summaryBoundsTable');
+  const summaryHonorTable = document.getElementById('summaryHonorTable');
+
+  // Tab Switching Event Listeners
+  if (tabDecisionTreeBtn && tabSummaryBtn) {
+    tabDecisionTreeBtn.addEventListener('click', () => {
+      tabDecisionTreeBtn.classList.add('active');
+      tabSummaryBtn.classList.remove('active');
+      panelDecisionTree.classList.remove('hidden');
+      panelDistributionSummary.classList.add('hidden');
+    });
+
+    tabSummaryBtn.addEventListener('click', () => {
+      tabSummaryBtn.classList.add('active');
+      tabDecisionTreeBtn.classList.remove('active');
+      panelDistributionSummary.classList.remove('hidden');
+      panelDecisionTree.classList.add('hidden');
+    });
+  }
 
   // Zoom & Pan State
   let zoomLevel = 1.0;
@@ -964,6 +1182,13 @@ document.addEventListener('DOMContentLoaded', () => {
         treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
       }
 
+      // Render Distribution Summary if present
+      if (data.distribution_summary) {
+        renderDistributionSummary(data.distribution_summary);
+      } else {
+        clearDistributionSummary();
+      }
+
     } catch (err) {
       console.error(err);
       setStatus('error', 'Network or server error: ' + err.message);
@@ -1178,6 +1403,110 @@ document.addEventListener('DOMContentLoaded', () => {
   zoomInBtn.addEventListener('click', () => { zoomLevel = Math.min(3.0, zoomLevel * 1.2); updateTransform(); });
   zoomOutBtn.addEventListener('click', () => { zoomLevel = Math.max(0.3, zoomLevel / 1.2); updateTransform(); });
   resetZoomBtn.addEventListener('click', () => { zoomLevel = 1.0; panX = 40; panY = 40; updateTransform(); });
+
+  function renderDistributionSummary(dist) {
+    if (!dist) {
+      clearDistributionSummary();
+      return;
+    }
+    const rules = dist.invariant_rules || [];
+    const bounds = dist.suit_bounds || {};
+    const honors = dist.honor_stats || {};
+
+    // Update Badge Counter
+    if (ruleCounterBadge) {
+      ruleCounterBadge.textContent = rules.length;
+      if (rules.length > 0) {
+        ruleCounterBadge.classList.remove('hidden');
+      } else {
+        ruleCounterBadge.classList.add('hidden');
+      }
+    }
+
+    // Invariant Rules
+    if (summaryRulesList) {
+      summaryRulesList.innerHTML = '';
+      if (rules.length > 0) {
+        rules.forEach(r => {
+          const li = document.createElement('li');
+          li.textContent = r;
+          summaryRulesList.appendChild(li);
+        });
+      } else {
+        const li = document.createElement('li');
+        li.textContent = 'No invariant suit rules found.';
+        li.style.color = '#94a3b8';
+        li.style.borderLeftColor = '#64748b';
+        summaryRulesList.appendChild(li);
+      }
+    }
+
+    // Suit Bounds
+    if (summaryBoundsTable) {
+      const boundsTbody = summaryBoundsTable.querySelector('tbody');
+      if (boundsTbody) {
+        boundsTbody.innerHTML = '';
+        const suitNames = { S: '♠ Spades', H: '♥ Hearts', D: '♦ Diamonds', C: '♣ Clubs' };
+        ['S', 'H', 'D', 'C'].forEach(s => {
+          if (bounds[s]) {
+            const b = bounds[s];
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${suitNames[s] || s}</strong></td>
+              <td>${b.min_hand1} - ${b.max_hand1}</td>
+              <td>${b.min_hand2} - ${b.max_hand2}</td>
+              <td>${b.min_combined} - ${b.max_combined}</td>
+            `;
+            boundsTbody.appendChild(tr);
+          }
+        });
+      }
+    }
+
+    // Honor Stats
+    if (summaryHonorTable) {
+      const honorTbody = summaryHonorTable.querySelector('tbody');
+      if (honorTbody) {
+        honorTbody.innerHTML = '';
+        const suitNames = { S: '♠ Spades', H: '♥ Hearts', D: '♦ Diamonds', C: '♣ Clubs' };
+        ['S', 'H', 'D', 'C'].forEach(s => {
+          if (honors[s]) {
+            Object.keys(honors[s]).forEach(rankKey => {
+              const st = honors[s][rankKey];
+              const total = dist.total_deals || 1;
+              const h1Pct = ((st.hand1_count / total) * 100).toFixed(1) + '%';
+              const h2Pct = ((st.hand2_count / total) * 100).toFixed(1) + '%';
+              const bothPct = ((st.both_count / total) * 100).toFixed(1) + '%';
+              const neitherPct = ((st.neither_count / total) * 100).toFixed(1) + '%';
+
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>${suitNames[s] || s}</td>
+                <td><strong>${rankKey}</strong></td>
+                <td>${h1Pct}</td>
+                <td>${h2Pct}</td>
+                <td>${bothPct}</td>
+                <td>${neitherPct}</td>
+              `;
+              honorTbody.appendChild(tr);
+            });
+          }
+        });
+      }
+    }
+
+    if (summaryEmptyNotice) summaryEmptyNotice.classList.add('hidden');
+    if (summaryContent) summaryContent.classList.remove('hidden');
+  }
+
+  function clearDistributionSummary() {
+    if (ruleCounterBadge) {
+      ruleCounterBadge.textContent = '0';
+      ruleCounterBadge.classList.add('hidden');
+    }
+    if (summaryContent) summaryContent.classList.add('hidden');
+    if (summaryEmptyNotice) summaryEmptyNotice.classList.remove('hidden');
+  }
 
   // Initial UI Render
   updateDealSvg();
