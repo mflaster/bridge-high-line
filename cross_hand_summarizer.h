@@ -74,6 +74,28 @@ class HonorPossessionClassifier {
   int total_deals_ = 0;
 };
 
+class CrossSuitConditionalRuleExtractor {
+ public:
+  CrossSuitConditionalRuleExtractor(std::string hand1_label = "hand 1",
+                                    std::string hand2_label = "hand 2")
+      : hand1_label_(std::move(hand1_label)),
+        hand2_label_(std::move(hand2_label)) {}
+
+  void ProcessDeal(const PairedDeal& deal);
+  std::vector<std::string> ExtractRules() const;
+
+ private:
+  struct HandSuitLengths {
+    int hand1_len[4] = {0};
+    int hand2_len[4] = {0};
+  };
+
+  std::string hand1_label_;
+  std::string hand2_label_;
+  int total_deals_ = 0;
+  std::vector<HandSuitLengths> deal_lengths_;
+};
+
 struct CrossHandSummaryReport {
   int total_deals = 0;
   uint64_t unknown_cards = 0;

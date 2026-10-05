@@ -130,3 +130,56 @@ TEST_CASE("EmptyDealSet", "[cross_hand_summarizer]") {
   REQUIRE(report.total_deals == 0);
   REQUIRE(report.invariant_rules.empty());
 }
+
+TEST_CASE("CrossSuitConditionalRuleExtractor_ExtractsDeterministicRules", "[cross_hand_summarizer]") {
+  // Overall unknown pool: S 5432, H 5432, D 2, C 2
+  // Deal 1: Hand 1 has S 32 (2), H 543 (3); Hand 2 has S 54 (2), H 2 (1), D 2 (1), C 2 (1)
+  // Deal 2: Hand 1 has S 432 (3), H 54 (2); Hand 2 has S 5 (1), H 32 (2), D 2 (1), C 2 (1)
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S 32 H 543", "S 54 H 2 D 2 C 2"),
+      PairedDeal("S 432 H 54", "S 5 H 32 D 2 C 2")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("when hand 1 has 2 S, it also has 3 H"));
+  REQUIRE(report.HasRule("when hand 1 has 3 S, it also has 2 H"));
+  REQUIRE(report.HasRule("when hand 2 has 2 S, it also has 1 H"));
+  REQUIRE(report.HasRule("when hand 2 has 1 S, it also has 2 H"));
+}
+
+TEST_CASE("CrossSuitConditionalRuleExtractor_SuppressesRedundantUnconditionalRules", "[cross_hand_summarizer]") {
+  // Hand 1 always has 2 Spades (S 32) across all deals
+  // Hearts varies in Hand 1 (H 54 vs H 53)
+  // Diamonds varies in Hand 1 (D 2 vs D 3)
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S 32 H 54 D 2", "S 54 H 32 D 3"),
+      PairedDeal("S 32 H 53 D 3", "S 54 H 42 D 2")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  // Unconditional suit bound should be present
+  REQUIRE(report.HasRule("hand 1 length in S is always 2"));
+
+  // Redundant conditional rules involving Spades for hand 1 should be suppressed
+  REQUIRE_FALSE(report.HasRule("when hand 1 has 2 S, it also has 2 H"));
+  REQUIRE_FALSE(report.HasRule("when hand 1 has 2 S, it also has 1 D"));
+}
+
+TEST_CASE("CrossSuitConditionalRuleExtractor_CustomLabels", "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S 32 H 543", "S 54 H 2 D 2 C 2"),
+      PairedDeal("S 432 H 54", "S 5 H 32 D 2 C 2")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals, "declarer", "defender");
+
+  REQUIRE(report.HasRule("when declarer has 2 S, it also has 3 H"));
+  REQUIRE(report.HasRule("when defender has 2 S, it also has 1 H"));
+}

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 
 static int CardsInSuit(uint64_t hand, Suit s) {
@@ -146,6 +147,82 @@ std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {
   return rules;
 }
 
+void CrossSuitConditionalRuleExtractor::ProcessDeal(const PairedDeal& deal) {
+  total_deals_++;
+  HandSuitLengths lengths;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    lengths.hand1_len[s] = CardsInSuit(deal.hand1, suit);
+    lengths.hand2_len[s] = CardsInSuit(deal.hand2, suit);
+  }
+  deal_lengths_.push_back(lengths);
+}
+
+std::vector<std::string> CrossSuitConditionalRuleExtractor::ExtractRules() const {
+  std::vector<std::string> rules;
+  if (total_deals_ == 0) return rules;
+
+  struct HandConfig {
+    const std::string& label;
+    int hand_index;
+  } hands[2] = {
+      {hand1_label_, 1},
+      {hand2_label_, 2}
+  };
+
+  for (const auto& h : hands) {
+    int min_len[4] = {999, 999, 999, 999};
+    int max_len[4] = {-1, -1, -1, -1};
+
+    for (const auto& dl : deal_lengths_) {
+      const int* suit_lens = (h.hand_index == 1) ? dl.hand1_len : dl.hand2_len;
+      for (int s = 0; s < 4; ++s) {
+        min_len[s] = std::min(min_len[s], suit_lens[s]);
+        max_len[s] = std::max(max_len[s], suit_lens[s]);
+      }
+    }
+
+    // Evaluate all 12 ordered suit pairs (A, B) with A != B
+    for (int s1 = 0; s1 < 4; ++s1) {
+      if (min_len[s1] == max_len[s1]) {
+        // Suit A has fixed length across all deals in this hand -> suppress
+        continue;
+      }
+      Suit suitA = static_cast<Suit>(s1);
+
+      for (int s2 = 0; s2 < 4; ++s2) {
+        if (s1 == s2) continue;
+        if (min_len[s2] == max_len[s2]) {
+          // Suit B has fixed length across all deals in this hand -> suppress
+          continue;
+        }
+        Suit suitB = static_cast<Suit>(s2);
+
+        // Map from suit A length (k1) -> set of observed suit B lengths (k2)
+        std::map<int, std::set<int>> k1_to_k2;
+        for (const auto& dl : deal_lengths_) {
+          const int* suit_lens = (h.hand_index == 1) ? dl.hand1_len : dl.hand2_len;
+          int k1 = suit_lens[s1];
+          int k2 = suit_lens[s2];
+          k1_to_k2[k1].insert(k2);
+        }
+
+        // For each observed k1, if k2 is unique, emit a conditional rule
+        for (const auto& [k1, k2_set] : k1_to_k2) {
+          if (k2_set.size() == 1) {
+            int k2 = *k2_set.begin();
+            rules.push_back("when " + h.label + " has " + std::to_string(k1) + " " +
+                            SuitDebugString(suitA) + ", it also has " + std::to_string(k2) + " " +
+                            SuitDebugString(suitB));
+          }
+        }
+      }
+    }
+  }
+
+  return rules;
+}
+
 std::string CrossHandSummaryReport::ToString() const {
   std::string out = "Cross-Hand Deal Set Summary Report\n";
   out += "Total Deals: " + std::to_string(total_deals) + "\n";
@@ -187,19 +264,23 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
 
   JointSuitRuleExtractor suit_extractor(hand1_label, hand2_label);
   HonorPossessionClassifier honor_classifier(hand1_label, hand2_label);
+  CrossSuitConditionalRuleExtractor conditional_extractor(hand1_label, hand2_label);
 
   for (const auto& deal : deals) {
     suit_extractor.ProcessDeal(deal);
     honor_classifier.ProcessDeal(deal);
+    conditional_extractor.ProcessDeal(deal);
   }
 
   report.suit_bounds = suit_extractor.GetSuitBounds();
   report.honor_stats = honor_classifier.GetHonorStats();
 
   auto suit_rules = suit_extractor.ExtractRules();
+  auto conditional_rules = conditional_extractor.ExtractRules();
   auto honor_rules = honor_classifier.ExtractRules();
 
   report.invariant_rules.insert(report.invariant_rules.end(), suit_rules.begin(), suit_rules.end());
+  report.invariant_rules.insert(report.invariant_rules.end(), conditional_rules.begin(), conditional_rules.end());
   report.invariant_rules.insert(report.invariant_rules.end(), honor_rules.begin(), honor_rules.end());
 
   return report;

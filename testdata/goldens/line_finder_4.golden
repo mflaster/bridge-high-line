@@ -18,6 +18,26 @@ Invariant Rules for 4 card ending:
   - hand 1 length in D is between 2 and 4
   - hand 3 length in D is between 1 and 3
   - maximum length in D in any hand is 4
+  - when hand 1 has 1 S, it also has 1 H
+  - when hand 1 has 1 S, it also has 2 D
+  - when hand 1 has 0 H, it also has 0 S
+  - when hand 1 has 0 H, it also has 4 D
+  - when hand 1 has 2 D, it also has 1 S
+  - when hand 1 has 3 D, it also has 0 S
+  - when hand 1 has 4 D, it also has 0 S
+  - when hand 1 has 2 D, it also has 1 H
+  - when hand 1 has 3 D, it also has 1 H
+  - when hand 1 has 4 D, it also has 0 H
+  - when hand 3 has 1 S, it also has 0 H
+  - when hand 3 has 1 S, it also has 3 D
+  - when hand 3 has 1 H, it also has 2 S
+  - when hand 3 has 1 H, it also has 1 D
+  - when hand 3 has 1 D, it also has 2 S
+  - when hand 3 has 2 D, it also has 2 S
+  - when hand 3 has 3 D, it also has 1 S
+  - when hand 3 has 1 D, it also has 1 H
+  - when hand 3 has 2 D, it also has 0 H
+  - when hand 3 has 3 D, it also has 0 H
   - hand 3 always contains the ST
 
   after SA (__) SQ (ST): SA (__) SQ (ST) [0,1,2,3] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST 
