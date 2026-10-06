@@ -1030,14 +1030,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const winnerCard = parsedCards[winningCardIdx];
-      const leadSeatBadge = `(${getSeatName(currentLeader)})`;
+      const leadSeatName = getSeatName(currentLeader);
+      const leadSeatBadge = `(${leadSeatName})`;
 
       trickRows.push({
         trickNum: trickRows.length + 1,
         leadSeatBadge: leadSeatBadge,
+        leadSeatName: leadSeatName,
         cards: parsedCards,
         winningCardIdx: winningCardIdx,
-        winnerSeat: winnerCard.seatName
+        winnerSeat: winnerCard ? winnerCard.seatName : ''
       });
 
       // Next trick leader is the winner of this trick
@@ -1095,7 +1097,8 @@ document.addEventListener('DOMContentLoaded', () => {
         labelEl.textContent = `#${tr.trickNum}`;
 
         const badgeEl = document.createElement('span');
-        badgeEl.className = 'seat-badge';
+        const isLeadEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
+        badgeEl.className = `seat-badge ${isLeadEW ? 'seat-badge-ew' : 'seat-badge-ns'}`;
         badgeEl.textContent = tr.leadSeatBadge;
 
         metaEl.appendChild(labelEl);
@@ -1105,10 +1108,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const chipsRow = document.createElement('div');
         chipsRow.className = 'card-chips-row';
 
+        const isWinnerEW = (tr.winnerSeat === 'E' || tr.winnerSeat === 'W');
+        const winnerThemeClass = isWinnerEW ? 'card-winner-ew' : 'card-winner-ns';
+
         tr.cards.forEach((c, idx) => {
           const chip = document.createElement('span');
           const isWinner = (idx === tr.winningCardIdx);
-          chip.className = `card-chip ${c.suitClass} ${isWinner ? 'card-winner' : ''}`;
+          chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
           chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner ★)' : ''}`;
           chip.textContent = c.displayStr + (isWinner ? ' ★' : '');
           chipsRow.appendChild(chip);

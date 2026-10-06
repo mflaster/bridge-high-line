@@ -720,6 +720,16 @@ body {
   font-family: monospace;
 }
 
+.seat-badge.seat-badge-ns {
+  background-color: #10b981;
+  color: #0f172a;
+}
+
+.seat-badge.seat-badge-ew {
+  background-color: #f59e0b;
+  color: #0f172a;
+}
+
 .card-chips-row {
   display: flex;
   align-items: center;
@@ -745,10 +755,19 @@ body {
 }
 
 .card-chip.card-winner {
-  background-color: #f59e0b !important;
   color: #0f172a !important;
-  border-color: #fbbf24 !important;
   font-weight: 800 !important;
+}
+
+.card-chip.card-winner.card-winner-ns {
+  background-color: #10b981 !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.card-chip.card-winner.card-winner-ew {
+  background-color: #f59e0b !important;
+  border-color: #fbbf24 !important;
   box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
 }
 
