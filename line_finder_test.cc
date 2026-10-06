@@ -655,6 +655,7 @@ TEST_CASE("LineFinder_Squeeze1") {
     .trump = NOTRUMP,
     .leader = 0,
     .min_tricks = 6,
+    .num_iters = 60,
     .hand0 = "S A43 D AKQ",
     .hand2 = "S K2 H K D 432",
     .unknown_cards = "S QJT987 H AQJT98",
