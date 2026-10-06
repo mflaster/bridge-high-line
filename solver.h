@@ -24,6 +24,7 @@ using OptimalLines = std::unordered_set<OptimalLine>;
 
 std::string PrintLine(const OptimalLine &x);
 std::string PrintLines(const OptimalLines &x);
+OptimalLine GetFinishedTrick(const BoardState &bs);
 
 // A hash function used to hash a pair of any kind
 struct hash_pair {

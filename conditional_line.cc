@@ -1,4 +1,6 @@
 #include "conditional_line.h"
+#include "interface_dds.h"
+#include "solver.h"
 #include "glog/logging.h"
 
 #include <algorithm>
@@ -586,14 +588,9 @@ int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
         }
       } else {  // Defender side (East=1, West=3)
         if (copy.CardsPlayedThisTrick() == 0) {
-          CardType target = Card::ParseStringCard(words[i]);
-          int64_t min_d = -1;
-          for (CardType c : valid_cards) {
-            int64_t d = (target > c) ? (target - c) : (c - target);
-            if (min_d < 0 || d < min_d) {
-              min_d = d;
-              chosen_card = c;
-            }
+          std::vector<std::string> best = FindBestCardsToPlay(copy, 0);
+          if (!best.empty()) {
+            chosen_card = Card::ParseStringCard(best[0]);
           }
         } else {
           auto [win_rel, win_info] = copy.TrickWinner();
