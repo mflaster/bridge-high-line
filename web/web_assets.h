@@ -1088,19 +1088,16 @@ body {
 }
 
 .card-chip.card-winner {
-  color: #0f172a !important;
   font-weight: 800 !important;
 }
 
 .card-chip.card-winner.card-winner-ns {
-  background-color: #10b981 !important;
-  border-color: #34d399 !important;
+  border: 2px solid #10b981 !important;
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
 }
 
 .card-chip.card-winner.card-winner-ew {
-  background-color: #f59e0b !important;
-  border-color: #fbbf24 !important;
+  border: 2px solid #f59e0b !important;
   box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
 }
 
@@ -2493,8 +2490,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const chip = document.createElement('span');
           const isWinner = (idx === tr.winningCardIdx);
           chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
-          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner ★)' : ''}`;
-          chip.textContent = c.displayStr + (isWinner ? ' ★' : '');
+          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+          chip.textContent = c.displayStr;
           chipsRow.appendChild(chip);
         });
 

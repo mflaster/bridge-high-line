@@ -1172,8 +1172,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const chip = document.createElement('span');
           const isWinner = (idx === tr.winningCardIdx);
           chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
-          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner ★)' : ''}`;
-          chip.textContent = c.displayStr + (isWinner ? ' ★' : '');
+          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+          chip.textContent = c.displayStr;
           chipsRow.appendChild(chip);
         });
 
