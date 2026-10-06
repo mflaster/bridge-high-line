@@ -301,6 +301,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
         REQUIRE(cond.find("1 wins") == std::string::npos);
         REQUIRE((cond.find("N wins") != std::string::npos || cond.find("E wins") != std::string::npos ||
                  cond.find("S wins") != std::string::npos || cond.find("W wins") != std::string::npos));
+        REQUIRE(cond.find(" wins the ") != std::string::npos);
       }
     }
     REQUIRE(found_branch_cond);
@@ -364,6 +365,18 @@ TEST_CASE("BuildTreeFromConditionalLine Common Lead Card Label") {
   auto node_diff = BuildTreeFromConditionalLine(root_diff, node_id2);
   REQUIRE(node_diff != nullptr);
   REQUIRE(node_diff->label == "Solve Lines (2 variants)");
+}
+
+TEST_CASE("FormatWinnerCondition and FormatBranchCondition Formatting") {
+  WinnerPlayCondition cond_no_cards(0);
+  REQUIRE(FormatWinnerCondition(&cond_no_cards) == "North wins");
+  REQUIRE(FormatBranchCondition(&cond_no_cards, false) == "if N wins");
+  REQUIRE(FormatBranchCondition(&cond_no_cards, true) == "when N wins");
+
+  WinnerPlayCondition cond_with_cards(1, std::vector<std::string>{"SK", "SQ"});
+  REQUIRE(FormatWinnerCondition(&cond_with_cards) == "East wins the SK,SQ");
+  REQUIRE(FormatBranchCondition(&cond_with_cards, false) == "if E wins the SK,SQ");
+  REQUIRE(FormatBranchCondition(&cond_with_cards, true) == "when E wins the SK,SQ");
 }
 
 TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {

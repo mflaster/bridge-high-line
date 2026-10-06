@@ -43,36 +43,29 @@ std::string PlayerDirectionName(int dir) {
   }
 }
 
+}  // namespace
+
 std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   if (!cond_ptr) return "";
   std::string desc = cond_ptr->Describe(true);
   if (desc.rfind("after ", 0) == 0) {
     desc = desc.substr(6);
   }
-  if (desc.rfind("when ", 0) == 0 || desc.rfind("if ", 0) == 0) {
-    size_t space1 = desc.find(' ');
-    size_t space2 = desc.find(' ', space1 + 1);
-    if (space1 != std::string::npos) {
-      std::string dir_str;
-      if (space2 != std::string::npos) {
-        dir_str = desc.substr(space1 + 1, space2 - space1 - 1);
-      } else {
-        dir_str = desc.substr(space1 + 1);
-      }
-      if (!dir_str.empty() && std::isdigit(dir_str[0])) {
-        int dir = std::stoi(dir_str);
-        return PlayerDirectionName(dir) + " wins";
-      }
-      if (!dir_str.empty()) {
-        if (dir_str == "wins") return desc;
-        return dir_str + " wins";
-      }
-    }
+  if (desc.rfind("when ", 0) == 0) {
+    desc = desc.substr(5);
+  } else if (desc.rfind("if ", 0) == 0) {
+    desc = desc.substr(3);
+  }
+  static const std::regex kPlayerWinsRegex("(\\d) wins");
+  std::smatch match;
+  while (std::regex_search(desc, match, kPlayerWinsRegex)) {
+    int player = std::stoi(match[1].str());
+    desc.replace(match.position(0), match.length(0), PlayerDirectionName(player) + " wins");
   }
   return desc;
 }
 
-std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false) {
+std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice) {
   if (!cond_ptr) return "";
   std::string desc = cond_ptr->Describe(only_choice);
   if (desc.rfind("after ", 0) == 0) {
@@ -94,8 +87,6 @@ std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choic
   }
   return desc;
 }
-
-}  // namespace
 
 std::string CleanCardToken(const std::string &token) {
   std::string card;
