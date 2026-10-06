@@ -319,6 +319,53 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   server.Stop();
 }
 
+TEST_CASE("BuildTreeFromConditionalLine Common Lead Card Label") {
+  std::set<int> boards = {0, 1, 2};
+  ConditionalLine root_line;
+
+  ConditionalLine child1;
+  child1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H2", "H7", boards),
+      GeneralizedDemiStruct("H9", "HK", boards),
+      boards, 0));
+
+  ConditionalLine child2;
+  child2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H3", "H7", boards),
+      GeneralizedDemiStruct("HJ", "HQ", boards),
+      boards, 0));
+
+  root_line.AddCondition(new WinnerPlayCondition(0), child1);
+  root_line.AddCondition(new WinnerPlayCondition(1), child2);
+
+  int node_id = 0;
+  auto node = BuildTreeFromConditionalLine(root_line, node_id);
+  REQUIRE(node != nullptr);
+  REQUIRE(node->label == "H7 is led (2 variants)");
+
+  // Test fallback when children have different lead cards
+  ConditionalLine root_diff;
+  ConditionalLine child_diff_1;
+  child_diff_1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H2", "H7", boards),
+      GeneralizedDemiStruct("H9", "HK", boards),
+      boards, 0));
+
+  ConditionalLine child_diff_2;
+  child_diff_2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("S2", "SA", boards),
+      GeneralizedDemiStruct("S9", "SK", boards),
+      boards, 0));
+
+  root_diff.AddCondition(new WinnerPlayCondition(0), child_diff_1);
+  root_diff.AddCondition(new WinnerPlayCondition(1), child_diff_2);
+
+  int node_id2 = 0;
+  auto node_diff = BuildTreeFromConditionalLine(root_diff, node_id2);
+  REQUIRE(node_diff != nullptr);
+  REQUIRE(node_diff->label == "Solve Lines (2 variants)");
+}
+
 TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {
   int port = 18082;
   WebServer server("127.0.0.1", port);
