@@ -357,3 +357,25 @@ TEST_CASE("ResultsFinesseOffsides") {
   REQUIRE(line.ResultsOnHand(PairedDeal("S 65", "S K4")) == 1);
 }
 
+TEST_CASE("ConditionalLineDescribeSortBranches") {
+  ConditionalLine line_b(std::set<int>{2});
+  ConditionalLine line_a(std::set<int>{1});
+
+  ConditionalLine root;
+  // Add conditions in reverse alphabetical order: 1 (West) wins first, then 0 (North) wins.
+  root.AddCondition(new WinnerPlayCondition(1), line_b);
+  root.AddCondition(new WinnerPlayCondition(0), line_a);
+
+  std::string unsorted = root.Describe(0, /*sort_branches=*/false);
+  std::string sorted = root.Describe(0, /*sort_branches=*/true);
+
+  // Unsorted preserves insertion order (if 1 wins comes before if 0 wins)
+  REQUIRE(unsorted.find("if 1 wins") < unsorted.find("if 0 wins"));
+
+  // Sorted reorders branches deterministically (if 0 wins comes before if 1 wins)
+  REQUIRE(sorted.find("if 0 wins") < sorted.find("if 1 wins"));
+
+  // Verify PlayLineGoldenSerializer delegates to Describe with sort_branches = true
+  REQUIRE(PlayLineGoldenSerializer::Serialize(root) == PlayLineGoldenSerializer::Serialize(sorted));
+}
+

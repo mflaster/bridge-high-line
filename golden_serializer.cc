@@ -10,68 +10,7 @@
 
 std::string PlayLineGoldenSerializer::SerializeConditionalLineHelper(
     const ConditionalLine &line, int lvl) {
-  if (!line.final_covered_boards().empty()) {
-    return "HAND SUCCEEDED FOR: " + StrJoin(line.final_covered_boards());
-  }
-  std::string ans;
-  if (lvl == 0) {
-    if (line.total_boards() > 0) {
-      double pct = (100.0 * line.CoveredBoards()) / line.total_boards();
-      std::ostringstream oss;
-      oss << std::fixed << std::setprecision(1) << pct;
-      ans = "Covers " + std::to_string(line.CoveredBoards()) + "/" +
-            std::to_string(line.total_boards()) + " (" + oss.str() + "%) [" +
-            StrJoin(line.CoveredBoardsSet()) + "]\n";
-    } else {
-      ans = "Covers " + std::to_string(line.CoveredBoards()) +
-            " [" + StrJoin(line.CoveredBoardsSet()) + "]\n";
-    }
-    if (line.has_summary()) {
-      ans += line.summary().ToString();
-    }
-  }
-  if (!line.do_first().Empty()) {
-    ans += line.do_first().ToString();
-  }
-
-  const auto &conds = line.conditions();
-  if (!conds.empty()) {
-    struct BranchInfo {
-      std::string desc;
-      std::string sub_tree;
-      std::string full_formatted;
-    };
-    std::vector<BranchInfo> formatted_branches;
-    formatted_branches.reserve(conds.size());
-
-    bool only_choice = (conds.size() == 1);
-    for (const auto &[play_cond, cond_line] : conds) {
-      BranchInfo bi;
-      bi.desc = play_cond->Describe(only_choice);
-      bi.sub_tree = SerializeConditionalLineHelper(*cond_line, lvl + 1);
-
-      std::string branch_str = "\n";
-      for (int i = 0; i < (lvl + 1) * 2; i++) {
-        branch_str += " ";
-      }
-      branch_str += bi.desc + ": " + bi.sub_tree;
-      bi.full_formatted = branch_str;
-
-      formatted_branches.push_back(bi);
-    }
-
-    std::sort(formatted_branches.begin(), formatted_branches.end(),
-              [](const BranchInfo &a, const BranchInfo &b) {
-                if (a.desc != b.desc) return a.desc < b.desc;
-                return a.sub_tree < b.sub_tree;
-              });
-
-    for (const auto &fb : formatted_branches) {
-      ans += fb.full_formatted;
-    }
-  }
-
-  return ans;
+  return line.Describe(lvl, /*sort_branches=*/true);
 }
 
 std::string PlayLineGoldenSerializer::Serialize(const ConditionalLine &line) {

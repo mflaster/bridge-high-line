@@ -175,7 +175,7 @@ class ConditionalLine {  // ConditionalLineBranch
   void SetAction(const GeneralizedTrick &gt) { do_first_ = gt; }
 
   // Recursively formats human-readable text representation of the decision tree.
-  std::string Describe(int lvl = 0) const;
+  std::string Describe(int lvl = 0, bool sort_branches = false) const;
 
   // Returns the number of conditional branches out of this node.
   int num_conditions() const { return conditions_.size(); }
