@@ -279,3 +279,71 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
 
   server.Stop();
 }
+
+TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {
+  int port = 18082;
+  WebServer server("127.0.0.1", port);
+  REQUIRE(server.Start(/*async=*/true));
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+  // Sequential baseline
+  httplib::Client baseline_client("127.0.0.1", port);
+  baseline_client.set_keep_alive(false);
+  baseline_client.set_read_timeout(60, 0);
+
+  nlohmann::json endplay_req;
+  endplay_req["hands"]["N"] = "S AK; H K2; D -; C -;";
+  endplay_req["hands"]["E"] = "S 54; H QJ; D -; C -;";
+  endplay_req["hands"]["S"] = "S QJ; H A3; D -; C -;";
+  endplay_req["hands"]["W"] = "S 87; H T9; D -; C -;";
+  endplay_req["trump"] = "HEARTS";
+  endplay_req["leader"] = "NORTH";
+  endplay_req["min_tricks"] = 3;
+
+  auto res_baseline = baseline_client.Post("/api/solve", endplay_req.dump(), "application/json");
+  REQUIRE(res_baseline);
+  REQUIRE(res_baseline->status == 200);
+
+  nlohmann::json baseline_json = nlohmann::json::parse(res_baseline->body);
+  REQUIRE(baseline_json["success"] == true);
+  int baseline_tricks = baseline_json["tricks_won"];
+
+  // Concurrent execution with multiple threads
+  constexpr int num_threads = 8;
+  constexpr int requests_per_thread = 5;
+  std::vector<std::thread> threads;
+  std::atomic<bool> all_passed{true};
+
+  for (int t = 0; t < num_threads; ++t) {
+    threads.emplace_back([port, &endplay_req, baseline_tricks, &all_passed]() {
+      httplib::Client client("127.0.0.1", port);
+      client.set_keep_alive(false);
+      client.set_read_timeout(60, 0);
+
+      for (int i = 0; i < requests_per_thread; ++i) {
+        auto res = client.Post("/api/solve", endplay_req.dump(), "application/json");
+        if (!res || res->status != 200) {
+          all_passed = false;
+          return;
+        }
+        nlohmann::json res_json = nlohmann::json::parse(res->body);
+        if (res_json["success"] != true || res_json["tricks_won"] != baseline_tricks) {
+          all_passed = false;
+          return;
+        }
+      }
+    });
+  }
+
+  for (auto &th : threads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+
+  REQUIRE(all_passed.load());
+
+  server.Stop();
+}
+
