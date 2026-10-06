@@ -547,10 +547,20 @@ body {
 
 .hidden { display: none !important; }
 
-/* Tree Viewport */
-.tree-viewport {
+/* Tree Viewport & Side Inspector Layout */
+.tree-layout-wrapper {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
   width: 100%;
   height: 520px;
+  position: relative;
+}
+
+.tree-viewport {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
   background-color: #0b1120;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -561,6 +571,198 @@ body {
 
 .tree-viewport:active {
   cursor: grabbing;
+}
+
+/* Vertical Side Panel Tree Inspector */
+.tree-inspector-panel {
+  width: 280px;
+  max-width: 280px;
+  height: 100%;
+  flex-shrink: 0;
+  background-color: #0b1120;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.2);
+}
+
+.tree-inspector-panel.collapsed {
+  display: none !important;
+}
+
+.inspector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background-color: #0f172a;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.inspector-header h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.inspector-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.inspector-close-btn:hover {
+  color: #ffffff;
+  background-color: #334155;
+}
+
+.inspector-content {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inspector-placeholder {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  margin-top: 40px;
+  padding: 0 12px;
+}
+
+.node-summary-card {
+  background-color: #0f172a;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.node-summary-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 4px;
+}
+
+.node-summary-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.trick-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.trick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trick-row {
+  background-color: #0f172a;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.trick-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.trick-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.seat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background-color: #334155;
+  font-weight: 800;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.seat-badge-ns {
+  color: #6ee7b7;
+}
+
+.seat-badge-ew {
+  color: #fcd34d;
+}
+
+.card-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.card-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc;
+}
+
+.card-chip.card-suit-h, .card-chip.card-suit-d {
+  color: #f87171;
+}
+
+.card-chip.card-winner {
+  font-weight: 800 !important;
+}
+
+.card-chip.card-winner.card-winner-ns {
+  border: 2px solid #10b981 !important;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.card-chip.card-winner.card-winner-ew {
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
 }
 
 /* Tree Nodes SVG Styling */
@@ -585,17 +787,20 @@ body {
   fill: #ffffff;
   font-size: 13px;
   font-weight: 600;
+  pointer-events: none;
 }
 
 .node-text-detail {
   fill: #94a3b8;
   font-size: 11px;
+  pointer-events: none;
 }
 
 .node-text-highlight {
   fill: #ffffff;
   font-size: 12px;
   font-weight: 700;
+  pointer-events: none;
 }
 
 .tree-link {

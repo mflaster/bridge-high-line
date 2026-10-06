@@ -391,7 +391,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
       auto node = std::make_shared<DecisionTreeNode>();
       node->id = "node_" + std::to_string(++node_id);
       node->collapsed = false;
-      node->trick = ExtractFirstCard(tricks[i]);
+      node->trick = tricks[i];
+      node->trick_full = tricks[i];
       node->success_boards = 1;
       node->failure_boards = 0;
       node->total_boards = 1;

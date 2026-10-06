@@ -196,6 +196,7 @@
             <button id="tabSummaryBtn" class="tab-btn" type="button">Distribution Summary <span id="ruleCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
+            <button id="toggleInspectorBtn" class="btn btn-secondary-sm" title="Toggle Inspector Side Panel">Inspector ◧</button>
             <button id="expandAllBtn" class="btn btn-secondary-sm">Expand All</button>
             <button id="collapseAllBtn" class="btn btn-secondary-sm">Collapse All</button>
             <button id="zoomInBtn" class="btn btn-icon-only" title="Zoom In">+</button>
@@ -233,26 +234,35 @@
 
         <!-- Tab Panel 1: Decision Tree -->
         <div id="panelDecisionTree" class="tab-panel active">
-          <!-- SVG Interactive Decision Tree -->
-          <div class="tree-viewport" id="treeViewport">
-            <svg id="treeSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
-                </marker>
-              </defs>
-              <g id="treeRootGroup">
-                <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
-                  Click "Solve Deal" to render the interactive SVG decision tree.
-                </text>
-              </g>
-            </svg>
-          </div>
+          <div class="tree-layout-wrapper">
+            <!-- SVG Interactive Decision Tree -->
+            <div class="tree-viewport" id="treeViewport">
+              <svg id="treeSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
+                  </marker>
+                </defs>
+                <g id="treeRootGroup">
+                  <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
+                    Click "Solve Deal" to render the interactive SVG decision tree.
+                  </text>
+                </g>
+              </svg>
+            </div>
 
-          <!-- Node Detail Banner -->
-          <div id="nodeDetailBanner" class="node-detail-banner hidden">
-            <h4>Selected Node Details</h4>
-            <p id="nodeDetailContent"></p>
+            <!-- Vertical Tree Inspector Side Panel -->
+            <aside id="treeInspectorPanel" class="tree-inspector-panel">
+              <div class="inspector-header">
+                <h3>Line Inspector</h3>
+                <button id="closeInspectorBtn" class="inspector-close-btn" title="Collapse Side Panel">✕</button>
+              </div>
+              <div id="inspectorContent" class="inspector-content">
+                <div class="inspector-placeholder">
+                  Select a node in the decision tree to view trick-by-trick lines of play.
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
 

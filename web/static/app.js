@@ -36,8 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
   const resetZoomBtn = document.getElementById('resetZoomBtn');
-  const nodeDetailBanner = document.getElementById('nodeDetailBanner');
-  const nodeDetailContent = document.getElementById('nodeDetailContent');
+  const toggleInspectorBtn = document.getElementById('toggleInspectorBtn');
+  const closeInspectorBtn = document.getElementById('closeInspectorBtn');
+  const treeInspectorPanel = document.getElementById('treeInspectorPanel');
+  const inspectorContent = document.getElementById('inspectorContent');
 
   // Tab Switcher Elements
   const tabDecisionTreeBtn = document.getElementById('tabDecisionTreeBtn');
@@ -65,6 +67,19 @@ document.addEventListener('DOMContentLoaded', () => {
       tabDecisionTreeBtn.classList.remove('active');
       panelDistributionSummary.classList.remove('hidden');
       panelDecisionTree.classList.add('hidden');
+    });
+  }
+
+  // Inspector Side Panel Toggle Listeners
+  if (toggleInspectorBtn && treeInspectorPanel) {
+    toggleInspectorBtn.addEventListener('click', () => {
+      treeInspectorPanel.classList.toggle('collapsed');
+    });
+  }
+
+  if (closeInspectorBtn && treeInspectorPanel) {
+    closeInspectorBtn.addEventListener('click', () => {
+      treeInspectorPanel.classList.add('collapsed');
     });
   }
 
@@ -676,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Render Decision Tree
       if (data.tree) {
         currentTreeData = data.tree;
-        renderDecisionTree(data.tree, true);
+        expandAndInspectNode(data.tree, data.tree);
       } else {
         treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
       }
@@ -732,6 +747,67 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function collapseSubtree(n) {
+    if (!n) return;
+    n._collapsed = true;
+    if (n.children && n.children.length > 0) {
+      n.children.forEach(c => collapseSubtree(c));
+    }
+  }
+
+  function attachParentPointers(node, parent = null) {
+    if (!node) return;
+    node._parent = parent;
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(c => attachParentPointers(c, node));
+    }
+  }
+
+  function expandAndInspectNode(targetNode, rootNode) {
+    if (!rootNode || !targetNode) return;
+    attachParentPointers(rootNode);
+
+    // Build path from rootNode to targetNode using _parent pointers
+    const pathToTarget = [];
+    let curr = targetNode;
+    while (curr) {
+      pathToTarget.unshift(curr);
+      curr = curr._parent;
+    }
+
+    // Expand all nodes along pathToTarget and collapse non-path sibling branches
+    for (let i = 0; i < pathToTarget.length; i++) {
+      const current = pathToTarget[i];
+      current._collapsed = false;
+      if (current.children && current.children.length > 0) {
+        const nextInPath = pathToTarget[i + 1];
+        current.children.forEach(child => {
+          if (child !== nextInPath) {
+            collapseSubtree(child);
+          }
+        });
+      }
+    }
+
+    // Expand down from targetNode to (one) leaf taking left branches (children[0])
+    let leaf = targetNode;
+    while (leaf.children && leaf.children.length > 0) {
+      leaf._collapsed = false;
+      const leftChild = leaf.children[0];
+      for (let i = 1; i < leaf.children.length; i++) {
+        collapseSubtree(leaf.children[i]);
+      }
+      leaf = leftChild;
+    }
+    leaf._collapsed = false;
+
+    // Re-render decision tree layout
+    renderDecisionTree(rootNode);
+
+    // Show line inspector for the reached leaf
+    showNodeInspector(leaf);
+  }
+
   // Decision Tree SVG Rendering
   function renderDecisionTree(rootNode, resetView = false) {
     treeRootGroup.innerHTML = '';
@@ -741,6 +817,15 @@ document.addEventListener('DOMContentLoaded', () => {
       zoomLevel = 1.0;
     }
     updateTransform();
+
+    function attachParentPointers(node, parent = null) {
+      if (!node) return;
+      node._parent = parent;
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(c => attachParentPointers(c, node));
+      }
+    }
+    attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
     const nodeWidth = 240;
@@ -906,11 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Event Listeners for Interactivity
       g.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (node.children && node.children.length > 0) {
-          node._collapsed = !node._collapsed;
-          renderDecisionTree(rootNode);
-        }
-        showNodeDetails(node);
+        expandAndInspectNode(node, rootNode);
       });
 
       treeRootGroup.appendChild(g);
@@ -929,18 +1010,364 @@ document.addEventListener('DOMContentLoaded', () => {
     return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
   }
 
-  function showNodeDetails(node) {
-    nodeDetailBanner.classList.remove('hidden');
-    let boardsInfo = '';
+  function showNodeInspector(node) {
+    if (treeInspectorPanel) {
+      treeInspectorPanel.classList.remove('collapsed');
+    }
+    if (!inspectorContent) return;
+
+    // Traverse parent pointers to assemble root-to-node path
+    const path = [];
+    let curr = node;
+    while (curr) {
+      path.unshift(curr);
+      curr = curr._parent;
+    }
+
+    // Determine initial leader
+    let initialLeader = getSeatIndex(leaderSelect ? leaderSelect.value : 'NORTH');
+    if (currentSolveData && currentSolveData.leader) {
+      initialLeader = getSeatIndex(currentSolveData.leader);
+    }
+    const trumpCode = getTrumpCode();
+
+    let currentLeader = initialLeader;
+    const trickRows = [];
+
+    path.forEach((pathNode, stepIdx) => {
+      const rawTrick = extractTrickString(pathNode);
+      if (!rawTrick) return;
+
+      const tokens = tokenizeTrick(rawTrick);
+      if (tokens.length === 0) return;
+
+      // Parse cards
+      const parsedCards = [];
+      let leadSuit = null;
+
+      tokens.forEach((tok, i) => {
+        const cardObj = parseSingleCardToken(tok, leadSuit, trumpCode);
+        if (i === 0) {
+          leadSuit = cardObj.suit;
+        }
+        cardObj.seatIdx = (currentLeader + i) % 4;
+        cardObj.seatName = getSeatName(cardObj.seatIdx);
+        parsedCards.push(cardObj);
+      });
+
+      // Check explicit winner from next node condition (if present) or pathNode label
+      let explicitWinnerSeat = null;
+      let explicitWinnerCard = null;
+
+      // 1. Next node condition in path takes priority as it specifies the selected branch rule
+      if (stepIdx + 1 < path.length) {
+        const nextNode = path[stepIdx + 1];
+        if (nextNode && nextNode.condition) {
+          const cond = nextNode.condition;
+          const mSeat = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\b/i);
+          if (mSeat) {
+            explicitWinnerSeat = getSeatIndex(mSeat[1]);
+          }
+          const mCard = cond.match(/wins\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+)/i);
+          if (mCard) {
+            let rawCardMatch = mCard[1].trim();
+            let firstTok = rawCardMatch.split(/[\s,]+/)[0].trim();
+            if (firstTok) {
+              explicitWinnerCard = firstTok.toUpperCase();
+            }
+          }
+        }
+      }
+
+      // 2. Fall back to pathNode.label if nextNode condition didn't specify a winner seat
+      if (explicitWinnerSeat === null && pathNode.label) {
+        const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
+        if (mWin) {
+          explicitWinnerSeat = getSeatIndex(mWin[1]);
+        }
+      }
+
+      // Determine winning card index and update card token if specific winner card is provided
+      let winningCardIdx = -1;
+
+      if (explicitWinnerSeat !== null) {
+        const foundIdx = parsedCards.findIndex(c => c.seatIdx === explicitWinnerSeat);
+        if (foundIdx !== -1) {
+          winningCardIdx = foundIdx;
+          if (explicitWinnerCard) {
+            // Update the played card for this seat if specified in the branch condition
+            const updatedCard = parseSingleCardToken(explicitWinnerCard, leadSuit, trumpCode);
+            updatedCard.seatIdx = explicitWinnerSeat;
+            updatedCard.seatName = getSeatName(explicitWinnerSeat);
+            parsedCards[foundIdx] = updatedCard;
+          }
+        }
+      }
+
+      if (winningCardIdx === -1 && explicitWinnerCard !== null) {
+        const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard));
+        if (foundIdx !== -1) {
+          winningCardIdx = foundIdx;
+        }
+      }
+
+      if (winningCardIdx === -1) {
+        // Trump suit evaluation rules
+        let bestIdx = 0;
+        let bestIsTrump = (trumpCode !== 'NT' && parsedCards[0].suit === trumpCode);
+        let bestVal = parsedCards[0].rankVal;
+
+        for (let i = 1; i < parsedCards.length; i++) {
+          const c = parsedCards[i];
+          const isTrump = (trumpCode !== 'NT' && c.suit === trumpCode);
+
+          if (isTrump && !bestIsTrump) {
+            bestIdx = i;
+            bestIsTrump = true;
+            bestVal = c.rankVal;
+          } else if (isTrump && bestIsTrump) {
+            if (c.rankVal > bestVal) {
+              bestIdx = i;
+              bestVal = c.rankVal;
+            }
+          } else if (!isTrump && !bestIsTrump) {
+            if (c.suit === leadSuit && c.rankVal > bestVal) {
+              bestIdx = i;
+              bestVal = c.rankVal;
+            }
+          }
+        }
+        winningCardIdx = bestIdx;
+      }
+
+      const winnerCard = parsedCards[winningCardIdx];
+      const leadSeatName = getSeatName(currentLeader);
+      const leadSeatBadge = `(${leadSeatName})`;
+
+      trickRows.push({
+        trickNum: trickRows.length + 1,
+        leadSeatBadge: leadSeatBadge,
+        leadSeatName: leadSeatName,
+        cards: parsedCards,
+        winningCardIdx: winningCardIdx,
+        winnerSeat: winnerCard ? winnerCard.seatName : ''
+      });
+
+      // Next trick leader is the winner of this trick
+      currentLeader = winnerCard.seatIdx;
+    });
+
+    // Render Inspector Panel HTML
+    inspectorContent.innerHTML = '';
+
+    // Node Summary Card
+    const summaryCard = document.createElement('div');
+    summaryCard.className = 'node-summary-card';
+
+    let successInfo = '';
     if (node.success_boards !== undefined && node.total_boards !== undefined) {
       const sPct = Math.round((node.success_boards / node.total_boards) * 100);
-      const fPct = Math.round((node.failure_boards / node.total_boards) * 100);
-      boardsInfo = `Success: ${node.success_boards}/${node.total_boards} (${sPct}%) | Failure: ${node.failure_boards}/${node.total_boards} (${fPct}%)`;
+      successInfo = `${node.success_boards}/${node.total_boards} (${sPct}%)`;
+    } else if (node.covered_boards !== undefined) {
+      successInfo = `${node.covered_boards}`;
     } else {
-      boardsInfo = `Success: ${node.covered_boards || 0}`;
+      successInfo = '-';
     }
-    const nsInfo = node.ns_tricks !== undefined ? ` | N/S Tricks Won: ${node.ns_tricks}` : '';
-    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}"${nsInfo} | ${boardsInfo}`;
+
+    const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
+
+    summaryCard.innerHTML = `
+      <div class="node-summary-title">Node #${node.id} (${(node.type || 'node').toUpperCase()})</div>
+      <div class="node-summary-detail">Label: "${truncateText(node.label || node.trick || 'Root', 35)}"</div>
+      <div class="node-summary-detail">Success: ${successInfo}${nsTricksInfo}</div>
+    `;
+    inspectorContent.appendChild(summaryCard);
+
+    // Trick Section
+    const trickSection = document.createElement('div');
+    trickSection.innerHTML = `<div class="trick-section-header">Line of Play (${trickRows.length} Trick${trickRows.length !== 1 ? 's' : ''})</div>`;
+
+    if (trickRows.length === 0) {
+      const emptyNote = document.createElement('div');
+      emptyNote.className = 'inspector-placeholder';
+      emptyNote.textContent = 'Root node selected. Click a decision node in the tree below to inspect played tricks.';
+      trickSection.appendChild(emptyNote);
+    } else {
+      const listContainer = document.createElement('div');
+      listContainer.className = 'trick-list';
+
+      trickRows.forEach(tr => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'trick-row';
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'trick-row-meta';
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'trick-label';
+        labelEl.textContent = `#${tr.trickNum}`;
+
+        const isLeaderEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
+        const badgeEl = document.createElement('span');
+        badgeEl.className = `seat-badge ${isLeaderEW ? 'seat-badge-ew' : 'seat-badge-ns'}`;
+        badgeEl.textContent = tr.leadSeatBadge;
+
+        metaEl.appendChild(labelEl);
+        metaEl.appendChild(badgeEl);
+        rowEl.appendChild(metaEl);
+
+        const chipsRow = document.createElement('div');
+        chipsRow.className = 'card-chips-row';
+
+        const isWinnerEW = (tr.winnerSeat === 'E' || tr.winnerSeat === 'W');
+        const winnerThemeClass = isWinnerEW ? 'card-winner-ew' : 'card-winner-ns';
+
+        tr.cards.forEach((c, idx) => {
+          const chip = document.createElement('span');
+          const isWinner = (idx === tr.winningCardIdx);
+          chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
+          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+          chip.textContent = c.displayStr;
+          chipsRow.appendChild(chip);
+        });
+
+        rowEl.appendChild(chipsRow);
+        listContainer.appendChild(rowEl);
+      });
+
+      trickSection.appendChild(listContainer);
+    }
+
+    inspectorContent.appendChild(trickSection);
+  }
+
+  if (typeof window !== 'undefined') {
+    window._getCurrentTreeData = () => currentTreeData;
+    window._showNodeInspector = showNodeInspector;
+    window._expandAndInspectNode = expandAndInspectNode;
+  }
+
+  function getSeatIndex(seatStr) {
+    if (!seatStr) return 0;
+    const s = seatStr.trim().toUpperCase();
+    if (s.startsWith('N') || s === '0') return 0; // NORTH
+    if (s.startsWith('E') || s === '1' || s === '3') {
+      if (s === '1') return 1; // EAST in C++ enum (NORTH=0, EAST=1, SOUTH=2, WEST=3)
+      if (s === '3') return 3; // WEST
+      if (s.startsWith('E')) return 1;
+    }
+    if (s.startsWith('S') || s === '2') return 2; // SOUTH
+    if (s.startsWith('W')) return 3; // WEST
+    return 0;
+  }
+
+  function getSeatName(seatIdx) {
+    const seats = ['N', 'E', 'S', 'W'];
+    return seats[((seatIdx % 4) + 4) % 4];
+  }
+
+  function getTrumpCode() {
+    if (!trumpSelect) return 'S';
+    const val = trumpSelect.value;
+    if (val === 'SPADES') return 'S';
+    if (val === 'HEARTS') return 'H';
+    if (val === 'DIAMONDS') return 'D';
+    if (val === 'CLUBS') return 'C';
+    if (val === 'NOTRUMP') return 'NT';
+    return 'S';
+  }
+
+  function tokenizeTrick(trickStr) {
+    if (!trickStr) return [];
+    const cleaned = trickStr.replace(/,/g, ' ');
+    const regex = /\([^\)]+\)|[S|H|D|C][A|K|Q|J|T|10|9|8|7|6|5|4|3|2|x|_]+|[A|K|Q|J|T|10|9|8|7|6|5|4|3|2]+[S|H|D|C]|\S+/gi;
+    const matches = cleaned.match(regex) || [];
+    return matches.filter(m => m.trim().length > 0);
+  }
+
+  function parseSingleCardToken(token, leadSuit, trumpSuit) {
+    let cleanToken = token.replace(/[\(\)]/g, '').trim().toUpperCase();
+    let suit = null;
+    let rankStr = '';
+
+    if (cleanToken === 'R_' || cleanToken === 'R') {
+      suit = trumpSuit !== 'NT' ? trumpSuit : (leadSuit || 'S');
+      rankStr = '_';
+    } else if (cleanToken === '__' || cleanToken === '_') {
+      suit = leadSuit || 'S';
+      rankStr = '_';
+    } else {
+      if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(0))) {
+        suit = cleanToken.charAt(0);
+        rankStr = cleanToken.substring(1);
+      } else if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(cleanToken.length - 1))) {
+        suit = cleanToken.charAt(cleanToken.length - 1);
+        rankStr = cleanToken.substring(0, cleanToken.length - 1);
+      } else {
+        suit = leadSuit || 'S';
+        rankStr = cleanToken;
+      }
+    }
+
+    if (rankStr === '10') rankStr = 'T';
+    if (rankStr === '') rankStr = '_';
+
+    const rankValueMap = {
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10,
+      '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
+    };
+    const rankVal = rankValueMap[rankStr] || 1;
+
+    let suitSym = '♠';
+    let suitClass = 'card-suit-s';
+    if (suit === 'H') { suitSym = '♥'; suitClass = 'card-suit-h'; }
+    else if (suit === 'D') { suitSym = '♦'; suitClass = 'card-suit-d'; }
+    else if (suit === 'C') { suitSym = '♣'; suitClass = 'card-suit-c'; }
+
+    const displayStr = `${suitSym}${rankStr}`;
+
+    return {
+      raw: token,
+      suit: suit,
+      rankStr: rankStr,
+      rankVal: rankVal,
+      suitSym: suitSym,
+      suitClass: suitClass,
+      displayStr: displayStr
+    };
+  }
+
+  function extractTrickString(node) {
+    if (!node) return null;
+
+    // Check if node.label explicitly matches "Trick <N>:"
+    if (node.label && /^Trick\s+\d+:/i.test(node.label.trim())) {
+      let lbl = node.label.trim();
+      const colonIdx = lbl.indexOf(':');
+      if (colonIdx !== -1) {
+        let cardsPart = lbl.substring(colonIdx + 1).trim();
+        // Remove trailing parenthesized outcome/winner metadata
+        cardsPart = cardsPart.replace(/\s*\([^)]*(?:wins|tricks|won|succeeded|failed)[^)]*\)\s*/gi, '').trim();
+        if (cardsPart.length > 0) {
+          return cardsPart;
+        }
+      }
+    }
+
+    // Fall back to node.trick if present and valid
+    if (node.trick && typeof node.trick === 'string') {
+      const trimmed = node.trick.trim();
+      if (trimmed.length > 0 &&
+          !/^solve/i.test(trimmed) &&
+          !/^optimal/i.test(trimmed) &&
+          !/is led/i.test(trimmed) &&
+          !/variants/i.test(trimmed) &&
+          !/hand /i.test(trimmed)) {
+        return trimmed;
+      }
+    }
+
+    return null;
   }
 
   // Pan & Zoom Implementation
