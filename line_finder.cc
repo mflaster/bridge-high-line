@@ -1,6 +1,7 @@
 #include "line_finder.h"
 
 #include <ctype.h>
+#include <chrono>
 #include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "glog/logging.h"
@@ -164,6 +165,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
     int min_tricks,
     const std::vector<uint64_t> &hands, uint64_t unknown_cards,
     int leader, Suit trump, const std::vector<CardType> &cur_trick) {
+  auto start_solve = std::chrono::high_resolution_clock::now();
   CHECK_EQ(4, hands.size());
   LOG(INFO) << "Solving hands: \n\n"
             << "          N: " << HandDebugString(hands[0], true) << "\n\n"
@@ -189,6 +191,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
 
   auto ans = SolveHelper(min_tricks, cache, board_trees,
                          board_offsets, leader, 0);
+  auto end_solve = std::chrono::high_resolution_clock::now();
+  solve_ms_ = std::chrono::duration<double, std::milli>(end_solve - start_solve).count();
+
+  auto start_invariant = std::chrono::high_resolution_clock::now();
   CrossHandDealSetSummarizer summarizer;
   for (auto &line : ans) {
     line.set_total_boards(num_iters_);
@@ -225,6 +231,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
       }
     }
   }
+  auto end_invariant = std::chrono::high_resolution_clock::now();
+  invariant_ms_ = std::chrono::duration<double, std::milli>(end_invariant - start_invariant).count();
+
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
             << get_line_from_trick_calls;
   return ans;

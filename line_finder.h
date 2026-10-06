@@ -87,6 +87,9 @@ class LineFinder {
   static std::string TricksWonDebugString(const std::multiset<int> &tricks);
   static int CountAtLeast(const std::multiset<int> &data, int thresh);
 
+  double solve_ms() const { return solve_ms_; }
+  double invariant_ms() const { return invariant_ms_; }
+
  protected:
   std::vector<BoardState> SetupBoards(
       Suit trump, int leader, std::set<int> &board_offsets,
@@ -129,4 +132,6 @@ class LineFinder {
  private:
   int num_iters_;
   FuzzyBoardState fuzzy_state_;
+  double solve_ms_ = 0.0;
+  double invariant_ms_ = 0.0;
 };

@@ -903,6 +903,9 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     int success_boards = 1;
     int failure_boards = 0;
 
+    double solve_ms = 0.0;
+    double invariant_ms = 0.0;
+
     if (is_fuzzy) {
       total_boards = num_iters;
       LineFinder lf(num_iters);
@@ -928,6 +931,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
       std::vector<ConditionalLine> lines =
           lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit, {});
+      solve_ms = lf.solve_ms();
+      invariant_ms = lf.invariant_ms();
 
       if (!lines.empty()) {
         tree_node = BuildTreeFromConditionalLine(lines[0], node_counter);
@@ -957,9 +962,14 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       bs.SetLead(leader);
       bs.MarkMissingCardsAsPlayed();
 
+      auto solve_start = std::chrono::high_resolution_clock::now();
       tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
       best_lead = ExtractFirstCard(best_seq);
       tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter, bs);
+      auto solve_end = std::chrono::high_resolution_clock::now();
+      solve_ms = std::chrono::duration<double, std::milli>(solve_end - solve_start).count();
+      invariant_ms = 0.0;
+
       total_boards = 1;
       success_boards = 1;
       failure_boards = 0;
@@ -978,6 +988,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["success_boards"] = success_boards;
     response["failure_boards"] = failure_boards;
     response["covered_boards"] = covered_boards;
+    response["solve_ms"] = solve_ms;
+    response["invariant_ms"] = invariant_ms;
     if (tree_node) {
       CollapseRedundantNodes(tree_node);
       SetDefaultCollapsedState(tree_node);
