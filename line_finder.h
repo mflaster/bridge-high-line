@@ -61,6 +61,15 @@ class LineFinder {
     fuzzy_state_.SetRequirements(r);
   }
 
+  // Solves for optimal play lines to achieve min_tricks across simulated boards.
+  //
+  // Returns:
+  //   std::vector<ConditionalLine>: A vector containing all top-level ConditionalLine decision trees
+  //   that tie for the maximum possible board coverage count (most_boards_covered).
+  //   - If multiple lines are returned, they are all equivalent in terms of total board success count,
+  //     but represent distinct, alternative optimal play strategies (e.g. leading different suits/cards).
+  //   - The top ConditionalLine returned has its do_first_ set to empty and its conditions_ list populated
+  //     with TrickPlayCondition branches ("after trick...") pointing to child subtrees.
   std::vector<ConditionalLine> Solve(
       int min_tricks,
       const std::vector<uint64_t> &hands, uint64_t unknown_cards,
@@ -84,7 +93,9 @@ class LineFinder {
       const std::vector<CardType> &cur_trick,
       bool deal_missing_cards = false);
 
-
+  // Constructs an intermediate action ConditionalLine node for a specific GeneralizedTrick.
+  // Sets a_line.do_first_ = gen_trick, plays the trick on each board tree, and adds WinnerPlayCondition
+  // branches ("when 0 wins", "if 1 wins") for each trick winner pointing to recursive SolveHelper subtrees.
   ConditionalLine GetLineFromTrick(
       const GeneralizedTrick &gen_trick,
       int min_tricks,
@@ -93,6 +104,8 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl);
 
+  // Evaluates groups of generalized tricks and constructs top-level or branch ConditionalLine nodes.
+  // Filters and returns all ConditionalLine options that achieve the maximum board coverage count.
   std::vector<ConditionalLine> GetLinesFromGroups(
       const std::vector<std::vector<GeneralizedTrick>> &groupings,
       int min_tricks,
@@ -101,6 +114,11 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl);
 
+  // Recursive workhorse for finding optimal play lines.
+  // - Base case (cards_left == 0): returns empty vector if min_tricks > 0 (failure), or a single leaf
+  //   ConditionalLine initialized with board_offsets if min_tricks <= 0 (success).
+  // - Recursive case: extracts optimal tricks across boards, generalizes them into trick groups,
+  //   and invokes GetLinesFromGroups.
   std::vector<ConditionalLine> SolveHelper(
       int min_tricks,
       SolverCache &cache,
