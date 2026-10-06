@@ -301,6 +301,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
         REQUIRE(cond.find("1 wins") == std::string::npos);
         REQUIRE((cond.find("N wins") != std::string::npos || cond.find("E wins") != std::string::npos ||
                  cond.find("S wins") != std::string::npos || cond.find("W wins") != std::string::npos));
+        REQUIRE(cond.find(" wins the ") != std::string::npos);
       }
     }
     REQUIRE(found_branch_cond);
