@@ -1358,6 +1358,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeInspectorBtn = document.getElementById('closeInspectorBtn');
   const treeInspectorPanel = document.getElementById('treeInspectorPanel');
   const inspectorContent = document.getElementById('inspectorContent');
+  const nodeDetailBanner = document.getElementById('nodeDetailBanner');
+  const nodeDetailContent = document.getElementById('nodeDetailContent');
 
   // Tab Switcher Elements
   const tabDecisionTreeBtn = document.getElementById('tabDecisionTreeBtn');
@@ -1784,6 +1786,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (nodeDetailBanner) nodeDetailBanner.classList.add('hidden');
     if (nodeDetailContent) nodeDetailContent.textContent = '';
+    if (inspectorContent) {
+      inspectorContent.innerHTML = `
+        <div class="inspector-placeholder">
+          Select a node in the decision tree to view trick-by-trick lines of play.
+        </div>`;
+    }
 
     clearDistributionSummary('No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.');
     if (summaryModeHeader) summaryModeHeader.classList.add('hidden');
