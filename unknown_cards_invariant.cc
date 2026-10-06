@@ -23,6 +23,9 @@ std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
   if (auto res = OrInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
+  if (auto res = AndInvariant::FromString(str, hand1_label, hand2_label)) {
+    return res;
+  }
   if (auto res = CrossSuitConditionalInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
@@ -94,6 +97,61 @@ bool OrInvariant::HoldsOnDeal(
   bool l_holds = left_ && left_->HoldsOnDeal(deal, hand1_label, hand2_label);
   bool r_holds = right_ && right_->HoldsOnDeal(deal, hand1_label, hand2_label);
   return l_holds || r_holds;
+}
+
+// --- AndInvariant Implementation ---
+
+std::shared_ptr<AndInvariant> AndInvariant::FromString(
+    const std::string& str,
+    const std::string& hand1_label,
+    const std::string& hand2_label) {
+  try {
+    if (str.rfind("AndInvariant(", 0) != 0 || str.back() != ')') {
+      return nullptr;
+    }
+    std::string content = str.substr(13, str.size() - 14);
+    size_t comma_pos = std::string::npos;
+    int depth = 0;
+    for (size_t i = 0; i < content.size(); ++i) {
+      if (content[i] == '(') {
+        depth++;
+      } else if (content[i] == ')') {
+        depth--;
+      } else if (depth == 0 && content.substr(i, 2) == ", ") {
+        comma_pos = i;
+        break;
+      }
+    }
+    if (comma_pos == std::string::npos) {
+      return nullptr;
+    }
+    std::string left_str = content.substr(0, comma_pos);
+    std::string right_str = content.substr(comma_pos + 2);
+
+    auto left = UnknownCardsInvariant::FromString(left_str, hand1_label, hand2_label);
+    auto right = UnknownCardsInvariant::FromString(right_str, hand1_label, hand2_label);
+    if (!left || !right) {
+      return nullptr;
+    }
+    return std::make_shared<AndInvariant>(left, right);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+std::string AndInvariant::ToString() const {
+  std::string l_str = left_ ? left_->ToString() : "";
+  std::string r_str = right_ ? right_->ToString() : "";
+  return "AndInvariant(" + l_str + ", " + r_str + ")";
+}
+
+bool AndInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& hand1_label,
+    const std::string& hand2_label) const {
+  bool l_holds = left_ && left_->HoldsOnDeal(deal, hand1_label, hand2_label);
+  bool r_holds = right_ && right_->HoldsOnDeal(deal, hand1_label, hand2_label);
+  return l_holds && r_holds;
 }
 
 // --- CrossSuitConditionalInvariant Implementation ---

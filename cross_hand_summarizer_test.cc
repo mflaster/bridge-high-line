@@ -26,6 +26,25 @@ TEST_CASE("HonorPossessionClassifier_OrInvariant") {
   REQUIRE(found_or);
 }
 
+TEST_CASE("HonorPossessionClassifier_AndInvariant") {
+  std::vector<PairedDeal> deals = {
+    PairedDeal("S K64; H K5;", "S 75; H 74;"),
+    PairedDeal("S K754; H K;", "S 6; H 7654;")
+  };
+  HonorPossessionClassifier classifier("hand 1", "hand 3");
+  for (const auto& deal : deals) {
+    classifier.ProcessDeal(deal);
+  }
+  auto invs = classifier.ExtractInvariants();
+  bool found_and = false;
+  for (const auto& inv : invs) {
+    if (inv->ToString() == "AndInvariant(E has the HK, E has the SK)") {
+      found_and = true;
+    }
+  }
+  REQUIRE(found_and);
+}
+
 TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
   // All paired deals contain S K432, bifurcated differently
   std::vector<PairedDeal> deals = {
