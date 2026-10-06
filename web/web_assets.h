@@ -2244,45 +2244,63 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedCards.push(cardObj);
       });
 
-      // Check explicit winner from pathNode label or next node condition if present
+      // Check explicit winner from next node condition (if present) or pathNode label
       let explicitWinnerSeat = null;
       let explicitWinnerCard = null;
 
-      if (pathNode.label) {
+      // 1. Next node condition in path takes priority as it specifies the selected branch rule
+      if (stepIdx + 1 < path.length) {
+        const nextNode = path[stepIdx + 1];
+        if (nextNode && nextNode.condition) {
+          const cond = nextNode.condition;
+          const mSeat = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\b/i);
+          if (mSeat) {
+            explicitWinnerSeat = getSeatIndex(mSeat[1]);
+          }
+          const mCard = cond.match(/wins\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+)/i);
+          if (mCard) {
+            let rawCardMatch = mCard[1].trim();
+            let firstTok = rawCardMatch.split(/[\s,]+/)[0].trim();
+            if (firstTok) {
+              explicitWinnerCard = firstTok.toUpperCase();
+            }
+          }
+        }
+      }
+
+      // 2. Fall back to pathNode.label if nextNode condition didn't specify a winner seat
+      if (explicitWinnerSeat === null && pathNode.label) {
         const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
         if (mWin) {
           explicitWinnerSeat = getSeatIndex(mWin[1]);
         }
       }
 
-      if (explicitWinnerSeat === null && stepIdx + 1 < path.length) {
-        const nextNode = path[stepIdx + 1];
-        if (nextNode.condition) {
-          const cond = nextNode.condition;
-          const mSeat = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west)/i);
-          if (mSeat) {
-            explicitWinnerSeat = getSeatIndex(mSeat[1]);
-          }
-          const mCard = cond.match(/wins\s+(?:the\s+)?([A-Z0-9_\(\)]+)/i);
-          if (mCard) {
-            explicitWinnerCard = mCard[1].toUpperCase();
-          }
-        }
-      }
+      // Determine winning card index and update card token if specific winner card is provided
+      let winningCardIdx = -1;
 
-      // Determine winning card index
-      let winningCardIdx = 0;
       if (explicitWinnerSeat !== null) {
         const foundIdx = parsedCards.findIndex(c => c.seatIdx === explicitWinnerSeat);
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
+          if (explicitWinnerCard) {
+            // Update the played card for this seat if specified in the branch condition
+            const updatedCard = parseSingleCardToken(explicitWinnerCard, leadSuit, trumpCode);
+            updatedCard.seatIdx = explicitWinnerSeat;
+            updatedCard.seatName = getSeatName(explicitWinnerSeat);
+            parsedCards[foundIdx] = updatedCard;
+          }
         }
-      } else if (explicitWinnerCard !== null) {
+      }
+
+      if (winningCardIdx === -1 && explicitWinnerCard !== null) {
         const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard));
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
         }
-      } else {
+      }
+
+      if (winningCardIdx === -1) {
         // Trump suit evaluation rules
         let bestIdx = 0;
         let bestIsTrump = (trumpCode !== 'NT' && parsedCards[0].suit === trumpCode);
@@ -2404,6 +2422,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     inspectorContent.appendChild(trickSection);
+  }
+
+  if (typeof window !== 'undefined') {
+    window._getCurrentTreeData = () => currentTreeData;
+    window._showNodeInspector = showNodeInspector;
   }
 
   function getSeatIndex(seatStr) {
