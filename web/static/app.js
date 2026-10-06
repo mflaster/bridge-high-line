@@ -1097,8 +1097,7 @@ document.addEventListener('DOMContentLoaded', () => {
         labelEl.textContent = `#${tr.trickNum}`;
 
         const badgeEl = document.createElement('span');
-        const isLeadEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
-        badgeEl.className = `seat-badge ${isLeadEW ? 'seat-badge-ew' : 'seat-badge-ns'}`;
+        badgeEl.className = 'seat-badge';
         badgeEl.textContent = tr.leadSeatBadge;
 
         metaEl.appendChild(labelEl);

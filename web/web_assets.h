@@ -1056,16 +1056,6 @@ body {
   font-family: monospace;
 }
 
-.seat-badge.seat-badge-ns {
-  background-color: #10b981;
-  color: #0f172a;
-}
-
-.seat-badge.seat-badge-ew {
-  background-color: #f59e0b;
-  color: #0f172a;
-}
-
 .card-chips-row {
   display: flex;
   align-items: center;
@@ -2418,8 +2408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         labelEl.textContent = `#${tr.trickNum}`;
 
         const badgeEl = document.createElement('span');
-        const isLeadEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
-        badgeEl.className = `seat-badge ${isLeadEW ? 'seat-badge-ew' : 'seat-badge-ns'}`;
+        badgeEl.className = 'seat-badge';
         badgeEl.textContent = tr.leadSeatBadge;
 
         metaEl.appendChild(labelEl);

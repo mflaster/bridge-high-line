@@ -720,16 +720,6 @@ body {
   font-family: monospace;
 }
 
-.seat-badge.seat-badge-ns {
-  background-color: #10b981;
-  color: #0f172a;
-}
-
-.seat-badge.seat-badge-ew {
-  background-color: #f59e0b;
-  color: #0f172a;
-}
-
 .card-chips-row {
   display: flex;
   align-items: center;
