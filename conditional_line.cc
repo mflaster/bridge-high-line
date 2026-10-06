@@ -47,7 +47,7 @@ std::set<int> ConditionalLine::CoveredFinalBoardsSet(std::set<const ConditionalL
   return CoveredFinalBoardsSetHelper(this, visited);
 }
 
-std::string ConditionalLine::Describe(int lvl) const {
+std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
   if (!final_covered_boards_.empty()) {
     return "HAND SUCCEEDED FOR: " + StrJoin(final_covered_boards_);
   }
@@ -71,13 +71,42 @@ std::string ConditionalLine::Describe(int lvl) const {
   if (!do_first_.Empty()) {
     ans += do_first_.ToString();
   }
-  for (const auto &[play_condition, cond_line] : conditions_) {
-    ans += "\n";
-    for (int i = 0; i < (lvl + 1) * 2; i++) {
-      ans += " ";
+  if (!conditions_.empty()) {
+    struct BranchInfo {
+      std::string desc;
+      std::string sub_tree;
+      std::string full_formatted;
+    };
+    std::vector<BranchInfo> formatted_branches;
+    formatted_branches.reserve(conditions_.size());
+
+    bool only_choice = (conditions_.size() == 1);
+    for (const auto &[play_condition, cond_line] : conditions_) {
+      BranchInfo bi;
+      bi.desc = play_condition->Describe(only_choice);
+      bi.sub_tree = cond_line->Describe(lvl + 1, sort_branches);
+
+      std::string branch_str = "\n";
+      for (int i = 0; i < (lvl + 1) * 2; i++) {
+        branch_str += " ";
+      }
+      branch_str += bi.desc + ": " + bi.sub_tree;
+      bi.full_formatted = branch_str;
+
+      formatted_branches.push_back(bi);
     }
-    ans += play_condition->Describe(conditions_.size() == 1);
-    ans += ": " + cond_line->Describe(lvl + 1);
+
+    if (sort_branches) {
+      std::sort(formatted_branches.begin(), formatted_branches.end(),
+                [](const BranchInfo &a, const BranchInfo &b) {
+                  if (a.desc != b.desc) return a.desc < b.desc;
+                  return a.sub_tree < b.sub_tree;
+                });
+    }
+
+    for (const auto &fb : formatted_branches) {
+      ans += fb.full_formatted;
+    }
   }
   return ans;
 }
