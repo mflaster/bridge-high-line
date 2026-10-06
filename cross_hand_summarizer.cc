@@ -459,7 +459,7 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
       if (!inv->HoldsOnDeal(deal, hand1_label, hand2_label)) {
         true_for_all_random = false;
         if (line != nullptr && line->has_sample_board()) {
-          CHECK_GE(line->min_tricks(), 0);
+          CHECK_GT(line->min_tricks(), 0);
           int tricks = line->ResultsOnHand(deal);
           if (tricks >= line->min_tricks()) {
             works_on_false_hand = true;
