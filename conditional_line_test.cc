@@ -268,6 +268,95 @@ TEST_CASE("WinnerPlayConditionDescribeWithWinningCards") {
   REQUIRE(cond3.Describe(false) == "if 2 wins");
 }
 
+namespace {
+
+BoardState MakeBoardState(const std::vector<uint64_t> &hands, int leader,
+                          Suit trump) {
+  BoardState bs;
+  bs.SetHands(hands);
+  bs.SetLead(leader);
+  bs.SetTrump(trump);
+  return bs;
+}
+
+// Builds a 2-card spade finesse line:
+// North (hand 0): S32, South (hand 2): SAQ.
+// Trick 1: Lead S2 from North, finesse SQ from South.
+//   - If South (2) wins trick 1, cash SA from South.
+//   - If West (3) wins trick 1, ruff/win trick 2 with SA in South.
+ConditionalLine MakeFinesseLine(const BoardState &sample_bs) {
+  std::set<int> deals = {0};
+
+  GeneralizedTrick trick2_2wins(
+      GeneralizedDemiStruct("__", "S3", deals),
+      GeneralizedDemiStruct("__", "SA", deals), deals, 2);
+  ConditionalLine leaf_2wins;
+  leaf_2wins.SetAction(trick2_2wins);
+
+  GeneralizedTrick trick2_3wins(
+      GeneralizedDemiStruct("__", "SA", deals),
+      GeneralizedDemiStruct("__", "S3", deals), deals, 3);
+  ConditionalLine leaf_3wins;
+  leaf_3wins.SetAction(trick2_3wins);
+
+  GeneralizedTrick trick1(
+      GeneralizedDemiStruct("__", "S2", deals),
+      GeneralizedDemiStruct("__", "SQ", deals), deals, 0);
+  ConditionalLine root;
+  root.SetAction(trick1);
+  root.AddCondition(new WinnerPlayCondition(2), leaf_2wins);
+  root.AddCondition(new WinnerPlayCondition(3), leaf_3wins);
+  root.set_min_tricks(2);
+  root.set_sample_board(sample_bs);
+  return root;
+}
+
+}  // namespace
+
+TEST_CASE("ResultsFinesseOnsides") {
+  // Hand 0 (North): S32
+  // Hand 1 (East):  SK4 (King onside)
+  // Hand 2 (South): SAQ
+  // Hand 3 (West):  S65
+  std::vector<uint64_t> hands = {
+      ParseHand("S 32"),
+      ParseHand("S K4"),
+      ParseHand("S AQ"),
+      ParseHand("S 65"),
+  };
+  BoardState bs = MakeBoardState(hands, 0, SPADES);
+  ConditionalLine line = MakeFinesseLine(bs);
+
+  REQUIRE(line.ResultsOnHand(bs) == 2);
+  REQUIRE(line.ResultsOnHand(PairedDeal("S K4", "S 65")) == 2);
+}
+
+TEST_CASE("ResultsFinesseOffsides") {
+  // Hand 0 (North): S32
+  // Hand 1 (East):  S65
+  // Hand 2 (South): SAQ
+  // Hand 3 (West):  SK4 (King offside)
+  std::vector<uint64_t> hands_sample = {
+      ParseHand("S 32"),
+      ParseHand("S K4"),
+      ParseHand("S AQ"),
+      ParseHand("S 65"),
+  };
+  BoardState sample_bs = MakeBoardState(hands_sample, 0, SPADES);
+  ConditionalLine line = MakeFinesseLine(sample_bs);
+
+  std::vector<uint64_t> hands_offside = {
+      ParseHand("S 32"),
+      ParseHand("S 65"),
+      ParseHand("S AQ"),
+      ParseHand("S K4"),
+  };
+  BoardState bs_offside = MakeBoardState(hands_offside, 0, SPADES);
+
+  REQUIRE(line.ResultsOnHand(bs_offside) == 1);
+  REQUIRE(line.ResultsOnHand(PairedDeal("S 65", "S K4")) == 1);
+}
+
 TEST_CASE("ConditionalLineDescribeSortBranches") {
   ConditionalLine line_b(std::set<int>{2});
   ConditionalLine line_a(std::set<int>{1});

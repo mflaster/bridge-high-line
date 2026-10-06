@@ -2,6 +2,7 @@
 #include <catch2/catch_all.hpp>
 #include <stdexcept>
 
+#include "conditional_line.h"
 #include "cross_hand_summarizer.h"
 #include "unknown_cards_invariant.h"
 
@@ -414,5 +415,66 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE(ExactSuitLengthInvariant::FromString("hand 1 length in S is between 1 and 3") == nullptr);
     REQUIRE(SuitLengthRangeInvariant::FromString("hand 1 length in S is always 2") == nullptr);
   }
+}
+
+TEST_CASE("FilterUninterestingInvariants_LineFiltering",
+          "[cross_hand_summarizer]") {
+  // 2-card ending in Spades:
+  // North (0): S32, South (2): SAQ. Unknown cards: SKT54.
+  // Line finesses SQ on trick 1 and cashes SA on trick 2 (requires 2 tricks).
+  // Deals passed to Summarize have East (hand 1) holding SK and ST,
+  // while West (hand 3) holds S54.
+  // - "hand 1 always contains the SK" is required (if West has SK, line only
+  //   takes 1 trick).
+  // - "hand 1 always contains the ST" is incidental (if West has ST and East
+  //   has SK, the line still takes 2 tricks).
+  std::vector<uint64_t> sample_hands = {
+      ParseHand("S 32"),
+      ParseHand("S KT"),
+      ParseHand("S AQ"),
+      ParseHand("S 54"),
+  };
+  BoardState sample_bs;
+  sample_bs.SetHands(sample_hands);
+  sample_bs.SetLead(0);
+  sample_bs.SetTrump(SPADES);
+
+  std::set<int> deal_ids = {0};
+  GeneralizedTrick trick2_2wins(
+      GeneralizedDemiStruct("__", "S3", deal_ids),
+      GeneralizedDemiStruct("__", "SA", deal_ids), deal_ids, 2);
+  ConditionalLine leaf_2wins;
+  leaf_2wins.SetAction(trick2_2wins);
+
+  GeneralizedTrick trick2_3wins(
+      GeneralizedDemiStruct("__", "SA", deal_ids),
+      GeneralizedDemiStruct("__", "S3", deal_ids), deal_ids, 3);
+  ConditionalLine leaf_3wins;
+  leaf_3wins.SetAction(trick2_3wins);
+
+  GeneralizedTrick trick1(
+      GeneralizedDemiStruct("__", "S2", deal_ids),
+      GeneralizedDemiStruct("__", "SQ", deal_ids), deal_ids, 0);
+  ConditionalLine line;
+  line.SetAction(trick1);
+  line.AddCondition(new WinnerPlayCondition(2), leaf_2wins);
+  line.AddCondition(new WinnerPlayCondition(3), leaf_3wins);
+  line.set_min_tricks(2);
+  line.set_sample_board(sample_bs);
+
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S KT", "S 54"),
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report_no_line =
+      summarizer.Summarize(deals, "hand 1", "hand 3", nullptr);
+  REQUIRE(report_no_line.HasRule("hand 1 always contains the SK"));
+  REQUIRE(report_no_line.HasRule("hand 1 always contains the ST"));
+
+  CrossHandSummaryReport report_with_line =
+      summarizer.Summarize(deals, "hand 1", "hand 3", &line);
+  REQUIRE(report_with_line.HasRule("hand 1 always contains the SK"));
+  REQUIRE_FALSE(report_with_line.HasRule("hand 1 always contains the ST"));
 }
 

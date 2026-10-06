@@ -458,7 +458,7 @@ TEST_CASE("LineFinder4") {
     .name = "line_finder_4",
     .trump = SPADES,
     .leader = 0,
-    .min_tricks = 0,
+    .min_tricks = 4,
     .num_iters = 10,
     .hand0 = "SAK HAK",
     .hand2 = "SQJ HQJ",
@@ -655,6 +655,7 @@ TEST_CASE("LineFinder_Squeeze1") {
     .trump = NOTRUMP,
     .leader = 0,
     .min_tricks = 6,
+    .num_iters = 60,
     .hand0 = "S A43 D AKQ",
     .hand2 = "S K2 H K D 432",
     .unknown_cards = "S QJT987 H AQJT98",
@@ -707,11 +708,11 @@ TEST_CASE("LineFinder_OrInvariant") {
     .name = "or_invariant",
     .trump = DIAMONDS,
     .leader = 0,
-    .min_tricks = 4,
+    .min_tricks = 6,
     .num_iters = 10,
-    .hand0 = "S 32 H 32 D A",
-    .hand2 = "S AQ H AQ D 4",
-    .unknown_cards = "S K7654 H K7654",
+    .hand0 = "S QJT H QJT D A",
+    .hand2 = "S A32 H A32 D 4",
+    .unknown_cards = "S K987654 H K987654",
   });
 }
 

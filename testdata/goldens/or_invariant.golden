@@ -1,47 +1,57 @@
 # Setup: or_invariant: D contract, Hand 0 on lead
-# Hand 0: S 32; H 32; D A; C -;
+# Hand 0: S QJT; H QJT; D A; C -;
 # Hand 1: 
-# Hand 2: S AQ; H AQ; D 4; C -;
+# Hand 2: S A32; H A32; D 4; C -;
 # Hand 3: 
-# Unknown cards: S K7654; H K7654; D -; C -;
+# Unknown cards: S K987654; H K987654; D -; C -;
 # Trump: D
-Covers 9/10 (90.0%) [0, 1, 2, 3, 4, 5, 6, 8, 9]
+Covers 7/10 (70.0%) [0, 1, 2, 4, 5, 6, 9]
 Cross-Hand Deal Set Summary Report
-Total Deals: 9
-Invariant Rules for 5 card ending:
-  - hand 1 length in S is between 2 and 4
-  - hand 3 length in S is between 1 and 3
-  - hand 1 length in H is between 1 and 3
-  - hand 3 length in H is between 2 and 4
-  - the hand with the SK also has at least 2 S
-  - the hand with the SK also has at most 3 H
-  - the hand with the HK also has at least 2 S
-  - the hand with the HK also has at most 3 H
+Total Deals: 7
+Invariant Rules for 7 card ending:
   - OrInvariant(E has the HK, E has the SK)
 
-  after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [0,1,2,3,4,5,6,8,9] / S3 S4 SQ S5  / S3 S5 SQ S6  / S3 S5 SQ SK  / S3 S7 SQ S6  / S3 S7 SQ S5 
-    if 2 wins the SQ: 
-      after SA (__) S2 (S_): SA (__) S2 (S_) [0,1,3,4,5,6,8,9] / SA S7 S2 S6  / SA H7 S2 SK  / SA S5 S2 SK  / SA S4 S2 SK  / SA S7 S2 SK 
-        when 2 wins the SA: 
-          after D4 (__) DA (__): D4 (__) DA (__) [0,1,3,4,5,6,8,9] / D4 H4 DA SK  / D4 H6 DA S7  / D4 S4 DA H6  / D4 H4 DA S6  / D4 S6 DA H7 
-            when 0 wins the DA: 
-              after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H5 
-                when 2 wins the HA: 
-                  after HQ (H_) H2 (S_): HQ (H_) H2 (S_) [1] / HQ H4 H2 S4 
-                    when 2 wins the HQ: HAND SUCCEEDED FOR: 1
-              after H3 (Hx) HQ (H_): H3 (Hx) HQ (H_) [0,3,4,5,6,8,9] / H3 H6 HQ HK  / H3 H5 HQ H4  / H3 H5 HQ H7  / H3 H6 HQ HK  / H3 H7 HQ H6 
-                if 2 wins the HQ: 
-                  after HA (H_) H2 (HK): HA (H_) H2 (HK) [3,4,6] / HA H7 H2 HK  / HA H6 H2 HK  / HA H4 H2 HK 
-                    when 2 wins the HA: HAND SUCCEEDED FOR: 3, 4, 6
-                if 3 wins the HK: 
-                  after (H_) H2 (H_) HA: (H_) H2 (H_) HA [0,5,8,9] / H7 H2 H5 HA  / H4 H2 H5 HA  / H4 H2 H5 HA  / H4 H2 H6 HA 
-                    when 2 wins the HA: HAND SUCCEEDED FOR: 0, 5, 8, 9
-    if 3 wins the SK: 
-      after (H_) H3 (H_) HQ: (H_) H3 (H_) HQ [2] / H5 H3 H7 HQ 
-        when 2 wins the HQ: 
-          after SA (S_) S2 (S_): SA (S_) S2 (S_) [2] / SA S6 S2 S7 
-            when 2 wins the SA: 
-              after D4 (S_) DA (R_): D4 (S_) DA (R_) [2] / D4 S4 DA HK 
-                when 0 wins the DA: 
-                  after H2 (H_) HA (H_): H2 (H_) HA (H_) [2] / H2 H6 HA H4 
-                    when 2 wins the HA: HAND SUCCEEDED FOR: 2
+  after DA (H_) D4 (S_): DA (H_) D4 (S_) [0,1,4,5,9] / DA H4 D4 S5  / DA H6 D4 S8  / DA H7 D4 S9  / DA H5 D4 S6  / DA H4 D4 S4 
+    when 0 wins the DA: 
+      after SQ (S_) S3 (S_): SQ (S_) S3 (S_) [0,1,4,5,9] / SQ S6 S3 S7  / SQ S4 S3 S7  / SQ S4 S3 S8  / SQ S4 S3 S5  / SQ S5 S3 S7 
+        when 0 wins the SQ: 
+          after HQ (H_) H3 (H_): HQ (H_) H3 (H_) [0,1,4,5,9] / HQ H8 H3 H6  / HQ H5 H3 H9  / HQ H6 H3 H4  / HQ H4 H3 H7  / HQ H6 H3 H5 
+            when 0 wins the HQ: 
+              after HJ (H_) H2 (H_): HJ (H_) H2 (H_) [0,1,4,5,9] / HJ H7 H2 H5  / HJ H4 H2 H8  / HJ H5 H2 H8  / HJ H8 H2 H6  / HJ H9 H2 H8 
+                when 0 wins the HJ: 
+                  after SJ (SK) SA (S_): SJ (SK) SA (S_) [4] / SJ SK SA S7 
+                    when 2 wins the SA: 
+                      after S2 (S_) ST (R_): S2 (S_) ST (R_) [4] / S2 S6 ST H9 
+                        when 0 wins the ST: 
+                          after HT (HK) HA (S_): HT (HK) HA (S_) [4] / HT HK HA S5 
+                            when 2 wins the HA: HAND SUCCEEDED FOR: 4
+                  after SJ (Sx) S2 (S_): SJ (Sx) S2 (S_) [0,1,5,9] / SJ S8 S2 SK  / SJ S9 S2 S6  / SJ S7 S2 SK  / SJ S9 S2 SK 
+                    if 0 wins the SJ: 
+                      after ST (SK) SA (S_): ST (SK) SA (S_) [1] / ST SK SA S5 
+                        when 2 wins the SA: 
+                          after HA (H_) HT (HK): HA (H_) HT (HK) [1] / HA H7 HT HK 
+                            when 2 wins the HA: HAND SUCCEEDED FOR: 1
+                    if 3 wins the SK: 
+                      after (H_) HT (HK) HA: (H_) HT (HK) HA [0] / H9 HT HK HA 
+                        when 2 wins the HA: 
+                          after SA (S_) ST (S_): SA (S_) ST (S_) [0] / SA S9 ST S4 
+                            when 2 wins the SA: HAND SUCCEEDED FOR: 0
+                      after (S_) ST (S_) SA: (S_) ST (S_) SA [5,9] / S8 ST S9 SA  / S6 ST S8 SA 
+                        when 2 wins the SA: 
+                          after HA (H_) HT (HK): HA (H_) HT (HK) [5,9] / HA H9 HT HK  / HA H7 HT HK 
+                            when 2 wins the HA: HAND SUCCEEDED FOR: 5, 9
+  after DA (S_) D4 (R_): DA (S_) D4 (R_) [2,6] / DA S5 D4 H4  / DA S4 D4 H6 
+    when 0 wins the DA: 
+      after SQ (S_) S3 (S_): SQ (S_) S3 (S_) [2,6] / SQ S4 S3 S8  / SQ S8 S3 S5 
+        when 0 wins the SQ: 
+          after SJ (S_) S2 (S_): SJ (S_) S2 (S_) [2,6] / SJ S9 S2 S7  / SJ S7 S2 S9 
+            when 0 wins the SJ: 
+              after HQ (H_) H3 (H_): HQ (H_) H3 (H_) [2,6] / HQ H6 H3 H7  / HQ H7 H3 H5 
+                when 0 wins the HQ: 
+                  after ST (S_) SA (__): ST (S_) SA (__) [2,6] / ST SK SA S6  / ST S6 SA H9 
+                    when 2 wins the SA: 
+                      after HA (H_) HJ (H_): HA (H_) HJ (H_) [2,6] / HA H9 HJ H8  / HA H8 HJ HK 
+                        when 2 wins the HA: 
+                          after H2 (H_) HT (__): H2 (H_) HT (__) [2,6] / H2 HK HT H5  / H2 H4 HT SK 
+                            if 0 wins the HT: HAND SUCCEEDED FOR: 6
+                            if 3 wins the HK: HAND SUCCEEDED FOR: 2
