@@ -99,6 +99,7 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
 
 void HonorPossessionClassifier::ProcessDeal(const PairedDeal& deal) {
   total_deals_++;
+  deals_.push_back(deal);
   for (int s = 0; s < 4; ++s) {
     Suit suit = static_cast<Suit>(s);
     for (int r = 8; r <= 12; ++r) {
@@ -124,6 +125,9 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
   std::vector<std::shared_ptr<UnknownCardsInvariant>> invariants;
   if (total_deals_ == 0) return invariants;
 
+  std::vector<std::shared_ptr<HonorPossessionInvariant>> non_100_candidates;
+  std::vector<std::shared_ptr<HonorPossessionInvariant>> all_candidates;
+
   for (int s = 0; s < 4; ++s) {
     Suit suit = static_cast<Suit>(s);
     auto suit_it = honor_stats_.find(suit);
@@ -136,19 +140,109 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
       const auto& stats = r_it->second;
       CardType card = Card::GetSuitedCard(suit, r);
 
+      std::string l1 = (hand1_label_ == "hand 1") ? "E" : hand1_label_;
+      std::string l2 = (hand2_label_ == "hand 2" || hand2_label_ == "hand 3") ? "W" : hand2_label_;
+
       if (stats.hand1_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand1, card, hand1_label_));
+        all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
+            HonorPossessionTargetHand::kHand1, card, l1));
       } else if (stats.hand2_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand2, card, hand2_label_));
+        all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
+            HonorPossessionTargetHand::kHand2, card, l2));
       } else if (stats.both_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kBoth, card, "both hands"));
+      } else if (stats.hand1_count + stats.hand2_count + stats.both_count > 0) {
+        auto inv1 = std::make_shared<HonorPossessionInvariant>(
+            HonorPossessionTargetHand::kHand1, card, l1);
+        auto inv2 = std::make_shared<HonorPossessionInvariant>(
+            HonorPossessionTargetHand::kHand2, card, l2);
+        non_100_candidates.push_back(inv1);
+        non_100_candidates.push_back(inv2);
+        all_candidates.push_back(inv1);
+        all_candidates.push_back(inv2);
       }
     }
   }
+
+  AddOrInvariants(non_100_candidates, invariants);
+  AddAndInvariants(all_candidates, invariants);
+
   return invariants;
+}
+
+void HonorPossessionClassifier::AddOrInvariants(
+    const std::vector<std::shared_ptr<HonorPossessionInvariant>>& non_100_candidates,
+    std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const {
+  std::set<std::string> emitted_or_rules;
+  size_t num_non_100 = non_100_candidates.size();
+  for (size_t i = 0; i < num_non_100; ++i) {
+    for (size_t j = i + 1; j < num_non_100; ++j) {
+      auto a = non_100_candidates[i];
+      auto b = non_100_candidates[j];
+      if (a->ToString() == b->ToString()) {
+        continue;
+      }
+      if (a->ToString() > b->ToString()) {
+        std::swap(a, b);
+      }
+      auto or_inv = std::make_shared<OrInvariant>(a, b);
+      std::string rule_str = or_inv->ToString();
+      if (emitted_or_rules.count(rule_str) > 0) {
+        continue;
+      }
+      bool holds_for_all = true;
+      for (const auto& deal : deals_) {
+        if (!or_inv->HoldsOnDeal(deal, hand1_label_, hand2_label_)) {
+          holds_for_all = false;
+          break;
+        }
+      }
+      if (holds_for_all) {
+        emitted_or_rules.insert(rule_str);
+        invariants.push_back(or_inv);
+      }
+    }
+  }
+}
+
+void HonorPossessionClassifier::AddAndInvariants(
+    const std::vector<std::shared_ptr<HonorPossessionInvariant>>& all_candidates,
+    std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const {
+  std::set<std::string> emitted_and_rules;
+  size_t num_all = all_candidates.size();
+  for (size_t i = 0; i < num_all; ++i) {
+    for (size_t j = i + 1; j < num_all; ++j) {
+      auto a = all_candidates[i];
+      auto b = all_candidates[j];
+      if (a->ToString() == b->ToString()) {
+        continue;
+      }
+      if (a->ToString() > b->ToString()) {
+        std::swap(a, b);
+      }
+      auto and_inv = std::make_shared<AndInvariant>(a, b);
+      std::string rule_str = and_inv->ToString();
+      if (emitted_and_rules.count(rule_str) > 0) {
+        continue;
+      }
+      bool holds_for_all = true;
+      for (const auto& deal : deals_) {
+        if (!and_inv->HoldsOnDeal(deal, hand1_label_, hand2_label_)) {
+          holds_for_all = false;
+          break;
+        }
+      }
+      if (holds_for_all) {
+        emitted_and_rules.insert(rule_str);
+        invariants.push_back(and_inv);
+      }
+    }
+  }
 }
 
 std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {

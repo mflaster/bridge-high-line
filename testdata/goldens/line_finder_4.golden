@@ -19,6 +19,13 @@ Invariant Rules for 4 card ending:
   - the hand with the DQ also has at least 2 D
   - the hand with the DK also has at most 3 D
   - the hand with the DA also has at least 2 D
+  - OrInvariant(W has the DA, W has the ST)
+  - OrInvariant(E has the DT, E has the HT)
+  - OrInvariant(E has the DJ, E has the DT)
+  - OrInvariant(E has the DJ, E has the DQ)
+  - OrInvariant(E has the DJ, E has the DK)
+  - OrInvariant(E has the DJ, W has the DA)
+  - OrInvariant(W has the DA, W has the DK)
 
   after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA ST SQ S9 
     when 0 wins the SA: 
