@@ -160,15 +160,23 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
   }
 
   // Extract OrInvariant over pairs of single HonorPossessionInvariants
+  std::set<std::string> emitted_or_rules;
   size_t num_cand = honor_candidates.size();
   for (size_t i = 0; i < num_cand; ++i) {
     for (size_t j = i + 1; j < num_cand; ++j) {
       auto a = honor_candidates[i];
       auto b = honor_candidates[j];
-      if (a->ToString() >= b->ToString()) {
+      if (a->ToString() == b->ToString()) {
+        continue;
+      }
+      if (a->ToString() > b->ToString()) {
         std::swap(a, b);
       }
       auto or_inv = std::make_shared<OrInvariant>(a, b);
+      std::string rule_str = or_inv->ToString();
+      if (emitted_or_rules.count(rule_str) > 0) {
+        continue;
+      }
       bool holds_for_all = true;
       for (const auto& deal : deals_) {
         if (!or_inv->HoldsOnDeal(deal, hand1_label_, hand2_label_)) {
@@ -177,6 +185,7 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
         }
       }
       if (holds_for_all) {
+        emitted_or_rules.insert(rule_str);
         invariants.push_back(or_inv);
       }
     }

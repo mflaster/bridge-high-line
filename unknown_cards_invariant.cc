@@ -52,7 +52,18 @@ std::shared_ptr<OrInvariant> OrInvariant::FromString(
       return nullptr;
     }
     std::string content = str.substr(12, str.size() - 13);
-    size_t comma_pos = content.find(", ");
+    size_t comma_pos = std::string::npos;
+    int depth = 0;
+    for (size_t i = 0; i < content.size(); ++i) {
+      if (content[i] == '(') {
+        depth++;
+      } else if (content[i] == ')') {
+        depth--;
+      } else if (depth == 0 && content.substr(i, 2) == ", ") {
+        comma_pos = i;
+        break;
+      }
+    }
     if (comma_pos == std::string::npos) {
       return nullptr;
     }
@@ -242,11 +253,15 @@ HonorPossessionInvariant::FromString(const std::string& str,
     CardType card = Card::ParseStringCard(card_str);
     HonorPossessionTargetHand target = HonorPossessionTargetHand::kHand1;
 
-    if (label == "both hands") {
-      target = HonorPossessionTargetHand::kBoth;
-    } else if (label == "E" || label == "hand 1" || label == hand1_label) {
+    if (label == hand1_label) {
       target = HonorPossessionTargetHand::kHand1;
-    } else if (label == "W" || label == "hand 2" || label == "hand 3" || label == hand2_label) {
+    } else if (label == hand2_label) {
+      target = HonorPossessionTargetHand::kHand2;
+    } else if (label == "both hands") {
+      target = HonorPossessionTargetHand::kBoth;
+    } else if (label == "E" || label == "N" || label == "hand 1") {
+      target = HonorPossessionTargetHand::kHand1;
+    } else if (label == "W" || label == "S" || label == "hand 2" || label == "hand 3") {
       target = HonorPossessionTargetHand::kHand2;
     } else {
       return nullptr;
@@ -275,15 +290,15 @@ std::string HonorPossessionInvariant::ToString() const {
 
 bool HonorPossessionInvariant::HoldsOnDeal(
     const PairedDeal& deal,
-    const std::string& hand1_label,
-    const std::string& hand2_label) const {
+    const std::string& /*hand1_label*/,
+    const std::string& /*hand2_label*/) const {
   if (target_hand_ == HonorPossessionTargetHand::kBoth || label_ == "both hands") {
     return (deal.hand1 & card_) != 0 && (deal.hand2 & card_) != 0;
   }
-  if (target_hand_ == HonorPossessionTargetHand::kHand1 || label_ == "E" || label_ == "hand 1" || label_ == hand1_label) {
+  if (target_hand_ == HonorPossessionTargetHand::kHand1) {
     return (deal.hand1 & card_) != 0;
   }
-  if (target_hand_ == HonorPossessionTargetHand::kHand2 || label_ == "W" || label_ == "hand 2" || label_ == "hand 3" || label_ == hand2_label) {
+  if (target_hand_ == HonorPossessionTargetHand::kHand2) {
     return (deal.hand2 & card_) != 0;
   }
   return false;
