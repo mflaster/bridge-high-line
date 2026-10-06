@@ -1126,17 +1126,20 @@ body {
   fill: #ffffff;
   font-size: 13px;
   font-weight: 600;
+  pointer-events: none;
 }
 
 .node-text-detail {
   fill: #94a3b8;
   font-size: 11px;
+  pointer-events: none;
 }
 
 .node-text-highlight {
   fill: #ffffff;
   font-size: 12px;
   font-weight: 700;
+  pointer-events: none;
 }
 
 .tree-link {
@@ -1955,7 +1958,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Render Decision Tree
       if (data.tree) {
         currentTreeData = data.tree;
-        renderDecisionTree(data.tree, true);
+        expandAndInspectNode(data.tree, data.tree);
       } else {
         treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
       }
@@ -2009,6 +2012,67 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDecisionTree(currentTreeData, false);
       }
     });
+  }
+
+  function collapseSubtree(n) {
+    if (!n) return;
+    n._collapsed = true;
+    if (n.children && n.children.length > 0) {
+      n.children.forEach(c => collapseSubtree(c));
+    }
+  }
+
+  function attachParentPointers(node, parent = null) {
+    if (!node) return;
+    node._parent = parent;
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(c => attachParentPointers(c, node));
+    }
+  }
+
+  function expandAndInspectNode(targetNode, rootNode) {
+    if (!rootNode || !targetNode) return;
+    attachParentPointers(rootNode);
+
+    // Build path from rootNode to targetNode using _parent pointers
+    const pathToTarget = [];
+    let curr = targetNode;
+    while (curr) {
+      pathToTarget.unshift(curr);
+      curr = curr._parent;
+    }
+
+    // Expand all nodes along pathToTarget and collapse non-path sibling branches
+    for (let i = 0; i < pathToTarget.length; i++) {
+      const current = pathToTarget[i];
+      current._collapsed = false;
+      if (current.children && current.children.length > 0) {
+        const nextInPath = pathToTarget[i + 1];
+        current.children.forEach(child => {
+          if (child !== nextInPath) {
+            collapseSubtree(child);
+          }
+        });
+      }
+    }
+
+    // Expand down from targetNode to (one) leaf taking left branches (children[0])
+    let leaf = targetNode;
+    while (leaf.children && leaf.children.length > 0) {
+      leaf._collapsed = false;
+      const leftChild = leaf.children[0];
+      for (let i = 1; i < leaf.children.length; i++) {
+        collapseSubtree(leaf.children[i]);
+      }
+      leaf = leftChild;
+    }
+    leaf._collapsed = false;
+
+    // Re-render decision tree layout
+    renderDecisionTree(rootNode);
+
+    // Show line inspector for the reached leaf
+    showNodeInspector(leaf);
   }
 
   // Decision Tree SVG Rendering
@@ -2194,11 +2258,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Event Listeners for Interactivity
       g.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (node.children && node.children.length > 0) {
-          node._collapsed = !node._collapsed;
-          renderDecisionTree(rootNode);
-        }
-        showNodeInspector(node);
+        expandAndInspectNode(node, rootNode);
       });
 
       treeRootGroup.appendChild(g);
@@ -2451,6 +2511,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window !== 'undefined') {
     window._getCurrentTreeData = () => currentTreeData;
     window._showNodeInspector = showNodeInspector;
+    window._expandAndInspectNode = expandAndInspectNode;
   }
 
   function getSeatIndex(seatStr) {

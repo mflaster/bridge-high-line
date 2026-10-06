@@ -790,17 +790,20 @@ body {
   fill: #ffffff;
   font-size: 13px;
   font-weight: 600;
+  pointer-events: none;
 }
 
 .node-text-detail {
   fill: #94a3b8;
   font-size: 11px;
+  pointer-events: none;
 }
 
 .node-text-highlight {
   fill: #ffffff;
   font-size: 12px;
   font-weight: 700;
+  pointer-events: none;
 }
 
 .tree-link {
