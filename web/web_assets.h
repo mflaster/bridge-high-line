@@ -1282,13 +1282,13 @@ document.addEventListener('DOMContentLoaded', () => {
       name: "Squeeze Deal (NT)",
       trump: 'NOTRUMP',
       leader: 'NORTH',
-      target: 3,
+      target: 6,
       iters: 15,
-      north: 'S AQ; H A; D K; C -;',
-      east: 'S K9; H K; D A; C -;',
-      south: 'S J8; H 2; D 2; C -;',
-      west: 'S T7; H Q; D Q; C -;',
-      unknown_cards: ''
+      north: 'S A43; H -; D AKQ; C -;',
+      east: '',
+      south: 'S K2; H K; D 432; C -;',
+      west: '',
+      unknown_cards: 'S QJT987 H AQJT98'
     },
     nine_card_hearts: {
       name: "9-Card Hearts Deal",
@@ -2175,13 +2175,13 @@ inline const char* PRESETS_JSON = R"rawjson(
     "name": "Squeeze Deal (NT)",
     "trump": "NOTRUMP",
     "leader": "NORTH",
-    "target": 3,
+    "target": 6,
     "iters": 15,
-    "north": "S AQ; H A; D K; C -;",
-    "east": "S K9; H K; D A; C -;",
-    "south": "S J8; H 2; D 2; C -;",
-    "west": "S T7; H Q; D Q; C -;",
-    "unknown_cards": ""
+    "north": "S A43; H -; D AKQ; C -;",
+    "east": "",
+    "south": "S K2; H K; D 432; C -;",
+    "west": "",
+    "unknown_cards": "S QJT987 H AQJT98"
   },
   "nine_card_hearts": {
     "name": "9-Card Hearts Deal",
