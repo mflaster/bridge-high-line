@@ -2244,10 +2244,18 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedCards.push(cardObj);
       });
 
-      // Check explicit winner from next node condition if present
+      // Check explicit winner from pathNode label or next node condition if present
       let explicitWinnerSeat = null;
       let explicitWinnerCard = null;
-      if (stepIdx + 1 < path.length) {
+
+      if (pathNode.label) {
+        const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
+        if (mWin) {
+          explicitWinnerSeat = getSeatIndex(mWin[1]);
+        }
+      }
+
+      if (explicitWinnerSeat === null && stepIdx + 1 < path.length) {
         const nextNode = path[stepIdx + 1];
         if (nextNode.condition) {
           const cond = nextNode.condition;
@@ -2489,26 +2497,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function extractTrickString(node) {
-    if (node.trick && node.trick.trim().length > 0) {
-      return node.trick.trim();
-    }
-    if (node.label) {
+    if (!node) return null;
+
+    // Check if node.label explicitly matches "Trick <N>:"
+    if (node.label && /^Trick\s+\d+:/i.test(node.label.trim())) {
       let lbl = node.label.trim();
-      if (lbl.startsWith('after ')) {
-        lbl = lbl.substring(6).trim();
-      }
       const colonIdx = lbl.indexOf(':');
       if (colonIdx !== -1) {
-        lbl = lbl.substring(colonIdx + 1).trim();
-      }
-      if (lbl.length > 0 &&
-          !lbl.toLowerCase().startsWith('solve') &&
-          !lbl.toLowerCase().startsWith('optimal') &&
-          !lbl.toLowerCase().startsWith('hand succeeded') &&
-          !lbl.toLowerCase().startsWith('hand failed')) {
-        return lbl;
+        let cardsPart = lbl.substring(colonIdx + 1).trim();
+        // Remove trailing parenthesized outcome/winner metadata
+        cardsPart = cardsPart.replace(/\s*\([^)]*(?:wins|tricks|won|succeeded|failed)[^)]*\)\s*/gi, '').trim();
+        if (cardsPart.length > 0) {
+          return cardsPart;
+        }
       }
     }
+
+    // Fall back to node.trick if present and valid
+    if (node.trick && typeof node.trick === 'string') {
+      const trimmed = node.trick.trim();
+      if (trimmed.length > 0 &&
+          !/^solve/i.test(trimmed) &&
+          !/^optimal/i.test(trimmed) &&
+          !/is led/i.test(trimmed) &&
+          !/variants/i.test(trimmed) &&
+          !/hand /i.test(trimmed)) {
+        return trimmed;
+      }
+    }
+
     return null;
   }
 
