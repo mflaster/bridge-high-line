@@ -59,6 +59,13 @@ class HonorPossessionClassifier {
   std::vector<std::string> ExtractRules() const;
 
  private:
+  void AddOrInvariants(
+      const std::vector<std::shared_ptr<HonorPossessionInvariant>>& non_100_candidates,
+      std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const;
+  void AddAndInvariants(
+      const std::vector<std::shared_ptr<HonorPossessionInvariant>>& all_candidates,
+      std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const;
+
   std::string hand1_label_;
   std::string hand2_label_;
   // Map of Suit -> (honor rank 8..12 -> HonorPossessionStats)

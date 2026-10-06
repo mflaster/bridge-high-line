@@ -169,7 +169,15 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
     }
   }
 
-  // Extract OrInvariant over pairs of single HonorPossessionInvariants (non-100% candidates)
+  AddOrInvariants(non_100_candidates, invariants);
+  AddAndInvariants(all_candidates, invariants);
+
+  return invariants;
+}
+
+void HonorPossessionClassifier::AddOrInvariants(
+    const std::vector<std::shared_ptr<HonorPossessionInvariant>>& non_100_candidates,
+    std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const {
   std::set<std::string> emitted_or_rules;
   size_t num_non_100 = non_100_candidates.size();
   for (size_t i = 0; i < num_non_100; ++i) {
@@ -200,8 +208,11 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
       }
     }
   }
+}
 
-  // Extract AndInvariant over pairs of single HonorPossessionInvariants (all candidates)
+void HonorPossessionClassifier::AddAndInvariants(
+    const std::vector<std::shared_ptr<HonorPossessionInvariant>>& all_candidates,
+    std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const {
   std::set<std::string> emitted_and_rules;
   size_t num_all = all_candidates.size();
   for (size_t i = 0; i < num_all; ++i) {
@@ -232,8 +243,6 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
       }
     }
   }
-
-  return invariants;
 }
 
 std::vector<std::string> HonorPossessionClassifier::ExtractRules() const {
