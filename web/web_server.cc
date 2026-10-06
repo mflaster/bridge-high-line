@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -73,25 +74,24 @@ std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
 
 std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false) {
   if (!cond_ptr) return "";
-  if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr)) {
-    std::string prefix = only_choice ? "when " : "if ";
-    switch ((w->who() % 4 + 4) % 4) {
-      case NORTH: return prefix + "N wins";
-      case EAST:  return prefix + "E wins";
-      case SOUTH: return prefix + "S wins";
-      case WEST:  return prefix + "W wins";
-      default:    return prefix + std::to_string(w->who()) + " wins";
-    }
-  }
   std::string desc = cond_ptr->Describe(only_choice);
   if (desc.rfind("after ", 0) == 0) {
     desc = desc.substr(6);
   }
-  size_t pos;
-  if ((pos = desc.find("0 wins")) != std::string::npos) desc.replace(pos, 6, "N wins");
-  else if ((pos = desc.find("1 wins")) != std::string::npos) desc.replace(pos, 6, "E wins");
-  else if ((pos = desc.find("2 wins")) != std::string::npos) desc.replace(pos, 6, "S wins");
-  if ((pos = desc.find("3 wins")) != std::string::npos) desc.replace(pos, 6, "W wins");
+  static const std::regex kPlayerWinsRegex("(\\d) wins");
+  std::smatch match;
+  while (std::regex_search(desc, match, kPlayerWinsRegex)) {
+    int player = std::stoi(match[1].str());
+    std::string dir;
+    switch ((player % 4 + 4) % 4) {
+      case NORTH: dir = "N"; break;
+      case EAST:  dir = "E"; break;
+      case SOUTH: dir = "S"; break;
+      case WEST:  dir = "W"; break;
+      default:    dir = std::to_string(player); break;
+    }
+    desc.replace(match.position(0), match.length(0), dir + " wins");
+  }
   return desc;
 }
 
