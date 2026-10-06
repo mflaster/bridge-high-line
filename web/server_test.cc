@@ -32,6 +32,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   auto res_js = client.Get("/app.js");
   REQUIRE(res_js);
   REQUIRE(res_js->status == 200);
+  REQUIRE(res_js->body.find("const nodeDetailBanner = document.getElementById('nodeDetailBanner');") != std::string::npos);
+  REQUIRE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");
