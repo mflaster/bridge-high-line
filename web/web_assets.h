@@ -1528,9 +1528,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  function clearPanels() {
+    currentTreeData = null;
+    currentSolveData = null;
+    activeViewMode = 'success';
+
+    if (execTime) execTime.textContent = '';
+
+    if (resultsSummary) resultsSummary.classList.add('hidden');
+    if (statTricks) statTricks.textContent = '-';
+    if (statLead) statLead.textContent = '-';
+    if (statSuccess) statSuccess.textContent = '-';
+    if (statFailure) statFailure.textContent = '-';
+
+    if (treeRootGroup) {
+      treeRootGroup.innerHTML = `
+        <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
+          Click "Solve Deal" to render the interactive SVG decision tree.
+        </text>`;
+    }
+    panX = 40;
+    panY = 40;
+    zoomLevel = 1.0;
+    updateTransform();
+
+    if (nodeDetailBanner) nodeDetailBanner.classList.add('hidden');
+    if (nodeDetailContent) nodeDetailContent.textContent = '';
+
+    clearDistributionSummary('No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.');
+    if (summaryModeHeader) summaryModeHeader.classList.add('hidden');
+    if (summaryModeBadge) {
+      summaryModeBadge.className = 'mode-badge mode-success';
+      summaryModeBadge.textContent = 'Success Deals';
+    }
+    if (summaryModeSub) summaryModeSub.textContent = '';
+
+    if (tabDecisionTreeBtn && tabSummaryBtn) {
+      tabDecisionTreeBtn.classList.add('active');
+      tabSummaryBtn.classList.remove('active');
+      if (panelDecisionTree) panelDecisionTree.classList.remove('hidden');
+      if (panelDistributionSummary) panelDistributionSummary.classList.add('hidden');
+    }
+  }
+
   function loadPreset(key) {
     const p = PRESETS[key];
     if (!p) return;
+
+    clearPanels();
+    setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
 
     trumpSelect.value = p.trump;
     leaderSelect.value = p.leader;
@@ -1580,6 +1626,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function parseAndApplyDealText(text) {
     if (!text) return;
+    clearPanels();
+    setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
     const lines = text.split('\n');
     let hasKeys = false;
     const keyValues = {};
@@ -1654,6 +1702,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Solve Deal Event
   solveBtn.addEventListener('click', async () => {
+    clearPanels();
     setStatus('running', 'Solving deal and analyzing optimal decision tree...');
     solveBtn.disabled = true;
     const startTime = performance.now();
