@@ -150,7 +150,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
 
     bool is_final_trick = false;
     if (child_line_ptr) {
-      if (child_line_ptr->do_first().Empty() || !child_line_ptr->final_covered_boards().empty()) {
+      if (child_line_ptr->do_first().Empty() && child_line_ptr->conditions().empty()) {
         is_final_trick = true;
       }
     } else {

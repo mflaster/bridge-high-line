@@ -267,9 +267,15 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   // Depth 2: Trick 2
   auto &p_trick2 = p_trick1["children"][0];
   REQUIRE(p_trick2["label"].get<std::string>().find("Trick 2:") != std::string::npos);
-  REQUIRE(p_trick2["label"].get<std::string>().find("wins") != std::string::npos);
-  REQUIRE(p_trick2["type"] == "outcome");
-  REQUIRE(p_trick2["success_boards"] > 0);
+  REQUIRE(p_trick2["children"].size() >= 1);
+
+  // Find outcome leaf at depth 4
+  nlohmann::json *curr = &p_trick1;
+  while (curr->contains("children") && !(*curr)["children"].empty()) {
+    curr = &((*curr)["children"][0]);
+  }
+  REQUIRE((*curr)["type"] == "outcome");
+  REQUIRE((*curr)["success_boards"] > 0);
 
   server.Stop();
 }
