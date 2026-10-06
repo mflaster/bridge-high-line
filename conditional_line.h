@@ -167,14 +167,19 @@ class ConditionalLine {  // ConditionalLineBranch
   CrossHandSummaryReport failure_summary_;
 };
 
+// WinnerPlayCondition represents a trick-outcome condition based on which player
+// (by seat index: 0 = North, 1 = West, 2 = South, 3 = East) won the preceding trick.
+//
+// Describe() formats as "when X wins" if this is the sole outcome in the parent line,
+// or "if X wins" if there are multiple branch outcomes depending on trick winner.
 class WinnerPlayCondition : public PlayCondition {
  public:
-  WinnerPlayCondition(int who) : who_(who) {}
+  explicit WinnerPlayCondition(int who) : who_(who) {}
 
   std::string Describe(bool only_choice) const override;
 
  private:
-  int who_;
+  int who_;  // Seat index of the winning player (0 = North, 1 = West, 2 = South, 3 = East)
 };
 
 class TrickPlayCondition : public PlayCondition {
