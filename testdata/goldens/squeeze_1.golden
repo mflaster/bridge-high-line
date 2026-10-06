@@ -22,14 +22,14 @@ Invariant Rules for 6 card ending:
   - the hand with the HA also has exactly 4 S
 
   after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19] / DA H8 D4 S7  / DA H8 D4 S8  / DA HT D4 SJ  / DA S9 D4 HT 
-    when 0 wins: 
+    when 0 wins the DA: 
       after DK (R_) D3 (R_): DK (R_) D3 (R_) [4,5,14,19] / DK HQ D3 H9  / DK HQ D3 H9  / DK H9 D3 HJ  / DK HJ D3 H9 
-        when 0 wins: 
+        when 0 wins the DK: 
           after DQ (__) D2 (__): DQ (__) D2 (__) [4,5,14,19] / DQ HJ D2 S9  / DQ HJ D2 S7  / DQ HQ D2 ST  / DQ S8 D2 HQ 
-            when 0 wins: 
+            when 0 wins the DQ: 
               after S4 (S_) SK (S_): S4 (S_) SK (S_) [4,5,14,19] / S4 ST SK SQ  / S4 S9 SK ST  / S4 S7 SK S9  / S4 S7 SK SJ 
-                when 2 wins: 
+                when 2 wins the SK: 
                   after S2 (S_) SA (S_): S2 (S_) SA (S_) [4,5,14,19] / S2 SJ SA S8  / S2 SQ SA SJ  / S2 S8 SA SQ  / S2 ST SA SQ 
-                    when 0 wins: 
+                    when 0 wins the SA: 
                       after S3 (R_) HK (R_): S3 (R_) HK (R_) [4,5,14,19] / S3 HT HK HA  / S3 HT HK HA  / S3 H8 HK HA  / S3 HA HK H8 
-                        when 0 wins: HAND SUCCEEDED FOR: 4, 5, 14, 19
+                        when 0 wins the S3: HAND SUCCEEDED FOR: 4, 5, 14, 19

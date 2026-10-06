@@ -164,17 +164,19 @@ body {
 }
 
 .card-suit-label {
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .card-suit-s, .card-suit-c { fill: #f8fafc; }
 .card-suit-h, .card-suit-d { fill: #f87171; }
 
 .card-values {
-  fill: #cbd5e1;
-  font-size: 12px;
+  fill: #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
   font-family: monospace;
+  letter-spacing: 0.5px;
 }
 
 /* Form Controls */
@@ -315,6 +317,10 @@ body {
 .mini-text-input {
   flex: 1;
   width: 100%;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: monospace;
+  letter-spacing: 0.3px;
 }
 
 .requirements-details {

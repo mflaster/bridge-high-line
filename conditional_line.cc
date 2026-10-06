@@ -8,6 +8,9 @@
 std::string WinnerPlayCondition::Describe(bool only_choice) const {
   std::string ans = only_choice ? "when " : "if ";
   ans += std::to_string(who_) + " wins";
+  if (!winning_cards_.empty()) {
+    ans += " the " + StrJoin(winning_cards_, ",");
+  }
   return ans;
 }
 
