@@ -547,25 +547,26 @@ std::string SanitizeTrickString(const std::string &raw_trick) {
 }
 }  // namespace
 
-int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
-  BoardState copy = bs;
+namespace {
+static int ResultsOnHandHelper(
+    const ConditionalLine *line, BoardState copy) {
   copy.set_check_card_play(false);
 
   // Terminal leaf node
-  if (do_first_.Empty() && conditions_.empty()) {
+  if (line->do_first().Empty() && line->conditions().empty()) {
     return copy.tricks_won_even();
   }
 
   // Root decision node with initial trick choices
-  if (do_first_.Empty()) {
-    if (conditions_.empty() || !conditions_[0].second) {
+  if (line->do_first().Empty()) {
+    if (line->conditions().empty() || !line->conditions()[0].second) {
       return copy.tricks_won_even();
     }
-    return conditions_[0].second->ResultsOnHand(copy);
+    return ResultsOnHandHelper(line->conditions()[0].second.get(), copy);
   }
 
   // Intermediate action node
-  std::string raw_trick = do_first_.ToString(true);
+  std::string raw_trick = line->do_first().ToString(true);
   std::string clean_trick = SanitizeTrickString(raw_trick);
   std::vector<std::string> words = SplitWords(clean_trick);
 
@@ -643,19 +644,24 @@ int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
 
   int winner = copy.CurPlayer();
 
-  if (conditions_.empty()) {
+  if (line->conditions().empty()) {
     return copy.tricks_won_even();
   }
 
-  for (const auto &[cond, child_line] : conditions_) {
+  for (const auto &[cond, child_line] : line->conditions()) {
     if (!child_line) continue;
     auto *winner_cond = dynamic_cast<const WinnerPlayCondition*>(cond.get());
     if (winner_cond && winner_cond->who() == winner) {
-      return child_line->ResultsOnHand(copy);
+      return ResultsOnHandHelper(child_line.get(), copy);
     }
   }
 
   return copy.tricks_won_even();
+}
+}  // namespace
+
+int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
+  return ResultsOnHandHelper(this, bs);
 }
 
 int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
