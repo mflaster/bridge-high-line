@@ -297,19 +297,16 @@ TEST_CASE("ResultsFinesseOnsides") {
   action_node2_def.AddCondition(new WinnerPlayCondition(2), leaf);
   action_node2_def.AddCondition(new WinnerPlayCondition(0), leaf);
 
-  ConditionalLine action_node1;
+  ConditionalLine line;
   GeneralizedTrick gt1(GeneralizedDemiStruct("__", "S2", {}),
                        GeneralizedDemiStruct("__", "SQ", {}),
                        std::set<int>{0}, 0);
-  action_node1.SetAction(gt1);
-  action_node1.AddCondition(new WinnerPlayCondition(2), action_node2_south);
-  action_node1.AddCondition(new WinnerPlayCondition(1), action_node2_def);
-  action_node1.AddCondition(new WinnerPlayCondition(3), action_node2_def);
+  line.SetAction(gt1);
+  line.AddCondition(new WinnerPlayCondition(2), action_node2_south);
+  line.AddCondition(new WinnerPlayCondition(1), action_node2_def);
+  line.AddCondition(new WinnerPlayCondition(3), action_node2_def);
 
-  ConditionalLine root;
-  root.AddCondition(new TrickPlayCondition("after S2 (__) SQ (__)"), action_node1);
-
-  int tricks = root.ResultsOnHand(bs);
+  int tricks = line.ResultsOnHand(bs);
   REQUIRE(tricks == 2);
 }
 
@@ -342,19 +339,16 @@ TEST_CASE("ResultsFinesseOffsides") {
   action_node2_def.AddCondition(new WinnerPlayCondition(2), leaf);
   action_node2_def.AddCondition(new WinnerPlayCondition(0), leaf);
 
-  ConditionalLine action_node1;
+  ConditionalLine line;
   GeneralizedTrick gt1(GeneralizedDemiStruct("__", "S2", {}),
                        GeneralizedDemiStruct("__", "SQ", {}),
                        std::set<int>{0}, 0);
-  action_node1.SetAction(gt1);
-  action_node1.AddCondition(new WinnerPlayCondition(2), action_node2_south);
-  action_node1.AddCondition(new WinnerPlayCondition(1), action_node2_def);
-  action_node1.AddCondition(new WinnerPlayCondition(3), action_node2_def);
+  line.SetAction(gt1);
+  line.AddCondition(new WinnerPlayCondition(2), action_node2_south);
+  line.AddCondition(new WinnerPlayCondition(1), action_node2_def);
+  line.AddCondition(new WinnerPlayCondition(3), action_node2_def);
 
-  ConditionalLine root;
-  root.AddCondition(new TrickPlayCondition("after S2 (__) SQ (__)"), action_node1);
-
-  int tricks = root.ResultsOnHand(bs);
+  int tricks = line.ResultsOnHand(bs);
   REQUIRE(tricks == 1);
 }
 
