@@ -301,6 +301,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
         REQUIRE(cond.find("1 wins") == std::string::npos);
         REQUIRE((cond.find("N wins") != std::string::npos || cond.find("E wins") != std::string::npos ||
                  cond.find("S wins") != std::string::npos || cond.find("W wins") != std::string::npos));
+        REQUIRE(cond.find(" wins the ") != std::string::npos);
       }
     }
     REQUIRE(found_branch_cond);
@@ -317,6 +318,65 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE((*curr)["label"].get<std::string>().find("tricks won by N/S") != std::string::npos);
 
   server.Stop();
+}
+
+TEST_CASE("BuildTreeFromConditionalLine Common Lead Card Label") {
+  std::set<int> boards = {0, 1, 2};
+  ConditionalLine root_line;
+
+  ConditionalLine child1;
+  child1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H2", "H7", boards),
+      GeneralizedDemiStruct("H9", "HK", boards),
+      boards, 0));
+
+  ConditionalLine child2;
+  child2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H3", "H7", boards),
+      GeneralizedDemiStruct("HJ", "HQ", boards),
+      boards, 0));
+
+  root_line.AddCondition(new WinnerPlayCondition(0), child1);
+  root_line.AddCondition(new WinnerPlayCondition(1), child2);
+
+  int node_id = 0;
+  auto node = BuildTreeFromConditionalLine(root_line, node_id);
+  REQUIRE(node != nullptr);
+  REQUIRE(node->label == "H7 is led (2 variants)");
+
+  // Test fallback when children have different lead cards
+  ConditionalLine root_diff;
+  ConditionalLine child_diff_1;
+  child_diff_1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H2", "H7", boards),
+      GeneralizedDemiStruct("H9", "HK", boards),
+      boards, 0));
+
+  ConditionalLine child_diff_2;
+  child_diff_2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("S2", "SA", boards),
+      GeneralizedDemiStruct("S9", "SK", boards),
+      boards, 0));
+
+  root_diff.AddCondition(new WinnerPlayCondition(0), child_diff_1);
+  root_diff.AddCondition(new WinnerPlayCondition(1), child_diff_2);
+
+  int node_id2 = 0;
+  auto node_diff = BuildTreeFromConditionalLine(root_diff, node_id2);
+  REQUIRE(node_diff != nullptr);
+  REQUIRE(node_diff->label == "Solve Lines (2 variants)");
+}
+
+TEST_CASE("FormatWinnerCondition and FormatBranchCondition Formatting") {
+  WinnerPlayCondition cond_no_cards(0);
+  REQUIRE(FormatWinnerCondition(&cond_no_cards) == "North wins");
+  REQUIRE(FormatBranchCondition(&cond_no_cards, false) == "if N wins");
+  REQUIRE(FormatBranchCondition(&cond_no_cards, true) == "when N wins");
+
+  WinnerPlayCondition cond_with_cards(1, std::vector<std::string>{"SK", "SQ"});
+  REQUIRE(FormatWinnerCondition(&cond_with_cards) == "East wins the SK,SQ");
+  REQUIRE(FormatBranchCondition(&cond_with_cards, false) == "if E wins the SK,SQ");
+  REQUIRE(FormatBranchCondition(&cond_with_cards, true) == "when E wins the SK,SQ");
 }
 
 TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {

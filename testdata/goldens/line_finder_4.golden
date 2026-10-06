@@ -28,10 +28,10 @@ Invariant Rules for 4 card ending:
   - OrInvariant(W has the DA, W has the DK)
 
   after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA ST SQ S9 
-    when 0 wins: 
+    when 0 wins the SA: 
       after SK (R_) SJ (__): SK (R_) SJ (__) [0,1,2,3,4,5,6,7,8,9] / SK DJ SJ DT  / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9  / SK DQ SJ DT 
-        when 0 wins: 
+        when 0 wins the SK: 
           after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,4,5,6,7,8,9] / HA HT HQ DK  / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT  / HA HT HQ DA 
-            when 0 wins: 
+            when 0 wins the HA: 
               after HK (R_) HJ (R_): HK (R_) HJ (R_) [0,1,2,3,4,5,6,7,8,9] / HK DA HJ DQ  / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK  / HK DJ HJ DK 
-                when 0 wins: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+                when 0 wins the HK: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9

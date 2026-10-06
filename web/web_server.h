@@ -1,12 +1,42 @@
 #pragma once
 
 #include <atomic>
+#include <map>
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
+#include "conditional_line.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
+
+struct DecisionTreeNode {
+  std::string id;
+  std::string type;  // "action", "condition", "outcome"
+  std::string label;
+  std::string description;
+  std::string trick;
+  std::string trick_full;
+  std::string condition;
+  bool collapsed = false;
+  int ns_tricks = 0;
+  int success_boards = 0;
+  int failure_boards = 0;
+  int total_boards = 0;
+  int covered_boards = 0;
+  std::vector<int> boards;
+  std::vector<std::shared_ptr<DecisionTreeNode>> children;
+
+  std::map<std::string, std::shared_ptr<DecisionTreeNode>> child_map;
+};
+
+std::string ExtractFirstCard(const std::string &seq);
+std::string FormatWinnerCondition(const PlayCondition *cond_ptr);
+std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false);
+std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
+    const ConditionalLine &line, int &node_id, int trick_num = 1, int root_total = 1, int ns_tricks = 0);
+void to_json(nlohmann::json &j, const DecisionTreeNode &node);
 
 class WebServer {
  public:

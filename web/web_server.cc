@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -32,17 +33,6 @@ int ParsePlayerDirection(const std::string &d) {
   return NORTH;
 }
 
-std::string ExtractFirstCard(const std::string &seq) {
-  std::stringstream ss(seq);
-  std::string token;
-  while (ss >> token) {
-    if (token != "/" && token.size() >= 2) {
-      return token;
-    }
-  }
-  return "";
-}
-
 std::string PlayerDirectionName(int dir) {
   switch ((dir % 4 + 4) % 4) {
     case NORTH: return "North";
@@ -53,81 +43,97 @@ std::string PlayerDirectionName(int dir) {
   }
 }
 
+}  // namespace
+
 std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   if (!cond_ptr) return "";
   std::string desc = cond_ptr->Describe(true);
   if (desc.rfind("after ", 0) == 0) {
     desc = desc.substr(6);
   }
-  if (desc.rfind("when ", 0) == 0 || desc.rfind("if ", 0) == 0) {
-    size_t space1 = desc.find(' ');
-    size_t space2 = desc.find(' ', space1 + 1);
-    if (space1 != std::string::npos) {
-      std::string dir_str;
-      if (space2 != std::string::npos) {
-        dir_str = desc.substr(space1 + 1, space2 - space1 - 1);
-      } else {
-        dir_str = desc.substr(space1 + 1);
-      }
-      if (!dir_str.empty() && std::isdigit(dir_str[0])) {
-        int dir = std::stoi(dir_str);
-        return PlayerDirectionName(dir) + " wins";
-      }
-      if (!dir_str.empty()) {
-        if (dir_str == "wins") return desc;
-        return dir_str + " wins";
-      }
-    }
+  if (desc.rfind("when ", 0) == 0) {
+    desc = desc.substr(5);
+  } else if (desc.rfind("if ", 0) == 0) {
+    desc = desc.substr(3);
+  }
+  static const std::regex kPlayerWinsRegex("(\\d) wins");
+  std::smatch match;
+  while (std::regex_search(desc, match, kPlayerWinsRegex)) {
+    int player = std::stoi(match[1].str());
+    desc.replace(match.position(0), match.length(0), PlayerDirectionName(player) + " wins");
   }
   return desc;
 }
 
-std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false) {
+std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice) {
   if (!cond_ptr) return "";
-  if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr)) {
-    std::string prefix = only_choice ? "when " : "if ";
-    switch ((w->who() % 4 + 4) % 4) {
-      case NORTH: return prefix + "N wins";
-      case EAST:  return prefix + "E wins";
-      case SOUTH: return prefix + "S wins";
-      case WEST:  return prefix + "W wins";
-      default:    return prefix + std::to_string(w->who()) + " wins";
-    }
-  }
   std::string desc = cond_ptr->Describe(only_choice);
   if (desc.rfind("after ", 0) == 0) {
     desc = desc.substr(6);
   }
-  size_t pos;
-  if ((pos = desc.find("0 wins")) != std::string::npos) desc.replace(pos, 6, "N wins");
-  else if ((pos = desc.find("1 wins")) != std::string::npos) desc.replace(pos, 6, "E wins");
-  else if ((pos = desc.find("2 wins")) != std::string::npos) desc.replace(pos, 6, "S wins");
-  else if ((pos = desc.find("3 wins")) != std::string::npos) desc.replace(pos, 6, "W wins");
+  static const std::regex kPlayerWinsRegex("(\\d) wins");
+  std::smatch match;
+  while (std::regex_search(desc, match, kPlayerWinsRegex)) {
+    int player = std::stoi(match[1].str());
+    std::string dir;
+    switch ((player % 4 + 4) % 4) {
+      case NORTH: dir = "N"; break;
+      case EAST:  dir = "E"; break;
+      case SOUTH: dir = "S"; break;
+      case WEST:  dir = "W"; break;
+      default:    dir = std::to_string(player); break;
+    }
+    desc.replace(match.position(0), match.length(0), dir + " wins");
+  }
   return desc;
 }
 
-struct DecisionTreeNode {
-  std::string id;
-  std::string type;  // "action", "condition", "outcome"
-  std::string label;
-  std::string description;
-  std::string trick;
-  std::string trick_full;
-  std::string condition;
-  bool collapsed = false;
-  int ns_tricks = 0;
-  int success_boards = 0;
-  int failure_boards = 0;
-  int total_boards = 0;
-  int covered_boards = 0;
-  std::vector<int> boards;
-  std::vector<std::shared_ptr<DecisionTreeNode>> children;
+std::string CleanCardToken(const std::string &token) {
+  std::string card;
+  for (char c : token) {
+    if (std::isalnum(static_cast<unsigned char>(c))) {
+      card += c;
+    }
+  }
+  return card;
+}
 
-  std::map<std::string, std::shared_ptr<DecisionTreeNode>> child_map;
-};
+std::string ExtractFirstCard(const std::string &seq) {
+  std::stringstream ss(seq);
+  std::string token;
+  while (ss >> token) {
+    if (token == "/" || token == "Trick" || token.back() == ':') continue;
+    std::string card = CleanCardToken(token);
+    if (card.size() >= 2) {
+      return card;
+    }
+  }
+  return "";
+}
+
+std::string GetFirstCardFromNode(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return "";
+  if (!node->trick.empty()) {
+    std::string card = ExtractFirstCard(node->trick);
+    if (!card.empty()) return card;
+  }
+  if (!node->trick_full.empty()) {
+    std::string card = ExtractFirstCard(node->trick_full);
+    if (!card.empty()) return card;
+  }
+  if (node->label.rfind("Trick ", 0) == 0) {
+    std::string card = ExtractFirstCard(node->label);
+    if (!card.empty()) return card;
+  }
+  for (const auto &child : node->children) {
+    std::string card = GetFirstCardFromNode(child);
+    if (!card.empty()) return card;
+  }
+  return "";
+}
 
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
-    const ConditionalLine &line, int &node_id, int trick_num = 1, int root_total = 1, int ns_tricks = 0) {
+    const ConditionalLine &line, int &node_id, int trick_num, int root_total, int ns_tricks) {
   int total = line.total_boards() > 0 ? line.total_boards() : root_total;
 
   if (line.do_first().Empty()) {
@@ -139,7 +145,6 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       auto root_node = std::make_shared<DecisionTreeNode>();
       root_node->id = "node_" + std::to_string(++node_id);
       root_node->type = "action";
-      root_node->label = "Solve Lines (" + std::to_string(conds.size()) + " variants)";
       root_node->collapsed = false;
       root_node->total_boards = total;
       for (const auto &[cond_ptr, child_ptr] : conds) {
@@ -151,6 +156,29 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
           root_node->children.push_back(child);
         }
       }
+
+      std::string common_card = "";
+      bool all_same = !root_node->children.empty();
+      for (const auto &child : root_node->children) {
+        std::string card = GetFirstCardFromNode(child);
+        if (card.empty()) {
+          all_same = false;
+          break;
+        }
+        if (common_card.empty()) {
+          common_card = card;
+        } else if (common_card != card) {
+          all_same = false;
+          break;
+        }
+      }
+
+      if (all_same && !common_card.empty()) {
+        root_node->label = common_card + " is led (" + std::to_string(root_node->children.size()) + " variants)";
+      } else {
+        root_node->label = "Solve Lines (" + std::to_string(conds.size()) + " variants)";
+      }
+
       return root_node;
     }
 
@@ -409,13 +437,35 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
   auto root_node = std::make_shared<DecisionTreeNode>();
   root_node->id = "node_" + std::to_string(++node_id);
   root_node->type = "action";
-  root_node->label = "Optimal Lines (" + std::to_string(line_roots.size()) + " variants)";
   root_node->collapsed = false;
   root_node->success_boards = 1;
   root_node->failure_boards = 0;
   root_node->total_boards = 1;
   root_node->covered_boards = 1;
   root_node->children = line_roots;
+
+  std::string common_card = "";
+  bool all_same = !line_roots.empty();
+  for (const auto &child : line_roots) {
+    std::string card = GetFirstCardFromNode(child);
+    if (card.empty()) {
+      all_same = false;
+      break;
+    }
+    if (common_card.empty()) {
+      common_card = card;
+    } else if (common_card != card) {
+      all_same = false;
+      break;
+    }
+  }
+
+  if (all_same && !common_card.empty()) {
+    root_node->label = common_card + " is led (" + std::to_string(line_roots.size()) + " variants)";
+  } else {
+    root_node->label = "Optimal Lines (" + std::to_string(line_roots.size()) + " variants)";
+  }
+
   return root_node;
 }
 
@@ -671,8 +721,6 @@ uint64_t ComputeUnknownCards(const std::vector<uint64_t>& hands) {
 
   return unknown_cards;
 }
-
-}  // namespace
 
 void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
   j["total_deals"] = summary.total_deals;
