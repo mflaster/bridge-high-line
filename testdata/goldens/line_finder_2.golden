@@ -12,6 +12,6 @@ Invariant Rules for 2 card ending:
   - hand 1 always contains the SK
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,2,4,5,6] / S3 S7 SQ S9  / S3 S9 SQ S8  / S3 S8 SQ S7  / S3 S8 SQ S7  / S3 S7 SQ S9 
-    when 2 wins: 
+    when 2 wins the SQ: 
       after SA (S_) S2 (SK): SA (S_) S2 (SK) [1,2,4,5,6] / SA S8 S2 SK  / SA S7 S2 SK  / SA S9 S2 SK  / SA S9 S2 SK  / SA S8 S2 SK 
-        when 2 wins: HAND SUCCEEDED FOR: 1, 2, 4, 5, 6
+        when 2 wins the SA: HAND SUCCEEDED FOR: 1, 2, 4, 5, 6

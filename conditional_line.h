@@ -170,16 +170,24 @@ class ConditionalLine {  // ConditionalLineBranch
 // WinnerPlayCondition represents a trick-outcome condition based on which player
 // (by seat index: 0 = North, 1 = West, 2 = South, 3 = East) won the preceding trick.
 //
-// Describe() formats as "when X wins" if this is the sole outcome in the parent line,
-// or "if X wins" if there are multiple branch outcomes depending on trick winner.
+// Describe() formats as "when X wins [the cards]" if this is the sole outcome in the parent line,
+// or "if X wins [the cards]" if there are multiple branch outcomes depending on trick winner.
 class WinnerPlayCondition : public PlayCondition {
  public:
   explicit WinnerPlayCondition(int who) : who_(who) {}
+  WinnerPlayCondition(int who, const std::set<std::string> &winning_cards)
+      : who_(who), winning_cards_(winning_cards) {}
+  WinnerPlayCondition(int who, const std::vector<std::string> &winning_cards)
+      : who_(who), winning_cards_(winning_cards.begin(), winning_cards.end()) {}
 
   std::string Describe(bool only_choice) const override;
 
+  int who() const { return who_; }
+  const std::set<std::string> &winning_cards() const { return winning_cards_; }
+
  private:
   int who_;  // Seat index of the winning player (0 = North, 1 = West, 2 = South, 3 = East)
+  std::set<std::string> winning_cards_;
 };
 
 class TrickPlayCondition : public PlayCondition {

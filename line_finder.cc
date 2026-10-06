@@ -276,7 +276,16 @@ ConditionalLine LineFinder::GetLineFromTrick(
     // CHECK_LE(x.size(), 1);
     // For now, let's just take the first one returned.
     if (x.size() >= 1 && x[0].CoveredFinalBoards() > 0) {
-      a_line.AddCondition(new WinnerPlayCondition(leader), x[0]);
+      std::set<std::string> winning_cards;
+      for (int b : some_board_offsets) {
+        std::string trick_str = gen_trick.GetTrickForBoard(b);
+        std::vector<std::string> cards = SplitWords(trick_str);
+        if (cards.size() == 4) {
+          int card_idx = (leader - gen_trick.leader + 4) % 4;
+          winning_cards.insert(cards[card_idx]);
+        }
+      }
+      a_line.AddCondition(new WinnerPlayCondition(leader, winning_cards), x[0]);
     }
   }
   VLOG(2) << "Returning a_line with conditions " << a_line.num_conditions();
