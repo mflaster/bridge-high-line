@@ -1571,12 +1571,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function loadPreset(key) {
+  function loadPreset(key, autoSolve = true) {
     const p = PRESETS[key];
     if (!p) return;
-
-    clearPanels();
-    setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
 
     trumpSelect.value = p.trump;
     leaderSelect.value = p.leader;
@@ -1592,6 +1589,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateDealSvg();
+
+    if (autoSolve && solveBtn) {
+      solveBtn.click();
+    } else {
+      clearPanels();
+      setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
+    }
   }
 
   // Load Preset on Dropdown Selection
@@ -1626,8 +1630,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function parseAndApplyDealText(text) {
     if (!text) return;
-    clearPanels();
-    setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
     const lines = text.split('\n');
     let hasKeys = false;
     const keyValues = {};
@@ -1698,10 +1700,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateDealSvg();
+    if (solveBtn) {
+      solveBtn.click();
+    }
   }
 
   // Solve Deal Event
   solveBtn.addEventListener('click', async () => {
+    if (solveBtn.disabled) return;
     clearPanels();
     setStatus('running', 'Solving deal and analyzing optimal decision tree...');
     solveBtn.disabled = true;
