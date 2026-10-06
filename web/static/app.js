@@ -1092,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const labelEl = document.createElement('span');
         labelEl.className = 'trick-label';
-        labelEl.textContent = `Trick ${tr.trickNum}`;
+        labelEl.textContent = `#${tr.trickNum}`;
 
         const badgeEl = document.createElement('span');
         badgeEl.className = 'seat-badge';
