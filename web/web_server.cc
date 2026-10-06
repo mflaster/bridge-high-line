@@ -47,13 +47,6 @@ std::string PlayerDirectionName(int dir) {
 
 std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   if (!cond_ptr) return "";
-  if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr)) {
-    std::string result = PlayerDirectionName(w->who()) + " wins";
-    if (!w->winning_cards().empty()) {
-      result += " the " + StrJoin(w->winning_cards(), ",");
-    }
-    return result;
-  }
   std::string desc = cond_ptr->Describe(true);
   if (desc.rfind("after ", 0) == 0) {
     desc = desc.substr(6);
@@ -74,22 +67,6 @@ std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
 
 std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice) {
   if (!cond_ptr) return "";
-  if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr)) {
-    std::string prefix = only_choice ? "when " : "if ";
-    std::string dir;
-    switch ((w->who() % 4 + 4) % 4) {
-      case NORTH: dir = "N"; break;
-      case EAST:  dir = "E"; break;
-      case SOUTH: dir = "S"; break;
-      case WEST:  dir = "W"; break;
-      default:    dir = std::to_string(w->who()); break;
-    }
-    std::string result = prefix + dir + " wins";
-    if (!w->winning_cards().empty()) {
-      result += " the " + StrJoin(w->winning_cards(), ",");
-    }
-    return result;
-  }
   std::string desc = cond_ptr->Describe(only_choice);
   if (desc.rfind("after ", 0) == 0) {
     desc = desc.substr(6);
