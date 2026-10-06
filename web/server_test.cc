@@ -90,6 +90,10 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_json["best_lead"] == "SA");
   REQUIRE(res_json.contains("tree"));
   REQUIRE(res_json["tree"].contains("id"));
+  REQUIRE(res_json.contains("solve_ms"));
+  REQUIRE(res_json.contains("invariant_ms"));
+  REQUIRE(res_json["solve_ms"].get<double>() >= 0.0);
+  REQUIRE(res_json["invariant_ms"].get<double>() >= 0.0);
 
   // Test 2: 4-Card Endplay Deal Multi-Trick Tree Verification
   nlohmann::json endplay_req;
@@ -160,6 +164,10 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
 
   nlohmann::json fuzzy_json = nlohmann::json::parse(res_fuzzy->body);
   REQUIRE(fuzzy_json["success"] == true);
+  REQUIRE(fuzzy_json.contains("solve_ms"));
+  REQUIRE(fuzzy_json.contains("invariant_ms"));
+  REQUIRE(fuzzy_json["solve_ms"].get<double>() >= 0.0);
+  REQUIRE(fuzzy_json["invariant_ms"].get<double>() >= 0.0);
   REQUIRE(fuzzy_json.contains("distribution_summary"));
   auto &dist_sum = fuzzy_json["distribution_summary"];
   REQUIRE(dist_sum.contains("invariant_rules"));
