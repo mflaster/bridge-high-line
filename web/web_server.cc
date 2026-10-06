@@ -56,6 +56,9 @@ std::string PlayerDirectionName(int dir) {
 std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   if (!cond_ptr) return "";
   std::string desc = cond_ptr->Describe(true);
+  if (desc.rfind("after ", 0) == 0) {
+    desc = desc.substr(6);
+  }
   if (desc.rfind("when ", 0) == 0 || desc.rfind("if ", 0) == 0) {
     size_t space1 = desc.find(' ');
     size_t space2 = desc.find(' ', space1 + 1);
@@ -92,6 +95,9 @@ std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choic
     }
   }
   std::string desc = cond_ptr->Describe(only_choice);
+  if (desc.rfind("after ", 0) == 0) {
+    desc = desc.substr(6);
+  }
   size_t pos;
   if ((pos = desc.find("0 wins")) != std::string::npos) desc.replace(pos, 6, "N wins");
   else if ((pos = desc.find("1 wins")) != std::string::npos) desc.replace(pos, 6, "E wins");

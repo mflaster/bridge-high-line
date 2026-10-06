@@ -1774,10 +1774,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTransform();
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 220;
+    const nodeWidth = 240;
     const nodeHeight = 78;
-    const levelHeight = 110;
-    const siblingGap = 30;
+    const levelHeight = 140;
+    const siblingGap = 40;
 
     let leafCounter = 0;
 
@@ -1806,11 +1806,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     layoutNode(rootNode);
 
-    // Draw Links & Nodes recursively
-    function drawTree(node) {
+    // Pass 1: Draw Links & Edge Badges
+    function drawLinks(node) {
       if (node.children && node.children.length > 0 && !node._collapsed) {
         node.children.forEach(child => {
-          // Curved path link
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           const startX = node._x + nodeWidth / 2;
           const startY = node._y + nodeHeight;
@@ -1829,7 +1828,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             labelGroup.setAttribute('class', 'tree-edge-label-group');
 
-            const condText = child.condition;
+            let condText = child.condition;
+            if (condText.startsWith('after ')) {
+              condText = condText.substring(6);
+            }
             const labelWidth = Math.max(54, condText.length * 7 + 12);
             const labelHeight = 18;
 
@@ -1853,11 +1855,13 @@ document.addEventListener('DOMContentLoaded', () => {
             treeRootGroup.appendChild(labelGroup);
           }
 
-          drawTree(child);
+          drawLinks(child);
         });
       }
+    }
 
-      // Render Node Group
+    // Pass 2: Draw Node Cards
+    function drawNodes(node) {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('transform', `translate(${node._x}, ${node._y})`);
       g.style.cursor = 'pointer';
@@ -1878,7 +1882,11 @@ document.addEventListener('DOMContentLoaded', () => {
       title.setAttribute('x', '12');
       title.setAttribute('y', '22');
       title.setAttribute('class', 'node-text-title');
-      title.textContent = truncateText(node.label || node.trick || 'Node', 40);
+      let rawTitle = node.label || node.trick || 'Node';
+      if (rawTitle.startsWith('after ')) {
+        rawTitle = rawTitle.substring(6);
+      }
+      title.textContent = truncateText(rawTitle, 40);
       g.appendChild(title);
 
       // Detail Text
@@ -1937,9 +1945,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       treeRootGroup.appendChild(g);
+
+      if (node.children && node.children.length > 0 && !node._collapsed) {
+        node.children.forEach(child => drawNodes(child));
+      }
     }
 
-    drawTree(rootNode);
+    drawLinks(rootNode);
+    drawNodes(rootNode);
   }
 
   function truncateText(str, maxLen) {
