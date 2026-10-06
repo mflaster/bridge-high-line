@@ -224,7 +224,7 @@ make run_line_finder_perf
 
 ## Plain-Text Deal File Format
 
-Deal configurations can be loaded from key-value text files (such as `test_data/sample.deal`):
+Deal configurations can be loaded from key-value text files (such as `testdata/sample.deal`):
 
 ```text
 # Sample deal configuration

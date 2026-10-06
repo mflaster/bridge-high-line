@@ -50,7 +50,7 @@ TEST_CASE("DealMissing") {
 }
 
 TEST_CASE("LoadDealFromKeyValueFile - Sample") {
-  BoardState bs = LoadDealFromKeyValueFile("test_data/sample.deal");
+  BoardState bs = LoadDealFromKeyValueFile("testdata/sample.deal");
 
   REQUIRE(bs.GetHand(NORTH) == ParseHand("S AKQ2 H JT9 D 876 C 543"));
   REQUIRE(bs.GetHand(EAST)  == ParseHand("S JT9 H 8762 D 543 C AKQ"));
@@ -86,7 +86,7 @@ leader = EAST
 
 TEST_CASE("LoadDealFromKeyValueFile - Performance") {
   auto start = std::chrono::high_resolution_clock::now();
-  BoardState bs = LoadDealFromKeyValueFile("test_data/sample.deal");
+  BoardState bs = LoadDealFromKeyValueFile("testdata/sample.deal");
   auto end = std::chrono::high_resolution_clock::now();
 
   double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
@@ -101,11 +101,11 @@ TEST_CASE("LoadDealFromKeyValueFile - Error Handling") {
   }
 
   SECTION("Invalid key") {
-    REQUIRE_THROWS_AS(LoadDealFromKeyValueFile("test_data/invalid_key.deal"), std::runtime_error);
+    REQUIRE_THROWS_AS(LoadDealFromKeyValueFile("testdata/invalid_key.deal"), std::runtime_error);
   }
 
   SECTION("Missing required hand") {
-    REQUIRE_THROWS_AS(LoadDealFromKeyValueFile("test_data/missing_hand.deal"), std::runtime_error);
+    REQUIRE_THROWS_AS(LoadDealFromKeyValueFile("testdata/missing_hand.deal"), std::runtime_error);
   }
 
   SECTION("Missing equals delimiter") {
