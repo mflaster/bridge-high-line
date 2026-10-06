@@ -39,12 +39,14 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_presets_file->status == 200);
   nlohmann::json presets_file_json = nlohmann::json::parse(res_presets_file->body);
   REQUIRE(presets_file_json.contains("finesse"));
+  REQUIRE(presets_file_json.contains("nine_card_hearts"));
 
   auto res_presets_api = client.Get("/api/presets");
   REQUIRE(res_presets_api);
   REQUIRE(res_presets_api->status == 200);
   nlohmann::json presets_api_json = nlohmann::json::parse(res_presets_api->body);
   REQUIRE(presets_api_json.contains("endplay"));
+  REQUIRE(presets_api_json.contains("nine_card_hearts"));
 
   // Test Health Endpoint
   auto res_health = client.Get("/api/health");
@@ -176,6 +178,24 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_finesse->status == 200);
   nlohmann::json finesse_json = nlohmann::json::parse(res_finesse->body);
   REQUIRE(finesse_json["success"] == true);
+
+  // Test 5b: 9-Card Hearts Deal solve
+  nlohmann::json hearts9_req;
+  hearts9_req["hands"]["N"] = "S 532; H T7; D T32; C 6;";
+  hearts9_req["hands"]["E"] = "";
+  hearts9_req["hands"]["S"] = "S K9; H -; D A854; C AKJ;";
+  hearts9_req["hands"]["W"] = "";
+  hearts9_req["trump"] = "HEARTS";
+  hearts9_req["leader"] = "NORTH";
+  hearts9_req["min_tricks"] = 6;
+  hearts9_req["num_iters"] = 10;
+  hearts9_req["unknown_cards"] = "S AJTQ64 D KQJ976 C T43Q98";
+
+  auto res_hearts9 = client.Post("/api/solve", hearts9_req.dump(), "application/json");
+  REQUIRE(res_hearts9);
+  REQUIRE(res_hearts9->status == 200);
+  nlohmann::json hearts9_json = nlohmann::json::parse(res_hearts9->body);
+  REQUIRE(hearts9_json["success"] == true);
 
   // Test 6: Unknown cards with wildcard 'x' format (H Axxxx C xxxxx for 5-card ending)
   nlohmann::json wildcard_req;
