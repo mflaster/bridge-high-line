@@ -2,6 +2,7 @@
 #include <stdexcept>
 
 #include "cross_hand_summarizer.h"
+#include "unknown_cards_invariant.h"
 
 TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
   // All paired deals contain S K432, bifurcated differently
@@ -213,3 +214,143 @@ TEST_CASE("CrossSuitConditionalRuleExtractor_SuppressesTautologiesAndFixedCards"
   REQUIRE_FALSE(report.HasRule("the hand with the SA"));
   REQUIRE_FALSE(report.HasRule("the hand with the CJ"));
 }
+
+TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal", "[cross_hand_summarizer]") {
+  PairedDeal deal("S AK H Q D 4", "S QJ H 2 D 32");
+
+  // 1. CrossSuitConditionalInvariant
+  {
+    std::string rule_str = "the hand with the SA also has the SK";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = dynamic_cast<CrossSuitCardConditionalInvariant*>(inv.get());
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
+    REQUIRE(derived->target_card() == Card::ParseStringCard("SK"));
+  }
+
+  {
+    std::string rule_str = "the hand with the SA also has exactly 1 H";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = dynamic_cast<CrossSuitExactSuitLengthInvariant*>(inv.get());
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
+    REQUIRE(derived->target_suit() == Suit::HEARTS);
+    REQUIRE(derived->length() == 1);
+  }
+
+  {
+    std::string rule_str = "the hand with the SA also has at least 2 S";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = dynamic_cast<CrossSuitMinSuitLengthInvariant*>(inv.get());
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
+    REQUIRE(derived->target_suit() == Suit::SPADES);
+    REQUIRE(derived->min_len() == 2);
+  }
+
+  {
+    std::string rule_str = "the hand with the SA also has at most 1 D";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = dynamic_cast<CrossSuitMaxSuitLengthInvariant*>(inv.get());
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->condition_card() == Card::ParseStringCard("SA"));
+    REQUIRE(derived->target_suit() == Suit::DIAMONDS);
+    REQUIRE(derived->max_len() == 1);
+  }
+
+  // 2. HonorPossessionInvariant
+  {
+    std::string rule_str = "hand 1 always contains the SA";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = HonorPossessionInvariant::FromString(rule_str);
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->target_hand() == HonorPossessionTargetHand::kHand1);
+    REQUIRE(derived->card() == Card::ParseStringCard("SA"));
+  }
+
+  {
+    std::string rule_str = "both hands always contain the SA";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE_FALSE(inv->HoldsOnDeal(deal));
+  }
+
+  // 3. MaxSuitLengthInvariant
+  {
+    std::string rule_str = "maximum length in S in any hand is 2";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = MaxSuitLengthInvariant::FromString(rule_str);
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->suit() == Suit::SPADES);
+    REQUIRE(derived->max_len() == 2);
+  }
+
+  // 4. ExactSuitLengthInvariant
+  {
+    std::string rule_str = "hand 1 length in S is always 2";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = ExactSuitLengthInvariant::FromString(rule_str);
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->hand_choice() == InvariantHandChoice::kHand1);
+    REQUIRE(derived->suit() == Suit::SPADES);
+    REQUIRE(derived->exact_len() == 2);
+  }
+
+  // 5. SuitLengthRangeInvariant
+  {
+    std::string rule_str = "hand 1 length in S is between 1 and 3";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+    REQUIRE(inv->HoldsOnDeal(deal));
+
+    auto derived = SuitLengthRangeInvariant::FromString(rule_str);
+    REQUIRE(derived != nullptr);
+    REQUIRE(derived->hand_choice() == InvariantHandChoice::kHand1);
+    REQUIRE(derived->suit() == Suit::SPADES);
+    REQUIRE(derived->min_len() == 1);
+    REQUIRE(derived->max_len() == 3);
+  }
+
+  // 6. Invalid String Parsing Returns nullptr
+  {
+    REQUIRE(UnknownCardsInvariant::FromString("this is an invalid rule") == nullptr);
+    REQUIRE(UnknownCardsInvariant::FromString("the hand with the SA also has bad format") == nullptr);
+    REQUIRE(UnknownCardsInvariant::FromString("hand 1 length in S is between invalid") == nullptr);
+    REQUIRE(CrossSuitConditionalInvariant::FromString("hand 1 always contains the SA") == nullptr);
+    REQUIRE(HonorPossessionInvariant::FromString("maximum length in S in any hand is 2") == nullptr);
+    REQUIRE(MaxSuitLengthInvariant::FromString("hand 1 always contains the SA") == nullptr);
+    REQUIRE(ExactSuitLengthInvariant::FromString("hand 1 length in S is between 1 and 3") == nullptr);
+    REQUIRE(SuitLengthRangeInvariant::FromString("hand 1 length in S is always 2") == nullptr);
+  }
+}
+

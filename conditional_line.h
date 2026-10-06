@@ -101,19 +101,68 @@ class GeneralizedTrickFinder {
   Suit trump_suit_ = NOTRUMP;
 };
 
+// Abstract base class representing a conditional branching rule in a ConditionalLine.
+// Evaluates conditions such as trick outcomes (WinnerPlayCondition) or candidate initial play choices (TrickPlayCondition).
 class PlayCondition {
  public:
   PlayCondition() = default;
   virtual ~PlayCondition() = default;
 
+  // Formats human-readable description of condition (e.g. "when 0 wins", "after S2 (S9) SA (S3)").
   virtual std::string Describe(bool only_choice) const = 0;
 };
 
+// ConditionalLine represents a node in a decision tree that encodes an optimal (or candidate optimal)
+// line of play across a set of simulated bridge deals (boards).
+//
+// Decision Tree Node Taxonomy & Structure:
+//
+// 1. Top-level Root Node (returned by LineFinder::Solve):
+//    - do_first_: Empty (do_first_.Empty() == true).
+//    - conditions_: Contains TrickPlayCondition entries pairing a candidate initial trick line
+//      description (e.g. "after S2 (S9) SA (S3)") with child ConditionalLine nodes.
+//    - final_covered_boards_: Empty.
+//
+// 2. Intermediate Action Node (created in GetLineFromTrick for each trick):
+//    - do_first_: Non-empty GeneralizedTrick representing the action (trick) to execute next.
+//    - conditions_: Contains WinnerPlayCondition entries (e.g. "when 0 wins" / "if 1 wins")
+//      branching on which player/side won the trick, pointing to the continuation subtrees for subsequent tricks.
+//    - final_covered_boards_: Empty.
+//
+// 3. Leaf Node (Terminal Success Node):
+//    - do_first_: Empty.
+//    - conditions_: Empty (conditions_.empty() == true).
+//    - final_covered_boards_: Populated with the set of board IDs (simulated deals) that successfully
+//      achieved the required minimum tricks (min_tricks) once all cards/tricks were played.
+//
+// Multiple Returned Lines in LineFinder::Solve():
+//    LineFinder::Solve() returns a std::vector<ConditionalLine> containing all lines that tie for the
+//    maximum possible number of covered boards (most_boards_covered). All returned lines are equivalent
+//    in terms of total board success count, but each represents a distinct alternative strategic play choice
+//    (e.g., leading a different suit or card or following a different branch grouping).
+//
+// Tree Depth vs. Remaining Tricks / Cards Held:
+//    For a deal with N cards held per hand (N tricks to be played):
+//    - There are exactly N intermediate action nodes (nodes with do_first_ set) along any path from root to leaf.
+//    - Total node path length from root to leaf is N + 2 nodes:
+//        [Root Node] -> [Trick 1 Action Node] -> [Trick 2 Action Node] -> ... -> [Trick N Action Node] -> [Leaf Node]
+//    - Measuring depth where a leaf node (conditions_.empty()) has depth = 1:
+//        - Leaf Node: depth = 1
+//        - Action Node for Trick k (from last trick): depth = N - k + 2  (Trick N has depth 2, Trick 1 has depth N + 1)
+//        - Root Node: depth = N + 2
+//    - Thus, the number of trick action nodes (do_first_ present) along any root-to-leaf path is EXACTLY
+//      equal to N, the number of tricks / cards held to be played.
 class ConditionalLine {  // ConditionalLineBranch
  public:
+  // Default constructor creates an empty node.
   ConditionalLine() {}
+
+  // Explicit constructor for terminal leaf node initialized with succeeded board IDs.
   explicit ConditionalLine(const std::set<int> &boards)
       : final_covered_boards_(boards) {}
+
+  // Adds a conditional branch linking a PlayCondition (e.g. WinnerPlayCondition or TrickPlayCondition)
+  // to a child ConditionalLine continuation node.
   void AddCondition(PlayCondition *c,
                     const ConditionalLine &continue_with) {
     assert(final_covered_boards_.empty());
@@ -122,47 +171,75 @@ class ConditionalLine {  // ConditionalLineBranch
                                  new ConditionalLine(continue_with)));
   }
 
+  // Sets the next trick action (GeneralizedTrick) to be played at this node in the decision tree.
   void SetAction(const GeneralizedTrick &gt) { do_first_ = gt; }
 
+  // Recursively formats human-readable text representation of the decision tree.
   std::string Describe(int lvl = 0) const;
+
+  // Returns the number of conditional branches out of this node.
   int num_conditions() const { return conditions_.size(); }
 
+  // Returns total number of covered boards at this node.
   int CoveredBoards() const { return CoveredFinalBoards(); }
+
+  // Returns set of all board IDs that succeed under this line or any of its subtrees.
   std::set<int> CoveredBoardsSet() const { return CoveredFinalBoardsSet(); }
 
+  // Returns total number of simulated deals/boards evaluated.
   int total_boards() const { return total_boards_; }
   void set_total_boards(int n) { total_boards_ = n; }
 
+  // Sets and accesses cross-hand summary report for covered (succeeded) deals.
   void set_summary(const CrossHandSummaryReport &summary) { summary_ = summary; }
   const CrossHandSummaryReport &summary() const { return summary_; }
   bool has_summary() const { return summary_.total_deals > 0; }
 
+  // Sets and accesses cross-hand summary report for failed deals.
   void set_failure_summary(const CrossHandSummaryReport &summary) { failure_summary_ = summary; }
   const CrossHandSummaryReport &failure_summary() const { return failure_summary_; }
   bool has_failure_summary() const { return failure_summary_.total_deals > 0; }
 
+  // Recursively counts total distinct final boards covered across all leaf subtrees.
   int CoveredFinalBoards() const;
+
+  // Recursively gathers set of distinct final boards covered across all leaf subtrees, avoiding cycles.
   std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
 
+  // Returns the GeneralizedTrick action to execute first at this node (the next trick).
   const GeneralizedTrick &do_first() const { return do_first_; }
+
+  // Returns reference to vector of (PlayCondition, child ConditionalLine) conditional branches.
   const std::vector<std::pair<std::shared_ptr<PlayCondition>,
                              std::shared_ptr<ConditionalLine>>> &
   conditions() const {
     return conditions_;
   }
+
+  // Returns set of board IDs directly covered at this terminal leaf node.
   const std::set<int> &final_covered_boards() const {
     return final_covered_boards_;
   }
 
  private:
+  // The next trick action (4-card play sequence) executed at this step in the line of play.
   GeneralizedTrick do_first_;
 
+  // List of conditional branching pairs: (condition, child subtree).
+  // At top level: paired with TrickPlayCondition ("after trick...").
+  // At intermediate levels: paired with WinnerPlayCondition ("when X wins").
+  // Empty at leaf nodes.
   std::vector<std::pair<std::shared_ptr<PlayCondition>,
                        std::shared_ptr<ConditionalLine>>>
       conditions_;
 
+  // Non-empty only on terminal leaf nodes: set of board IDs where min_tricks target was reached.
   std::set<int> final_covered_boards_;
+
+  // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;
+
+  // Summary reports generated by CrossHandDealSetSummarizer for covered/failed deals.
   CrossHandSummaryReport summary_;
   CrossHandSummaryReport failure_summary_;
 };

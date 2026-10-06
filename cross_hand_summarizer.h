@@ -2,24 +2,14 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "card.h"
 #include "hand.h"
-
-// 64-bit mask for honor cards (ranks 10, J, Q, K, A, corresponding to bits 8..12 in each 16-bit suit)
-constexpr uint64_t kHonorMask = kHonorMask64;
-
-struct PairedDeal {
-  uint64_t hand1 = 0;
-  uint64_t hand2 = 0;
-
-  PairedDeal() = default;
-  PairedDeal(uint64_t h1, uint64_t h2) : hand1(h1), hand2(h2) {}
-  PairedDeal(const std::string& h1_str, const std::string& h2_str)
-      : hand1(ParseHand(h1_str)), hand2(ParseHand(h2_str)) {}
-};
+#include "unknown_cards_invariant.h"
 
 struct JointSuitBounds {
   int min_hand1 = 999;
@@ -46,6 +36,7 @@ class JointSuitRuleExtractor {
 
   void ProcessDeal(const PairedDeal& deal);
   const std::map<Suit, JointSuitBounds>& GetSuitBounds() const { return suit_bounds_; }
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
@@ -64,6 +55,7 @@ class HonorPossessionClassifier {
 
   void ProcessDeal(const PairedDeal& deal);
   const std::map<Suit, std::map<int, HonorPossessionStats>>& GetHonorStats() const { return honor_stats_; }
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
@@ -77,11 +69,12 @@ class HonorPossessionClassifier {
 class CrossSuitConditionalRuleExtractor {
  public:
   CrossSuitConditionalRuleExtractor(std::string hand1_label = "hand 1",
-                                    std::string hand2_label = "hand 2")
+                                     std::string hand2_label = "hand 2")
       : hand1_label_(std::move(hand1_label)),
         hand2_label_(std::move(hand2_label)) {}
 
   void ProcessDeal(const PairedDeal& deal);
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
@@ -115,6 +108,14 @@ bool EvaluateRuleOnDeal(const std::string& rule,
                         const PairedDeal& deal,
                         const std::string& hand1_label = "hand 1",
                         const std::string& hand2_label = "hand 2");
+
+std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& hand1_label = "hand 1",
+    const std::string& hand2_label = "hand 2",
+    int num_bifurcations = 200);
 
 std::vector<std::string> FilterUninterestingRules(
     const std::vector<std::string>& candidate_rules,

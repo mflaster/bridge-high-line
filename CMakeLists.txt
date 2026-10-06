@@ -95,6 +95,7 @@ add_library(bridge_lib STATIC
   golden_serializer.cc
   web/web_server.cc
   web/web_assets.h
+  unknown_cards_invariant.cc
   cross_hand_summarizer.cc
 )
 

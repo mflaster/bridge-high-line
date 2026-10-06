@@ -186,7 +186,7 @@ Click **Solve Deal** to execute the double-dummy solver. The **Decision Tree Exp
    - For full or partial deal solves, optimal play sequences are structured in a multi-level hierarchy:
      `Trick 1` $\rightarrow$ `Trick 2` $\rightarrow$ `Trick 3` $\rightarrow$ `Trick 4` $\rightarrow$ `Contract Outcome`.
 2. **Expanding & Collapsing Nodes**:
-   - Sub-tricks are collapsed by default (`depth >= 1`) to keep complex decision trees neat.
+   - Trick nodes are collapsed by default so the tree initially displays only the first trick in each branch.
    - Click any trick node to expand its child tricks going down.
    - Use the **Expand All** and **Collapse All** toolbar buttons to toggle the entire tree state.
 3. **Interactive Viewport Controls**:
