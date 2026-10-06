@@ -32,6 +32,8 @@ struct DecisionTreeNode {
 };
 
 std::string ExtractFirstCard(const std::string &seq);
+std::string FormatWinnerCondition(const PlayCondition *cond_ptr);
+std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false);
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     const ConditionalLine &line, int &node_id, int trick_num = 1, int root_total = 1, int ns_tricks = 0);
 void to_json(nlohmann::json &j, const DecisionTreeNode &node);
