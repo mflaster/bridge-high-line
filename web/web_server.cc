@@ -88,6 +88,7 @@ struct DecisionTreeNode {
   std::string trick_full;
   std::string condition;
   bool collapsed = false;
+  int ns_tricks = 0;
   int success_boards = 0;
   int failure_boards = 0;
   int total_boards = 0;
@@ -99,14 +100,14 @@ struct DecisionTreeNode {
 };
 
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
-    const ConditionalLine &line, int &node_id, int trick_num = 1, int root_total = 1) {
+    const ConditionalLine &line, int &node_id, int trick_num = 1, int root_total = 1, int ns_tricks = 0) {
   int total = line.total_boards() > 0 ? line.total_boards() : root_total;
 
   if (line.do_first().Empty()) {
     const auto &conds = line.conditions();
     if (!conds.empty()) {
       if (conds.size() == 1 && conds[0].second) {
-        return BuildTreeFromConditionalLine(*conds[0].second, node_id, trick_num, total);
+        return BuildTreeFromConditionalLine(*conds[0].second, node_id, trick_num, total, ns_tricks);
       }
       auto root_node = std::make_shared<DecisionTreeNode>();
       root_node->id = "node_" + std::to_string(++node_id);
@@ -116,7 +117,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       root_node->total_boards = total;
       for (const auto &[cond_ptr, child_ptr] : conds) {
         if (child_ptr) {
-          auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total);
+          auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total, 0);
           if (child && cond_ptr) {
             child->condition = cond_ptr->Describe(false);
           }
@@ -132,7 +133,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     auto leaf = std::make_shared<DecisionTreeNode>();
     leaf->id = "node_" + std::to_string(++node_id);
     leaf->type = "outcome";
-    leaf->label = "Hand Succeeded (" + std::to_string(success_cnt) + "/" + std::to_string(total) + " boards)";
+    leaf->ns_tricks = ns_tricks;
+    leaf->label = "Hand Succeeded (" + std::to_string(success_cnt) + "/" + std::to_string(total) + " boards) (" + std::to_string(ns_tricks) + " tricks won by N/S)";
     leaf->success_boards = success_cnt;
     leaf->failure_boards = failure_cnt;
     leaf->total_boards = total;
@@ -151,6 +153,13 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
   if (conds.size() == 1) {
     const auto &[cond_ptr, child_line_ptr] = conds[0];
     std::string winner_str = FormatWinnerCondition(cond_ptr.get());
+    int add_ns = 0;
+    if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr.get())) {
+      if (w->who() == NORTH || w->who() == SOUTH) {
+        add_ns = 1;
+      }
+    }
+    int current_ns = ns_tricks + add_ns;
 
     bool is_final_trick = false;
     if (child_line_ptr) {
@@ -174,6 +183,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
 
     if (is_final_trick) {
       node->type = "outcome";
+      node->ns_tricks = current_ns;
       if (child_line_ptr && !child_line_ptr->final_covered_boards().empty()) {
         const auto &fb = child_line_ptr->final_covered_boards();
         node->boards = std::vector<int>(fb.begin(), fb.end());
@@ -188,10 +198,11 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         node->covered_boards = success_cnt;
       }
       node->total_boards = total;
-      node->label = label_str;
+      node->label = label_str + " (" + std::to_string(current_ns) + " tricks won by N/S)";
       return node;
     } else {
       node->type = "action";
+      node->ns_tricks = current_ns;
       node->label = label_str;
       node->success_boards = success_cnt;
       node->failure_boards = failure_cnt;
@@ -199,7 +210,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       node->covered_boards = success_cnt;
       node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
 
-      auto child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total);
+      auto child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total, current_ns);
       if (child_node) {
         node->children.push_back(child_node);
       }
@@ -210,6 +221,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     node->id = "node_" + std::to_string(++node_id);
     node->type = "action";
     node->collapsed = false;
+    node->ns_tricks = ns_tricks;
     node->trick = cards_played;
     node->trick_full = gt.ToString(false);
     node->label = "Trick " + std::to_string(trick_num) + ": " + cards_played;
@@ -221,7 +233,14 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
 
     for (const auto &[cond_ptr, child_line_ptr] : conds) {
       if (child_line_ptr) {
-        auto child = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total);
+        int branch_add_ns = 0;
+        if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr.get())) {
+          if (w->who() == NORTH || w->who() == SOUTH) {
+            branch_add_ns = 1;
+          }
+        }
+        int branch_ns = ns_tricks + branch_add_ns;
+        auto child = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total, branch_ns);
         if (child) {
           if (cond_ptr) {
             child->condition = cond_ptr->Describe(false);
@@ -453,6 +472,7 @@ void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
       {"type", node.type},
       {"label", node.label},
       {"collapsed", node.collapsed},
+      {"ns_tricks", node.ns_tricks},
       {"success_boards", node.success_boards},
       {"failure_boards", node.failure_boards},
       {"total_boards", node.total_boards},

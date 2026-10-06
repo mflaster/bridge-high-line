@@ -288,6 +288,8 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   }
   REQUIRE((*curr)["type"] == "outcome");
   REQUIRE((*curr)["success_boards"] > 0);
+  REQUIRE((*curr).contains("ns_tricks"));
+  REQUIRE((*curr)["label"].get<std::string>().find("tricks won by N/S") != std::string::npos);
 
   server.Stop();
 }

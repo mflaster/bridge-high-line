@@ -791,11 +791,14 @@ document.addEventListener('DOMContentLoaded', () => {
       detail.setAttribute('y', '48');
       detail.setAttribute('class', 'node-text-detail');
       let detailText = '';
+      if (node.type === 'outcome' && node.ns_tricks !== undefined) {
+        detailText = `N/S Won: ${node.ns_tricks} | `;
+      }
       if (node.success_boards !== undefined && node.total_boards !== undefined) {
         const pct = Math.round((node.success_boards / node.total_boards) * 100);
-        detailText = `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
+        detailText += `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
       } else if (node.covered_boards !== undefined) {
-        detailText = `Success: ${node.covered_boards}`;
+        detailText += `Success: ${node.covered_boards}`;
       }
       detail.textContent = `${node.type.toUpperCase()} | ${detailText}`;
       g.appendChild(detail);
@@ -851,7 +854,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       boardsInfo = `Success: ${node.covered_boards || 0}`;
     }
-    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}" | ${boardsInfo}`;
+    const nsInfo = node.ns_tricks !== undefined ? ` | N/S Tricks Won: ${node.ns_tricks}` : '';
+    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}"${nsInfo} | ${boardsInfo}`;
   }
 
   // Pan & Zoom Implementation
