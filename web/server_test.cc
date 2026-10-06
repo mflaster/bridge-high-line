@@ -109,14 +109,13 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
 
   // Check decision tree hierarchy down to 4 tricks
   auto &tree = endplay_json["tree"];
-  REQUIRE(tree["collapsed"] == false);
-
   std::string ep_root_label = tree["label"].get<std::string>();
   auto &trick1_node = (ep_root_label.find("Trick 1:") != std::string::npos) ? tree : tree["children"][0];
 
-  // Trick 1
+  // Trick 1 (collapsed by default)
   REQUIRE(trick1_node["label"].get<std::string>().find("Trick 1:") != std::string::npos);
   REQUIRE(trick1_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick1_node["collapsed"] == true);
   REQUIRE(trick1_node["children"].size() >= 1);
 
   // Trick 2

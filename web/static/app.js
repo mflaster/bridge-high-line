@@ -638,8 +638,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const collapseAllBtn = document.getElementById('collapseAllBtn');
 
   function setAllCollapsed(node, isCollapsed) {
-    if (node._depth !== undefined && node._depth > 0) {
-      node._collapsed = isCollapsed;
+    if (isCollapsed) {
+      const isContainerRoot = (node._depth === 0 && (!node.trick || node.trick === '') && node.children && node.children.length > 1);
+      node._collapsed = isContainerRoot ? false : true;
+    } else {
+      node._collapsed = false;
     }
     if (node.children) {
       node.children.forEach(c => setAllCollapsed(c, isCollapsed));
@@ -685,7 +688,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function layoutNode(node, depth = 0) {
       node._depth = depth;
       if (node._collapsed === undefined) {
-        node._collapsed = (node.collapsed !== undefined ? node.collapsed : depth >= 1);
+        if (node.collapsed !== undefined) {
+          node._collapsed = node.collapsed;
+        } else {
+          const isContainerRoot = (depth === 0 && (!node.trick || node.trick === '') && node.children && node.children.length > 1);
+          node._collapsed = isContainerRoot ? false : true;
+        }
       }
       if (!node.children || node.children.length === 0 || node._collapsed) {
         node._x = leafCounter * (nodeWidth + siblingGap);

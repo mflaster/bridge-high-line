@@ -421,6 +421,27 @@ void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
   }
 }
 
+void SetDefaultCollapsedState(std::shared_ptr<DecisionTreeNode> &node, bool is_root = true) {
+  if (!node) return;
+
+  // A container root node (e.g. "Solve Lines (N variants)") has no trick of its own
+  // and multiple child branches. It remains expanded (collapsed = false) so its child
+  // branches (the first trick in each branch) are visible.
+  if (is_root && node->trick.empty() && node->children.size() > 1 &&
+      (node->label.find("Solve Lines") != std::string::npos ||
+       node->label.find("Optimal Lines") != std::string::npos ||
+       node->label.find("variants") != std::string::npos)) {
+    node->collapsed = false;
+  } else {
+    // All trick nodes (e.g. Trick 1) and sub-nodes are collapsed by default.
+    node->collapsed = true;
+  }
+
+  for (auto &child : node->children) {
+    SetDefaultCollapsedState(child, false);
+  }
+}
+
 void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   j = nlohmann::json{
       {"id", node.id},
@@ -856,6 +877,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["covered_boards"] = covered_boards;
     if (tree_node) {
       CollapseRedundantNodes(tree_node);
+      SetDefaultCollapsedState(tree_node);
       response["tree"] = *tree_node;
     } else {
       response["tree"] = nlohmann::json::object();
