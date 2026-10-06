@@ -79,6 +79,27 @@ std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   return desc;
 }
 
+std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false) {
+  if (!cond_ptr) return "";
+  if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr)) {
+    std::string prefix = only_choice ? "when " : "if ";
+    switch ((w->who() % 4 + 4) % 4) {
+      case NORTH: return prefix + "N wins";
+      case EAST:  return prefix + "E wins";
+      case SOUTH: return prefix + "S wins";
+      case WEST:  return prefix + "W wins";
+      default:    return prefix + std::to_string(w->who()) + " wins";
+    }
+  }
+  std::string desc = cond_ptr->Describe(only_choice);
+  size_t pos;
+  if ((pos = desc.find("0 wins")) != std::string::npos) desc.replace(pos, 6, "N wins");
+  else if ((pos = desc.find("1 wins")) != std::string::npos) desc.replace(pos, 6, "E wins");
+  else if ((pos = desc.find("2 wins")) != std::string::npos) desc.replace(pos, 6, "S wins");
+  else if ((pos = desc.find("3 wins")) != std::string::npos) desc.replace(pos, 6, "W wins");
+  return desc;
+}
+
 struct DecisionTreeNode {
   std::string id;
   std::string type;  // "action", "condition", "outcome"
@@ -119,7 +140,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         if (child_ptr) {
           auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total, 0);
           if (child && cond_ptr) {
-            child->condition = cond_ptr->Describe(false);
+            child->condition = FormatBranchCondition(cond_ptr.get(), false);
           }
           root_node->children.push_back(child);
         }
@@ -243,7 +264,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         auto child = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total, branch_ns);
         if (child) {
           if (cond_ptr) {
-            child->condition = cond_ptr->Describe(false);
+            child->condition = FormatBranchCondition(cond_ptr.get(), false);
           }
           node->children.push_back(child);
         }

@@ -586,6 +586,12 @@ body {
   font-size: 11px;
 }
 
+.node-text-highlight {
+  fill: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .tree-link {
   fill: none;
   stroke: #334155;

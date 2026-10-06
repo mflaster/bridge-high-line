@@ -276,6 +276,11 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
     for (const auto &c : p_trick3["children"]) {
       if (c.contains("condition") && !c["condition"].get<std::string>().empty()) {
         found_branch_cond = true;
+        std::string cond = c["condition"].get<std::string>();
+        REQUIRE(cond.find("0 wins") == std::string::npos);
+        REQUIRE(cond.find("1 wins") == std::string::npos);
+        REQUIRE((cond.find("N wins") != std::string::npos || cond.find("E wins") != std::string::npos ||
+                 cond.find("S wins") != std::string::npos || cond.find("W wins") != std::string::npos));
       }
     }
     REQUIRE(found_branch_cond);

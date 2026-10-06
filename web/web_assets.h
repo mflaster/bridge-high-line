@@ -911,6 +911,12 @@ body {
   font-size: 11px;
 }
 
+.node-text-highlight {
+  fill: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .tree-link {
   fill: none;
   stroke: #334155;
@@ -1769,7 +1775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Calculate layout coordinates recursively
     const nodeWidth = 220;
-    const nodeHeight = 70;
+    const nodeHeight = 78;
     const levelHeight = 110;
     const siblingGap = 30;
 
@@ -1870,7 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Title Text
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       title.setAttribute('x', '12');
-      title.setAttribute('y', '26');
+      title.setAttribute('y', '22');
       title.setAttribute('class', 'node-text-title');
       title.textContent = truncateText(node.label || node.trick || 'Node', 40);
       g.appendChild(title);
@@ -1878,20 +1884,27 @@ document.addEventListener('DOMContentLoaded', () => {
       // Detail Text
       const detail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       detail.setAttribute('x', '12');
-      detail.setAttribute('y', '48');
+      detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
       let detailText = '';
-      if (node.type === 'outcome' && node.ns_tricks !== undefined) {
-        detailText = `N/S Won: ${node.ns_tricks} | `;
-      }
       if (node.success_boards !== undefined && node.total_boards !== undefined) {
         const pct = Math.round((node.success_boards / node.total_boards) * 100);
-        detailText += `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
+        detailText = `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
       } else if (node.covered_boards !== undefined) {
-        detailText += `Success: ${node.covered_boards}`;
+        detailText = `Success: ${node.covered_boards}`;
       }
       detail.textContent = `${node.type.toUpperCase()} | ${detailText}`;
       g.appendChild(detail);
+
+      // 3rd Line: N/S Won on its own line for leaf/outcome nodes
+      if (node.type === 'outcome' && node.ns_tricks !== undefined) {
+        const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        highlight.setAttribute('x', '12');
+        highlight.setAttribute('y', '62');
+        highlight.setAttribute('class', 'node-text-highlight');
+        highlight.textContent = `N/S Won: ${node.ns_tricks}`;
+        g.appendChild(highlight);
+      }
 
       // Expand/Collapse Indicator if children exist
       if (node.children && node.children.length > 0) {
