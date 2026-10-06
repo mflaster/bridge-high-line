@@ -268,17 +268,7 @@ TEST_CASE("WinnerPlayConditionDescribeWithWinningCards") {
   REQUIRE(cond3.Describe(false) == "if 2 wins");
 }
 
-TEST_CASE("ResultsFinesseOnsides") {
-  BoardState bs;
-  std::vector<uint64_t> hands(4);
-  hands[0] = ParseHand("S 23;");
-  hands[1] = ParseHand("S K4;");
-  hands[2] = ParseHand("S AQ;");
-  hands[3] = ParseHand("S 56;");
-  bs.SetHands(hands);
-  bs.SetTrump(NOTRUMP);
-  bs.SetLead(0);
-
+static ConditionalLine MakeFinesseLine() {
   ConditionalLine leaf(std::set<int>{0});
 
   ConditionalLine action_node2_south;
@@ -306,6 +296,21 @@ TEST_CASE("ResultsFinesseOnsides") {
   line.AddCondition(new WinnerPlayCondition(1), action_node2_def);
   line.AddCondition(new WinnerPlayCondition(3), action_node2_def);
 
+  return line;
+}
+
+TEST_CASE("ResultsFinesseOnsides") {
+  BoardState bs;
+  std::vector<uint64_t> hands(4);
+  hands[0] = ParseHand("S 23;");
+  hands[1] = ParseHand("S K4;");
+  hands[2] = ParseHand("S AQ;");
+  hands[3] = ParseHand("S 56;");
+  bs.SetHands(hands);
+  bs.SetTrump(NOTRUMP);
+  bs.SetLead(0);
+
+  ConditionalLine line = MakeFinesseLine();
   int tricks = line.ResultsOnHand(bs);
   REQUIRE(tricks == 2);
 }
@@ -321,33 +326,7 @@ TEST_CASE("ResultsFinesseOffsides") {
   bs.SetTrump(NOTRUMP);
   bs.SetLead(0);
 
-  ConditionalLine leaf(std::set<int>{0});
-
-  ConditionalLine action_node2_south;
-  GeneralizedTrick gt2_south(GeneralizedDemiStruct("__", "SA", {}),
-                             GeneralizedDemiStruct("__", "S3", {}),
-                             std::set<int>{0}, 2);
-  action_node2_south.SetAction(gt2_south);
-  action_node2_south.AddCondition(new WinnerPlayCondition(2), leaf);
-  action_node2_south.AddCondition(new WinnerPlayCondition(0), leaf);
-
-  ConditionalLine action_node2_def;
-  GeneralizedTrick gt2_def(GeneralizedDemiStruct("__", "S3", {}),
-                           GeneralizedDemiStruct("__", "SA", {}),
-                           std::set<int>{0}, 3);
-  action_node2_def.SetAction(gt2_def);
-  action_node2_def.AddCondition(new WinnerPlayCondition(2), leaf);
-  action_node2_def.AddCondition(new WinnerPlayCondition(0), leaf);
-
-  ConditionalLine line;
-  GeneralizedTrick gt1(GeneralizedDemiStruct("__", "S2", {}),
-                       GeneralizedDemiStruct("__", "SQ", {}),
-                       std::set<int>{0}, 0);
-  line.SetAction(gt1);
-  line.AddCondition(new WinnerPlayCondition(2), action_node2_south);
-  line.AddCondition(new WinnerPlayCondition(1), action_node2_def);
-  line.AddCondition(new WinnerPlayCondition(3), action_node2_def);
-
+  ConditionalLine line = MakeFinesseLine();
   int tricks = line.ResultsOnHand(bs);
   REQUIRE(tricks == 1);
 }
