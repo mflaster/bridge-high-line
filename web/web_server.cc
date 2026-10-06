@@ -32,17 +32,6 @@ int ParsePlayerDirection(const std::string &d) {
   return NORTH;
 }
 
-std::string ExtractFirstCard(const std::string &seq) {
-  std::stringstream ss(seq);
-  std::string token;
-  while (ss >> token) {
-    if (token != "/" && token.size() >= 2) {
-      return token;
-    }
-  }
-  return "";
-}
-
 std::string PlayerDirectionName(int dir) {
   switch ((dir % 4 + 4) % 4) {
     case NORTH: return "North";
@@ -102,32 +91,58 @@ std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choic
   if ((pos = desc.find("0 wins")) != std::string::npos) desc.replace(pos, 6, "N wins");
   else if ((pos = desc.find("1 wins")) != std::string::npos) desc.replace(pos, 6, "E wins");
   else if ((pos = desc.find("2 wins")) != std::string::npos) desc.replace(pos, 6, "S wins");
-  else if ((pos = desc.find("3 wins")) != std::string::npos) desc.replace(pos, 6, "W wins");
+  if ((pos = desc.find("3 wins")) != std::string::npos) desc.replace(pos, 6, "W wins");
   return desc;
 }
 
-struct DecisionTreeNode {
-  std::string id;
-  std::string type;  // "action", "condition", "outcome"
-  std::string label;
-  std::string description;
-  std::string trick;
-  std::string trick_full;
-  std::string condition;
-  bool collapsed = false;
-  int ns_tricks = 0;
-  int success_boards = 0;
-  int failure_boards = 0;
-  int total_boards = 0;
-  int covered_boards = 0;
-  std::vector<int> boards;
-  std::vector<std::shared_ptr<DecisionTreeNode>> children;
+}  // namespace
 
-  std::map<std::string, std::shared_ptr<DecisionTreeNode>> child_map;
-};
+std::string CleanCardToken(const std::string &token) {
+  std::string card;
+  for (char c : token) {
+    if (std::isalnum(static_cast<unsigned char>(c))) {
+      card += c;
+    }
+  }
+  return card;
+}
+
+std::string ExtractFirstCard(const std::string &seq) {
+  std::stringstream ss(seq);
+  std::string token;
+  while (ss >> token) {
+    if (token == "/" || token == "Trick" || token.back() == ':') continue;
+    std::string card = CleanCardToken(token);
+    if (card.size() >= 2) {
+      return card;
+    }
+  }
+  return "";
+}
+
+std::string GetFirstCardFromNode(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return "";
+  if (!node->trick.empty()) {
+    std::string card = ExtractFirstCard(node->trick);
+    if (!card.empty()) return card;
+  }
+  if (!node->trick_full.empty()) {
+    std::string card = ExtractFirstCard(node->trick_full);
+    if (!card.empty()) return card;
+  }
+  if (node->label.rfind("Trick ", 0) == 0) {
+    std::string card = ExtractFirstCard(node->label);
+    if (!card.empty()) return card;
+  }
+  for (const auto &child : node->children) {
+    std::string card = GetFirstCardFromNode(child);
+    if (!card.empty()) return card;
+  }
+  return "";
+}
 
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
-    const ConditionalLine &line, int &node_id, int trick_num = 1, int root_total = 1, int ns_tricks = 0) {
+    const ConditionalLine &line, int &node_id, int trick_num, int root_total, int ns_tricks) {
   int total = line.total_boards() > 0 ? line.total_boards() : root_total;
 
   if (line.do_first().Empty()) {
@@ -139,7 +154,6 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       auto root_node = std::make_shared<DecisionTreeNode>();
       root_node->id = "node_" + std::to_string(++node_id);
       root_node->type = "action";
-      root_node->label = "Solve Lines (" + std::to_string(conds.size()) + " variants)";
       root_node->collapsed = false;
       root_node->total_boards = total;
       for (const auto &[cond_ptr, child_ptr] : conds) {
@@ -151,6 +165,29 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
           root_node->children.push_back(child);
         }
       }
+
+      std::string common_card = "";
+      bool all_same = !root_node->children.empty();
+      for (const auto &child : root_node->children) {
+        std::string card = GetFirstCardFromNode(child);
+        if (card.empty()) {
+          all_same = false;
+          break;
+        }
+        if (common_card.empty()) {
+          common_card = card;
+        } else if (common_card != card) {
+          all_same = false;
+          break;
+        }
+      }
+
+      if (all_same && !common_card.empty()) {
+        root_node->label = common_card + " is led (" + std::to_string(root_node->children.size()) + " variants)";
+      } else {
+        root_node->label = "Solve Lines (" + std::to_string(conds.size()) + " variants)";
+      }
+
       return root_node;
     }
 
@@ -409,13 +446,35 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
   auto root_node = std::make_shared<DecisionTreeNode>();
   root_node->id = "node_" + std::to_string(++node_id);
   root_node->type = "action";
-  root_node->label = "Optimal Lines (" + std::to_string(line_roots.size()) + " variants)";
   root_node->collapsed = false;
   root_node->success_boards = 1;
   root_node->failure_boards = 0;
   root_node->total_boards = 1;
   root_node->covered_boards = 1;
   root_node->children = line_roots;
+
+  std::string common_card = "";
+  bool all_same = !line_roots.empty();
+  for (const auto &child : line_roots) {
+    std::string card = GetFirstCardFromNode(child);
+    if (card.empty()) {
+      all_same = false;
+      break;
+    }
+    if (common_card.empty()) {
+      common_card = card;
+    } else if (common_card != card) {
+      all_same = false;
+      break;
+    }
+  }
+
+  if (all_same && !common_card.empty()) {
+    root_node->label = common_card + " is led (" + std::to_string(line_roots.size()) + " variants)";
+  } else {
+    root_node->label = "Optimal Lines (" + std::to_string(line_roots.size()) + " variants)";
+  }
+
   return root_node;
 }
 
@@ -671,8 +730,6 @@ uint64_t ComputeUnknownCards(const std::vector<uint64_t>& hands) {
 
   return unknown_cards;
 }
-
-}  // namespace
 
 void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
   j["total_deals"] = summary.total_deals;
