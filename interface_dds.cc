@@ -54,6 +54,18 @@ uint64_t GetBoardKey(const BoardState &bs) {
 
 std::vector<std::string> FindBestCardsToPlay(
     const BoardState &bs, int min_tricks) {
+  static thread_local std::unordered_map<std::string, std::vector<std::string>> dds_card_cache;
+  std::string cache_key = bs.DebugString() + "_" + std::to_string(bs.GetTrump()) + "_" +
+                          std::to_string(bs.cur_trick_leader()) + "_" + std::to_string(bs.CardsPlayedThisTrick()) + "_" +
+                          std::to_string(min_tricks);
+  for (int i = 0; i < bs.CardsPlayedThisTrick(); ++i) {
+    cache_key += "_" + std::to_string(bs.trick_cards_played()[i]);
+  }
+  auto it = dds_card_cache.find(cache_key);
+  if (it != dds_card_cache.end()) {
+    return it->second;
+  }
+
   dealPBN dl;
   PopulatePBNDeal(bs, &dl);
 
@@ -67,13 +79,15 @@ std::vector<std::string> FindBestCardsToPlay(
   CHECK_GT(futp.cards, 0);
   int result = futp.score[0];
   if (result < min_tricks) {
-    return std::vector<std::string>();
+    dds_card_cache[cache_key] = ans;
+    return ans;
   }
 
   for (int i = 0; i < futp.cards; i++) {
     std::string c = Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i]);
     ans.push_back(c);
   }
+  dds_card_cache[cache_key] = ans;
   return ans;
 }
 

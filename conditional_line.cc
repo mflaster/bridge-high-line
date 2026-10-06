@@ -588,52 +588,9 @@ static int ResultsOnHandHelper(
           }
         }
       } else {  // Defender side (East=1, West=3)
-        if (copy.CardsPlayedThisTrick() == 0) {
-          std::vector<std::string> best = FindBestCardsToPlay(copy, 0);
-          if (!best.empty()) {
-            chosen_card = Card::ParseStringCard(best[0]);
-          }
-        } else {
-          auto [win_rel, win_info] = copy.TrickWinner();
-          int current_winner = (copy.cur_trick_leader() + win_rel) % 4;
-          if (current_winner % 2 != 0) {  // Partner is winning
-            chosen_card = valid_cards[0];
-            for (CardType c : valid_cards) {
-              auto [s1, v1] = Card::DecodeCard(c);
-              auto [s2, v2] = Card::DecodeCard(chosen_card);
-              if (v1 < v2) chosen_card = c;
-            }
-          } else {  // Declarer is winning
-            auto [win_suit, win_val] = win_info;
-            Suit trump = copy.GetTrump();
-            std::vector<CardType> winners;
-            for (CardType c : valid_cards) {
-              auto [c_suit, c_val] = Card::DecodeCard(c);
-              bool beats = false;
-              if (win_suit == trump) {
-                if (c_suit == trump && c_val > win_val) beats = true;
-              } else {
-                if (c_suit == trump) beats = true;
-                else if (c_suit == win_suit && c_val > win_val) beats = true;
-              }
-              if (beats) winners.push_back(c);
-            }
-            if (!winners.empty()) {
-              chosen_card = winners[0];
-              for (CardType c : winners) {
-                auto [s1, v1] = Card::DecodeCard(c);
-                auto [s2, v2] = Card::DecodeCard(chosen_card);
-                if (v1 < v2) chosen_card = c;
-              }
-            } else {
-              chosen_card = valid_cards[0];
-              for (CardType c : valid_cards) {
-                auto [s1, v1] = Card::DecodeCard(c);
-                auto [s2, v2] = Card::DecodeCard(chosen_card);
-                if (v1 < v2) chosen_card = c;
-              }
-            }
-          }
+        std::vector<std::string> best = FindBestCardsToPlay(copy, 0);
+        if (!best.empty()) {
+          chosen_card = Card::ParseStringCard(best[0]);
         }
       }
       copy.PlayCard(p, chosen_card);
