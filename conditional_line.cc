@@ -1,5 +1,6 @@
 #include "conditional_line.h"
 #include "glog/logging.h"
+#include "interface_dds.h"
 
 #include <algorithm>
 #include <iomanip>
@@ -513,4 +514,181 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
   }
   VLOG(1) << "Got groups " << ans.size();
   return ans;
+}
+
+namespace {
+
+CardType ChooseValidCard(const BoardState &bs, const std::string &card_str) {
+  CardType target = Card::ParseStringCard(card_str);
+  std::vector<CardType> valid_cards = bs.ValidCardsToPlay();
+  CHECK(!valid_cards.empty());
+  for (CardType c : valid_cards) {
+    if (c == target) {
+      return c;
+    }
+  }
+  CardType best_card = valid_cards[0];
+  int64_t min_d =
+      (target > best_card) ? (target - best_card) : (best_card - target);
+  for (size_t i = 1; i < valid_cards.size(); ++i) {
+    CardType c = valid_cards[i];
+    int64_t d = (target > c) ? (target - c) : (c - target);
+    if (d < min_d) {
+      min_d = d;
+      best_card = c;
+    }
+  }
+  return best_card;
+}
+
+std::string GetPatternAtPos(const GeneralizedTrick &gt, int pos) {
+  bool decl_leads = (gt.leader % 2 == 0);
+  if (decl_leads) {
+    switch (pos) {
+      case 0: return gt.demi1.my_card;
+      case 1: return gt.demi1.opp_card;
+      case 2: return gt.demi2.my_card;
+      case 3: return gt.demi2.opp_card;
+    }
+  } else {
+    switch (pos) {
+      case 0: return gt.demi1.opp_card;
+      case 1: return gt.demi1.my_card;
+      case 2: return gt.demi2.opp_card;
+      case 3: return gt.demi2.my_card;
+    }
+  }
+  return "";
+}
+
+std::vector<std::vector<std::string>> ExtractTrickLines(
+    const OptimalLines &opt_lines) {
+  std::vector<std::vector<std::string>> res;
+  res.reserve(opt_lines.size());
+  for (const auto &line : opt_lines) {
+    std::vector<std::string> words = SplitWords(line);
+    if (!words.empty()) {
+      res.push_back(std::move(words));
+    }
+  }
+  return res;
+}
+
+int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
+  if (!line || copy.Finished()) {
+    return copy.tricks_won_even();
+  }
+
+  // Terminal leaf node
+  if (line->do_first().Empty() && line->conditions().empty()) {
+    return copy.tricks_won_even();
+  }
+
+  // Collect candidate action nodes for this trick.
+  std::vector<const ConditionalLine *> candidates;
+  if (!line->do_first().Empty()) {
+    candidates.push_back(line);
+  } else {
+    for (const auto &[_cond, child_line] : line->conditions()) {
+      if (child_line && !child_line->do_first().Empty()) {
+        candidates.push_back(child_line.get());
+      }
+    }
+    if (candidates.empty()) {
+      if (!line->conditions().empty() && line->conditions()[0].second) {
+        return ResultsOnHandHelper(line->conditions()[0].second.get(), copy);
+      }
+      return copy.tricks_won_even();
+    }
+  }
+
+  std::vector<std::vector<std::string>> cur_opt_lines;
+  for (int pos = 0; pos < 4; ++pos) {
+    if (copy.Finished()) break;
+    int p = copy.CurPlayer();
+    if (p % 2 == 0) {
+      // Declarer side: play the card required by the ConditionalLine.
+      std::string decl_card_str =
+          GetPatternAtPos(candidates[0]->do_first(), pos);
+      CardType chosen_card = ChooseValidCard(copy, decl_card_str);
+      std::string chosen_str = Card::PrintCard(chosen_card);
+      copy.PlayCard(p, chosen_card);
+
+      // Keep walking down the optimal play tree if chosen_str matches;
+      // otherwise clear cur_opt_lines so FindOptimalPlayTree is called next.
+      std::vector<std::vector<std::string>> next_opt_lines;
+      for (const auto &seq : cur_opt_lines) {
+        if (!seq.empty() && seq[0] == chosen_str) {
+          next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
+        }
+      }
+      cur_opt_lines = std::move(next_opt_lines);
+    } else {
+      // Defender side: query DDS OptimalPlayTree when needed.
+      if (cur_opt_lines.empty()) {
+        auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
+        cur_opt_lines = ExtractTrickLines(tree->GetLines());
+      }
+      CHECK(!cur_opt_lines.empty());
+      CHECK(!cur_opt_lines[0].empty());
+      std::string def_card_str = cur_opt_lines[0][0];
+      CardType def_card = Card::ParseStringCard(def_card_str);
+      Suit suit_led =
+          (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
+      copy.PlayCard(p, def_card);
+
+      std::vector<std::vector<std::string>> next_opt_lines;
+      for (const auto &seq : cur_opt_lines) {
+        if (!seq.empty() && seq[0] == def_card_str) {
+          next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
+        }
+      }
+      cur_opt_lines = std::move(next_opt_lines);
+
+      if (candidates.size() > 1) {
+        std::vector<const ConditionalLine *> matching;
+        for (const ConditionalLine *cand : candidates) {
+          std::string pattern = GetPatternAtPos(cand->do_first(), pos);
+          if (GeneralizesTo(def_card_str, pattern, suit_led, copy.GetTrump())) {
+            matching.push_back(cand);
+          }
+        }
+        if (!matching.empty()) {
+          candidates = std::move(matching);
+        }
+      }
+    }
+  }
+
+  const ConditionalLine *chosen_node = candidates[0];
+  int winner = copy.CurPlayer();
+  for (const auto &[cond, child_line] : chosen_node->conditions()) {
+    if (!child_line) continue;
+    auto *winner_cond = dynamic_cast<const WinnerPlayCondition *>(cond.get());
+    if (winner_cond && winner_cond->who() == winner) {
+      return ResultsOnHandHelper(child_line.get(), copy);
+    }
+  }
+
+  return copy.tricks_won_even();
+}
+
+}  // namespace
+
+int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
+  return ResultsOnHandHelper(this, bs);
+}
+
+int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
+  if (!has_sample_board_) {
+    return 0;
+  }
+  BoardState bs = sample_board_;
+  std::vector<uint64_t> hands(4);
+  hands[0] = sample_board_.GetHand(0);
+  hands[1] = deal.hand1;
+  hands[2] = sample_board_.GetHand(2);
+  hands[3] = deal.hand2;
+  bs.SetHands(hands);
+  return ResultsOnHand(bs);
 }

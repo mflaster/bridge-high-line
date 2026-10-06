@@ -9,15 +9,7 @@ Covers 9/10 (90.0%) [0, 1, 2, 3, 4, 5, 6, 8, 9]
 Cross-Hand Deal Set Summary Report
 Total Deals: 9
 Invariant Rules for 5 card ending:
-  - hand 1 length in S is between 2 and 4
-  - hand 3 length in S is between 1 and 3
-  - hand 1 length in H is between 1 and 3
-  - hand 3 length in H is between 2 and 4
-  - the hand with the SK also has at least 2 S
-  - the hand with the SK also has at most 3 H
-  - the hand with the HK also has at least 2 S
-  - the hand with the HK also has at most 3 H
-  - OrInvariant(E has the HK, E has the SK)
+  (None)
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [0,1,2,3,4,5,6,8,9] / S3 S4 SQ S5  / S3 S5 SQ S6  / S3 S5 SQ SK  / S3 S7 SQ S6  / S3 S7 SQ S5 
     if 2 wins the SQ: 

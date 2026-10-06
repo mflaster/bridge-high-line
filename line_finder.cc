@@ -198,6 +198,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
   CrossHandDealSetSummarizer summarizer;
   for (auto &line : ans) {
     line.set_total_boards(num_iters_);
+    line.set_min_tricks(min_tricks);
+    if (!boards.empty()) {
+      line.set_sample_board(boards[0]);
+    }
     std::set<int> covered = line.CoveredBoardsSet();
     if (!covered.empty()) {
       std::vector<PairedDeal> covered_deals;
@@ -209,7 +213,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
       }
       if (!covered_deals.empty()) {
         try {
-          line.set_summary(summarizer.Summarize(covered_deals, "hand 1", "hand 3"));
+          line.set_summary(
+              summarizer.Summarize(covered_deals, "hand 1", "hand 3", &line));
         } catch (const std::exception &e) {
           LOG(WARNING) << "Failed to summarize line: " << e.what();
         }

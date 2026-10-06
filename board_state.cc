@@ -96,7 +96,7 @@ std::pair<int, std::pair<Suit, int>> BoardState::TrickWinner() const {
                         cur_trick_leader_);
 
   return std::make_pair(winning_player,
-                        std::make_pair(suit_led, winning_player));
+                        std::make_pair(suit_led, winning_val));
 }
 
 std::vector<CardType> BoardState::ValidCardsToPlay() const {

@@ -211,8 +211,8 @@ int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
   dealPBN dl;
   PopulatePBNDeal(bs, &dl);
 
-  CHECK_EQ(0, bs.CardsPlayedThisTrick());
-  return DDSSolveHelper(min_tricks, bs, dl, 0, lines, cache);
+  return DDSSolveHelper(min_tricks, bs, dl, bs.CardsPlayedThisTrick(), lines,
+                        cache);
 }
 
 std::vector<std::pair<int, OptimalLines>>

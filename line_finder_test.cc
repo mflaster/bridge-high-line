@@ -458,7 +458,7 @@ TEST_CASE("LineFinder4") {
     .name = "line_finder_4",
     .trump = SPADES,
     .leader = 0,
-    .min_tricks = 0,
+    .min_tricks = 4,
     .num_iters = 10,
     .hand0 = "SAK HAK",
     .hand2 = "SQJ HQJ",
