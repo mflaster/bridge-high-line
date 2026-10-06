@@ -64,6 +64,7 @@ class HonorPossessionClassifier {
   // Map of Suit -> (honor rank 8..12 -> HonorPossessionStats)
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats_;
   int total_deals_ = 0;
+  std::vector<PairedDeal> deals_;
 };
 
 class CrossSuitConditionalRuleExtractor {

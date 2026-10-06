@@ -1,8 +1,30 @@
+#include <iostream>
 #include <catch2/catch_all.hpp>
 #include <stdexcept>
 
 #include "cross_hand_summarizer.h"
 #include "unknown_cards_invariant.h"
+
+TEST_CASE("HonorPossessionClassifier_OrInvariant") {
+  std::vector<PairedDeal> deals = {
+    PairedDeal("S K64; H 65;", "S 75; H K74;"),
+    PairedDeal("S K754; H K;", "S 6; H 7654;"),
+    PairedDeal("S 75; H K76;", "S K64; H 54;")
+  };
+  HonorPossessionClassifier classifier("hand 1", "hand 3");
+  for (const auto& deal : deals) {
+    classifier.ProcessDeal(deal);
+  }
+  auto invs = classifier.ExtractInvariants();
+  bool found_or = false;
+  for (const auto& inv : invs) {
+    std::cout << "Extracted inv: " << inv->ToString() << "\n";
+    if (inv->ToString() == "OrInvariant(E has the HK, E has the SK)") {
+      found_or = true;
+    }
+  }
+  REQUIRE(found_or);
+}
 
 TEST_CASE("AcceptanceCriterion_ExampleHandPairs", "[cross_hand_summarizer]") {
   // All paired deals contain S K432, bifurcated differently
@@ -296,7 +318,28 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE_FALSE(inv->HoldsOnDeal(deal));
   }
 
-  // 3. MaxSuitLengthInvariant
+  // 2b. OrInvariant
+  {
+    std::string rule_str = "OrInvariant(E has the HK, E has the SK)";
+    auto inv = UnknownCardsInvariant::FromString(rule_str);
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == rule_str);
+
+    auto or_inv = std::dynamic_pointer_cast<OrInvariant>(inv);
+    REQUIRE(or_inv != nullptr);
+    REQUIRE(or_inv->left() != nullptr);
+    REQUIRE(or_inv->right() != nullptr);
+    REQUIRE(or_inv->left()->ToString() == "E has the HK");
+    REQUIRE(or_inv->right()->ToString() == "E has the SK");
+
+    PairedDeal deal_with_hk("S 32; H K2; D 43; C 2;", "S AQ; H A3; D QJ; C 3;");
+    PairedDeal deal_with_sk("S K2; H 32; D 43; C 2;", "S AQ; H A3; D QJ; C 3;");
+    PairedDeal deal_with_neither("S 32; H 42; D 43; C 2;", "S AK; H AK; D QJ; C 3;");
+
+    REQUIRE(inv->HoldsOnDeal(deal_with_hk));
+    REQUIRE(inv->HoldsOnDeal(deal_with_sk));
+    REQUIRE_FALSE(inv->HoldsOnDeal(deal_with_neither));
+  }
   {
     std::string rule_str = "maximum length in S in any hand is 2";
     auto inv = UnknownCardsInvariant::FromString(rule_str);

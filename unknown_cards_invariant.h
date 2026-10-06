@@ -41,6 +41,33 @@ class UnknownCardsInvariant {
       const std::string& hand2_label = "hand 2");
 };
 
+// Represents a logical disjunction over two UnknownCardsInvariants.
+class OrInvariant : public UnknownCardsInvariant {
+ public:
+  OrInvariant(std::shared_ptr<UnknownCardsInvariant> left,
+              std::shared_ptr<UnknownCardsInvariant> right)
+      : left_(std::move(left)), right_(std::move(right)) {}
+
+  std::string ToString() const override;
+
+  bool HoldsOnDeal(
+      const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  static std::shared_ptr<OrInvariant> FromString(
+      const std::string& str,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2");
+
+  std::shared_ptr<UnknownCardsInvariant> left() const { return left_; }
+  std::shared_ptr<UnknownCardsInvariant> right() const { return right_; }
+
+ private:
+  std::shared_ptr<UnknownCardsInvariant> left_;
+  std::shared_ptr<UnknownCardsInvariant> right_;
+};
+
 // Abstract intermediate base class for conditional invariants where possession of a
 // specific card ("condition_card") in a hand implies a restriction on another suit or
 // card in that same hand.

@@ -20,6 +20,9 @@ std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
     const std::string& str,
     const std::string& hand1_label,
     const std::string& hand2_label) {
+  if (auto res = OrInvariant::FromString(str, hand1_label, hand2_label)) {
+    return res;
+  }
   if (auto res = CrossSuitConditionalInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
@@ -36,6 +39,50 @@ std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
     return res;
   }
   return nullptr;
+}
+
+// --- OrInvariant Implementation ---
+
+std::shared_ptr<OrInvariant> OrInvariant::FromString(
+    const std::string& str,
+    const std::string& hand1_label,
+    const std::string& hand2_label) {
+  try {
+    if (str.rfind("OrInvariant(", 0) != 0 || str.back() != ')') {
+      return nullptr;
+    }
+    std::string content = str.substr(12, str.size() - 13);
+    size_t comma_pos = content.find(", ");
+    if (comma_pos == std::string::npos) {
+      return nullptr;
+    }
+    std::string left_str = content.substr(0, comma_pos);
+    std::string right_str = content.substr(comma_pos + 2);
+
+    auto left = UnknownCardsInvariant::FromString(left_str, hand1_label, hand2_label);
+    auto right = UnknownCardsInvariant::FromString(right_str, hand1_label, hand2_label);
+    if (!left || !right) {
+      return nullptr;
+    }
+    return std::make_shared<OrInvariant>(left, right);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+std::string OrInvariant::ToString() const {
+  std::string l_str = left_ ? left_->ToString() : "";
+  std::string r_str = right_ ? right_->ToString() : "";
+  return "OrInvariant(" + l_str + ", " + r_str + ")";
+}
+
+bool OrInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& hand1_label,
+    const std::string& hand2_label) const {
+  bool l_holds = left_ && left_->HoldsOnDeal(deal, hand1_label, hand2_label);
+  bool r_holds = right_ && right_->HoldsOnDeal(deal, hand1_label, hand2_label);
+  return l_holds || r_holds;
 }
 
 // --- CrossSuitConditionalInvariant Implementation ---
@@ -182,6 +229,10 @@ HonorPossessionInvariant::FromString(const std::string& str,
       pos = str.find(" always contain the ");
       sub_len = 20; // length of " always contain the "
     }
+    if (pos == std::string::npos) {
+      pos = str.find(" has the ");
+      sub_len = 9; // length of " has the "
+    }
     if (pos == std::string::npos) return nullptr;
 
     std::string label = str.substr(0, pos);
@@ -193,9 +244,9 @@ HonorPossessionInvariant::FromString(const std::string& str,
 
     if (label == "both hands") {
       target = HonorPossessionTargetHand::kBoth;
-    } else if (label == hand1_label) {
+    } else if (label == "E" || label == "hand 1" || label == hand1_label) {
       target = HonorPossessionTargetHand::kHand1;
-    } else if (label == hand2_label) {
+    } else if (label == "W" || label == "hand 2" || label == "hand 3" || label == hand2_label) {
       target = HonorPossessionTargetHand::kHand2;
     } else {
       return nullptr;
@@ -213,6 +264,9 @@ std::string HonorPossessionInvariant::ToString() const {
     else if (target_hand_ == HonorPossessionTargetHand::kHand2) lbl = "hand 2";
     else if (target_hand_ == HonorPossessionTargetHand::kBoth) lbl = "both hands";
   }
+  if (lbl == "E" || lbl == "W" || lbl == "N" || lbl == "S") {
+    return lbl + " has the " + Card::PrintCard(card_);
+  }
   if (target_hand_ == HonorPossessionTargetHand::kBoth || lbl == "both hands") {
     return lbl + " always contain the " + Card::PrintCard(card_);
   }
@@ -226,10 +280,10 @@ bool HonorPossessionInvariant::HoldsOnDeal(
   if (target_hand_ == HonorPossessionTargetHand::kBoth || label_ == "both hands") {
     return (deal.hand1 & card_) != 0 && (deal.hand2 & card_) != 0;
   }
-  if (target_hand_ == HonorPossessionTargetHand::kHand1 || label_ == hand1_label) {
+  if (target_hand_ == HonorPossessionTargetHand::kHand1 || label_ == "E" || label_ == "hand 1" || label_ == hand1_label) {
     return (deal.hand1 & card_) != 0;
   }
-  if (target_hand_ == HonorPossessionTargetHand::kHand2 || label_ == hand2_label) {
+  if (target_hand_ == HonorPossessionTargetHand::kHand2 || label_ == "W" || label_ == "hand 2" || label_ == "hand 3" || label_ == hand2_label) {
     return (deal.hand2 & card_) != 0;
   }
   return false;

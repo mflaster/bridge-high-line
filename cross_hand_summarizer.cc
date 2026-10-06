@@ -99,6 +99,7 @@ std::vector<std::string> JointSuitRuleExtractor::ExtractRules() const {
 
 void HonorPossessionClassifier::ProcessDeal(const PairedDeal& deal) {
   total_deals_++;
+  deals_.push_back(deal);
   for (int s = 0; s < 4; ++s) {
     Suit suit = static_cast<Suit>(s);
     for (int r = 8; r <= 12; ++r) {
@@ -124,6 +125,8 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
   std::vector<std::shared_ptr<UnknownCardsInvariant>> invariants;
   if (total_deals_ == 0) return invariants;
 
+  std::vector<std::shared_ptr<HonorPossessionInvariant>> honor_candidates;
+
   for (int s = 0; s < 4; ++s) {
     Suit suit = static_cast<Suit>(s);
     auto suit_it = honor_stats_.find(suit);
@@ -145,9 +148,40 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
       } else if (stats.both_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kBoth, card, "both hands"));
+      } else if (stats.hand1_count + stats.hand2_count + stats.both_count > 0) {
+        std::string l1 = (hand1_label_ == "hand 1") ? "E" : hand1_label_;
+        std::string l2 = (hand2_label_ == "hand 2" || hand2_label_ == "hand 3") ? "W" : hand2_label_;
+        honor_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
+            HonorPossessionTargetHand::kHand1, card, l1));
+        honor_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
+            HonorPossessionTargetHand::kHand2, card, l2));
       }
     }
   }
+
+  // Extract OrInvariant over pairs of single HonorPossessionInvariants
+  size_t num_cand = honor_candidates.size();
+  for (size_t i = 0; i < num_cand; ++i) {
+    for (size_t j = i + 1; j < num_cand; ++j) {
+      auto a = honor_candidates[i];
+      auto b = honor_candidates[j];
+      if (a->ToString() >= b->ToString()) {
+        std::swap(a, b);
+      }
+      auto or_inv = std::make_shared<OrInvariant>(a, b);
+      bool holds_for_all = true;
+      for (const auto& deal : deals_) {
+        if (!or_inv->HoldsOnDeal(deal, hand1_label_, hand2_label_)) {
+          holds_for_all = false;
+          break;
+        }
+      }
+      if (holds_for_all) {
+        invariants.push_back(or_inv);
+      }
+    }
+  }
+
   return invariants;
 }
 

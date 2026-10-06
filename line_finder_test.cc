@@ -702,4 +702,17 @@ TEST_CASE("LineFinder_4CardEndplay") {
   });
 }
 
+TEST_CASE("LineFinder_OrInvariant") {
+  RunLineFinderTestCase({
+    .name = "or_invariant",
+    .trump = DIAMONDS,
+    .leader = 0,
+    .min_tricks = 4,
+    .num_iters = 10,
+    .hand0 = "S 32 H 32 D A",
+    .hand2 = "S AQ H AQ D 4",
+    .unknown_cards = "S K7654 H K7654",
+  });
+}
+
 
