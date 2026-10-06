@@ -254,3 +254,17 @@ TEST_CASE("ConditionalLineTotalBoardsFormat") {
   REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
 }
 
+TEST_CASE("WinnerPlayConditionDescribeWithWinningCards") {
+  WinnerPlayCondition cond1(0, std::set<std::string>{"SQ"});
+  REQUIRE(cond1.Describe(true) == "when 0 wins the SQ");
+  REQUIRE(cond1.Describe(false) == "if 0 wins the SQ");
+
+  WinnerPlayCondition cond2(1, std::vector<std::string>{"SJ", "SK"});
+  REQUIRE(cond2.Describe(true) == "when 1 wins the SJ,SK");
+  REQUIRE(cond2.Describe(false) == "if 1 wins the SJ,SK");
+
+  WinnerPlayCondition cond3(2);
+  REQUIRE(cond3.Describe(true) == "when 2 wins");
+  REQUIRE(cond3.Describe(false) == "if 2 wins");
+}
+
