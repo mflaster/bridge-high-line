@@ -26,6 +26,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="finesse">Simple Finesse (Spades)</option>
           <option value="endplay">4-Card Endplay Deal</option>
           <option value="squeeze">Squeeze Deal (NT)</option>
+          <option value="nine_card_hearts">9-Card Hearts Deal</option>
         </select>
       </div>
     </div>
@@ -1264,6 +1265,18 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S J8; H 2; D 2; C -;',
       west: 'S T7; H Q; D Q; C -;',
       unknown_cards: ''
+    },
+    nine_card_hearts: {
+      name: "9-Card Hearts Deal",
+      trump: 'HEARTS',
+      leader: 'NORTH',
+      target: 6,
+      iters: 20,
+      north: 'S 532; H T7; D T32; C 6;',
+      east: '',
+      south: 'S K9; H -; D A854; C AKJ;',
+      west: '',
+      unknown_cards: 'S AJTQ64 D KQJ976 C T43Q98'
     }
   };
 
@@ -2085,6 +2098,18 @@ inline const char* PRESETS_JSON = R"rawjson(
     "south": "S J8; H 2; D 2; C -;",
     "west": "S T7; H Q; D Q; C -;",
     "unknown_cards": ""
+  },
+  "nine_card_hearts": {
+    "name": "9-Card Hearts Deal",
+    "trump": "HEARTS",
+    "leader": "NORTH",
+    "target": 6,
+    "iters": 20,
+    "north": "S 532; H T7; D T32; C 6;",
+    "east": "",
+    "south": "S K9; H -; D A854; C AKJ;",
+    "west": "",
+    "unknown_cards": "S AJTQ64 D KQJ976 C T43Q98"
   }
 }
 
