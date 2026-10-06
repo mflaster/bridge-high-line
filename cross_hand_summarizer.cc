@@ -7,6 +7,7 @@
 #include <set>
 #include <stdexcept>
 
+#include "conditional_line.h"
 #include "unknown_cards_invariant.h"
 
 static int CardsInSuit(uint64_t hand, Suit s) {
@@ -407,7 +408,8 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
     int hand1_size,
     const std::string& hand1_label,
     const std::string& hand2_label,
-    int num_bifurcations) {
+    int num_bifurcations,
+    const ConditionalLine* line) {
   if (candidate_invariants.empty() || unknown_cards == 0) {
     return candidate_invariants;
   }
@@ -449,13 +451,22 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
   for (const auto& inv : candidate_invariants) {
     if (!inv) continue;
     bool true_for_all_random = true;
+    bool works_on_false_hand = false;
+
     for (const auto& deal : bifurcations) {
       if (!inv->HoldsOnDeal(deal, hand1_label, hand2_label)) {
         true_for_all_random = false;
-        break;
+        if (line != nullptr && line->has_sample_board()) {
+          int tricks = line->ResultsOnHand(deal);
+          if (tricks >= line->min_tricks()) {
+            works_on_false_hand = true;
+            break;
+          }
+        }
       }
     }
-    if (!true_for_all_random) {
+
+    if (!true_for_all_random && !works_on_false_hand) {
       filtered.push_back(inv);
     }
   }
@@ -468,7 +479,8 @@ std::vector<std::string> FilterUninterestingRules(
     int hand1_size,
     const std::string& hand1_label,
     const std::string& hand2_label,
-    int num_bifurcations) {
+    int num_bifurcations,
+    const ConditionalLine* line) {
   std::vector<std::shared_ptr<UnknownCardsInvariant>> candidates;
   for (const auto& rule : candidate_rules) {
     if (auto inv = UnknownCardsInvariant::FromString(rule, hand1_label, hand2_label)) {
@@ -476,7 +488,7 @@ std::vector<std::string> FilterUninterestingRules(
     }
   }
   auto filtered = FilterUninterestingInvariants(
-      candidates, unknown_cards, hand1_size, hand1_label, hand2_label, num_bifurcations);
+      candidates, unknown_cards, hand1_size, hand1_label, hand2_label, num_bifurcations, line);
   std::vector<std::string> result;
   for (const auto& inv : filtered) {
     if (inv) {
@@ -489,7 +501,8 @@ std::vector<std::string> FilterUninterestingRules(
 CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     const std::vector<PairedDeal>& deals,
     const std::string& hand1_label,
-    const std::string& hand2_label) const {
+    const std::string& hand2_label,
+    const ConditionalLine* line) const {
   CrossHandSummaryReport report;
   report.total_deals = static_cast<int>(deals.size());
   if (deals.empty()) {
@@ -535,7 +548,7 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
 
   auto filtered_invariants = FilterUninterestingInvariants(
       candidate_invariants, report.unknown_cards, report.cards_per_hand,
-      hand1_label, hand2_label, 200);
+      hand1_label, hand2_label, 200, line);
 
   report.invariant_rules.clear();
   for (const auto& inv : filtered_invariants) {

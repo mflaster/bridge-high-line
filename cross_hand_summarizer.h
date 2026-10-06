@@ -11,6 +11,8 @@
 #include "hand.h"
 #include "unknown_cards_invariant.h"
 
+class ConditionalLine;
+
 struct JointSuitBounds {
   int min_hand1 = 999;
   int max_hand1 = -1;
@@ -123,7 +125,8 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
     int hand1_size,
     const std::string& hand1_label = "hand 1",
     const std::string& hand2_label = "hand 2",
-    int num_bifurcations = 200);
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
 
 std::vector<std::string> FilterUninterestingRules(
     const std::vector<std::string>& candidate_rules,
@@ -131,7 +134,8 @@ std::vector<std::string> FilterUninterestingRules(
     int hand1_size,
     const std::string& hand1_label = "hand 1",
     const std::string& hand2_label = "hand 2",
-    int num_bifurcations = 200);
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
 
 class CrossHandDealSetSummarizer {
  public:
@@ -140,5 +144,6 @@ class CrossHandDealSetSummarizer {
   CrossHandSummaryReport Summarize(
       const std::vector<PairedDeal>& deals,
       const std::string& hand1_label = "hand 1",
-      const std::string& hand2_label = "hand 2") const;
+      const std::string& hand2_label = "hand 2",
+      const ConditionalLine* line = nullptr) const;
 };

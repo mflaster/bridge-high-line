@@ -514,3 +514,92 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
   VLOG(1) << "Got groups " << ans.size();
   return ans;
 }
+
+namespace {
+std::string SanitizeTrickString(const std::string &raw_trick) {
+  std::string clean;
+  for (char c : raw_trick) {
+    if (c != '(' && c != ')') {
+      clean += c;
+    }
+  }
+  std::vector<std::string> words = SplitWords(clean);
+  std::string result;
+  for (auto &word : words) {
+    if (!result.empty()) result += " ";
+    if (word.size() < 2) {
+      result += "S2";
+      continue;
+    }
+    char s = word[0];
+    char r = word[1];
+    if (s == '_' || s == 'R') s = 'C';
+    if (s != 'S' && s != 'H' && s != 'D' && s != 'C') s = 'S';
+    if (r == 'x' || r == 'X' || r == '_') r = '2';
+    if (r != 'A' && r != 'K' && r != 'Q' && r != 'J' && r != 'T' && !isdigit(r)) r = '2';
+    result += s;
+    result += r;
+  }
+  return result;
+}
+}  // namespace
+
+int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
+  BoardState copy = bs;
+  copy.set_check_card_play(false);
+
+  // Terminal leaf node
+  if (do_first_.Empty() && conditions_.empty()) {
+    return copy.tricks_won_even();
+  }
+
+  // Root decision node with initial trick choices
+  if (do_first_.Empty()) {
+    int max_tricks = 0;
+    bool evaluated = false;
+    for (const auto &[cond, child_line] : conditions_) {
+      if (!child_line) continue;
+      int res = child_line->ResultsOnHand(copy);
+      if (!evaluated || res > max_tricks) {
+        max_tricks = res;
+        evaluated = true;
+      }
+    }
+    return evaluated ? max_tricks : copy.tricks_won_even();
+  }
+
+  // Intermediate action node
+  std::string raw_trick = do_first_.ToString(true);
+  std::string clean_trick = SanitizeTrickString(raw_trick);
+
+  copy.PlayTrick(clean_trick);
+  int winner = copy.CurPlayer();
+
+  if (conditions_.empty()) {
+    return copy.tricks_won_even();
+  }
+
+  for (const auto &[cond, child_line] : conditions_) {
+    if (!child_line) continue;
+    auto *winner_cond = dynamic_cast<const WinnerPlayCondition*>(cond.get());
+    if (winner_cond && winner_cond->who() == winner) {
+      return child_line->ResultsOnHand(copy);
+    }
+  }
+
+  return copy.tricks_won_even();
+}
+
+int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
+  if (!has_sample_board_) {
+    return 0;
+  }
+  BoardState bs = sample_board_;
+  std::vector<uint64_t> hands(4);
+  hands[0] = sample_board_.GetHand(0);
+  hands[1] = deal.hand1;
+  hands[2] = sample_board_.GetHand(2);
+  hands[3] = deal.hand2;
+  bs.SetHands(hands);
+  return ResultsOnHand(bs);
+}

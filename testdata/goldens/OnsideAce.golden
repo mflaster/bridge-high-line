@@ -9,17 +9,7 @@ Covers 20/52 (38.5%) [3, 4, 9, 15, 18, 19, 20, 21, 24, 25, 32, 33, 34, 37, 38, 4
 Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 7 card ending:
-  - hand 1 length in S is between 1 and 4
-  - hand 3 length in S is between 1 and 4
-  - maximum length in S in any hand is 4
-  - hand 1 length in D is between 1 and 4
-  - hand 3 length in D is between 2 and 5
-  - the hand with the SA also has at least 2 S
-  - the hand with the SA also has at most 4 D
-  - the hand with the DT also has at least 2 D
-  - the hand with the DJ also has at least 2 D
-  - the hand with the DQ also has at least 2 D
-  - hand 1 always contains the DA
+  (None)
 
   after C6 (__) C9 (__): C6 (__) C9 (__) [3,4,9,15,18,19,20,21,24,25,32,33,34,37,38,41,44,46,47,51] / C6 C7 C9 S5  / C6 S5 C9 C7  / C6 D8 C9 C7  / C6 C7 C9 D8  / C6 C7 C9 D8 
     when 0 wins the C9: 

@@ -2,6 +2,8 @@
 #include <catch2/catch_all.hpp>
 #include <stdexcept>
 
+#include "board_state.h"
+#include "conditional_line.h"
 #include "cross_hand_summarizer.h"
 #include "unknown_cards_invariant.h"
 
@@ -414,5 +416,44 @@ TEST_CASE("UnknownCardsInvariantClassHierarchy_FromStringToStringAndHoldsOnDeal"
     REQUIRE(ExactSuitLengthInvariant::FromString("hand 1 length in S is between 1 and 3") == nullptr);
     REQUIRE(SuitLengthRangeInvariant::FromString("hand 1 length in S is always 2") == nullptr);
   }
+}
+
+TEST_CASE("FilterUninterestingInvariants_LineFiltering") {
+  uint64_t unknown_cards = ParseHand("S QJ");
+  auto inv = UnknownCardsInvariant::FromString("hand 1 always contains the SQ");
+  REQUIRE(inv != nullptr);
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> candidates = {inv};
+
+  BoardState bs;
+  std::vector<uint64_t> hands(4);
+  hands[0] = ParseHand("S A;");
+  hands[1] = ParseHand("S Q;");
+  hands[2] = ParseHand("S 3;");
+  hands[3] = ParseHand("S J;");
+  bs.SetHands(hands);
+  bs.SetTrump(NOTRUMP);
+  bs.SetLead(0);
+
+  ConditionalLine leaf(std::set<int>{0});
+  ConditionalLine action_node;
+  GeneralizedTrick gt1(GeneralizedDemiStruct("SQ", "SA", {}),
+                       GeneralizedDemiStruct("SJ", "S3", {}),
+                       std::set<int>{0}, 0);
+  action_node.SetAction(gt1);
+  action_node.AddCondition(new WinnerPlayCondition(0), leaf);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("after SA (SQ) S3 (SJ)"), action_node);
+  root.set_sample_board(bs);
+
+  // Case 1: Line works on false hand (min_tricks = 1, SA wins regardless)
+  root.set_min_tricks(1);
+  auto filtered_dropped = FilterUninterestingInvariants(candidates, unknown_cards, 1, "hand 1", "hand 2", 200, &root);
+  REQUIRE(filtered_dropped.empty());
+
+  // Case 2: Line fails on false hand (min_tricks = 5, impossible)
+  root.set_min_tricks(5);
+  auto filtered_kept = FilterUninterestingInvariants(candidates, unknown_cards, 1, "hand 1", "hand 2", 200, &root);
+  REQUIRE(filtered_kept.size() == 1);
 }
 

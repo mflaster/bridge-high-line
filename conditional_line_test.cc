@@ -268,3 +268,35 @@ TEST_CASE("WinnerPlayConditionDescribeWithWinningCards") {
   REQUIRE(cond3.Describe(false) == "if 2 wins");
 }
 
+TEST_CASE("ConditionalLineResultsOnHand") {
+  BoardState bs;
+  std::vector<uint64_t> hands(4);
+  hands[0] = ParseHand("S AK;");
+  hands[1] = ParseHand("S QJ;");
+  hands[2] = ParseHand("S 43;");
+  hands[3] = ParseHand("S 65;");
+  bs.SetHands(hands);
+  bs.SetTrump(NOTRUMP);
+  bs.SetLead(0);
+
+  ConditionalLine leaf(std::set<int>{0});
+  ConditionalLine action_node;
+  GeneralizedTrick gt1(GeneralizedDemiStruct("SQ", "SA", {}),
+                       GeneralizedDemiStruct("S5", "S3", {}),
+                       std::set<int>{0}, 0);
+  action_node.SetAction(gt1);
+  action_node.AddCondition(new WinnerPlayCondition(0), leaf);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("after SA (SQ) S3 (S5)"), action_node);
+
+  root.set_sample_board(bs);
+  root.set_min_tricks(1);
+
+  int tricks = root.ResultsOnHand(bs);
+  REQUIRE(tricks >= 1);
+
+  PairedDeal deal("S QJ", "S 65");
+  REQUIRE(root.ResultsOnHand(deal) >= 1);
+}
+
