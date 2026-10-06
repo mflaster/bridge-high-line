@@ -247,6 +247,7 @@ class ConditionalLine {  // ConditionalLineBranch
 class WinnerPlayCondition : public PlayCondition {
  public:
   WinnerPlayCondition(int who) : who_(who) {}
+  int who() const { return who_; }
 
   std::string Describe(bool only_choice) const override;
 

@@ -111,27 +111,32 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
 
   // Check decision tree hierarchy down to 4 tricks
   auto &tree = endplay_json["tree"];
-  REQUIRE(tree["collapsed"] == false);
-  REQUIRE(tree["children"].size() >= 1);
+  std::string ep_root_label = tree["label"].get<std::string>();
+  auto &trick1_node = (ep_root_label.find("Trick 1:") != std::string::npos) ? tree : tree["children"][0];
 
-  // Trick 1
-  auto &trick1_node = tree["children"][0];
+  // Trick 1 (collapsed by default)
   REQUIRE(trick1_node["label"].get<std::string>().find("Trick 1:") != std::string::npos);
+  REQUIRE(trick1_node["label"].get<std::string>().find("wins") != std::string::npos);
   REQUIRE(trick1_node["collapsed"] == true);
   REQUIRE(trick1_node["children"].size() >= 1);
 
   // Trick 2
   auto &trick2_node = trick1_node["children"][0];
   REQUIRE(trick2_node["label"].get<std::string>().find("Trick 2:") != std::string::npos);
-  REQUIRE(trick2_node["collapsed"] == true);
+  REQUIRE(trick2_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick2_node["children"].size() >= 1);
 
   // Trick 3
   auto &trick3_node = trick2_node["children"][0];
   REQUIRE(trick3_node["label"].get<std::string>().find("Trick 3:") != std::string::npos);
+  REQUIRE(trick3_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick3_node["children"].size() >= 1);
 
   // Trick 4
   auto &trick4_node = trick3_node["children"][0];
   REQUIRE(trick4_node["label"].get<std::string>().find("Trick 4:") != std::string::npos);
+  REQUIRE(trick4_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick4_node["type"] == "outcome");
 
   // Test 3: Invalid JSON payload handling
   auto res_bad = client.Post("/api/solve", "{invalid json}", "application/json");
@@ -178,6 +183,18 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_finesse->status == 200);
   nlohmann::json finesse_json = nlohmann::json::parse(res_finesse->body);
   REQUIRE(finesse_json["success"] == true);
+  REQUIRE(finesse_json.contains("tree"));
+  auto &finesse_tree = finesse_json["tree"];
+  REQUIRE(finesse_tree.contains("label"));
+  // Ensure the tree is collapsed and does not contain redundant 'Hand Succeeded' or 'after ...' single-child wrappers
+  std::string root_label = finesse_tree["label"].get<std::string>();
+  REQUIRE(root_label.find("Hand Succeeded") == std::string::npos);
+  if (finesse_tree.contains("children") && !finesse_tree["children"].empty()) {
+    for (const auto &c : finesse_tree["children"]) {
+      std::string child_label = c["label"].get<std::string>();
+      REQUIRE(child_label.find("Hand Succeeded") == std::string::npos);
+    }
+  }
 
   // Test 5b: 9-Card Hearts Deal solve
   nlohmann::json hearts9_req;
@@ -238,6 +255,66 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   nlohmann::json count_err_json = nlohmann::json::parse(res_count_err->body);
   REQUIRE(count_err_json["success"] == false);
   REQUIRE(count_err_json["error"].get<std::string>().find("Invalid unknown cards count") != std::string::npos);
+
+  // Test 9: 4-Card Endplay Preset Tree Structure & Depth
+  nlohmann::json endplay_preset_req;
+  endplay_preset_req["hands"]["N"] = "S AQT; H 2; D -; C -;";
+  endplay_preset_req["hands"]["E"] = "";
+  endplay_preset_req["hands"]["S"] = "S 876; H A; D -; C -;";
+  endplay_preset_req["hands"]["W"] = "";
+  endplay_preset_req["trump"] = "HEARTS";
+  endplay_preset_req["leader"] = "SOUTH";
+  endplay_preset_req["min_tricks"] = 3;
+  endplay_preset_req["num_iters"] = 30;
+  endplay_preset_req["unknown_cards"] = "S KJ9543 D 34";
+
+  auto res_preset = client.Post("/api/solve", endplay_preset_req.dump(), "application/json");
+  REQUIRE(res_preset);
+  REQUIRE(res_preset->status == 200);
+  nlohmann::json preset_json = nlohmann::json::parse(res_preset->body);
+  REQUIRE(preset_json["success"] == true);
+  REQUIRE(preset_json.contains("tree"));
+
+  auto &ptree = preset_json["tree"];
+  std::string p_root_label = ptree["label"].get<std::string>();
+  auto &p_trick1 = (p_root_label.find("Trick 1:") != std::string::npos) ? ptree : ptree["children"][0];
+
+  // Depth 1: Trick 1
+  REQUIRE(p_trick1["label"].get<std::string>().find("Trick 1:") != std::string::npos);
+  REQUIRE(p_trick1["children"].size() >= 1);
+
+  // Depth 2: Trick 2
+  auto &p_trick2 = p_trick1["children"][0];
+  REQUIRE(p_trick2["label"].get<std::string>().find("Trick 2:") != std::string::npos);
+  REQUIRE(p_trick2["children"].size() >= 1);
+
+  // Depth 3: Trick 3
+  auto &p_trick3 = p_trick2["children"][0];
+  REQUIRE(p_trick3["label"].get<std::string>().find("Trick 3:") != std::string::npos);
+  if (p_trick3["children"].size() > 1) {
+    bool found_branch_cond = false;
+    for (const auto &c : p_trick3["children"]) {
+      if (c.contains("condition") && !c["condition"].get<std::string>().empty()) {
+        found_branch_cond = true;
+        std::string cond = c["condition"].get<std::string>();
+        REQUIRE(cond.find("0 wins") == std::string::npos);
+        REQUIRE(cond.find("1 wins") == std::string::npos);
+        REQUIRE((cond.find("N wins") != std::string::npos || cond.find("E wins") != std::string::npos ||
+                 cond.find("S wins") != std::string::npos || cond.find("W wins") != std::string::npos));
+      }
+    }
+    REQUIRE(found_branch_cond);
+  }
+
+  // Find outcome leaf at depth 4
+  nlohmann::json *curr = &p_trick1;
+  while (curr->contains("children") && !(*curr)["children"].empty()) {
+    curr = &((*curr)["children"][0]);
+  }
+  REQUIRE((*curr)["type"] == "outcome");
+  REQUIRE((*curr)["success_boards"] > 0);
+  REQUIRE((*curr).contains("ns_tricks"));
+  REQUIRE((*curr)["label"].get<std::string>().find("tricks won by N/S") != std::string::npos);
 
   server.Stop();
 }

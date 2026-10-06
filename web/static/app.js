@@ -650,8 +650,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const collapseAllBtn = document.getElementById('collapseAllBtn');
 
   function setAllCollapsed(node, isCollapsed) {
-    if (node._depth !== undefined && node._depth > 0) {
-      node._collapsed = isCollapsed;
+    if (isCollapsed) {
+      const isContainerRoot = (node._depth === 0 && (!node.trick || node.trick === '') && node.children && node.children.length > 1);
+      node._collapsed = isContainerRoot ? false : true;
+    } else {
+      node._collapsed = false;
     }
     if (node.children) {
       node.children.forEach(c => setAllCollapsed(c, isCollapsed));
@@ -687,17 +690,22 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTransform();
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 220;
-    const nodeHeight = 70;
-    const levelHeight = 110;
-    const siblingGap = 30;
+    const nodeWidth = 240;
+    const nodeHeight = 78;
+    const levelHeight = 140;
+    const siblingGap = 40;
 
     let leafCounter = 0;
 
     function layoutNode(node, depth = 0) {
       node._depth = depth;
       if (node._collapsed === undefined) {
-        node._collapsed = (node.collapsed !== undefined ? node.collapsed : depth >= 1);
+        if (node.collapsed !== undefined) {
+          node._collapsed = node.collapsed;
+        } else {
+          const isContainerRoot = (depth === 0 && (!node.trick || node.trick === '') && node.children && node.children.length > 1);
+          node._collapsed = isContainerRoot ? false : true;
+        }
       }
       if (!node.children || node.children.length === 0 || node._collapsed) {
         node._x = leafCounter * (nodeWidth + siblingGap);
@@ -714,11 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     layoutNode(rootNode);
 
-    // Draw Links & Nodes recursively
-    function drawTree(node) {
+    // Pass 1: Draw Links & Edge Badges
+    function drawLinks(node) {
       if (node.children && node.children.length > 0 && !node._collapsed) {
         node.children.forEach(child => {
-          // Curved path link
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           const startX = node._x + nodeWidth / 2;
           const startY = node._y + nodeHeight;
@@ -732,11 +739,45 @@ document.addEventListener('DOMContentLoaded', () => {
           path.setAttribute('marker-end', 'url(#arrow)');
           treeRootGroup.appendChild(path);
 
-          drawTree(child);
+          if (child.condition) {
+            const midX = (startX + endX) / 2;
+            const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            labelGroup.setAttribute('class', 'tree-edge-label-group');
+
+            let condText = child.condition;
+            if (condText.startsWith('after ')) {
+              condText = condText.substring(6);
+            }
+            const labelWidth = Math.max(54, condText.length * 7 + 12);
+            const labelHeight = 18;
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', midX - labelWidth / 2);
+            rect.setAttribute('y', midY - labelHeight / 2);
+            rect.setAttribute('width', labelWidth);
+            rect.setAttribute('height', labelHeight);
+            rect.setAttribute('rx', '4');
+            rect.setAttribute('class', 'tree-edge-label-bg');
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', midX);
+            text.setAttribute('y', midY + 4);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('class', 'tree-edge-label');
+            text.textContent = condText;
+
+            labelGroup.appendChild(rect);
+            labelGroup.appendChild(text);
+            treeRootGroup.appendChild(labelGroup);
+          }
+
+          drawLinks(child);
         });
       }
+    }
 
-      // Render Node Group
+    // Pass 2: Draw Node Cards
+    function drawNodes(node) {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('transform', `translate(${node._x}, ${node._y})`);
       g.style.cursor = 'pointer';
@@ -755,15 +796,19 @@ document.addEventListener('DOMContentLoaded', () => {
       // Title Text
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       title.setAttribute('x', '12');
-      title.setAttribute('y', '26');
+      title.setAttribute('y', '22');
       title.setAttribute('class', 'node-text-title');
-      title.textContent = truncateText(node.label || node.trick || 'Node', 26);
+      let rawTitle = node.label || node.trick || 'Node';
+      if (rawTitle.startsWith('after ')) {
+        rawTitle = rawTitle.substring(6);
+      }
+      title.textContent = truncateText(rawTitle, 40);
       g.appendChild(title);
 
       // Detail Text
       const detail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       detail.setAttribute('x', '12');
-      detail.setAttribute('y', '48');
+      detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
       let detailText = '';
       if (node.success_boards !== undefined && node.total_boards !== undefined) {
@@ -774,6 +819,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       detail.textContent = `${node.type.toUpperCase()} | ${detailText}`;
       g.appendChild(detail);
+
+      // 3rd Line: N/S Won on its own line for leaf/outcome nodes
+      if (node.type === 'outcome' && node.ns_tricks !== undefined) {
+        const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        highlight.setAttribute('x', '12');
+        highlight.setAttribute('y', '62');
+        highlight.setAttribute('class', 'node-text-highlight');
+        highlight.textContent = `N/S Won: ${node.ns_tricks}`;
+        g.appendChild(highlight);
+      }
 
       // Expand/Collapse Indicator if children exist
       if (node.children && node.children.length > 0) {
@@ -806,9 +861,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       treeRootGroup.appendChild(g);
+
+      if (node.children && node.children.length > 0 && !node._collapsed) {
+        node.children.forEach(child => drawNodes(child));
+      }
     }
 
-    drawTree(rootNode);
+    drawLinks(rootNode);
+    drawNodes(rootNode);
   }
 
   function truncateText(str, maxLen) {
@@ -826,7 +886,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       boardsInfo = `Success: ${node.covered_boards || 0}`;
     }
-    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}" | ${boardsInfo}`;
+    const nsInfo = node.ns_tricks !== undefined ? ` | N/S Tricks Won: ${node.ns_tricks}` : '';
+    nodeDetailContent.textContent = `ID: ${node.id} | Type: ${node.type} | Label: "${node.label || ''}" | Trick: "${node.trick || ''}"${nsInfo} | ${boardsInfo}`;
   }
 
   // Pan & Zoom Implementation
