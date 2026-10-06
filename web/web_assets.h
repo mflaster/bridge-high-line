@@ -489,17 +489,19 @@ body {
 }
 
 .card-suit-label {
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .card-suit-s, .card-suit-c { fill: #f8fafc; }
 .card-suit-h, .card-suit-d { fill: #f87171; }
 
 .card-values {
-  fill: #cbd5e1;
-  font-size: 12px;
+  fill: #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
   font-family: monospace;
+  letter-spacing: 0.5px;
 }
 
 /* Form Controls */
@@ -640,6 +642,10 @@ body {
 .mini-text-input {
   flex: 1;
   width: 100%;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: monospace;
+  letter-spacing: 0.3px;
 }
 
 .requirements-details {
@@ -1317,29 +1323,28 @@ document.addEventListener('DOMContentLoaded', () => {
   function parseHandToSuits(str) {
     const suits = { S: '', H: '', D: '', C: '' };
     if (!str) return suits;
-    
-    // Check if standard format "S AK2; H QJ3; ..."
-    const parts = str.split(';');
-    parts.forEach(p => {
-      const trimmed = p.trim();
-      if (!trimmed) return;
-      const suitChar = trimmed.charAt(0).toUpperCase();
-      if (suits.hasOwnProperty(suitChar)) {
-        suits[suitChar] = trimmed.substring(1).trim();
-      }
-    });
 
-    // If empty, try simple parsing
-    if (!suits.S && !suits.H && !suits.D && !suits.C) {
-      let curSuit = 'S';
-      for (let i = 0; i < str.length; i++) {
-        const c = str.charAt(i).toUpperCase();
-        if (suits.hasOwnProperty(c)) {
-          curSuit = c;
-        } else if (c !== ' ' && c !== '-') {
+    let curSuit = null;
+    let i = 0;
+    while (i < str.length) {
+      const c = str.charAt(i);
+      const upperC = c.toUpperCase();
+
+      if (suits.hasOwnProperty(upperC)) {
+        curSuit = upperC;
+      } else {
+        if (!curSuit) {
+          curSuit = 'S';
+        }
+        if (c === '1' && i + 1 < str.length && str.charAt(i + 1) === '0') {
+          suits[curSuit] += '10';
+          i += 2;
+          continue;
+        } else if (c !== ' ' && c !== ';' && c !== ',' && c !== '-') {
           suits[curSuit] += c;
         }
       }
+      i++;
     }
     return suits;
   }
@@ -1439,7 +1444,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const cards = suitsData[s.key] || '-';
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       textNode.setAttribute('x', '0');
-      textNode.setAttribute('y', yOffset + 12);
+      textNode.setAttribute('y', yOffset + 13);
       
       const symbolSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
       symbolSpan.setAttribute('class', `card-suit-label ${s.class}`);
@@ -1453,7 +1458,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textNode.appendChild(valSpan);
       group.appendChild(textNode);
 
-      yOffset += 15;
+      yOffset += 16.5;
     });
   }
 
