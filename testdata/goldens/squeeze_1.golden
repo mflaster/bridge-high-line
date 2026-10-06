@@ -9,41 +9,7 @@ Covers 4/20 (20.0%) [4, 5, 14, 19]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules for 6 card ending:
-  - hand 1 length in S is between 2 and 4
-  - hand 3 length in S is between 2 and 4
-  - maximum length in S in any hand is 4
-  - hand 1 length in H is between 2 and 4
-  - hand 3 length in H is between 2 and 4
-  - maximum length in H in any hand is 4
-  - the hand with the HT also has exactly 4 H
-  - the hand with the HT also has the HQ
-  - the hand with the HQ also has exactly 4 H
-  - the hand with the HQ also has the HT
-  - the hand with the HA also has exactly 4 S
-  - OrInvariant(W has the SJ, W has the ST)
-  - OrInvariant(W has the SQ, W has the ST)
-  - OrInvariant(E has the HT, W has the ST)
-  - OrInvariant(E has the HJ, W has the ST)
-  - OrInvariant(E has the HQ, W has the ST)
-  - OrInvariant(W has the HA, W has the ST)
-  - OrInvariant(W has the SJ, W has the SQ)
-  - OrInvariant(E has the HT, W has the SJ)
-  - OrInvariant(E has the HJ, W has the SJ)
-  - OrInvariant(E has the HQ, W has the SJ)
-  - OrInvariant(W has the HA, W has the SJ)
-  - OrInvariant(E has the HT, E has the SQ)
-  - OrInvariant(E has the HJ, E has the SQ)
-  - OrInvariant(E has the HQ, E has the SQ)
-  - OrInvariant(E has the SQ, W has the HA)
-  - OrInvariant(E has the HJ, E has the HT)
-  - OrInvariant(E has the HT, W has the HQ)
-  - OrInvariant(E has the HA, E has the HT)
-  - OrInvariant(E has the HQ, W has the HT)
-  - OrInvariant(W has the HA, W has the HT)
-  - OrInvariant(E has the HJ, E has the HQ)
-  - OrInvariant(E has the HJ, W has the HA)
-  - OrInvariant(E has the HA, E has the HQ)
-  - OrInvariant(W has the HA, W has the HQ)
+  (None)
 
   after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19] / DA H8 D4 S7  / DA H8 D4 S8  / DA HT D4 SJ  / DA S9 D4 HT 
     when 0 wins the DA: 

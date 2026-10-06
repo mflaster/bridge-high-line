@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 
 std::string WinnerPlayCondition::Describe(bool only_choice) const {
@@ -555,24 +556,94 @@ int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
 
   // Root decision node with initial trick choices
   if (do_first_.Empty()) {
-    int max_tricks = 0;
-    bool evaluated = false;
-    for (const auto &[cond, child_line] : conditions_) {
-      if (!child_line) continue;
-      int res = child_line->ResultsOnHand(copy);
-      if (!evaluated || res > max_tricks) {
-        max_tricks = res;
-        evaluated = true;
-      }
+    if (conditions_.empty() || !conditions_[0].second) {
+      return copy.tricks_won_even();
     }
-    return evaluated ? max_tricks : copy.tricks_won_even();
+    return conditions_[0].second->ResultsOnHand(copy);
   }
 
   // Intermediate action node
   std::string raw_trick = do_first_.ToString(true);
   std::string clean_trick = SanitizeTrickString(raw_trick);
+  std::vector<std::string> words = SplitWords(clean_trick);
 
-  copy.PlayTrick(clean_trick);
+  if (words.size() == 4) {
+    for (int i = 0; i < 4; ++i) {
+      int p = copy.CurPlayer();
+      std::vector<CardType> valid_cards = copy.ValidCardsToPlay();
+      if (valid_cards.empty()) break;
+
+      CardType chosen_card = valid_cards[0];
+      if (p % 2 == 0) {  // Declarer side (North=0, South=2)
+        CardType target = Card::ParseStringCard(words[i]);
+        int64_t min_d = -1;
+        for (CardType c : valid_cards) {
+          int64_t d = (target > c) ? (target - c) : (c - target);
+          if (min_d < 0 || d < min_d) {
+            min_d = d;
+            chosen_card = c;
+          }
+        }
+      } else {  // Defender side (East=1, West=3)
+        if (copy.CardsPlayedThisTrick() == 0) {
+          CardType target = Card::ParseStringCard(words[i]);
+          int64_t min_d = -1;
+          for (CardType c : valid_cards) {
+            int64_t d = (target > c) ? (target - c) : (c - target);
+            if (min_d < 0 || d < min_d) {
+              min_d = d;
+              chosen_card = c;
+            }
+          }
+        } else {
+          auto [win_rel, win_info] = copy.TrickWinner();
+          int current_winner = (copy.cur_trick_leader() + win_rel) % 4;
+          if (current_winner % 2 != 0) {  // Partner is winning
+            chosen_card = valid_cards[0];
+            for (CardType c : valid_cards) {
+              auto [s1, v1] = Card::DecodeCard(c);
+              auto [s2, v2] = Card::DecodeCard(chosen_card);
+              if (v1 < v2) chosen_card = c;
+            }
+          } else {  // Declarer is winning
+            auto [win_suit, win_val] = win_info;
+            Suit trump = copy.GetTrump();
+            std::vector<CardType> winners;
+            for (CardType c : valid_cards) {
+              auto [c_suit, c_val] = Card::DecodeCard(c);
+              bool beats = false;
+              if (win_suit == trump) {
+                if (c_suit == trump && c_val > win_val) beats = true;
+              } else {
+                if (c_suit == trump) beats = true;
+                else if (c_suit == win_suit && c_val > win_val) beats = true;
+              }
+              if (beats) winners.push_back(c);
+            }
+            if (!winners.empty()) {
+              chosen_card = winners[0];
+              for (CardType c : winners) {
+                auto [s1, v1] = Card::DecodeCard(c);
+                auto [s2, v2] = Card::DecodeCard(chosen_card);
+                if (v1 < v2) chosen_card = c;
+              }
+            } else {
+              chosen_card = valid_cards[0];
+              for (CardType c : valid_cards) {
+                auto [s1, v1] = Card::DecodeCard(c);
+                auto [s2, v2] = Card::DecodeCard(chosen_card);
+                if (v1 < v2) chosen_card = c;
+              }
+            }
+          }
+        }
+      }
+      copy.PlayCard(p, chosen_card);
+    }
+  } else {
+    copy.PlayTrick(clean_trick);
+  }
+
   int winner = copy.CurPlayer();
 
   if (conditions_.empty()) {
