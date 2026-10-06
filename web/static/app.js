@@ -728,6 +728,35 @@ document.addEventListener('DOMContentLoaded', () => {
           path.setAttribute('marker-end', 'url(#arrow)');
           treeRootGroup.appendChild(path);
 
+          if (child.condition) {
+            const midX = (startX + endX) / 2;
+            const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            labelGroup.setAttribute('class', 'tree-edge-label-group');
+
+            const condText = child.condition;
+            const labelWidth = Math.max(54, condText.length * 7 + 12);
+            const labelHeight = 18;
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', midX - labelWidth / 2);
+            rect.setAttribute('y', midY - labelHeight / 2);
+            rect.setAttribute('width', labelWidth);
+            rect.setAttribute('height', labelHeight);
+            rect.setAttribute('rx', '4');
+            rect.setAttribute('class', 'tree-edge-label-bg');
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', midX);
+            text.setAttribute('y', midY + 4);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('class', 'tree-edge-label');
+            text.textContent = condText;
+
+            labelGroup.appendChild(rect);
+            labelGroup.appendChild(text);
+            treeRootGroup.appendChild(labelGroup);
+          }
+
           drawTree(child);
         });
       }

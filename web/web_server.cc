@@ -86,6 +86,7 @@ struct DecisionTreeNode {
   std::string description;
   std::string trick;
   std::string trick_full;
+  std::string condition;
   bool collapsed = false;
   int success_boards = 0;
   int failure_boards = 0;
@@ -116,6 +117,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       for (const auto &[cond_ptr, child_ptr] : conds) {
         if (child_ptr) {
           auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total);
+          if (child && cond_ptr) {
+            child->condition = cond_ptr->Describe(false);
+          }
           root_node->children.push_back(child);
         }
       }
@@ -218,13 +222,10 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     for (const auto &[cond_ptr, child_line_ptr] : conds) {
       if (child_line_ptr) {
         auto child = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total);
-        if (child && cond_ptr) {
-          std::string winner_str = FormatWinnerCondition(cond_ptr.get());
-          if (!winner_str.empty() && child->label.find('(') == std::string::npos) {
-            child->label += " (" + winner_str + ")";
-          }
-        }
         if (child) {
+          if (cond_ptr) {
+            child->condition = cond_ptr->Describe(false);
+          }
           node->children.push_back(child);
         }
       }
@@ -417,6 +418,10 @@ void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
       break;
     }
 
+    if (node->condition.empty() && !child->condition.empty()) {
+      node->condition = child->condition;
+    }
+
     node = child;
   }
 }
@@ -461,6 +466,9 @@ void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   }
   if (!node.trick_full.empty()) {
     j["trick_full"] = node.trick_full;
+  }
+  if (!node.condition.empty()) {
+    j["condition"] = node.condition;
   }
   if (!node.boards.empty() || node.type == "action" || node.type == "condition") {
     j["boards"] = node.boards;
