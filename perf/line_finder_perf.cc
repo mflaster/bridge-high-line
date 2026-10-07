@@ -29,6 +29,25 @@ void GetHandSuitDistribution(uint64_t hand, int dist[4]) {
   }
 }
 
+// Samples 11 random defender layouts and returns the median double-dummy
+// tricks won by declarer's side, or -1 if all 11 layouts win the exact same
+// number of tricks (zero variance).
+int EstimateMedianMinTricks(const std::vector<uint64_t>& hands,
+                            uint64_t unknown_cards, int leader, Suit trump,
+                            long seed) {
+  srand48(seed);
+  LineFinder lf_sample(11);
+  std::multiset<int> sample_tricks = lf_sample.FindTricksWon(
+      hands, unknown_cards, leader, trump, /*deal_missing_cards=*/false);
+  if (sample_tricks.empty() ||
+      *sample_tricks.begin() == *sample_tricks.rbegin()) {
+    return -1;
+  }
+  auto med_it = sample_tricks.begin();
+  std::advance(med_it, sample_tricks.size() / 2);
+  return std::max(1, *med_it);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -111,18 +130,12 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        srand48(12345 + ending_size * 10 + trial);
-        LineFinder lf_sample(11);
-        std::multiset<int> sample_tricks = lf_sample.FindTricksWon(
-            hands, unknown_cards, leader, trump, /*deal_missing_cards=*/false);
-        if (sample_tricks.empty() ||
-            *sample_tricks.begin() == *sample_tricks.rbegin()) {
-          continue;
+        long seed = 12345 + ending_size * 10 + trial;
+        min_tricks = EstimateMedianMinTricks(hands, unknown_cards, leader,
+                                             trump, seed);
+        if (min_tricks > 0) {
+          break;
         }
-        auto med_it = sample_tricks.begin();
-        std::advance(med_it, sample_tricks.size() / 2);
-        min_tricks = std::max(1, *med_it);
-        break;
       }
 
       std::string suit_len_str = "(" + std::to_string(dist0[trump]) + "-" +
