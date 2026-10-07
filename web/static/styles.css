@@ -269,9 +269,9 @@ body.is-resizing * {
 
 .unknown-title {
   fill: #f59e0b;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .compass-trump, .compass-leader {
@@ -281,7 +281,7 @@ body.is-resizing * {
 }
 
 .card-suit-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -292,7 +292,7 @@ body.is-resizing * {
 
 .card-values {
   fill: #f1f5f9;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   font-family: monospace;
   letter-spacing: 0.5px;
@@ -305,9 +305,9 @@ body.is-resizing * {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -322,9 +322,11 @@ body.is-resizing * {
 
 .middle-control-group {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  width: 100%;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
   color: #a7f3d0;
 }
@@ -334,8 +336,8 @@ body.is-resizing * {
   color: #f8fafc;
   border: 1px solid #2d5e46;
   border-radius: 4px;
-  padding: 3px 5px;
-  font-size: 12px;
+  padding: 2px 4px;
+  font-size: 11px;
   font-weight: 600;
   outline: none;
   cursor: pointer;
@@ -359,7 +361,7 @@ body.is-resizing * {
 .middle-number-input {
   -moz-appearance: textfield;
   appearance: textfield;
-  width: 50px;
+  width: 44px;
   text-align: center;
 }
 

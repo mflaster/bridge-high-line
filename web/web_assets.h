@@ -43,11 +43,11 @@ inline const char* INDEX_HTML = R"rawhtml(
 
         <!-- SVG Deal Diagram -->
         <div class="svg-deal-container">
-          <svg id="dealSvg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
+          <svg id="dealSvg" viewBox="0 0 384 364" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="#1a382b" rx="10"/>
 
             <!-- Upper Left Compass Rose -->
-            <g id="svgCompassRose" transform="translate(100, 57)">
+            <g id="svgCompassRose" transform="translate(66, 64)">
               <circle r="14" fill="#0b1b13" stroke="#2d5e46" stroke-width="1.2"/>
               <circle r="1.8" fill="#6ee7b7"/>
               <line x1="0" y1="-10" x2="0" y2="10" stroke="#2d5e46" stroke-width="1" stroke-dasharray="2,2"/>
@@ -59,74 +59,70 @@ inline const char* INDEX_HTML = R"rawhtml(
             </g>
 
             <!-- Upper Right Unknown Cards Box -->
-            <g class="hand-group" id="svgUnknownHand" transform="translate(415, 12)">
-              <rect width="170" height="90" rx="8" class="unknown-box" id="boxUnknown"/>
-              <text x="85" y="15" class="unknown-title" text-anchor="middle">UNKNOWN CARDS</text>
-              <g transform="translate(12, 18)" id="cardsUnknownGroup"></g>
+            <g class="hand-group" id="svgUnknownHand" transform="translate(267, 12)">
+              <rect width="102" height="104" rx="8" class="unknown-box" id="boxUnknown"/>
+              <text x="51" y="15" class="unknown-title" text-anchor="middle">UNKNOWN CARDS</text>
+              <g transform="translate(10, 20)" id="cardsUnknownGroup"></g>
             </g>
 
             <!-- North Hand -->
-            <g class="hand-group" id="svgNorthHand" transform="translate(195, 12)">
-              <rect width="210" height="90" rx="8" class="hand-box" id="boxNorth"/>
-              <g transform="translate(12, 12)" id="cardsNorthGroup"></g>
+            <g class="hand-group" id="svgNorthHand" transform="translate(129, 12)">
+              <rect width="126" height="104" rx="8" class="hand-box" id="boxNorth"/>
+              <g transform="translate(10, 12)" id="cardsNorthGroup"></g>
             </g>
 
             <!-- West Hand -->
-            <g class="hand-group" id="svgWestHand" transform="translate(15, 115)">
-              <rect width="170" height="90" rx="8" class="hand-box" id="boxWest"/>
-              <g transform="translate(12, 12)" id="cardsWestGroup"></g>
+            <g class="hand-group" id="svgWestHand" transform="translate(15, 130)">
+              <rect width="102" height="104" rx="8" class="hand-box" id="boxWest"/>
+              <g transform="translate(10, 12)" id="cardsWestGroup"></g>
             </g>
 
             <!-- Center Box (Middle Controls: Trump / Leader / Target / Iters) -->
-            <g id="svgCenterBox" transform="translate(195, 115)">
-              <rect width="210" height="90" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
-              <foreignObject x="0" y="0" width="210" height="90">
+            <g id="svgCenterBox" transform="translate(129, 130)">
+              <rect width="126" height="104" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
+              <foreignObject x="0" y="0" width="126" height="104">
                 <div class="middle-controls" xmlns="http://www.w3.org/1999/xhtml">
-                  <div class="middle-control-row">
-                    <div class="middle-control-group">
-                      <label for="trumpSelect">Trump:</label>
-                      <select id="trumpSelect" class="middle-select">
-                        <option value="SPADES">♠ S</option>
-                        <option value="HEARTS">♥ H</option>
-                        <option value="DIAMONDS">♦ D</option>
-                        <option value="CLUBS">♣ C</option>
-                        <option value="NOTRUMP">NT</option>
-                      </select>
-                    </div>
-                    <div class="middle-control-group">
-                      <label for="leaderSelect">Leader:</label>
-                      <select id="leaderSelect" class="middle-select">
-                        <option value="NORTH">N</option>
-                        <option value="EAST">E</option>
-                        <option value="SOUTH">S</option>
-                        <option value="WEST">W</option>
-                      </select>
-                    </div>
+                  <div class="middle-control-group">
+                    <label for="trumpSelect">Trump:</label>
+                    <select id="trumpSelect" class="middle-select">
+                      <option value="SPADES">♠ S</option>
+                      <option value="HEARTS">♥ H</option>
+                      <option value="DIAMONDS">♦ D</option>
+                      <option value="CLUBS">♣ C</option>
+                      <option value="NOTRUMP">NT</option>
+                    </select>
                   </div>
-                  <div class="middle-control-row">
-                    <div class="middle-control-group">
-                      <label for="targetTricks">Tricks:</label>
-                      <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
-                    </div>
-                    <div class="middle-control-group">
-                      <label for="numIters">Iters:</label>
-                      <input type="text" inputmode="numeric" id="numIters" value="10" class="middle-number-input">
-                    </div>
+                  <div class="middle-control-group">
+                    <label for="leaderSelect">Leader:</label>
+                    <select id="leaderSelect" class="middle-select">
+                      <option value="NORTH">N</option>
+                      <option value="EAST">E</option>
+                      <option value="SOUTH">S</option>
+                      <option value="WEST">W</option>
+                    </select>
+                  </div>
+                  <div class="middle-control-group">
+                    <label for="targetTricks">Tricks:</label>
+                    <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
+                  </div>
+                  <div class="middle-control-group">
+                    <label for="numIters">Iters:</label>
+                    <input type="text" inputmode="numeric" id="numIters" value="10" class="middle-number-input">
                   </div>
                 </div>
               </foreignObject>
             </g>
 
             <!-- East Hand -->
-            <g class="hand-group" id="svgEastHand" transform="translate(415, 115)">
-              <rect width="170" height="90" rx="8" class="hand-box" id="boxEast"/>
-              <g transform="translate(12, 12)" id="cardsEastGroup"></g>
+            <g class="hand-group" id="svgEastHand" transform="translate(267, 130)">
+              <rect width="102" height="104" rx="8" class="hand-box" id="boxEast"/>
+              <g transform="translate(10, 12)" id="cardsEastGroup"></g>
             </g>
 
             <!-- South Hand -->
-            <g class="hand-group" id="svgSouthHand" transform="translate(195, 218)">
-              <rect width="210" height="90" rx="8" class="hand-box" id="boxSouth"/>
-              <g transform="translate(12, 12)" id="cardsSouthGroup"></g>
+            <g class="hand-group" id="svgSouthHand" transform="translate(129, 248)">
+              <rect width="126" height="104" rx="8" class="hand-box" id="boxSouth"/>
+              <g transform="translate(10, 12)" id="cardsSouthGroup"></g>
             </g>
           </svg>
         </div>
@@ -610,9 +606,9 @@ body.is-resizing * {
 
 .unknown-title {
   fill: #f59e0b;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .compass-trump, .compass-leader {
@@ -622,7 +618,7 @@ body.is-resizing * {
 }
 
 .card-suit-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -633,7 +629,7 @@ body.is-resizing * {
 
 .card-values {
   fill: #f1f5f9;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   font-family: monospace;
   letter-spacing: 0.5px;
@@ -646,9 +642,9 @@ body.is-resizing * {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -663,9 +659,11 @@ body.is-resizing * {
 
 .middle-control-group {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  width: 100%;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
   color: #a7f3d0;
 }
@@ -675,8 +673,8 @@ body.is-resizing * {
   color: #f8fafc;
   border: 1px solid #2d5e46;
   border-radius: 4px;
-  padding: 3px 5px;
-  font-size: 12px;
+  padding: 2px 4px;
+  font-size: 11px;
   font-weight: 600;
   outline: none;
   cursor: pointer;
@@ -700,7 +698,7 @@ body.is-resizing * {
 .middle-number-input {
   -moz-appearance: textfield;
   appearance: textfield;
-  width: 50px;
+  width: 44px;
   text-align: center;
 }
 
