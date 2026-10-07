@@ -646,6 +646,14 @@ body.is-resizing * {
   filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.85));
 }
 
+.card-lead-box {
+  fill: rgba(251, 191, 36, 0.18);
+  stroke: #fbbf24;
+  stroke-width: 1.5;
+  rx: 3px;
+  ry: 3px;
+}
+
 /* Form Controls */
 .middle-controls {
   width: 100%;
@@ -2071,7 +2079,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const usedMask = new Array(baseRankTokens.length).fill(false);
-    const items = baseRankTokens.map(tok => ({ token: tok, state: 'normal' }));
+    const items = baseRankTokens.map(tok => ({ token: tok, state: 'normal', isLead: false }));
 
     const applyList = (cardList, targetState) => {
       if (!cardList) return;
@@ -2081,12 +2089,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (idx !== -1) {
           usedMask[idx] = true;
           items[idx].state = targetState;
+          if (targetState === 'current' && c.isLead) {
+            items[idx].isLead = true;
+          }
         } else {
           // Card came from the Unknown Cards pool into this defender's hand
           const tok = (c.movedToken || c.rankStr || 'x');
           items.push({
             token: tok,
             state: targetState,
+            isLead: (targetState === 'current' && Boolean(c.isLead)),
             addedFromUnknown: true
           });
         }
@@ -2141,6 +2153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let yOffset = 0;
+    const leadSpansToBox = [];
     suitOrder.forEach(s => {
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       textNode.setAttribute('x', '0');
@@ -2163,15 +2176,39 @@ document.addEventListener('DOMContentLoaded', () => {
           let cls = 'card-values';
           if (item.state === 'played') cls += ' card-rank-played';
           else if (item.state === 'current') cls += ' card-rank-current';
+          if (item.isLead) cls += ' card-rank-lead';
           valSpan.setAttribute('class', cls);
           valSpan.textContent = item.token;
           textNode.appendChild(valSpan);
+          if (item.isLead) {
+            leadSpansToBox.push({ span: valSpan, textNode: textNode });
+          }
         });
       }
 
       group.appendChild(textNode);
 
       yOffset += 16.5;
+    });
+
+    // Draw a box around any led card in the current trick
+    leadSpansToBox.forEach(({ span, textNode }) => {
+      try {
+        const bbox = span.getExtentOfChar(0);
+        const charCount = span.getNumberOfChars();
+        let width = bbox.width;
+        if (charCount > 1) {
+          const lastBox = span.getExtentOfChar(charCount - 1);
+          width = (lastBox.x + lastBox.width) - bbox.x;
+        }
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', (bbox.x - 1.5).toFixed(1));
+        rect.setAttribute('y', (bbox.y - 0.5).toFixed(1));
+        rect.setAttribute('width', (width + 3).toFixed(1));
+        rect.setAttribute('height', (bbox.height + 1).toFixed(1));
+        rect.setAttribute('class', 'card-lead-box');
+        group.insertBefore(rect, textNode);
+      } catch (_) {}
     });
   }
 
@@ -3097,10 +3134,10 @@ document.addEventListener('DOMContentLoaded', () => {
         C: new Array(uSuitTokens.C.length).fill(false)
       };
 
-      const recordCard = (cardObj, bucket) => {
+      const recordCard = (cardObj, bucket, isLead = false) => {
         if (!cardObj || !cardObj.suit) return;
         const seat = cardObj.seatName;
-        const entry = Object.assign({}, cardObj);
+        const entry = Object.assign({}, cardObj, { isLead });
         if ((seat === 'E' && !eHasCards && uHasCards) ||
             (seat === 'W' && !wHasCards && uHasCards)) {
           const sKey = entry.suit;
@@ -3121,9 +3158,9 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       for (let i = 0; i < selectedIdx; i++) {
-        trickRows[i].cards.forEach(c => recordCard(c, 'played'));
+        trickRows[i].cards.forEach(c => recordCard(c, 'played', false));
       }
-      trickRows[selectedIdx].cards.forEach(c => recordCard(c, 'current'));
+      trickRows[selectedIdx].cards.forEach((c, idx) => recordCard(c, 'current', idx === 0));
 
       activeTrickCardStates = states;
       if (rowElements) {

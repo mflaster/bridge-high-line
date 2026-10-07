@@ -309,6 +309,14 @@ body.is-resizing * {
   filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.85));
 }
 
+.card-lead-box {
+  fill: rgba(251, 191, 36, 0.18);
+  stroke: #fbbf24;
+  stroke-width: 1.5;
+  rx: 3px;
+  ry: 3px;
+}
+
 /* Form Controls */
 .middle-controls {
   width: 100%;
