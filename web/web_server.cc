@@ -142,14 +142,22 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       if (conds.size() == 1 && conds[0].second) {
         return BuildTreeFromConditionalLine(*conds[0].second, node_id, trick_num, total, ns_tricks);
       }
+      std::set<int> boards_set = line.CoveredBoardsSet();
+      int success_cnt = boards_set.size();
+      int failure_cnt = std::max(0, total - success_cnt);
       auto root_node = std::make_shared<DecisionTreeNode>();
       root_node->id = "node_" + std::to_string(++node_id);
-      root_node->type = "action";
+      root_node->type = "condition";
       root_node->collapsed = false;
+      root_node->ns_tricks = ns_tricks;
       root_node->total_boards = total;
+      root_node->success_boards = success_cnt;
+      root_node->failure_boards = failure_cnt;
+      root_node->covered_boards = success_cnt;
+      root_node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
       for (const auto &[cond_ptr, child_ptr] : conds) {
         if (child_ptr) {
-          auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total, 0);
+          auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total, ns_tricks);
           if (child && cond_ptr) {
             child->condition = FormatBranchCondition(cond_ptr.get(), false);
           }
@@ -230,6 +238,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     node->collapsed = false;
     node->trick = cards_played;
     node->trick_full = gt.ToString(false);
+    for (const auto &[b, t] : gt.demi2.board_to_trick) {
+      node->board_to_trick[std::to_string(b)] = t;
+    }
 
     std::string label_str = "Trick " + std::to_string(trick_num) + ": " + cards_played;
     if (!winner_str.empty()) {
@@ -279,6 +290,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     node->ns_tricks = ns_tricks;
     node->trick = cards_played;
     node->trick_full = gt.ToString(false);
+    for (const auto &[b, t] : gt.demi2.board_to_trick) {
+      node->board_to_trick[std::to_string(b)] = t;
+    }
     node->label = "Trick " + std::to_string(trick_num) + ": " + cards_played;
     node->success_boards = success_cnt;
     node->failure_boards = failure_cnt;
@@ -570,6 +584,9 @@ void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   }
   if (!node.boards.empty() || node.type == "action" || node.type == "condition") {
     j["boards"] = node.boards;
+  }
+  if (!node.board_to_trick.empty()) {
+    j["board_to_trick"] = node.board_to_trick;
   }
 
   nlohmann::json children = nlohmann::json::array();

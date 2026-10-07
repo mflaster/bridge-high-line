@@ -298,6 +298,25 @@ body.is-resizing * {
   letter-spacing: 0.5px;
 }
 
+.card-rank-played {
+  text-decoration: line-through;
+}
+
+.card-rank-current {
+  fill: #fbbf24;
+  font-weight: 900;
+  text-decoration: underline;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.85));
+}
+
+.card-lead-box {
+  fill: rgba(251, 191, 36, 0.18);
+  stroke: #fbbf24;
+  stroke-width: 1.5;
+  rx: 3px;
+  ry: 3px;
+}
+
 /* Form Controls */
 .middle-controls {
   width: 100%;
@@ -821,6 +840,23 @@ body.is-resizing * {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.trick-row:hover {
+  border-color: #60a5fa;
+  background-color: #162238;
+}
+
+.trick-row.trick-row-selected {
+  border-color: #fbbf24;
+  background-color: #1e293b;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+}
+
+.trick-row.trick-row-past {
+  opacity: 0.6;
 }
 
 .trick-row-meta {
