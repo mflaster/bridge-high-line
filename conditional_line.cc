@@ -200,22 +200,22 @@ bool GeneralizesTo(const std::string& actual_card,
   if (gen_card.size() != 2 || actual_card.size() < 2) {
     return false;
   }
-  char a0 = actual_card[0];
-  char a1 = actual_card[1];
-  char g0 = gen_card[0];
-  char g1 = gen_card[1];
-  if (g0 == '_' && g1 == '_') {
+  char actual_suit = actual_card[0];
+  char actual_rank = actual_card[1];
+  char gen_suit = gen_card[0];
+  char gen_rank = gen_card[1];
+  if (gen_suit == '_' && gen_rank == '_') {
     return true;
   }
-  if (g0 == a0) {
-    if (g1 == '_') return true;
-    if (isdigit(a1)) {
-      return g1 == 'x';
+  if (gen_suit == actual_suit) {
+    if (gen_rank == '_') return true;
+    if (isdigit(actual_rank)) {
+      return gen_rank == 'x';
     } else {
-      return g1 == 'X' || g1 == a1;
+      return gen_rank == 'X' || gen_rank == actual_rank;
     }
   }
-  if (g0 == 'R' && g1 == '_') {
+  if (gen_suit == 'R' && gen_rank == '_') {
     Suit card_suit = GetSuitOfCard(actual_card);
     return CONSIDER_DISCARDS && card_suit != suit_led && card_suit != trump;
   }
