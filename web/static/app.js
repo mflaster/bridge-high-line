@@ -85,6 +85,107 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Vertical Panel Resizer (Deal Configuration vs Decision Tree Panel)
+  const gridContainer = document.getElementById('gridContainer') || document.querySelector('.grid-container');
+  const dealSetupPanel = document.getElementById('dealSetupPanel') || document.querySelector('.deal-setup-panel');
+  const panelResizer = document.getElementById('panelResizer');
+
+  if (panelResizer && dealSetupPanel && gridContainer) {
+    let isResizing = false;
+    let resizeStartX = 0;
+    let resizeStartWidth = 0;
+
+    // Restore saved width from localStorage if available
+    try {
+      const savedWidth = localStorage.getItem('bridge_deal_setup_panel_width');
+      if (savedWidth) {
+        gridContainer.style.setProperty('--left-panel-width', savedWidth);
+        dealSetupPanel.style.width = savedWidth;
+      }
+    } catch (e) {}
+
+    const startResize = (e) => {
+      isResizing = true;
+      resizeStartX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      resizeStartWidth = dealSetupPanel.getBoundingClientRect().width;
+      document.body.classList.add('is-resizing');
+      panelResizer.classList.add('resizing');
+      if (e.cancelable) e.preventDefault();
+    };
+
+    const doResize = (e) => {
+      if (!isResizing) return;
+      const currentX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const dx = currentX - resizeStartX;
+      const containerWidth = gridContainer.getBoundingClientRect().width;
+      if (containerWidth <= 0) return;
+
+      let newWidth = resizeStartWidth + dx;
+      const minLeftWidth = 280;
+      const resizerWidth = panelResizer.getBoundingClientRect().width || 14;
+      const maxLeftWidth = containerWidth - 300 - resizerWidth;
+
+      if (newWidth < minLeftWidth) newWidth = minLeftWidth;
+      if (newWidth > maxLeftWidth) newWidth = maxLeftWidth;
+
+      const pct = `${(newWidth / containerWidth) * 100}%`;
+      gridContainer.style.setProperty('--left-panel-width', pct);
+      dealSetupPanel.style.width = pct;
+
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    const stopResize = () => {
+      if (!isResizing) return;
+      isResizing = false;
+      document.body.classList.remove('is-resizing');
+      panelResizer.classList.remove('resizing');
+
+      const currentWidthStyle = dealSetupPanel.style.width;
+      if (currentWidthStyle) {
+        try {
+          localStorage.setItem('bridge_deal_setup_panel_width', currentWidthStyle);
+        } catch (e) {}
+      }
+    };
+
+    panelResizer.addEventListener('mousedown', startResize);
+    panelResizer.addEventListener('touchstart', startResize, { passive: false });
+
+    window.addEventListener('mousemove', doResize);
+    window.addEventListener('touchmove', doResize, { passive: false });
+
+    window.addEventListener('mouseup', stopResize);
+    window.addEventListener('touchend', stopResize);
+    window.addEventListener('touchcancel', stopResize);
+
+    panelResizer.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const containerWidth = gridContainer.getBoundingClientRect().width;
+        if (containerWidth <= 0) return;
+        const currentWidth = dealSetupPanel.getBoundingClientRect().width;
+        const step = e.shiftKey ? 40 : 15;
+        let newWidth = e.key === 'ArrowLeft' ? currentWidth - step : currentWidth + step;
+
+        const minLeftWidth = 280;
+        const resizerWidth = panelResizer.getBoundingClientRect().width || 14;
+        const maxLeftWidth = containerWidth - 300 - resizerWidth;
+
+        if (newWidth < minLeftWidth) newWidth = minLeftWidth;
+        if (newWidth > maxLeftWidth) newWidth = maxLeftWidth;
+
+        const pct = `${(newWidth / containerWidth) * 100}%`;
+        gridContainer.style.setProperty('--left-panel-width', pct);
+        dealSetupPanel.style.width = pct;
+        try {
+          localStorage.setItem('bridge_deal_setup_panel_width', pct);
+        } catch (err) {}
+        window.dispatchEvent(new Event('resize'));
+        e.preventDefault();
+      }
+    });
+  }
+
   // Zoom & Pan State
   let zoomLevel = 1.0;
   let panX = 0;
