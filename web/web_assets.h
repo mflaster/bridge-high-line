@@ -2650,6 +2650,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     leaf._collapsed = false;
 
+    currentCenteredNode = targetNode;
+
     // Re-render decision tree layout
     renderDecisionTree(rootNode);
 
@@ -3099,6 +3101,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function selectTrickInInspector(selectedIdx, rowElements) {
       if (selectedIdx === null || selectedIdx < 0 || selectedIdx >= trickRows.length) {
         activeTrickCardStates = null;
+        currentCenteredNode = null;
+        updateCenteredNodeHighlight();
         if (rowElements) {
           rowElements.forEach(el => {
             el.classList.remove('trick-row-selected', 'trick-row-past');
@@ -3106,6 +3110,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateDealSvg();
         return;
+      }
+
+      if (trickRows[selectedIdx].node) {
+        currentCenteredNode = trickRows[selectedIdx].node;
+        updateCenteredNodeHighlight();
       }
 
       const states = {
