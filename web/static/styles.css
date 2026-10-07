@@ -299,8 +299,6 @@ body.is-resizing * {
 }
 
 .card-rank-played {
-  fill: #64748b;
-  opacity: 0.45;
   text-decoration: line-through;
 }
 

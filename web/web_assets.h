@@ -636,8 +636,6 @@ body.is-resizing * {
 }
 
 .card-rank-played {
-  fill: #64748b;
-  opacity: 0.45;
   text-decoration: line-through;
 }
 
@@ -1999,57 +1997,111 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
-  function computeSeatSuitCardStates(suitKey, rankTokens, seatPlayState) {
-    const states = new Array(rankTokens.length).fill('normal');
-    if (!seatPlayState) return states;
+  function rankOrderValue(rankToken) {
+    const norm = (rankToken === '10') ? 'T' : rankToken.toUpperCase();
+    const order = {
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
+      '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
+      'X': 1, '_': 0
+    };
+    return order[norm] !== undefined ? order[norm] : 0;
+  }
 
-    const consumeMatch = (cardItem, targetState) => {
-      if (!cardItem || !cardItem.suit || cardItem.suit !== suitKey) return false;
-      const pRank = cardItem.rankStr || '';
-      const normPat = (pRank === '10') ? 'T' : pRank;
-      // 1. Try exact rank match on an unconsumed card
-      for (let i = 0; i < rankTokens.length; i++) {
-        if (states[i] !== 'normal') continue;
-        const normAct = (rankTokens[i] === '10') ? 'T' : rankTokens[i].toUpperCase();
-        if (normAct === normPat) {
-          states[i] = targetState;
-          return true;
+  function matchCardIndexInTokens(suitKey, rankTokens, usedMask, cardItem) {
+    if (!cardItem || !cardItem.suit || cardItem.suit !== suitKey) return -1;
+    const pRank = cardItem.rankStr || '';
+    const normPat = (pRank === '10') ? 'T' : pRank;
+    // 1. Try exact rank match on an unconsumed card
+    for (let i = 0; i < rankTokens.length; i++) {
+      if (usedMask[i]) continue;
+      const normAct = (rankTokens[i] === '10') ? 'T' : rankTokens[i].toUpperCase();
+      if (normAct === normPat) {
+        return i;
+      }
+    }
+    // 2. If pattern is wildcard ('x' or '_'), match lowest spot card / 'x' from the right
+    if (normPat === 'x' || normPat === 'X' || normPat === '_') {
+      for (let i = rankTokens.length - 1; i >= 0; i--) {
+        if (usedMask[i]) continue;
+        if (rankMatchesPattern(rankTokens[i], suitKey, normPat, suitKey)) {
+          return i;
         }
       }
-      // 2. If pattern is wildcard ('x' or '_'), match lowest spot card / 'x' from the right
-      if (normPat === 'x' || normPat === 'X' || normPat === '_') {
-        for (let i = rankTokens.length - 1; i >= 0; i--) {
-          if (states[i] !== 'normal') continue;
-          if (rankMatchesPattern(rankTokens[i], suitKey, normPat, suitKey)) {
-            states[i] = targetState;
-            return true;
-          }
+      // Fallback: any remaining unconsumed card in this suit
+      for (let i = rankTokens.length - 1; i >= 0; i--) {
+        if (usedMask[i]) continue;
+        return i;
+      }
+    }
+    // 3. If pattern is specific rank (e.g., 'K') and hand has 'x' wildcard
+    for (let i = 0; i < rankTokens.length; i++) {
+      if (usedMask[i]) continue;
+      if (rankTokens[i] === 'x' || rankTokens[i] === 'X') {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function buildSeatSuitTokenList(suitKey, baseRankTokens, seatPlayState, isUnknown = false) {
+    if (!seatPlayState) {
+      return baseRankTokens.map(tok => ({ token: tok, state: 'normal' }));
+    }
+
+    if (isUnknown) {
+      // Remove cards consumed from the unknown pool by E/W
+      const removedMask = new Array(baseRankTokens.length).fill(false);
+      const allConsumed = [
+        ...(seatPlayState.played || []),
+        ...(seatPlayState.current || [])
+      ];
+      allConsumed.forEach(c => {
+        const idx = matchCardIndexInTokens(suitKey, baseRankTokens, removedMask, c);
+        if (idx !== -1) {
+          removedMask[idx] = true;
         }
-        // Fallback: any remaining unconsumed card in this suit
-        for (let i = rankTokens.length - 1; i >= 0; i--) {
-          if (states[i] !== 'normal') continue;
-          states[i] = targetState;
-          return true;
+      });
+      const remaining = [];
+      for (let i = 0; i < baseRankTokens.length; i++) {
+        if (!removedMask[i]) {
+          remaining.push({ token: baseRankTokens[i], state: 'normal' });
         }
       }
-      // 3. If pattern is specific rank (e.g., 'K') and hand has 'x' wildcard
-      for (let i = 0; i < rankTokens.length; i++) {
-        if (states[i] !== 'normal') continue;
-        if (rankTokens[i] === 'x' || rankTokens[i] === 'X') {
-          states[i] = targetState;
-          return true;
+      return remaining;
+    }
+
+    const usedMask = new Array(baseRankTokens.length).fill(false);
+    const items = baseRankTokens.map(tok => ({ token: tok, state: 'normal' }));
+
+    const applyList = (cardList, targetState) => {
+      if (!cardList) return;
+      cardList.forEach(c => {
+        if (!c || !c.suit || c.suit !== suitKey) return;
+        const idx = matchCardIndexInTokens(suitKey, baseRankTokens, usedMask, c);
+        if (idx !== -1) {
+          usedMask[idx] = true;
+          items[idx].state = targetState;
+        } else {
+          // Card came from the Unknown Cards pool into this defender's hand
+          const tok = (c.movedToken || c.rankStr || 'x');
+          items.push({
+            token: tok,
+            state: targetState,
+            addedFromUnknown: true
+          });
         }
-      }
-      return false;
+      });
     };
 
-    if (seatPlayState.played) {
-      seatPlayState.played.forEach(c => consumeMatch(c, 'played'));
+    applyList(seatPlayState.played, 'played');
+    applyList(seatPlayState.current, 'current');
+
+    // If cards were added from Unknown Cards, sort descending by bridge rank
+    if (items.some(it => it.addedFromUnknown)) {
+      items.sort((a, b) => rankOrderValue(b.token) - rankOrderValue(a.token));
     }
-    if (seatPlayState.current) {
-      seatPlayState.current.forEach(c => consumeMatch(c, 'current'));
-    }
-    return states;
+
+    return items;
   }
 
   // Render Hand or Unknown Cards on SVG Diagram
@@ -2066,11 +2118,14 @@ document.addEventListener('DOMContentLoaded', () => {
       { key: 'C', symbol: '♣', class: 'card-suit-c' }
     ];
 
-    let yOffset = 0;
+    const seatPlayState = (activeTrickCardStates && seatKey) ? activeTrickCardStates[seatKey] : null;
+    const suitTokenLists = {};
     let hasCards = false;
     suitOrder.forEach(s => {
-      const cards = suitsData[s.key];
-      if (cards && cards !== '-') hasCards = true;
+      const baseTokens = tokenizeSuitRanks(suitsData[s.key] || '-');
+      const tokenItems = buildSeatSuitTokenList(s.key, baseTokens, seatPlayState, isUnknown);
+      suitTokenLists[s.key] = tokenItems;
+      if (tokenItems.length > 0) hasCards = true;
     });
 
     if (isUnknown && !hasCards) {
@@ -2085,10 +2140,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const seatPlayState = (activeTrickCardStates && seatKey) ? activeTrickCardStates[seatKey] : null;
-
+    let yOffset = 0;
     suitOrder.forEach(s => {
-      const cards = suitsData[s.key] || '-';
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       textNode.setAttribute('x', '0');
       textNode.setAttribute('y', yOffset + 13);
@@ -2098,21 +2151,20 @@ document.addEventListener('DOMContentLoaded', () => {
       symbolSpan.textContent = s.symbol + ' ';
       textNode.appendChild(symbolSpan);
 
-      const rankTokens = tokenizeSuitRanks(cards);
-      if (rankTokens.length === 0) {
+      const tokenItems = suitTokenLists[s.key] || [];
+      if (tokenItems.length === 0) {
         const valSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
         valSpan.setAttribute('class', 'card-values');
         valSpan.textContent = '-';
         textNode.appendChild(valSpan);
       } else {
-        const states = computeSeatSuitCardStates(s.key, rankTokens, seatPlayState);
-        rankTokens.forEach((tok, idx) => {
+        tokenItems.forEach(item => {
           const valSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
           let cls = 'card-values';
-          if (states[idx] === 'played') cls += ' card-rank-played';
-          else if (states[idx] === 'current') cls += ' card-rank-current';
+          if (item.state === 'played') cls += ' card-rank-played';
+          else if (item.state === 'current') cls += ' card-rank-current';
           valSpan.setAttribute('class', cls);
-          valSpan.textContent = tok;
+          valSpan.textContent = item.token;
           textNode.appendChild(valSpan);
         });
       }
@@ -3029,17 +3081,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const eHasCards = countHandCards(inputEast ? inputEast.value : '') > 0;
       const wHasCards = countHandCards(inputWest ? inputWest.value : '') > 0;
-      const uHasCards = inputUnknownCards && countUnknownCardsString(inputUnknownCards.value.trim()) > 0;
+      const uStr = inputUnknownCards ? inputUnknownCards.value.trim() : '';
+      const uHasCards = countUnknownCardsString(uStr) > 0;
+      const uSuits = parseHandToSuits(uStr);
+      const uSuitTokens = {
+        S: tokenizeSuitRanks(uSuits.S || '-'),
+        H: tokenizeSuitRanks(uSuits.H || '-'),
+        D: tokenizeSuitRanks(uSuits.D || '-'),
+        C: tokenizeSuitRanks(uSuits.C || '-')
+      };
+      const uUsedMasks = {
+        S: new Array(uSuitTokens.S.length).fill(false),
+        H: new Array(uSuitTokens.H.length).fill(false),
+        D: new Array(uSuitTokens.D.length).fill(false),
+        C: new Array(uSuitTokens.C.length).fill(false)
+      };
 
       const recordCard = (cardObj, bucket) => {
         if (!cardObj || !cardObj.suit) return;
         const seat = cardObj.seatName;
-        if (seat && states[seat]) {
-          states[seat][bucket].push(cardObj);
-        }
+        const entry = Object.assign({}, cardObj);
         if ((seat === 'E' && !eHasCards && uHasCards) ||
             (seat === 'W' && !wHasCards && uHasCards)) {
-          states.U[bucket].push(cardObj);
+          const sKey = entry.suit;
+          if (uSuitTokens[sKey]) {
+            const uIdx = matchCardIndexInTokens(sKey, uSuitTokens[sKey], uUsedMasks[sKey], entry);
+            if (uIdx !== -1) {
+              uUsedMasks[sKey][uIdx] = true;
+              const matchedTok = uSuitTokens[sKey][uIdx];
+              const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' || entry.rankStr === '_');
+              entry.movedToken = isPatWild ? matchedTok : entry.rankStr;
+            }
+          }
+          states.U[bucket].push(entry);
+        }
+        if (seat && states[seat]) {
+          states[seat][bucket].push(entry);
         }
       };
 
