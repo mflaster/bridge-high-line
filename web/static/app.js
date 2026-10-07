@@ -1134,8 +1134,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Re-render decision tree layout
     renderDecisionTree(rootNode);
 
-    // Show line inspector for the reached leaf
-    showNodeInspector(leaf);
+    // Show line inspector for the reached leaf and select the clicked node's trick if applicable
+    showNodeInspector(leaf, targetNode);
   }
 
   function centerNodeInTree(node) {
@@ -1402,7 +1402,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
   }
 
-  function showNodeInspector(node) {
+  function showNodeInspector(node, clickedNode = null) {
     if (treeInspectorPanel) {
       treeInspectorPanel.classList.remove('collapsed');
     }
@@ -1801,6 +1801,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       trickSection.appendChild(listContainer);
+
+      if (clickedNode) {
+        const clickedRowIdx = trickRows.findIndex(tr => tr.node === clickedNode);
+        if (clickedRowIdx !== -1) {
+          selectedTrickIdx = clickedRowIdx;
+          selectTrickInInspector(clickedRowIdx, rowElements);
+        }
+      }
     }
 
     inspectorContent.appendChild(trickSection);
