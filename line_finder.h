@@ -82,7 +82,7 @@ class LineFinder {
 
   std::multiset<int> FindTricksWon(
       const std::vector<uint64_t> &hands, uint64_t unknown_cards,
-      int leader, Suit trump);
+      int leader, Suit trump, bool deal_missing_cards = true);
 
   static std::string TricksWonDebugString(const std::multiset<int> &tricks);
   static int CountAtLeast(const std::multiset<int> &data, int thresh);

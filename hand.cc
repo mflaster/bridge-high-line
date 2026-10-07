@@ -179,11 +179,20 @@ uint64_t MakeHandFromCards(const std::vector<CardType> &cards) {
 std::vector<std::string> SplitWords(const std::string &input) {
   VLOG(2) << "SplitWords on " << input;
   std::vector<std::string> words;
-  std::stringstream ss(input);
-  std::string word;
-  while (ss >> word) {
-    words.push_back(word);
-    VLOG(2) << "See word " << word;
+  const size_t n = input.size();
+  size_t i = 0;
+  while (i < n) {
+    while (i < n && std::isspace(static_cast<unsigned char>(input[i]))) {
+      ++i;
+    }
+    if (i >= n) {
+      break;
+    }
+    size_t start = i;
+    while (i < n && !std::isspace(static_cast<unsigned char>(input[i]))) {
+      ++i;
+    }
+    words.emplace_back(input, start, i - start);
   }
   return words;
 }

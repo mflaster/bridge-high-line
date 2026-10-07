@@ -29,6 +29,25 @@ void GetHandSuitDistribution(uint64_t hand, int dist[4]) {
   }
 }
 
+// Samples 11 random defender layouts and returns the median double-dummy
+// tricks won by declarer's side, or -1 if all 11 layouts win the exact same
+// number of tricks (zero variance).
+int EstimateMedianMinTricks(const std::vector<uint64_t>& hands,
+                            uint64_t unknown_cards, int leader, Suit trump,
+                            long seed) {
+  srand48(seed);
+  LineFinder lf_sample(11);
+  std::multiset<int> sample_tricks = lf_sample.FindTricksWon(
+      hands, unknown_cards, leader, trump, /*deal_missing_cards=*/false);
+  if (sample_tricks.empty() ||
+      *sample_tricks.begin() == *sample_tricks.rbegin()) {
+    return -1;
+  }
+  auto med_it = sample_tricks.begin();
+  std::advance(med_it, sample_tricks.size() / 2);
+  return std::max(1, *med_it);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -57,8 +76,9 @@ int main(int argc, char** argv) {
   }
 
   log_details("Starting LineFinder Performance Benchmark");
-  const int num_deals = 40;
-  log_details("Range: ending_size 6..13, 3 trials per ending_size, num_deals=" + std::to_string(num_deals));
+  const int num_deals = 100;
+  log_details("Range: ending_size 6..13, 3 trials per ending_size, num_deals=" +
+              std::to_string(num_deals));
 
   log_summary("=== LineFinder Performance Benchmark Summary ===");
 
@@ -66,39 +86,57 @@ int main(int argc, char** argv) {
 
   for (int ending_size = 6; ending_size <= 13; ending_size++) {
     for (int trial = 1; trial <= 3; trial++) {
-      std::vector<CardType> deck = full_deck;
-      std::shuffle(deck.begin(), deck.end(), rng);
+      int leader = 1;  // Leader is hand 1 (EAST)
+      int min_fit = ending_size * 2 / 3;
+      int min_tricks = 1;
 
       std::vector<uint64_t> hands(4, 0);
       uint64_t unknown_cards = 0;
-
-      for (int i = 0; i < ending_size; i++) {
-        hands[0] |= deck[i];
-      }
-      for (int i = 0; i < ending_size; i++) {
-        hands[2] |= deck[ending_size + i];
-      }
-      for (int i = 0; i < 2 * ending_size; i++) {
-        unknown_cards |= deck[2 * ending_size + i];
-      }
-
       int dist0[4] = {0};
       int dist2[4] = {0};
-      GetHandSuitDistribution(hands[0], dist0);
-      GetHandSuitDistribution(hands[2], dist2);
-
       Suit trump = SPADES;
       int max_combined = -1;
-      for (int s = 0; s < 4; s++) {
-        int combined = dist0[s] + dist2[s];
-        if (combined > max_combined) {
-          max_combined = combined;
-          trump = static_cast<Suit>(s);
+
+      while (true) {
+        std::vector<CardType> deck = full_deck;
+        std::shuffle(deck.begin(), deck.end(), rng);
+
+        hands.assign(4, 0);
+        unknown_cards = 0;
+
+        for (int i = 0; i < ending_size; i++) {
+          hands[0] |= deck[i];
+        }
+        for (int i = 0; i < ending_size; i++) {
+          hands[2] |= deck[ending_size + i];
+        }
+        for (int i = 0; i < 2 * ending_size; i++) {
+          unknown_cards |= deck[2 * ending_size + i];
+        }
+
+        GetHandSuitDistribution(hands[0], dist0);
+        GetHandSuitDistribution(hands[2], dist2);
+
+        trump = SPADES;
+        max_combined = -1;
+        for (int s = 0; s < 4; s++) {
+          int combined = dist0[s] + dist2[s];
+          if (combined > max_combined) {
+            max_combined = combined;
+            trump = static_cast<Suit>(s);
+          }
+        }
+        if (max_combined < min_fit) {
+          continue;
+        }
+
+        long seed = 12345 + ending_size * 10 + trial;
+        min_tricks = EstimateMedianMinTricks(hands, unknown_cards, leader,
+                                             trump, seed);
+        if (min_tricks > 0) {
+          break;
         }
       }
-
-      int leader = 1;  // Leader is hand 1 (EAST)
-      int min_tricks = ending_size * 2 / 3;
 
       std::string suit_len_str = "(" + std::to_string(dist0[trump]) + "-" +
                                  std::to_string(dist2[trump]) + ")";
@@ -127,25 +165,31 @@ int main(int argc, char** argv) {
       std::string status = succeeded ? "SUCCESS" : "FAILED";
 
       if (should_log_details) {
-        log_details("Found " + std::to_string(lines.size()) + " lines for ending_size = " +
-                    std::to_string(ending_size) + " trial " + std::to_string(trial));
+        log_details("Found " + std::to_string(lines.size()) +
+                    " lines for ending_size = " + std::to_string(ending_size) +
+                    " trial " + std::to_string(trial));
         for (size_t i = 0; i < lines.size(); i++) {
-          log_details("Line " + std::to_string(i + 1) + ": " + lines[i].Describe());
+          log_details("Line " + std::to_string(i + 1) + ": " +
+                      lines[i].Describe());
         }
-        log_details("Solve took " + std::to_string(elapsed.count()) + " seconds. Status: " + status);
+        log_details("Solve took " + std::to_string(elapsed.count()) +
+                    " seconds. Status: " + status);
       }
 
-      double pct = (100.0 * lines.size()) / num_deals;
+      int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
+      double pct = (100.0 * covered) / num_deals;
       std::stringstream ss;
       ss << "ending_size=" << std::setw(2) << ending_size
          << " trial=" << trial
-         << " time=" << std::fixed << std::setprecision(1) << elapsed.count() << "s"
+         << " time=" << std::fixed << std::setprecision(1)
+         << elapsed.count() << "s"
          << " trump=" << std::setw(2) << SuitDebugString(trump)
          << " fit=" << std::setw(6) << suit_len_str
          << " min_tricks=" << std::setw(2) << min_tricks
          << " result=" << status
-         << " (lines=" << lines.size() << "/" << num_deals << ", "
-         << std::fixed << std::setprecision(1) << pct << "%)";
+         << " (covered=" << covered << "/" << num_deals << ", "
+         << std::fixed << std::setprecision(1) << pct << "%, lines="
+         << lines.size() << ")";
 
       log_summary(ss.str());
     }

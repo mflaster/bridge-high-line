@@ -116,18 +116,20 @@ std::set<std::string> LineFinder::FindBestLead(
 
 std::multiset<int> LineFinder::FindTricksWon(
     const std::vector<uint64_t> &hands, uint64_t unknown_cards,
-    int leader, Suit trump) {
+    int leader, Suit trump, bool deal_missing_cards) {
   CHECK_EQ(4, hands.size());
   fuzzy_state_.SetHands(hands, unknown_cards);
   std::set<int> board_offsets;
   std::vector<CardType> cur_trick;
   std::vector<BoardState> boards =
       SetupBoards(trump, leader, board_offsets, cur_trick,
-                  /*deal_missing_cards=*/true);
+                  deal_missing_cards);
   std::multiset<int> tricks_won;
   for (uint i = 0; i < boards.size(); i++) {
+    int cards_left =
+        CardsInHand(boards[i].GetHand(0), boards[i].played_cards()).size();
     int mini_max = FindOptimalTricks(boards[i]);
-    tricks_won.insert(13 - mini_max);
+    tricks_won.insert(leader % 2 == 0 ? mini_max : cards_left - mini_max);
   }
   return tricks_won;
 }
@@ -382,11 +384,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
 
 using std::string;
 
-bool WonEnoughTricks(int mini_max, int min_tricks, int leader) {
+bool WonEnoughTricks(int mini_max, int min_tricks, int leader,
+                     int cards_left) {
   if (leader % 2 == 0) {
     return mini_max >= min_tricks;
   } else {
-    return (13 - mini_max >= min_tricks);
+    return (cards_left - mini_max >= min_tricks);
   }
 }
 
@@ -426,7 +429,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
     trump_suit = play_tree->MyBoard()->GetTrump();
     int mini_max = play_tree->MiniMax();
     // if (mini_max < min_tricks) {
-    if (!WonEnoughTricks(mini_max, min_tricks, leader)) {
+    if (!WonEnoughTricks(mini_max, min_tricks, leader, cards_left)) {
       impossible_boards.insert(b);
       VLOG(2) << "No solution for board " << b << " (" << mini_max
               << " vs " << min_tricks << ")";
