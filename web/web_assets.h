@@ -2864,11 +2864,12 @@ document.addEventListener('DOMContentLoaded', () => {
       let detailText = '';
       if (node.success_boards !== undefined && node.total_boards !== undefined) {
         const pct = Math.round((node.success_boards / node.total_boards) * 100);
-        detailText = `Success: ${node.success_boards}/${node.total_boards} (${pct}%)`;
+        detailText = `Deals: ${node.success_boards} (${pct}%)`;
       } else if (node.covered_boards !== undefined) {
-        detailText = `Success: ${node.covered_boards}`;
+        detailText = `Deals: ${node.covered_boards}`;
       }
-      detail.textContent = `${node.type.toUpperCase()} | ${detailText}`;
+      const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
+      detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
       g.appendChild(detail);
 
       // 3rd Line: N/S Won on its own line for leaf/outcome nodes
@@ -3078,22 +3079,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryCard = document.createElement('div');
     summaryCard.className = 'node-summary-card';
 
-    let successInfo = '';
+    let dealsInfo = '';
     if (node.success_boards !== undefined && node.total_boards !== undefined) {
       const sPct = Math.round((node.success_boards / node.total_boards) * 100);
-      successInfo = `${node.success_boards}/${node.total_boards} (${sPct}%)`;
+      dealsInfo = `${node.success_boards} (${sPct}%)`;
     } else if (node.covered_boards !== undefined) {
-      successInfo = `${node.covered_boards}`;
+      dealsInfo = `${node.covered_boards}`;
     } else {
-      successInfo = '-';
+      dealsInfo = '-';
     }
 
     const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
+    const summaryTypeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'node').toUpperCase();
 
     summaryCard.innerHTML = `
-      <div class="node-summary-title">Node #${node.id} (${(node.type || 'node').toUpperCase()})</div>
+      <div class="node-summary-title">Node #${node.id} (${summaryTypeLabel})</div>
       <div class="node-summary-detail">Label: "${truncateText(node.label || node.trick || 'Root', 35)}"</div>
-      <div class="node-summary-detail">Success: ${successInfo}${nsTricksInfo}</div>
+      <div class="node-summary-detail">Deals: ${dealsInfo}${nsTricksInfo}</div>
     `;
     inspectorContent.appendChild(summaryCard);
 
