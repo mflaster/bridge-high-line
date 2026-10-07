@@ -230,6 +230,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     node->collapsed = false;
     node->trick = cards_played;
     node->trick_full = gt.ToString(false);
+    for (const auto &[b, t] : gt.demi2.board_to_trick) {
+      node->board_to_trick[std::to_string(b)] = t;
+    }
 
     std::string label_str = "Trick " + std::to_string(trick_num) + ": " + cards_played;
     if (!winner_str.empty()) {
@@ -279,6 +282,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     node->ns_tricks = ns_tricks;
     node->trick = cards_played;
     node->trick_full = gt.ToString(false);
+    for (const auto &[b, t] : gt.demi2.board_to_trick) {
+      node->board_to_trick[std::to_string(b)] = t;
+    }
     node->label = "Trick " + std::to_string(trick_num) + ": " + cards_played;
     node->success_boards = success_cnt;
     node->failure_boards = failure_cnt;
@@ -570,6 +576,9 @@ void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   }
   if (!node.boards.empty() || node.type == "action" || node.type == "condition") {
     j["boards"] = node.boards;
+  }
+  if (!node.board_to_trick.empty()) {
+    j["board_to_trick"] = node.board_to_trick;
   }
 
   nlohmann::json children = nlohmann::json::array();

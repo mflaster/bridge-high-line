@@ -26,6 +26,7 @@ struct DecisionTreeNode {
   int total_boards = 0;
   int covered_boards = 0;
   std::vector<int> boards;
+  std::map<std::string, std::string> board_to_trick;
   std::vector<std::shared_ptr<DecisionTreeNode>> children;
 
   std::map<std::string, std::shared_ptr<DecisionTreeNode>> child_map;

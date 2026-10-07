@@ -1615,33 +1615,95 @@ document.addEventListener('DOMContentLoaded', () => {
         C: new Array(uSuitTokens.C.length).fill(false)
       };
 
+      // Pick a representative board covered by this inspected line (or the selected trick node)
+      let repBoardId = null;
+      if (node && Array.isArray(node.boards) && node.boards.length > 0) {
+        repBoardId = String(node.boards[0]);
+      } else if (trickRows[selectedIdx].node && Array.isArray(trickRows[selectedIdx].node.boards) &&
+                 trickRows[selectedIdx].node.boards.length > 0) {
+        repBoardId = String(trickRows[selectedIdx].node.boards[0]);
+      }
+
+      const resolveActualCardsForTrick = (tr) => {
+        if (!tr || !tr.node) return tr.cards;
+        let rawBoardTrick = null;
+        if (repBoardId !== null && tr.node.board_to_trick && tr.node.board_to_trick[repBoardId]) {
+          rawBoardTrick = tr.node.board_to_trick[repBoardId];
+        } else if (tr.node.board_to_trick) {
+          const keys = Object.keys(tr.node.board_to_trick);
+          if (keys.length > 0) {
+            rawBoardTrick = tr.node.board_to_trick[keys[0]];
+          }
+        } else if (tr.node.trick_full && tr.node.trick_full.includes('/')) {
+          const slashParts = tr.node.trick_full.split('/');
+          if (slashParts.length > 1) {
+            rawBoardTrick = slashParts[1].trim();
+          }
+        }
+        if (!rawBoardTrick) return tr.cards;
+        const rawToks = tokenizeTrick(rawBoardTrick);
+        if (rawToks.length !== tr.cards.length) return tr.cards;
+        let leadSuit = null;
+        return tr.cards.map((origCard, idx) => {
+          const actualParsed = parseSingleCardToken(rawToks[idx], leadSuit, trumpCode);
+          if (idx === 0) leadSuit = actualParsed.suit;
+          // If the generalized card was unsuited ('__') or wildcard ('x'/'_'), use the concrete card from the board
+          if (!origCard.suit || origCard.rankStr === '__' || origCard.rankStr === '_' ||
+              origCard.rankStr === 'x' || origCard.rankStr === 'X') {
+            return Object.assign({}, origCard, {
+              suit: actualParsed.suit,
+              rankStr: actualParsed.rankStr,
+              rankVal: actualParsed.rankVal,
+              suitSym: actualParsed.suitSym,
+              suitClass: actualParsed.suitClass,
+              displayStr: actualParsed.displayStr
+            });
+          }
+          return origCard;
+        });
+      };
+
       const recordCard = (cardObj, bucket, isLead = false) => {
-        if (!cardObj || !cardObj.suit) return;
+        if (!cardObj) return;
         const seat = cardObj.seatName;
         const entry = Object.assign({}, cardObj, { isLead });
         if ((seat === 'E' && !eHasCards && uHasCards) ||
             (seat === 'W' && !wHasCards && uHasCards)) {
-          const sKey = entry.suit;
-          if (uSuitTokens[sKey]) {
+          let sKey = entry.suit;
+          // Fallback if suit is still null (e.g. '__' without board_to_trick): pick first suit in Unknown Cards with remaining cards
+          if (!sKey) {
+            for (const candidateSuit of ['S', 'H', 'D', 'C']) {
+              const remIdx = uSuitTokens[candidateSuit].findIndex((_, idx) => !uUsedMasks[candidateSuit][idx]);
+              if (remIdx !== -1) {
+                sKey = candidateSuit;
+                entry.suit = candidateSuit;
+                break;
+              }
+            }
+          }
+          if (sKey && uSuitTokens[sKey]) {
             const uIdx = matchCardIndexInTokens(sKey, uSuitTokens[sKey], uUsedMasks[sKey], entry);
             if (uIdx !== -1) {
               uUsedMasks[sKey][uIdx] = true;
               const matchedTok = uSuitTokens[sKey][uIdx];
-              const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' || entry.rankStr === '_');
+              const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' ||
+                                 entry.rankStr === '_' || entry.rankStr === '__');
               entry.movedToken = isPatWild ? matchedTok : entry.rankStr;
             }
           }
           states.U[bucket].push(entry);
         }
-        if (seat && states[seat]) {
+        if (seat && states[seat] && entry.suit) {
           states[seat][bucket].push(entry);
         }
       };
 
       for (let i = 0; i < selectedIdx; i++) {
-        trickRows[i].cards.forEach(c => recordCard(c, 'played', false));
+        const resolvedCards = resolveActualCardsForTrick(trickRows[i]);
+        resolvedCards.forEach(c => recordCard(c, 'played', false));
       }
-      trickRows[selectedIdx].cards.forEach((c, idx) => recordCard(c, 'current', idx === 0));
+      const currentResolvedCards = resolveActualCardsForTrick(trickRows[selectedIdx]);
+      currentResolvedCards.forEach((c, idx) => recordCard(c, 'current', idx === 0));
 
       activeTrickCardStates = states;
       if (rowElements) {
