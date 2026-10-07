@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let startY = 0;
   let currentTreeData = null;
   let currentSolveData = null;
+  let currentCenteredNode = null;
   let activeViewMode = 'success'; // 'success' or 'failure'
 
   function updateViewMode(mode) {
@@ -449,6 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function clearPanels() {
     currentTreeData = null;
     currentSolveData = null;
+    currentCenteredNode = null;
     activeViewMode = 'success';
 
     if (execTime) execTime.textContent = '';
@@ -820,6 +822,66 @@ document.addEventListener('DOMContentLoaded', () => {
     showNodeInspector(leaf);
   }
 
+  function centerNodeInTree(node) {
+    if (!node) return;
+    currentCenteredNode = node;
+
+    if (tabDecisionTreeBtn && panelDecisionTree) {
+      if (tabSummaryBtn) tabSummaryBtn.classList.remove('active');
+      tabDecisionTreeBtn.classList.add('active');
+      panelDecisionTree.classList.remove('hidden');
+      if (panelDistributionSummary) panelDistributionSummary.classList.add('hidden');
+    }
+
+    let p = node._parent;
+    let needRerender = false;
+    while (p) {
+      if (p._collapsed) {
+        p._collapsed = false;
+        needRerender = true;
+      }
+      p = p._parent;
+    }
+
+    const root = currentTreeData || getRoot(node);
+    if (needRerender || node._x === undefined || node._y === undefined) {
+      if (root) renderDecisionTree(root);
+    } else {
+      updateCenteredNodeHighlight();
+    }
+
+    if (node._x === undefined || node._y === undefined) return;
+
+    const nodeWidth = 240;
+    const nodeHeight = 78;
+    const nodeCenterX = node._x + nodeWidth / 2;
+    const nodeCenterY = node._y + nodeHeight / 2;
+
+    const viewportWidth = treeViewport ? (treeViewport.clientWidth || treeViewport.offsetWidth || 800) : 800;
+    const viewportHeight = treeViewport ? (treeViewport.clientHeight || treeViewport.offsetHeight || 600) : 600;
+
+    panX = (viewportWidth / 2) - (nodeCenterX * zoomLevel);
+    panY = (viewportHeight / 2) - (nodeCenterY * zoomLevel);
+
+    updateTransform();
+  }
+
+  function getRoot(node) {
+    let curr = node;
+    while (curr && curr._parent) {
+      curr = curr._parent;
+    }
+    return curr;
+  }
+
+  function updateCenteredNodeHighlight() {
+    const allCards = treeRootGroup ? treeRootGroup.querySelectorAll('.node-card') : [];
+    allCards.forEach(c => c.classList.remove('centered-node'));
+    if (currentCenteredNode && currentCenteredNode._svgRect) {
+      currentCenteredNode._svgRect.classList.add('centered-node');
+    }
+  }
+
   // Decision Tree SVG Rendering
   function renderDecisionTree(rootNode, resetView = false) {
     treeRootGroup.innerHTML = '';
@@ -939,7 +1001,9 @@ document.addEventListener('DOMContentLoaded', () => {
       let cardClass = 'node-action';
       if (node.type === 'condition') cardClass = 'node-condition';
       if (node.type === 'outcome') cardClass = 'node-outcome';
+      if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
+      node._svgRect = rect;
 
       g.appendChild(rect);
 
@@ -1162,7 +1226,8 @@ document.addEventListener('DOMContentLoaded', () => {
         leadSeatName: leadSeatName,
         cards: parsedCards,
         winningCardIdx: winningCardIdx,
-        winnerSeat: winnerCard ? winnerCard.seatName : ''
+        winnerSeat: winnerCard ? winnerCard.seatName : '',
+        node: pathNode
       });
 
       // Next trick leader is the winner of this trick
@@ -1216,8 +1281,16 @@ document.addEventListener('DOMContentLoaded', () => {
         metaEl.className = 'trick-row-meta';
 
         const labelEl = document.createElement('span');
-        labelEl.className = 'trick-label';
+        labelEl.className = 'trick-label clickable';
         labelEl.textContent = `#${tr.trickNum}`;
+        labelEl.title = `Click to center Trick ${tr.trickNum} node in decision tree`;
+
+        if (tr.node) {
+          labelEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            centerNodeInTree(tr.node);
+          });
+        }
 
         const isLeaderEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
         const badgeEl = document.createElement('span');
@@ -1257,6 +1330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window._getCurrentTreeData = () => currentTreeData;
     window._showNodeInspector = showNodeInspector;
     window._expandAndInspectNode = expandAndInspectNode;
+    window._centerNodeInTree = centerNodeInTree;
   }
 
   function getSeatIndex(seatStr) {
