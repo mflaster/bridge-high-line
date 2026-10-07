@@ -904,6 +904,7 @@ body.is-resizing * {
 .card-chip.card-suit-h { color: #f87171; }
 .card-chip.card-suit-d { color: #fb923c; }
 .card-chip.card-suit-c { color: #34d399; }
+.card-chip.card-suit-neutral { color: #cbd5e1; }
 
 .card-chip.card-winner {
   font-weight: 800 !important;
