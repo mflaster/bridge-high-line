@@ -550,8 +550,10 @@ body {
   font-weight: 800;
 }
 
-.card-suit-s, .card-suit-c { fill: #f8fafc; }
-.card-suit-h, .card-suit-d { fill: #f87171; }
+.card-suit-s { fill: #f8fafc; color: #f8fafc; }
+.card-suit-h { fill: #f87171; color: #f87171; }
+.card-suit-d { fill: #fb923c; color: #fb923c; }
+.card-suit-c { fill: #34d399; color: #34d399; }
 
 .card-values {
   fill: #f1f5f9;
@@ -1127,19 +1129,28 @@ body {
 .card-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 5px;
+  padding: 3px 6px;
   border-radius: 4px;
   font-family: monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   background-color: #1e293b;
   border: 1px solid #334155;
   color: #f8fafc;
 }
 
-.card-chip.card-suit-h, .card-chip.card-suit-d {
-  color: #f87171;
+.card-chip .suit-symbol {
+  font-size: 15px;
+  line-height: 1;
+  margin-right: 2px;
+  display: inline-block;
+  font-weight: bold;
 }
+
+.card-chip.card-suit-s { color: #f8fafc; }
+.card-chip.card-suit-h { color: #f87171; }
+.card-chip.card-suit-d { color: #fb923c; }
+.card-chip.card-suit-c { color: #34d399; }
 
 .card-chip.card-winner {
   font-weight: 800 !important;
@@ -1797,8 +1808,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (svgTrumpText && trumpSelect) {
       const trumpVal = trumpSelect.value;
       const suitSym = getSuitSymbol(trumpVal);
-      const isRedTrump = (trumpVal === 'HEARTS' || trumpVal === 'DIAMONDS');
-      svgTrumpText.innerHTML = 'Trump: <tspan class="' + (isRedTrump ? 'card-suit-h' : '') + '">' + suitSym + '</tspan>';
+      let trumpClass = '';
+      if (trumpVal === 'SPADES') trumpClass = 'card-suit-s';
+      else if (trumpVal === 'HEARTS') trumpClass = 'card-suit-h';
+      else if (trumpVal === 'DIAMONDS') trumpClass = 'card-suit-d';
+      else if (trumpVal === 'CLUBS') trumpClass = 'card-suit-c';
+      svgTrumpText.innerHTML = 'Trump: <tspan class="' + trumpClass + '">' + suitSym + '</tspan>';
     }
     if (svgLeaderText && leaderSelect) {
       svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
@@ -2608,7 +2623,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const isWinner = (idx === tr.winningCardIdx);
           chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
           chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
-          chip.textContent = c.displayStr;
+          chip.innerHTML = `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`;
           chipsRow.appendChild(chip);
         });
 
@@ -2827,7 +2842,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const boundsTbody = summaryBoundsTable.querySelector('tbody');
       if (boundsTbody) {
         boundsTbody.innerHTML = '';
-        const suitNames = { S: '♠ Spades', H: '♥ Hearts', D: '♦ Diamonds', C: '♣ Clubs' };
+        const suitNames = {
+          S: '<span class="card-suit-s">♠</span> Spades',
+          H: '<span class="card-suit-h">♥</span> Hearts',
+          D: '<span class="card-suit-d">♦</span> Diamonds',
+          C: '<span class="card-suit-c">♣</span> Clubs'
+        };
         ['S', 'H', 'D', 'C'].forEach(s => {
           if (bounds[s]) {
             const b = bounds[s];
@@ -2849,7 +2869,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const honorTbody = summaryHonorTable.querySelector('tbody');
       if (honorTbody) {
         honorTbody.innerHTML = '';
-        const suitNames = { S: '♠ Spades', H: '♥ Hearts', D: '♦ Diamonds', C: '♣ Clubs' };
+        const suitNames = {
+          S: '<span class="card-suit-s">♠</span> Spades',
+          H: '<span class="card-suit-h">♥</span> Hearts',
+          D: '<span class="card-suit-d">♦</span> Diamonds',
+          C: '<span class="card-suit-c">♣</span> Clubs'
+        };
         ['S', 'H', 'D', 'C'].forEach(s => {
           if (honors[s]) {
             Object.keys(honors[s]).forEach(rankKey => {

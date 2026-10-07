@@ -424,8 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (svgTrumpText && trumpSelect) {
       const trumpVal = trumpSelect.value;
       const suitSym = getSuitSymbol(trumpVal);
-      const isRedTrump = (trumpVal === 'HEARTS' || trumpVal === 'DIAMONDS');
-      svgTrumpText.innerHTML = 'Trump: <tspan class="' + (isRedTrump ? 'card-suit-h' : '') + '">' + suitSym + '</tspan>';
+      let trumpClass = '';
+      if (trumpVal === 'SPADES') trumpClass = 'card-suit-s';
+      else if (trumpVal === 'HEARTS') trumpClass = 'card-suit-h';
+      else if (trumpVal === 'DIAMONDS') trumpClass = 'card-suit-d';
+      else if (trumpVal === 'CLUBS') trumpClass = 'card-suit-c';
+      svgTrumpText.innerHTML = 'Trump: <tspan class="' + trumpClass + '">' + suitSym + '</tspan>';
     }
     if (svgLeaderText && leaderSelect) {
       svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
@@ -1235,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const isWinner = (idx === tr.winningCardIdx);
           chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
           chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
-          chip.textContent = c.displayStr;
+          chip.innerHTML = `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`;
           chipsRow.appendChild(chip);
         });
 
@@ -1454,7 +1458,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const boundsTbody = summaryBoundsTable.querySelector('tbody');
       if (boundsTbody) {
         boundsTbody.innerHTML = '';
-        const suitNames = { S: '♠ Spades', H: '♥ Hearts', D: '♦ Diamonds', C: '♣ Clubs' };
+        const suitNames = {
+          S: '<span class="card-suit-s">♠</span> Spades',
+          H: '<span class="card-suit-h">♥</span> Hearts',
+          D: '<span class="card-suit-d">♦</span> Diamonds',
+          C: '<span class="card-suit-c">♣</span> Clubs'
+        };
         ['S', 'H', 'D', 'C'].forEach(s => {
           if (bounds[s]) {
             const b = bounds[s];
@@ -1476,7 +1485,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const honorTbody = summaryHonorTable.querySelector('tbody');
       if (honorTbody) {
         honorTbody.innerHTML = '';
-        const suitNames = { S: '♠ Spades', H: '♥ Hearts', D: '♦ Diamonds', C: '♣ Clubs' };
+        const suitNames = {
+          S: '<span class="card-suit-s">♠</span> Spades',
+          H: '<span class="card-suit-h">♥</span> Hearts',
+          D: '<span class="card-suit-d">♦</span> Diamonds',
+          C: '<span class="card-suit-c">♣</span> Clubs'
+        };
         ['S', 'H', 'D', 'C'].forEach(s => {
           if (honors[s]) {
             Object.keys(honors[s]).forEach(rankKey => {
