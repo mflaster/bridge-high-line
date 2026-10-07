@@ -1436,7 +1436,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const isWinner = (idx === tr.winningCardIdx);
           chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
           chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
-          chip.innerHTML = `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`;
+          chip.innerHTML = c.suitSym
+            ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`
+            : `<span class="card-rank">${c.rankStr}</span>`;
           chipsRow.appendChild(chip);
         });
 
@@ -1500,12 +1502,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let suit = null;
     let rankStr = '';
 
-    if (cleanToken === 'R_' || cleanToken === 'R') {
-      suit = trumpSuit !== 'NT' ? trumpSuit : (leadSuit || 'S');
-      rankStr = '_';
-    } else if (cleanToken === '__' || cleanToken === '_') {
-      suit = leadSuit || 'S';
-      rankStr = '_';
+    if (cleanToken === 'R_' || cleanToken === 'R' || (cleanToken.startsWith('R') && cleanToken.length <= 2)) {
+      suit = (trumpSuit && trumpSuit !== 'NT') ? trumpSuit : (leadSuit || 'S');
+      rankStr = cleanToken.substring(1) || '_';
+    } else if (cleanToken === '__' || cleanToken === '_' || cleanToken.startsWith('_')) {
+      suit = null;
+      rankStr = cleanToken;
     } else {
       if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(0))) {
         suit = cleanToken.charAt(0);
@@ -1528,13 +1530,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const rankVal = rankValueMap[rankStr] || 1;
 
-    let suitSym = '♠';
-    let suitClass = 'card-suit-s';
-    if (suit === 'H') { suitSym = '♥'; suitClass = 'card-suit-h'; }
+    let suitSym = '';
+    let suitClass = 'card-suit-neutral';
+    if (suit === 'S') { suitSym = '♠'; suitClass = 'card-suit-s'; }
+    else if (suit === 'H') { suitSym = '♥'; suitClass = 'card-suit-h'; }
     else if (suit === 'D') { suitSym = '♦'; suitClass = 'card-suit-d'; }
     else if (suit === 'C') { suitSym = '♣'; suitClass = 'card-suit-c'; }
 
-    const displayStr = `${suitSym}${rankStr}`;
+    const displayStr = suitSym ? `${suitSym}${rankStr}` : rankStr;
 
     return {
       raw: token,
