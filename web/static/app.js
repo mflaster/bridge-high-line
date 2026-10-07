@@ -1581,11 +1581,13 @@ document.addEventListener('DOMContentLoaded', () => {
     inspectorContent.appendChild(summaryCard);
 
     // Helper to update Deal SVG card states for a selected trick index
-    function selectTrickInInspector(selectedIdx, rowElements) {
+    function selectTrickInInspector(selectedIdx, rowElements, updateTreeHighlight = true) {
       if (selectedIdx === null || selectedIdx < 0 || selectedIdx >= trickRows.length) {
         activeTrickCardStates = null;
-        currentCenteredNode = null;
-        updateCenteredNodeHighlight();
+        if (updateTreeHighlight) {
+          currentCenteredNode = null;
+          updateCenteredNodeHighlight();
+        }
         if (rowElements) {
           rowElements.forEach(el => {
             el.classList.remove('trick-row-selected', 'trick-row-past');
@@ -1595,7 +1597,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (trickRows[selectedIdx].node) {
+      if (updateTreeHighlight && trickRows[selectedIdx].node) {
         currentCenteredNode = trickRows[selectedIdx].node;
         updateCenteredNodeHighlight();
       }
@@ -1814,10 +1816,18 @@ document.addEventListener('DOMContentLoaded', () => {
       trickSection.appendChild(listContainer);
 
       if (clickedNode) {
-        const clickedRowIdx = trickRows.findIndex(tr => tr.node === clickedNode);
+        let clickedRowIdx = trickRows.findIndex(tr => tr.node === clickedNode);
+        let isExactTrickNode = (clickedRowIdx !== -1);
+        if (clickedRowIdx === -1) {
+          let anc = clickedNode._parent;
+          while (anc && clickedRowIdx === -1) {
+            clickedRowIdx = trickRows.findIndex(tr => tr.node === anc);
+            anc = anc._parent;
+          }
+        }
         if (clickedRowIdx !== -1) {
           selectedTrickIdx = clickedRowIdx;
-          selectTrickInInspector(clickedRowIdx, rowElements);
+          selectTrickInInspector(clickedRowIdx, rowElements, isExactTrickNode);
         }
       }
     }
