@@ -635,6 +635,19 @@ body.is-resizing * {
   letter-spacing: 0.5px;
 }
 
+.card-rank-played {
+  fill: #64748b;
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.card-rank-current {
+  fill: #fbbf24;
+  font-weight: 900;
+  text-decoration: underline;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.85));
+}
+
 /* Form Controls */
 .middle-controls {
   width: 100%;
@@ -1158,6 +1171,23 @@ body.is-resizing * {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.trick-row:hover {
+  border-color: #60a5fa;
+  background-color: #162238;
+}
+
+.trick-row.trick-row-selected {
+  border-color: #fbbf24;
+  background-color: #1e293b;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+}
+
+.trick-row.trick-row-past {
+  opacity: 0.6;
 }
 
 .trick-row-meta {
@@ -1937,8 +1967,93 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  let activeTrickCardStates = null; // { N, E, S, W, U } -> { played: [...], current: [...] }
+
+  function tokenizeSuitRanks(cardsStr) {
+    if (!cardsStr || cardsStr === '-') return [];
+    const tokens = [];
+    let i = 0;
+    while (i < cardsStr.length) {
+      if (cardsStr[i] === '1' && i + 1 < cardsStr.length && cardsStr[i + 1] === '0') {
+        tokens.push('10');
+        i += 2;
+      } else {
+        tokens.push(cardsStr[i]);
+        i++;
+      }
+    }
+    return tokens;
+  }
+
+  function rankMatchesPattern(actualRankToken, patternSuit, patternRank, actualSuit) {
+    if (!patternSuit || patternSuit !== actualSuit) return false;
+    const normActual = (actualRankToken === '10') ? 'T' : actualRankToken.toUpperCase();
+    const normPat = (patternRank === '10') ? 'T' : patternRank;
+    if (normPat === normActual) return true;
+    // Wildcard matching ('x' or '_') matches non-honor spot cards or 'x' tokens first
+    if (normPat === 'x' || normPat === 'X' || normPat === '_') {
+      if (actualRankToken === 'x' || actualRankToken === 'X' || '23456789'.includes(normActual)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function computeSeatSuitCardStates(suitKey, rankTokens, seatPlayState) {
+    const states = new Array(rankTokens.length).fill('normal');
+    if (!seatPlayState) return states;
+
+    const consumeMatch = (cardItem, targetState) => {
+      if (!cardItem || !cardItem.suit || cardItem.suit !== suitKey) return false;
+      const pRank = cardItem.rankStr || '';
+      const normPat = (pRank === '10') ? 'T' : pRank;
+      // 1. Try exact rank match on an unconsumed card
+      for (let i = 0; i < rankTokens.length; i++) {
+        if (states[i] !== 'normal') continue;
+        const normAct = (rankTokens[i] === '10') ? 'T' : rankTokens[i].toUpperCase();
+        if (normAct === normPat) {
+          states[i] = targetState;
+          return true;
+        }
+      }
+      // 2. If pattern is wildcard ('x' or '_'), match lowest spot card / 'x' from the right
+      if (normPat === 'x' || normPat === 'X' || normPat === '_') {
+        for (let i = rankTokens.length - 1; i >= 0; i--) {
+          if (states[i] !== 'normal') continue;
+          if (rankMatchesPattern(rankTokens[i], suitKey, normPat, suitKey)) {
+            states[i] = targetState;
+            return true;
+          }
+        }
+        // Fallback: any remaining unconsumed card in this suit
+        for (let i = rankTokens.length - 1; i >= 0; i--) {
+          if (states[i] !== 'normal') continue;
+          states[i] = targetState;
+          return true;
+        }
+      }
+      // 3. If pattern is specific rank (e.g., 'K') and hand has 'x' wildcard
+      for (let i = 0; i < rankTokens.length; i++) {
+        if (states[i] !== 'normal') continue;
+        if (rankTokens[i] === 'x' || rankTokens[i] === 'X') {
+          states[i] = targetState;
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (seatPlayState.played) {
+      seatPlayState.played.forEach(c => consumeMatch(c, 'played'));
+    }
+    if (seatPlayState.current) {
+      seatPlayState.current.forEach(c => consumeMatch(c, 'current'));
+    }
+    return states;
+  }
+
   // Render Hand or Unknown Cards on SVG Diagram
-  function renderSvgHand(groupId, handStr, isUnknown = false) {
+  function renderSvgHand(groupId, handStr, isUnknown = false, seatKey = null) {
     const group = document.getElementById(groupId);
     if (!group) return;
     group.innerHTML = '';
@@ -1970,6 +2085,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const seatPlayState = (activeTrickCardStates && seatKey) ? activeTrickCardStates[seatKey] : null;
+
     suitOrder.forEach(s => {
       const cards = suitsData[s.key] || '-';
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -1979,13 +2096,27 @@ document.addEventListener('DOMContentLoaded', () => {
       const symbolSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
       symbolSpan.setAttribute('class', `card-suit-label ${s.class}`);
       symbolSpan.textContent = s.symbol + ' ';
-
-      const valSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-      valSpan.setAttribute('class', 'card-values');
-      valSpan.textContent = cards;
-
       textNode.appendChild(symbolSpan);
-      textNode.appendChild(valSpan);
+
+      const rankTokens = tokenizeSuitRanks(cards);
+      if (rankTokens.length === 0) {
+        const valSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        valSpan.setAttribute('class', 'card-values');
+        valSpan.textContent = '-';
+        textNode.appendChild(valSpan);
+      } else {
+        const states = computeSeatSuitCardStates(s.key, rankTokens, seatPlayState);
+        rankTokens.forEach((tok, idx) => {
+          const valSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+          let cls = 'card-values';
+          if (states[idx] === 'played') cls += ' card-rank-played';
+          else if (states[idx] === 'current') cls += ' card-rank-current';
+          valSpan.setAttribute('class', cls);
+          valSpan.textContent = tok;
+          textNode.appendChild(valSpan);
+        });
+      }
+
       group.appendChild(textNode);
 
       yOffset += 16.5;
@@ -1994,13 +2125,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Update SVG Deal Diagram from UI Inputs
   function updateDealSvg() {
-    renderSvgHand('cardsNorthGroup', inputNorth.value);
-    renderSvgHand('cardsEastGroup', inputEast.value);
-    renderSvgHand('cardsSouthGroup', inputSouth.value);
-    renderSvgHand('cardsWestGroup', inputWest.value);
+    renderSvgHand('cardsNorthGroup', inputNorth.value, false, 'N');
+    renderSvgHand('cardsEastGroup', inputEast.value, false, 'E');
+    renderSvgHand('cardsSouthGroup', inputSouth.value, false, 'S');
+    renderSvgHand('cardsWestGroup', inputWest.value, false, 'W');
 
     if (inputUnknownCards) {
-      renderSvgHand('cardsUnknownGroup', inputUnknownCards.value.trim(), true);
+      renderSvgHand('cardsUnknownGroup', inputUnknownCards.value.trim(), true, 'U');
     }
 
     const svgTrumpText = document.getElementById('svgTrumpText');
@@ -2026,8 +2157,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sync Input Events
   [inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards, trumpSelect, leaderSelect, targetTricks, numIters].forEach(el => {
     if (el) {
-      el.addEventListener('input', updateDealSvg);
-      el.addEventListener('change', updateDealSvg);
+      el.addEventListener('input', () => {
+        activeTrickCardStates = null;
+        updateDealSvg();
+      });
+      el.addEventListener('change', () => {
+        activeTrickCardStates = null;
+        updateDealSvg();
+      });
     }
   });
 
@@ -2035,7 +2172,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentTreeData = null;
     currentSolveData = null;
     currentCenteredNode = null;
+    activeTrickCardStates = null;
     activeViewMode = 'success';
+    updateDealSvg();
 
     if (execTime) execTime.textContent = '';
 
@@ -2867,6 +3006,62 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     inspectorContent.appendChild(summaryCard);
 
+    // Helper to update Deal SVG card states for a selected trick index
+    function selectTrickInInspector(selectedIdx, rowElements) {
+      if (selectedIdx === null || selectedIdx < 0 || selectedIdx >= trickRows.length) {
+        activeTrickCardStates = null;
+        if (rowElements) {
+          rowElements.forEach(el => {
+            el.classList.remove('trick-row-selected', 'trick-row-past');
+          });
+        }
+        updateDealSvg();
+        return;
+      }
+
+      const states = {
+        N: { played: [], current: [] },
+        E: { played: [], current: [] },
+        S: { played: [], current: [] },
+        W: { played: [], current: [] },
+        U: { played: [], current: [] }
+      };
+
+      const eHasCards = countHandCards(inputEast ? inputEast.value : '') > 0;
+      const wHasCards = countHandCards(inputWest ? inputWest.value : '') > 0;
+      const uHasCards = inputUnknownCards && countUnknownCardsString(inputUnknownCards.value.trim()) > 0;
+
+      const recordCard = (cardObj, bucket) => {
+        if (!cardObj || !cardObj.suit) return;
+        const seat = cardObj.seatName;
+        if (seat && states[seat]) {
+          states[seat][bucket].push(cardObj);
+        }
+        if ((seat === 'E' && !eHasCards && uHasCards) ||
+            (seat === 'W' && !wHasCards && uHasCards)) {
+          states.U[bucket].push(cardObj);
+        }
+      };
+
+      for (let i = 0; i < selectedIdx; i++) {
+        trickRows[i].cards.forEach(c => recordCard(c, 'played'));
+      }
+      trickRows[selectedIdx].cards.forEach(c => recordCard(c, 'current'));
+
+      activeTrickCardStates = states;
+      if (rowElements) {
+        rowElements.forEach((el, idx) => {
+          el.classList.toggle('trick-row-selected', idx === selectedIdx);
+          el.classList.toggle('trick-row-past', idx < selectedIdx);
+        });
+      }
+      updateDealSvg();
+    }
+
+    // Reset card highlights when switching inspected node until a trick is clicked
+    activeTrickCardStates = null;
+    updateDealSvg();
+
     // Trick Section
     const trickSection = document.createElement('div');
     trickSection.innerHTML = `<div class="trick-section-header">Line of Play (${trickRows.length} Trick${trickRows.length !== 1 ? 's' : ''})</div>`;
@@ -2879,10 +3074,27 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       const listContainer = document.createElement('div');
       listContainer.className = 'trick-list';
+      const rowElements = [];
+      let selectedTrickIdx = null;
 
-      trickRows.forEach(tr => {
+      trickRows.forEach((tr, rowIdx) => {
         const rowEl = document.createElement('div');
         rowEl.className = 'trick-row';
+        rowEl.title = `Click to highlight Trick ${tr.trickNum} cards on deal diagram`;
+        rowElements.push(rowEl);
+
+        rowEl.addEventListener('click', () => {
+          if (selectedTrickIdx === rowIdx) {
+            selectedTrickIdx = null;
+            selectTrickInInspector(null, rowElements);
+          } else {
+            selectedTrickIdx = rowIdx;
+            selectTrickInInspector(rowIdx, rowElements);
+            if (tr.node) {
+              centerNodeInTree(tr.node);
+            }
+          }
+        });
 
         const metaEl = document.createElement('div');
         metaEl.className = 'trick-row-meta';
@@ -2890,14 +3102,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const labelEl = document.createElement('span');
         labelEl.className = 'trick-label clickable';
         labelEl.textContent = `#${tr.trickNum}`;
-        labelEl.title = `Click to center Trick ${tr.trickNum} node in decision tree`;
+        labelEl.title = `Click to highlight Trick ${tr.trickNum} and center in decision tree`;
 
-        if (tr.node) {
-          labelEl.addEventListener('click', (e) => {
-            e.stopPropagation();
+        labelEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectedTrickIdx = rowIdx;
+          selectTrickInInspector(rowIdx, rowElements);
+          if (tr.node) {
             centerNodeInTree(tr.node);
-          });
-        }
+          }
+        });
 
         const isLeaderEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
         const badgeEl = document.createElement('span');
