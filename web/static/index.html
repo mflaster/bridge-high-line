@@ -26,9 +26,9 @@
   </header>
 
   <main class="app-main">
-    <div class="grid-container">
+    <div class="grid-container" id="gridContainer">
       <!-- Left Column: Deal Setup & SVG Deal Diagram -->
-      <section class="card-panel deal-setup-panel">
+      <section class="card-panel deal-setup-panel" id="dealSetupPanel">
         <div class="panel-header">
           <h2>Deal Configuration</h2>
           <span class="panel-badge" id="dealEndingBadge">Full deal</span>
@@ -188,8 +188,13 @@
         </div>
       </section>
 
+      <!-- Vertical Resizer Bar between Deal Configuration and Decision Tree Panel -->
+      <div class="panel-resizer" id="panelResizer" role="separator" aria-orientation="vertical" aria-label="Resize deal configuration and decision tree panels" tabindex="0" title="Drag to resize panels">
+        <div class="resizer-handle"></div>
+      </div>
+
       <!-- Right Column: Results & Decision Tree -->
-      <section class="card-panel decision-tree-panel">
+      <section class="card-panel decision-tree-panel" id="decisionTreePanel">
         <div class="panel-header">
           <div class="tab-buttons">
             <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>

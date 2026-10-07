@@ -33,9 +33,9 @@ inline const char* INDEX_HTML = R"rawhtml(
   </header>
 
   <main class="app-main">
-    <div class="grid-container">
+    <div class="grid-container" id="gridContainer">
       <!-- Left Column: Deal Setup & SVG Deal Diagram -->
-      <section class="card-panel deal-setup-panel">
+      <section class="card-panel deal-setup-panel" id="dealSetupPanel">
         <div class="panel-header">
           <h2>Deal Configuration</h2>
           <span class="panel-badge" id="dealEndingBadge">Full deal</span>
@@ -195,8 +195,13 @@ inline const char* INDEX_HTML = R"rawhtml(
         </div>
       </section>
 
+      <!-- Vertical Resizer Bar between Deal Configuration and Decision Tree Panel -->
+      <div class="panel-resizer" id="panelResizer" role="separator" aria-orientation="vertical" aria-label="Resize deal configuration and decision tree panels" tabindex="0" title="Drag to resize panels">
+        <div class="resizer-handle"></div>
+      </div>
+
       <!-- Right Column: Results & Decision Tree -->
-      <section class="card-panel decision-tree-panel">
+      <section class="card-panel decision-tree-panel" id="decisionTreePanel">
         <div class="panel-header">
           <div class="tab-buttons">
             <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>
@@ -418,10 +423,12 @@ body {
   width: 100%;
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(420px, 38%) 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: row;
   align-items: stretch;
+  gap: 0;
+  position: relative;
+  --left-panel-width: 38%;
 }
 
 @media (max-width: 1024px) {
@@ -430,7 +437,23 @@ body {
   }
 
   .grid-container {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .deal-setup-panel {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .panel-resizer {
+    display: none !important;
+  }
+
+  .decision-tree-panel {
+    width: 100% !important;
+    min-width: 0 !important;
   }
 }
 
@@ -447,11 +470,64 @@ body {
 }
 
 .deal-setup-panel {
+  width: var(--left-panel-width, 38%);
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: calc(100% - 300px);
   overflow-y: auto;
 }
 
+.panel-resizer {
+  width: 14px;
+  margin: 0 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+  touch-action: none;
+}
+
+.resizer-handle {
+  width: 4px;
+  height: 36px;
+  background-color: var(--panel-border);
+  border-radius: 2px;
+  transition: background-color 0.15s ease, height 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+}
+
+.panel-resizer:hover .resizer-handle,
+.panel-resizer.resizing .resizer-handle {
+  background-color: var(--primary);
+  height: 56px;
+  width: 5px;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.panel-resizer:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
 .decision-tree-panel {
+  flex: 1 1 0%;
+  min-width: 300px;
   overflow: hidden;
+}
+
+body.is-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+body.is-resizing * {
+  cursor: col-resize !important;
 }
 
 .solve-action-container {
@@ -1490,6 +1566,107 @@ document.addEventListener('DOMContentLoaded', () => {
   if (closeInspectorBtn && treeInspectorPanel) {
     closeInspectorBtn.addEventListener('click', () => {
       treeInspectorPanel.classList.add('collapsed');
+    });
+  }
+
+  // Vertical Panel Resizer (Deal Configuration vs Decision Tree Panel)
+  const gridContainer = document.getElementById('gridContainer') || document.querySelector('.grid-container');
+  const dealSetupPanel = document.getElementById('dealSetupPanel') || document.querySelector('.deal-setup-panel');
+  const panelResizer = document.getElementById('panelResizer');
+
+  if (panelResizer && dealSetupPanel && gridContainer) {
+    let isResizing = false;
+    let resizeStartX = 0;
+    let resizeStartWidth = 0;
+
+    // Restore saved width from localStorage if available
+    try {
+      const savedWidth = localStorage.getItem('bridge_deal_setup_panel_width');
+      if (savedWidth) {
+        gridContainer.style.setProperty('--left-panel-width', savedWidth);
+        dealSetupPanel.style.width = savedWidth;
+      }
+    } catch (e) {}
+
+    const startResize = (e) => {
+      isResizing = true;
+      resizeStartX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      resizeStartWidth = dealSetupPanel.getBoundingClientRect().width;
+      document.body.classList.add('is-resizing');
+      panelResizer.classList.add('resizing');
+      if (e.cancelable) e.preventDefault();
+    };
+
+    const doResize = (e) => {
+      if (!isResizing) return;
+      const currentX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const dx = currentX - resizeStartX;
+      const containerWidth = gridContainer.getBoundingClientRect().width;
+      if (containerWidth <= 0) return;
+
+      let newWidth = resizeStartWidth + dx;
+      const minLeftWidth = 280;
+      const resizerWidth = panelResizer.getBoundingClientRect().width || 14;
+      const maxLeftWidth = containerWidth - 300 - resizerWidth;
+
+      if (newWidth < minLeftWidth) newWidth = minLeftWidth;
+      if (newWidth > maxLeftWidth) newWidth = maxLeftWidth;
+
+      const pct = `${(newWidth / containerWidth) * 100}%`;
+      gridContainer.style.setProperty('--left-panel-width', pct);
+      dealSetupPanel.style.width = pct;
+
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    const stopResize = () => {
+      if (!isResizing) return;
+      isResizing = false;
+      document.body.classList.remove('is-resizing');
+      panelResizer.classList.remove('resizing');
+
+      const currentWidthStyle = dealSetupPanel.style.width;
+      if (currentWidthStyle) {
+        try {
+          localStorage.setItem('bridge_deal_setup_panel_width', currentWidthStyle);
+        } catch (e) {}
+      }
+    };
+
+    panelResizer.addEventListener('mousedown', startResize);
+    panelResizer.addEventListener('touchstart', startResize, { passive: false });
+
+    window.addEventListener('mousemove', doResize);
+    window.addEventListener('touchmove', doResize, { passive: false });
+
+    window.addEventListener('mouseup', stopResize);
+    window.addEventListener('touchend', stopResize);
+    window.addEventListener('touchcancel', stopResize);
+
+    panelResizer.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const containerWidth = gridContainer.getBoundingClientRect().width;
+        if (containerWidth <= 0) return;
+        const currentWidth = dealSetupPanel.getBoundingClientRect().width;
+        const step = e.shiftKey ? 40 : 15;
+        let newWidth = e.key === 'ArrowLeft' ? currentWidth - step : currentWidth + step;
+
+        const minLeftWidth = 280;
+        const resizerWidth = panelResizer.getBoundingClientRect().width || 14;
+        const maxLeftWidth = containerWidth - 300 - resizerWidth;
+
+        if (newWidth < minLeftWidth) newWidth = minLeftWidth;
+        if (newWidth > maxLeftWidth) newWidth = maxLeftWidth;
+
+        const pct = `${(newWidth / containerWidth) * 100}%`;
+        gridContainer.style.setProperty('--left-panel-width', pct);
+        dealSetupPanel.style.width = pct;
+        try {
+          localStorage.setItem('bridge_deal_setup_panel_width', pct);
+        } catch (err) {}
+        window.dispatchEvent(new Event('resize'));
+        e.preventDefault();
+      }
     });
   }
 

@@ -82,10 +82,12 @@ body {
   width: 100%;
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(420px, 38%) 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: row;
   align-items: stretch;
+  gap: 0;
+  position: relative;
+  --left-panel-width: 38%;
 }
 
 @media (max-width: 1024px) {
@@ -94,7 +96,23 @@ body {
   }
 
   .grid-container {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .deal-setup-panel {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .panel-resizer {
+    display: none !important;
+  }
+
+  .decision-tree-panel {
+    width: 100% !important;
+    min-width: 0 !important;
   }
 }
 
@@ -111,11 +129,64 @@ body {
 }
 
 .deal-setup-panel {
+  width: var(--left-panel-width, 38%);
+  flex: 0 0 auto;
+  min-width: 280px;
+  max-width: calc(100% - 300px);
   overflow-y: auto;
 }
 
+.panel-resizer {
+  width: 14px;
+  margin: 0 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+  touch-action: none;
+}
+
+.resizer-handle {
+  width: 4px;
+  height: 36px;
+  background-color: var(--panel-border);
+  border-radius: 2px;
+  transition: background-color 0.15s ease, height 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+}
+
+.panel-resizer:hover .resizer-handle,
+.panel-resizer.resizing .resizer-handle {
+  background-color: var(--primary);
+  height: 56px;
+  width: 5px;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.panel-resizer:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
 .decision-tree-panel {
+  flex: 1 1 0%;
+  min-width: 300px;
   overflow: hidden;
+}
+
+body.is-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+body.is-resizing * {
+  cursor: col-resize !important;
 }
 
 .solve-action-container {
