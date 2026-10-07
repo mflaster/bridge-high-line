@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <chrono>
+#include <mutex>
 #include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "glog/logging.h"
@@ -161,6 +162,25 @@ int LineFinder::CountAtLeast(const std::multiset<int> &data, int thresh) {
   return ans;
 }
 
+namespace {
+std::mutex g_status_mutex;
+std::string g_solve_status = "Idle";
+int g_top_group_idx = 0;
+int g_top_group_total = 0;
+int g_best_covered = 0;
+int g_total_boards = 0;
+}  // namespace
+
+std::string LineFinder::GetSolveStatus() {
+  std::lock_guard<std::mutex> lock(g_status_mutex);
+  return g_solve_status;
+}
+
+void LineFinder::SetSolveStatus(const std::string &status) {
+  std::lock_guard<std::mutex> lock(g_status_mutex);
+  g_solve_status = status;
+}
+
 static uint64_t get_line_from_trick_calls = 0;
 
 std::vector<ConditionalLine> LineFinder::Solve(
@@ -169,6 +189,13 @@ std::vector<ConditionalLine> LineFinder::Solve(
     int leader, Suit trump, const std::vector<CardType> &cur_trick) {
   auto start_solve = std::chrono::high_resolution_clock::now();
   CHECK_EQ(4, hands.size());
+  get_line_from_trick_calls = 0;
+  g_top_group_idx = 0;
+  g_top_group_total = 0;
+  g_best_covered = 0;
+  g_total_boards = num_iters_;
+  SetSolveStatus("Generating " + std::to_string(num_iters_) +
+                 " random deals...");
   LOG(INFO) << "Solving hands: \n\n"
             << "          N: " << HandDebugString(hands[0], true) << "\n\n"
             << " W: " << HandDebugString(hands[1], true)
@@ -185,20 +212,27 @@ std::vector<ConditionalLine> LineFinder::Solve(
   SolverCache cache;
   std::map<int, std::shared_ptr<OptimalPlayTree>> board_trees;
   for (uint i = 0; i < boards.size(); i++) {
+    SetSolveStatus("Solving initial double-dummy trees (" +
+                   std::to_string(i + 1) + "/" +
+                   std::to_string(boards.size()) + " deals)...");
     board_trees[i] = OptimalPlayTree::FindOptimalPlayTree(
         boards[i], min_tricks, &cache);
     VLOG(1) << "Finished computing tree for board " << i
             << " with mini_max " << board_trees[i]->MiniMax();
   }
 
+  SetSolveStatus("Searching play trees across " +
+                 std::to_string(boards.size()) + " deals...");
   auto ans = SolveHelper(min_tricks, cache, board_trees,
                          board_offsets, leader, 0);
   auto end_solve = std::chrono::high_resolution_clock::now();
-  solve_ms_ = std::chrono::duration<double, std::milli>(end_solve - start_solve).count();
+  solve_ms_ = std::chrono::duration<double, std::milli>(
+      end_solve - start_solve).count();
 
   auto start_invariant = std::chrono::high_resolution_clock::now();
   CrossHandDealSetSummarizer summarizer;
-  for (auto &line : ans) {
+  for (size_t line_idx = 0; line_idx < ans.size(); ++line_idx) {
+    auto &line = ans[line_idx];
     line.set_total_boards(num_iters_);
     line.set_min_tricks(min_tricks);
     if (!boards.empty()) {
@@ -210,10 +244,14 @@ std::vector<ConditionalLine> LineFinder::Solve(
       covered_deals.reserve(covered.size());
       for (int b_idx : covered) {
         if (b_idx >= 0 && b_idx < static_cast<int>(boards.size())) {
-          covered_deals.emplace_back(boards[b_idx].GetHand(1), boards[b_idx].GetHand(3));
+          covered_deals.emplace_back(boards[b_idx].GetHand(1),
+                                     boards[b_idx].GetHand(3));
         }
       }
       if (!covered_deals.empty()) {
+        SetSolveStatus("Summarizing deal invariants (line " +
+                       std::to_string(line_idx + 1) + "/" +
+                       std::to_string(ans.size()) + ")...");
         try {
           line.set_summary(
               summarizer.Summarize(covered_deals, "hand 1", "hand 3", &line));
@@ -227,20 +265,27 @@ std::vector<ConditionalLine> LineFinder::Solve(
     std::vector<PairedDeal> failure_deals;
     for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
       if (covered.find(b_idx) == covered.end()) {
-        failure_deals.emplace_back(boards[b_idx].GetHand(1), boards[b_idx].GetHand(3));
+        failure_deals.emplace_back(boards[b_idx].GetHand(1),
+                                   boards[b_idx].GetHand(3));
       }
     }
     if (!failure_deals.empty()) {
+      SetSolveStatus("Summarizing failure invariants (line " +
+                     std::to_string(line_idx + 1) + "/" +
+                     std::to_string(ans.size()) + ")...");
       try {
-        line.set_failure_summary(summarizer.Summarize(failure_deals, "hand 1", "hand 3"));
+        line.set_failure_summary(
+            summarizer.Summarize(failure_deals, "hand 1", "hand 3"));
       } catch (const std::exception &e) {
         LOG(WARNING) << "Failed to summarize failure line: " << e.what();
       }
     }
   }
   auto end_invariant = std::chrono::high_resolution_clock::now();
-  invariant_ms_ = std::chrono::duration<double, std::milli>(end_invariant - start_invariant).count();
+  invariant_ms_ = std::chrono::duration<double, std::milli>(
+      end_invariant - start_invariant).count();
 
+  SetSolveStatus("Solve complete.");
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
             << get_line_from_trick_calls;
   return ans;
@@ -262,6 +307,15 @@ ConditionalLine LineFinder::GetLineFromTrick(
     const std::set<int> &board_offsets,
     int leader, int lvl) {
   get_line_from_trick_calls++;
+  if ((get_line_from_trick_calls & 31) == 0 && g_top_group_total > 0) {
+    SetSolveStatus("Searching play trees: group " +
+                   std::to_string(g_top_group_idx) + "/" +
+                   std::to_string(g_top_group_total) + " (best coverage: " +
+                   std::to_string(g_best_covered) + "/" +
+                   std::to_string(g_total_boards) + " deals, " +
+                   std::to_string(get_line_from_trick_calls) +
+                   " branches)...");
+  }
   VLOG(2) << "Pursuing line satisfying boards " << gen_trick.boards.size();
   std::map<int, std::set<int>> leader_to_boards;
   VLOG(2) << "demi2.board_to_trick "
@@ -344,6 +398,19 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       continue;
     }
 
+    if (lvl == 0) {
+      g_top_group_idx = i + 1;
+      g_top_group_total = groupings.size();
+      g_best_covered = most_boards_covered;
+      SetSolveStatus("Searching play trees: group " +
+                     std::to_string(g_top_group_idx) + "/" +
+                     std::to_string(g_top_group_total) + " (best coverage: " +
+                     std::to_string(g_best_covered) + "/" +
+                     std::to_string(g_total_boards) + " deals, " +
+                     std::to_string(get_line_from_trick_calls) +
+                     " branches)...");
+    }
+
     // Make a line for this group
     ConditionalLine a_line;
     for (const GeneralizedTrick &trick : group) {
@@ -362,6 +429,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     int covered_boards = a_line.CoveredFinalBoards();
     if (covered_boards >= most_boards_covered) {
       most_boards_covered = covered_boards;
+      if (lvl == 0) {
+        g_best_covered = most_boards_covered;
+      }
       best_lines.insert(std::make_pair(covered_boards, a_line));
       VLOG(2) << "Found new best line at lvl "
               << lvl << " with " << covered_boards

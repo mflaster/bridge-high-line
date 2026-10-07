@@ -2247,6 +2247,23 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
+    let isSolving = true;
+    const statusPollTimer = setInterval(async () => {
+      if (!isSolving) return;
+      try {
+        const stRes = await fetch('/api/solve_status');
+        if (!isSolving || !stRes.ok) return;
+        const stData = await stRes.json();
+        if (!isSolving) return;
+        if (stData && stData.status) {
+          const curSec = ((performance.now() - startTime) / 1000).toFixed(1);
+          setStatus('running', stData.status, `${curSec} s`);
+        }
+      } catch (_) {
+        // Ignore transient polling errors while solving
+      }
+    }, 200);
+
     try {
       const response = await fetch('/api/solve', {
         method: 'POST',
@@ -2255,6 +2272,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const data = await response.json();
+      isSolving = false;
+      clearInterval(statusPollTimer);
       const elapsed = (performance.now() - startTime).toFixed(1);
 
       if (!response.ok || !data.success) {
@@ -2299,9 +2318,13 @@ document.addEventListener('DOMContentLoaded', () => {
       updateViewMode(activeViewMode);
 
     } catch (err) {
+      isSolving = false;
+      clearInterval(statusPollTimer);
       console.error(err);
       setStatus('error', 'Network or server error: ' + err.message);
     } finally {
+      isSolving = false;
+      clearInterval(statusPollTimer);
       solveBtn.disabled = false;
     }
   });

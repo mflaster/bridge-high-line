@@ -53,6 +53,7 @@ class WebServer {
   void RegisterRoutes();
   void HandleHealth(const httplib::Request &req, httplib::Response &res);
   void HandleSolve(const httplib::Request &req, httplib::Response &res);
+  void HandleSolveStatus(const httplib::Request &req, httplib::Response &res);
 
   std::string host_;
   int port_;

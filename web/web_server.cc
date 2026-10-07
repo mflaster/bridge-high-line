@@ -802,6 +802,10 @@ void WebServer::RegisterRoutes() {
   svr_.Post("/api/solve", [this](const httplib::Request &req, httplib::Response &res) {
     HandleSolve(req, res);
   });
+
+  svr_.Get("/api/solve_status", [this](const httplib::Request &req, httplib::Response &res) {
+    HandleSolveStatus(req, res);
+  });
 }
 
 void WebServer::HandleHealth(const httplib::Request &, httplib::Response &res) {
@@ -811,10 +815,18 @@ void WebServer::HandleHealth(const httplib::Request &, httplib::Response &res) {
   res.set_content(response.dump(), "application/json");
 }
 
+void WebServer::HandleSolveStatus(const httplib::Request &,
+                                  httplib::Response &res) {
+  nlohmann::json response;
+  response["status"] = LineFinder::GetSolveStatus();
+  res.set_content(response.dump(), "application/json");
+}
+
 void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res) {
   nlohmann::json response;
   try {
     auto start_time = std::chrono::high_resolution_clock::now();
+    LineFinder::SetSolveStatus("Starting solve...");
 
     nlohmann::json req_json = nlohmann::json::parse(req.body);
 

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <thread>
 
+#include "line_finder.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
 #include "web_server.h"
@@ -56,6 +57,14 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_health->status == 200);
   nlohmann::json health_json = nlohmann::json::parse(res_health->body);
   REQUIRE(health_json["status"] == "ok");
+
+  // Test Solve Status Endpoint
+  LineFinder::SetSolveStatus("Analyzing trick 1...");
+  auto res_status = client.Get("/api/solve_status");
+  REQUIRE(res_status);
+  REQUIRE(res_status->status == 200);
+  nlohmann::json status_json = nlohmann::json::parse(res_status->body);
+  REQUIRE(status_json["status"] == "Analyzing trick 1...");
 
   server.Stop();
 }

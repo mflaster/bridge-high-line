@@ -87,6 +87,9 @@ class LineFinder {
   static std::string TricksWonDebugString(const std::multiset<int> &tricks);
   static int CountAtLeast(const std::multiset<int> &data, int thresh);
 
+  static std::string GetSolveStatus();
+  static void SetSolveStatus(const std::string &status);
+
   double solve_ms() const { return solve_ms_; }
   double invariant_ms() const { return invariant_ms_; }
 
