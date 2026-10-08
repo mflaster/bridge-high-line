@@ -21,6 +21,76 @@ static int CardsInSuit(uint64_t hand, Suit s) {
   return count;
 }
 
+// --- HandLabelFormatter Implementation ---
+
+std::string HandLabelFormatter::TranslateCompass(const std::string& raw_label) {
+  if (raw_label.empty()) return "";
+  if (raw_label == "hand 0" || raw_label == "0" || raw_label == "North" || raw_label == "north" || raw_label == "N") {
+    return "N";
+  }
+  if (raw_label == "hand 1" || raw_label == "1" || raw_label == "East" || raw_label == "east" || raw_label == "E") {
+    return "E";
+  }
+  if (raw_label == "hand 2" || raw_label == "2" || raw_label == "South" || raw_label == "south" || raw_label == "S") {
+    return "S";
+  }
+  if (raw_label == "hand 3" || raw_label == "3" || raw_label == "West" || raw_label == "west" || raw_label == "W") {
+    return "W";
+  }
+  return raw_label;
+}
+
+std::string HandLabelFormatter::FormatLabel(const std::string& raw_label) const {
+  if (raw_label.empty()) return "";
+  if (mode_ == HandLabelMode::kCompass) {
+    return TranslateCompass(raw_label);
+  }
+  return raw_label;
+}
+
+std::string HandLabelFormatter::FormatHand1() const {
+  return FormatLabel(hand1_label_);
+}
+
+std::string HandLabelFormatter::FormatHand2() const {
+  return FormatLabel(hand2_label_);
+}
+
+std::string HandLabelFormatter::FormatSingleCardHand1() const {
+  if (mode_ == HandLabelMode::kCompass) {
+    return FormatHand1();
+  }
+  return hand1_label_;
+}
+
+std::string HandLabelFormatter::FormatSingleCardHand2() const {
+  if (mode_ == HandLabelMode::kCompass) {
+    return FormatHand2();
+  }
+  return hand2_label_;
+}
+
+std::string HandLabelFormatter::FormatCompositeHand1() const {
+  if (mode_ == HandLabelMode::kCompass) {
+    return FormatHand1();
+  }
+  return FormatCompassOrVerbatim(hand1_label_);
+}
+
+std::string HandLabelFormatter::FormatCompositeHand2() const {
+  if (mode_ == HandLabelMode::kCompass) {
+    return FormatHand2();
+  }
+  return FormatCompassOrVerbatim(hand2_label_);
+}
+
+std::string HandLabelFormatter::FormatCompassOrVerbatim(const std::string& raw_label) const {
+  if (raw_label.empty()) return "";
+  if (raw_label == "hand 1") return "E";
+  if (raw_label == "hand 2" || raw_label == "hand 3") return "W";
+  return TranslateCompass(raw_label);
+}
+
 // --- Extractors Implementation ---
 
 void JointSuitRuleExtractor::ProcessDeal(const PairedDeal& deal) {
@@ -67,18 +137,18 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> JointSuitRuleExtractor::Extr
 
     if (bounds.min_hand1 == bounds.max_hand1) {
       invariants.push_back(std::make_shared<ExactSuitLengthInvariant>(
-          InvariantHandChoice::kHand1, suit, bounds.min_hand1, hand1_label_));
+          InvariantHandChoice::kHand1, suit, bounds.min_hand1, formatter_.FormatSingleCardHand1()));
     } else if (bounds.min_hand1 > 0 || bounds.max_hand1 < bounds.max_combined) {
       invariants.push_back(std::make_shared<SuitLengthRangeInvariant>(
-          InvariantHandChoice::kHand1, suit, bounds.min_hand1, bounds.max_hand1, hand1_label_));
+          InvariantHandChoice::kHand1, suit, bounds.min_hand1, bounds.max_hand1, formatter_.FormatSingleCardHand1()));
     }
 
     if (bounds.min_hand2 == bounds.max_hand2) {
       invariants.push_back(std::make_shared<ExactSuitLengthInvariant>(
-          InvariantHandChoice::kHand2, suit, bounds.min_hand2, hand2_label_));
+          InvariantHandChoice::kHand2, suit, bounds.min_hand2, formatter_.FormatSingleCardHand2()));
     } else if (bounds.min_hand2 > 0 || bounds.max_hand2 < bounds.max_combined) {
       invariants.push_back(std::make_shared<SuitLengthRangeInvariant>(
-          InvariantHandChoice::kHand2, suit, bounds.min_hand2, bounds.max_hand2, hand2_label_));
+          InvariantHandChoice::kHand2, suit, bounds.min_hand2, bounds.max_hand2, formatter_.FormatSingleCardHand2()));
     }
 
     int max_either = std::max(bounds.max_hand1, bounds.max_hand2);
@@ -142,27 +212,29 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> HonorPossessionClassifier::E
       const auto& stats = r_it->second;
       CardType card = Card::GetSuitedCard(suit, r);
 
-      std::string l1 = (hand1_label_ == "hand 1") ? "E" : hand1_label_;
-      std::string l2 = (hand2_label_ == "hand 2" || hand2_label_ == "hand 3") ? "W" : hand2_label_;
+      std::string l1_single = formatter_.FormatSingleCardHand1();
+      std::string l2_single = formatter_.FormatSingleCardHand2();
+      std::string l1_composite = formatter_.FormatCompositeHand1();
+      std::string l2_composite = formatter_.FormatCompositeHand2();
 
       if (stats.hand1_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
-            HonorPossessionTargetHand::kHand1, card, hand1_label_));
+            HonorPossessionTargetHand::kHand1, card, l1_single));
         all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
-            HonorPossessionTargetHand::kHand1, card, l1));
+            HonorPossessionTargetHand::kHand1, card, l1_composite));
       } else if (stats.hand2_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
-            HonorPossessionTargetHand::kHand2, card, hand2_label_));
+            HonorPossessionTargetHand::kHand2, card, l2_single));
         all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
-            HonorPossessionTargetHand::kHand2, card, l2));
+            HonorPossessionTargetHand::kHand2, card, l2_composite));
       } else if (stats.both_count == total_deals_) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kBoth, card, "both hands"));
       } else if (stats.hand1_count + stats.hand2_count + stats.both_count > 0) {
         auto inv1 = std::make_shared<HonorPossessionInvariant>(
-            HonorPossessionTargetHand::kHand1, card, l1);
+            HonorPossessionTargetHand::kHand1, card, l1_composite);
         auto inv2 = std::make_shared<HonorPossessionInvariant>(
-            HonorPossessionTargetHand::kHand2, card, l2);
+            HonorPossessionTargetHand::kHand2, card, l2_composite);
         non_100_candidates.push_back(inv1);
         non_100_candidates.push_back(inv2);
         all_candidates.push_back(inv1);
@@ -199,7 +271,7 @@ void HonorPossessionClassifier::AddOrInvariants(
       }
       bool holds_for_all = true;
       for (const auto& deal : deals_) {
-        if (!or_inv->HoldsOnDeal(deal, hand1_label_, hand2_label_)) {
+        if (!or_inv->HoldsOnDeal(deal, formatter_.hand1_label(), formatter_.hand2_label())) {
           holds_for_all = false;
           break;
         }
@@ -234,7 +306,7 @@ void HonorPossessionClassifier::AddAndInvariants(
       }
       bool holds_for_all = true;
       for (const auto& deal : deals_) {
-        if (!and_inv->HoldsOnDeal(deal, hand1_label_, hand2_label_)) {
+        if (!and_inv->HoldsOnDeal(deal, formatter_.hand1_label(), formatter_.hand2_label())) {
           holds_for_all = false;
           break;
         }
@@ -510,8 +582,7 @@ std::vector<std::string> FilterUninterestingRules(
 
 CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     const std::vector<PairedDeal>& deals,
-    const std::string& hand1_label,
-    const std::string& hand2_label,
+    const HandLabelFormatter& formatter,
     const ConditionalLine* line) const {
   CrossHandSummaryReport report;
   report.total_deals = static_cast<int>(deals.size());
@@ -534,9 +605,9 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   report.unknown_cards = expected_overall;
   report.cards_per_hand = CountCardsInHand(deals[0].hand1);
 
-  JointSuitRuleExtractor suit_extractor(hand1_label, hand2_label);
-  HonorPossessionClassifier honor_classifier(hand1_label, hand2_label);
-  CrossSuitConditionalRuleExtractor conditional_extractor(hand1_label, hand2_label);
+  JointSuitRuleExtractor suit_extractor(formatter);
+  HonorPossessionClassifier honor_classifier(formatter);
+  CrossSuitConditionalRuleExtractor conditional_extractor(formatter);
 
   for (const auto& deal : deals) {
     suit_extractor.ProcessDeal(deal);
@@ -558,7 +629,7 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
 
   auto filtered_invariants = FilterUninterestingInvariants(
       candidate_invariants, report.unknown_cards, report.cards_per_hand,
-      hand1_label, hand2_label, 200, line);
+      formatter.hand1_label(), formatter.hand2_label(), 200, line);
 
   report.invariant_rules.clear();
   for (const auto& inv : filtered_invariants) {
@@ -568,4 +639,12 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   }
 
   return report;
+}
+
+CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
+    const std::vector<PairedDeal>& deals,
+    const std::string& hand1_label,
+    const std::string& hand2_label,
+    const ConditionalLine* line) const {
+  return Summarize(deals, HandLabelFormatter(hand1_label, hand2_label), line);
 }

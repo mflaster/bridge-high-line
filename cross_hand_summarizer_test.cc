@@ -478,3 +478,112 @@ TEST_CASE("FilterUninterestingInvariants_LineFiltering",
   REQUIRE_FALSE(report_with_line.HasRule("hand 1 always contains the ST"));
 }
 
+TEST_CASE("HandLabelFormatter_DirectUnitTests", "[cross_hand_summarizer]") {
+  SECTION("Default / Verbatim Mode") {
+    HandLabelFormatter formatter("hand 1", "hand 3", HandLabelMode::kVerbatim);
+    REQUIRE(formatter.hand1_label() == "hand 1");
+    REQUIRE(formatter.hand2_label() == "hand 3");
+    REQUIRE(formatter.mode() == HandLabelMode::kVerbatim);
+
+    REQUIRE(formatter.FormatHand1() == "hand 1");
+    REQUIRE(formatter.FormatHand2() == "hand 3");
+    REQUIRE(formatter.FormatSingleCardHand1() == "hand 1");
+    REQUIRE(formatter.FormatSingleCardHand2() == "hand 3");
+    REQUIRE(formatter.FormatCompositeHand1() == "E");
+    REQUIRE(formatter.FormatCompositeHand2() == "W");
+  }
+
+  SECTION("Compass Mode") {
+    HandLabelFormatter formatter("hand 1", "hand 3", HandLabelMode::kCompass);
+    REQUIRE(formatter.mode() == HandLabelMode::kCompass);
+
+    REQUIRE(formatter.FormatHand1() == "E");
+    REQUIRE(formatter.FormatHand2() == "W");
+    REQUIRE(formatter.FormatSingleCardHand1() == "E");
+    REQUIRE(formatter.FormatSingleCardHand2() == "W");
+    REQUIRE(formatter.FormatCompositeHand1() == "E");
+    REQUIRE(formatter.FormatCompositeHand2() == "W");
+  }
+
+  SECTION("Standard Compass Input Mapping") {
+    HandLabelFormatter formatter("North", "South", true);
+    REQUIRE(formatter.FormatHand1() == "N");
+    REQUIRE(formatter.FormatHand2() == "S");
+
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 0") == "N");
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 1") == "E");
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 2") == "S");
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 3") == "W");
+    REQUIRE(HandLabelFormatter::TranslateCompass("0") == "N");
+    REQUIRE(HandLabelFormatter::TranslateCompass("1") == "E");
+    REQUIRE(HandLabelFormatter::TranslateCompass("2") == "S");
+    REQUIRE(HandLabelFormatter::TranslateCompass("3") == "W");
+  }
+
+  SECTION("Custom Unrecognized Labels Default to Verbatim Passthrough") {
+    HandLabelFormatter formatter("Declarer", "Dummy", HandLabelMode::kCompass);
+    REQUIRE(formatter.FormatHand1() == "Declarer");
+    REQUIRE(formatter.FormatHand2() == "Dummy");
+    REQUIRE(formatter.FormatSingleCardHand1() == "Declarer");
+    REQUIRE(formatter.FormatSingleCardHand2() == "Dummy");
+    REQUIRE(formatter.FormatCompositeHand1() == "Declarer");
+    REQUIRE(formatter.FormatCompositeHand2() == "Dummy");
+  }
+
+  SECTION("Empty String Handling") {
+    HandLabelFormatter formatter("", "", HandLabelMode::kCompass);
+    REQUIRE(formatter.FormatHand1() == "");
+    REQUIRE(formatter.FormatHand2() == "");
+    REQUIRE(formatter.FormatSingleCardHand1() == "");
+    REQUIRE(formatter.FormatSingleCardHand2() == "");
+    REQUIRE(formatter.FormatCompositeHand1() == "");
+    REQUIRE(formatter.FormatCompositeHand2() == "");
+    REQUIRE(formatter.FormatLabel("") == "");
+    REQUIRE(HandLabelFormatter::TranslateCompass("") == "");
+  }
+}
+
+TEST_CASE("CrossHandDealSetSummarizer_CompassVsVerbatimMode", "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S K2", "S 43"),
+      PairedDeal("S K3", "S 42"),
+      PairedDeal("S K4", "S 32")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+
+  SECTION("Verbatim Mode Summary") {
+    HandLabelFormatter verbatim_fmt("hand 1", "hand 3", HandLabelMode::kVerbatim);
+    CrossHandSummaryReport report = summarizer.Summarize(deals, verbatim_fmt);
+    REQUIRE(report.HasRule("hand 1 always contains the SK"));
+  }
+
+  SECTION("Compass Mode Summary") {
+    HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+    CrossHandSummaryReport report = summarizer.Summarize(deals, compass_fmt);
+    REQUIRE(report.HasRule("E has the SK"));
+  }
+}
+
+TEST_CASE("Extractors_DirectConstructionWithFormatter", "[cross_hand_summarizer]") {
+  PairedDeal deal("S K2; H A", "S 43; H K");
+  HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+
+  JointSuitRuleExtractor suit_extractor(compass_fmt);
+  suit_extractor.ProcessDeal(deal);
+  auto suit_invs = suit_extractor.ExtractInvariants();
+  REQUIRE_FALSE(suit_invs.empty());
+
+  HonorPossessionClassifier honor_classifier(compass_fmt);
+  honor_classifier.ProcessDeal(deal);
+  auto honor_invs = honor_classifier.ExtractInvariants();
+  REQUIRE_FALSE(honor_invs.empty());
+  REQUIRE(honor_invs[0]->ToString() == "E has the SK");
+
+  CrossSuitConditionalRuleExtractor cond_extractor(compass_fmt);
+  cond_extractor.ProcessDeal(deal);
+  auto cond_invs = cond_extractor.ExtractInvariants();
+  // No error thrown
+}
+
+
