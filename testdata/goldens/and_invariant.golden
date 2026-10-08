@@ -9,12 +9,6 @@ Covers 4/10 (40.0%) [1, 3, 4, 6]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules for 5 card ending:
-  - hand 1 length in S is between 2 and 4
-  - hand 3 length in S is between 1 and 3
-  - hand 1 length in H is between 1 and 3
-  - hand 3 length in H is between 2 and 4
-  - hand 1 always contains the SK
-  - hand 1 always contains the HK
   - AndInvariant(E has the HK, E has the SK)
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,3,4,6] / S3 S5 SQ S6  / S3 S7 SQ S6  / S3 S7 SQ S5  / S3 S6 SQ S5 

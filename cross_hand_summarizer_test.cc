@@ -478,3 +478,156 @@ TEST_CASE("FilterUninterestingInvariants_LineFiltering",
   REQUIRE_FALSE(report_with_line.HasRule("hand 1 always contains the ST"));
 }
 
+TEST_CASE("UnknownCardsInvariant_Invert", "[cross_hand_summarizer]") {
+  // Unknown cards: 6 Spades (SAKQJT9), 6 Hearts (HAKQJT9), 8 Diamonds
+  // (DAKQJT987). Total 20 cards, hand 1 size = 10, hand 2 size = 10.
+  uint64_t unknown_cards =
+      ParseHand("S AKQJT9 H AKQJT9 D AKQJT987");
+  int hand1_size = 10;
+
+  std::vector<PairedDeal> sample_deals = {
+      PairedDeal("S AKQJ H AK D AKQJ", "S T9 H QJT9 D T987"),
+      PairedDeal("S T9 H AKQJ D AKQJ", "S AKQJ H T9 D T987"),
+      PairedDeal("S AKQ H AKQ D AKQJ", "S JT9 H JT9 D T987"),
+      PairedDeal("S AKQJT9 H A D AKQ", "S - H KQJT9 D JT987"),
+  };
+
+  auto verify_invert_semantics = [&](const UnknownCardsInvariant& inv) {
+    auto inv_ptr = inv.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv_ptr != nullptr);
+    for (const auto& d : sample_deals) {
+      REQUIRE(inv_ptr->HoldsOnDeal(d) == !inv.HoldsOnDeal(d));
+    }
+  };
+
+  // 1. HonorPossessionInvariant: (HA in W) <-> (HA in E)
+  {
+    HonorPossessionInvariant ha_w(HonorPossessionTargetHand::kHand1,
+                                  Card::ParseStringCard("HA"), "W");
+    auto inv = ha_w.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == "E has the HA");
+    verify_invert_semantics(ha_w);
+  }
+
+  // 2. SuitLengthRangeInvariant: 4+ spades in W (4..6) -> 0..3 in W -> 3..6 E
+  {
+    SuitLengthRangeInvariant w_4plus_s(InvariantHandChoice::kHand1,
+                                       Suit::SPADES, 4, 6, "W");
+    auto inv = w_4plus_s.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() == "W length in S is between 0 and 3");
+    verify_invert_semantics(w_4plus_s);
+    // Also check equivalence to 3..6 in E on all sample deals.
+    SuitLengthRangeInvariant e_3plus_s(InvariantHandChoice::kHand2,
+                                       Suit::SPADES, 3, 6, "E");
+    for (const auto& d : sample_deals) {
+      REQUIRE(inv->HoldsOnDeal(d) == e_3plus_s.HoldsOnDeal(d));
+    }
+  }
+
+  // 3. ExactSuitLengthInvariant at boundary vs interior
+  {
+    ExactSuitLengthInvariant w_0_s(InvariantHandChoice::kHand1, Suit::SPADES, 0,
+                                   "W");
+    auto inv0 = w_0_s.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv0 != nullptr);
+    REQUIRE(inv0->ToString() == "W length in S is between 1 and 6");
+    verify_invert_semantics(w_0_s);
+
+    ExactSuitLengthInvariant w_3_s(InvariantHandChoice::kHand1, Suit::SPADES, 3,
+                                   "W");
+    auto inv3 = w_3_s.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv3 != nullptr);
+    REQUIRE(inv3->ToString() ==
+            "OrInvariant(W length in S is between 0 and 2, "
+            "W length in S is between 4 and 6)");
+    verify_invert_semantics(w_3_s);
+  }
+
+  // 4. MaxSuitLengthInvariant
+  {
+    MaxSuitLengthInvariant max_4_s(Suit::SPADES, 4);
+    auto inv = max_4_s.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() ==
+            "OrInvariant(E length in S is between 5 and 6, "
+            "W length in S is between 5 and 6)");
+    verify_invert_semantics(max_4_s);
+  }
+
+  // 5. CrossSuitMin / Max / Exact / Card
+  {
+    CrossSuitMinSuitLengthInvariant min_rule(Card::ParseStringCard("HA"),
+                                             Suit::SPADES, 4);
+    auto inv_min = min_rule.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv_min != nullptr);
+    REQUIRE(inv_min->ToString() ==
+            "the hand with the HA also has at most 3 S");
+    verify_invert_semantics(min_rule);
+
+    CrossSuitMaxSuitLengthInvariant max_rule(Card::ParseStringCard("HA"),
+                                             Suit::SPADES, 3);
+    auto inv_max = max_rule.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv_max != nullptr);
+    REQUIRE(inv_max->ToString() ==
+            "the hand with the HA also has at least 4 S");
+    verify_invert_semantics(max_rule);
+
+    CrossSuitExactSuitLengthInvariant exact_rule(Card::ParseStringCard("HA"),
+                                                 Suit::SPADES, 3);
+    auto inv_exact = exact_rule.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv_exact != nullptr);
+    verify_invert_semantics(exact_rule);
+
+    CrossSuitCardConditionalInvariant card_rule(Card::ParseStringCard("HA"),
+                                                Card::ParseStringCard("SK"));
+    auto inv_card = card_rule.Invert(unknown_cards, hand1_size, "W", "E");
+    REQUIRE(inv_card != nullptr);
+    verify_invert_semantics(card_rule);
+  }
+
+  // 6. AndInvariant <-> OrInvariant
+  {
+    auto left = std::make_shared<HonorPossessionInvariant>(
+        HonorPossessionTargetHand::kHand1, Card::ParseStringCard("SK"), "E");
+    auto right = std::make_shared<HonorPossessionInvariant>(
+        HonorPossessionTargetHand::kHand1, Card::ParseStringCard("HK"), "E");
+    AndInvariant and_inv(left, right);
+    auto inv = and_inv.Invert(unknown_cards, hand1_size, "E", "W");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->ToString() ==
+            "OrInvariant(W has the HK, W has the SK)");
+    for (const auto& d : sample_deals) {
+      REQUIRE(inv->HoldsOnDeal(d) == !and_inv.HoldsOnDeal(d));
+    }
+  }
+}
+
+TEST_CASE("Summarize_OpposingDealsFiltersRedundantSingleAtoms",
+          "[cross_hand_summarizer]") {
+  // Covered deals: East (hand 1) has BOTH SK and HK.
+  std::vector<PairedDeal> covered_deals = {
+      PairedDeal("S K32 H K32", "S Q45 H Q45"),
+      PairedDeal("S K45 H K45", "S Q32 H Q32"),
+  };
+  // Opposing (failed) deals: East is missing at least one of SK or HK.
+  std::vector<PairedDeal> opposing_deals = {
+      PairedDeal("S K32 H Q32", "S Q45 H K45"),
+      PairedDeal("S Q32 H K32", "S K45 H Q45"),
+      PairedDeal("S Q32 H Q32", "S K45 H K45"),
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(
+      covered_deals, "hand 1", "hand 3", nullptr, &opposing_deals);
+
+  // Neither "hand 1 always contains the SK" nor "hand 1 always contains the HK"
+  // should appear alone because their inverses ("W has SK", "W has HK") do not
+  // hold across all opposing deals; only AndInvariant(E has the HK, E has the
+  // SK) has an inverse OrInvariant(W has the HK, W has the SK) that holds on
+  // all opposing deals.
+  REQUIRE_FALSE(report.HasRule("hand 1 always contains the SK"));
+  REQUIRE_FALSE(report.HasRule("hand 1 always contains the HK"));
+  REQUIRE(report.HasRule("AndInvariant(E has the HK, E has the SK)"));
+}

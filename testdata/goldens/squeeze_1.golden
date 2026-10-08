@@ -9,14 +9,6 @@ Covers 11/60 (18.3%) [4, 5, 14, 19, 21, 27, 35, 45, 47, 49, 53]
 Cross-Hand Deal Set Summary Report
 Total Deals: 11
 Invariant Rules for 6 card ending:
-  - the hand with the ST also has at least 2 S
-  - the hand with the ST also has at most 4 H
-  - the hand with the HT also has at most 4 S
-  - the hand with the HT also has at least 2 H
-  - the hand with the HJ also has at most 4 S
-  - the hand with the HJ also has at least 2 H
-  - the hand with the HQ also has at most 4 S
-  - the hand with the HQ also has at least 2 H
   - the hand with the HA also has at least 4 S
   - the hand with the HA also has at most 2 H
 
