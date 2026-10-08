@@ -925,11 +925,11 @@ body.is-resizing * {
 }
 
 .seat-badge-ns {
-  color: #6ee7b7;
+  color: #38bdf8;
 }
 
 .seat-badge-ew {
-  color: #fcd34d;
+  color: #c084fc;
 }
 
 .card-chips-row {
@@ -971,13 +971,13 @@ body.is-resizing * {
 }
 
 .card-chip.card-winner.card-winner-ns {
-  border: 2px solid #10b981 !important;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  border: 2px solid #38bdf8 !important;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
 }
 
 .card-chip.card-winner.card-winner-ew {
-  border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  border: 2px solid #c084fc !important;
+  box-shadow: 0 0 6px rgba(192, 132, 252, 0.4);
 }
 
 /* Tree Nodes SVG Styling */
