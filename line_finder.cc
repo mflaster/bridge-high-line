@@ -265,7 +265,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
       end_solve - start_solve).count();
   LOG(INFO) << "TIMING: init_trees_ms=" << init_trees_ms
             << " search_trees_ms=" << search_trees_ms
-            << " (play_trick_calls=" << g_play_trick_calls.load() << ")"
+            << " (play_trick_calls=" << g_play_trick_calls.load()
+            << " cache_hits=" << cache.tree_hits.load()
+            << " cache_misses=" << cache.tree_misses.load() << ")"
             << " total_solve_ms=" << solve_ms_
             << " get_line_from_trick_calls="
             << get_line_from_trick_calls.load();

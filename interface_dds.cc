@@ -276,6 +276,30 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
         new OptimalPlayTree(0, bs, tricks_remaining, min_tricks));
     return ans;
   }
+  BoardCacheKey key{};
+  size_t shard = 0;
+  bool use_tree_cache = (cache != nullptr && bs.CardsPlayedThisTrick() == 0);
+  if (use_tree_cache) {
+    uint64_t mask = ~bs.played_cards();
+    key = BoardCacheKey{
+        bs.GetHand(0) & mask,
+        bs.GetHand(1) & mask,
+        bs.GetHand(2) & mask,
+        bs.GetHand(3) & mask,
+        static_cast<uint8_t>(bs.CurPlayer()),
+        static_cast<uint8_t>(bs.GetTrump())};
+    shard = BoardCacheKeyHash{}(key) & (SolverCache::kNumShards - 1);
+    std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
+    auto it = cache->tree_cache[shard].find(key);
+    if (it != cache->tree_cache[shard].end()) {
+      cache->tree_hits.fetch_add(1, std::memory_order_relaxed);
+      std::shared_ptr<OptimalPlayTree> cached = it->second;
+      if (deepen_levels > 0) {
+        cached->Deepen(deepen_levels, cache);
+      }
+      return cached;
+    }
+  }
   OptimalLines lines;
   int mini_max = DDSFindOptimalLines(bs, min_tricks, &lines, cache);
   VLOG(2) << "FindOptimalPlayTreeHelper got " << mini_max;
@@ -283,6 +307,16 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
       new OptimalPlayTree(mini_max, bs, tricks_remaining, min_tricks));
   for (const OptimalLine &line : lines) {
     ans->AddLine(line);
+  }
+  if (use_tree_cache) {
+    std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
+    auto [it, inserted] = cache->tree_cache[shard].emplace(key, ans);
+    if (!inserted) {
+      cache->tree_hits.fetch_add(1, std::memory_order_relaxed);
+      ans = it->second;
+    } else {
+      cache->tree_misses.fetch_add(1, std::memory_order_relaxed);
+    }
   }
   ans->Deepen(deepen_levels, cache);
   return ans;
