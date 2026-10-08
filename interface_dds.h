@@ -10,7 +10,7 @@
 #include "hand.h"
 #include "solver.h"
 
-void EnsureDDSInitialized();
+int EnsureDDSInitialized();
 
 void PopulatePBNDeal(const BoardState &bs, dealPBN *d1);
 

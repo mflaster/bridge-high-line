@@ -871,6 +871,12 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       num_iters = req_json["num_iters"].get<int>();
     }
 
+    int num_threads = 4;
+    if (req_json.contains("num_threads") &&
+        req_json["num_threads"].is_number()) {
+      num_threads = std::max(1, req_json["num_threads"].get<int>());
+    }
+
     int n_cnt = CountCardsInHand(hands[0]);
     int e_cnt = CountCardsInHand(hands[1]);
     int s_cnt = CountCardsInHand(hands[2]);
@@ -960,7 +966,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       }
 
       std::vector<ConditionalLine> lines =
-          lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit, {});
+          lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit, {},
+                   num_threads);
       solve_ms = lf.solve_ms();
       invariant_ms = lf.invariant_ms();
 
@@ -1018,6 +1025,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["success_boards"] = success_boards;
     response["failure_boards"] = failure_boards;
     response["covered_boards"] = covered_boards;
+    response["num_threads"] = num_threads;
     response["solve_ms"] = solve_ms;
     response["invariant_ms"] = invariant_ms;
     if (tree_node) {

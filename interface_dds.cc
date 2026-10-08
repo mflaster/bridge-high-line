@@ -1,5 +1,6 @@
 #include "interface_dds.h"
 
+#include <algorithm>
 #include <omp.h>
 
 #include "glog/logging.h"
@@ -11,16 +12,24 @@ class InitThreads {
 #if defined(__linux) || defined(__APPLE__)
     SetMaxThreads(0);
 #endif
+    DDSInfo info;
+    GetDDSInfo(&info);
+    max_threads_ = std::max(1, info.noOfThreads);
   }
+  int max_threads() const { return max_threads_; }
+
+ private:
+  int max_threads_ = 1;
 };
 
-void DoInit() {
+int DoInit() {
   static InitThreads thread_initter;
+  return thread_initter.max_threads();
 }
 }  // namespace
 
-void EnsureDDSInitialized() {
-  DoInit();
+int EnsureDDSInitialized() {
+  return DoInit();
 }
 
 static bool CONSIDER_EQUALS = false;

@@ -1,6 +1,7 @@
 #include "line_finder.h"
 
 #include <ctype.h>
+#include <omp.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -189,10 +190,12 @@ static std::atomic<uint64_t> g_play_trick_calls{0};
 std::vector<ConditionalLine> LineFinder::Solve(
     int min_tricks,
     const std::vector<uint64_t> &hands, uint64_t unknown_cards,
-    int leader, Suit trump, const std::vector<CardType> &cur_trick) {
+    int leader, Suit trump, const std::vector<CardType> &cur_trick,
+    int num_threads) {
   auto start_solve = std::chrono::high_resolution_clock::now();
   CHECK_EQ(4, hands.size());
-  EnsureDDSInitialized();
+  int max_dds_threads = EnsureDDSInitialized();
+  int effective_threads = std::clamp(num_threads, 1, max_dds_threads);
   get_line_from_trick_calls = 0;
   g_play_trick_calls = 0;
   g_top_group_idx = 0;
@@ -208,7 +211,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << "[" << HandDebugString(unknown_cards, true) << "]\n\n"
             << "          S: " << HandDebugString(hands[2], true)
             << "\n\nGoal: " << min_tricks << " tricks\n"
-            << "Hands simulated: " << num_iters_ << "\n\n";
+            << "Hands simulated: " << num_iters_
+            << " (threads: " << effective_threads << ")\n\n";
   fuzzy_state_.SetHands(hands, unknown_cards);
   std::set<int> board_offsets;
   std::vector<BoardState> boards =
@@ -219,7 +223,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
   std::map<int, std::shared_ptr<OptimalPlayTree>> board_trees;
   std::vector<std::shared_ptr<OptimalPlayTree>> init_trees(boards.size());
   std::atomic<int> init_done{0};
-  #pragma omp parallel for num_threads(4) schedule(dynamic)
+  #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
+      if (effective_threads > 1)
   for (size_t i = 0; i < boards.size(); i++) {
     init_trees[i] = OptimalPlayTree::FindOptimalPlayTree(
         boards[i], min_tricks, &cache);
@@ -240,13 +245,18 @@ std::vector<ConditionalLine> LineFinder::Solve(
   SetSolveStatus("Searching play trees across " +
                  std::to_string(boards.size()) + " deals...");
   std::vector<ConditionalLine> ans;
-  #pragma omp parallel num_threads(4)
-  {
-    #pragma omp single
+  if (effective_threads > 1) {
+    #pragma omp parallel num_threads(effective_threads)
     {
-      ans = SolveHelper(min_tricks, cache, board_trees,
-                        board_offsets, leader, 0);
+      #pragma omp single
+      {
+        ans = SolveHelper(min_tricks, cache, board_trees,
+                          board_offsets, leader, 0);
+      }
     }
+  } else {
+    ans = SolveHelper(min_tricks, cache, board_trees,
+                      board_offsets, leader, 0);
   }
   auto end_solve = std::chrono::high_resolution_clock::now();
   double search_trees_ms = std::chrono::duration<double, std::milli>(
@@ -356,24 +366,26 @@ ConditionalLine LineFinder::GetLineFromTrick(
           << PrintBoardToTrick(gen_trick.demi2.board_to_trick);
   std::map<int, std::shared_ptr<OptimalPlayTree>> after_play_trees;
 
-  std::vector<std::pair<std::shared_ptr<OptimalPlayTree>, std::string>>
-      to_deepen;
-  for (int b : gen_trick.boards) {
-    const std::shared_ptr<OptimalPlayTree> &board_tree = board_trees.at(b);
-    CHECK(board_tree);
-    std::string t_str = gen_trick.GetTrickForBoard(b);
-    if (!board_tree->IsDeepened(t_str)) {
-      to_deepen.emplace_back(board_tree, std::move(t_str));
-    }
-  }
-  if (to_deepen.size() > 1) {
-    for (size_t idx = 0; idx < to_deepen.size(); ++idx) {
-      #pragma omp task firstprivate(idx) shared(to_deepen, cache)
-      {
-        to_deepen[idx].first->PlayTrick(to_deepen[idx].second, &cache);
+  if (omp_in_parallel()) {
+    std::vector<std::pair<std::shared_ptr<OptimalPlayTree>, std::string>>
+        to_deepen;
+    for (int b : gen_trick.boards) {
+      const std::shared_ptr<OptimalPlayTree> &board_tree = board_trees.at(b);
+      CHECK(board_tree);
+      std::string t_str = gen_trick.GetTrickForBoard(b);
+      if (!board_tree->IsDeepened(t_str)) {
+        to_deepen.emplace_back(board_tree, std::move(t_str));
       }
     }
-    #pragma omp taskwait
+    if (to_deepen.size() > 1) {
+      for (size_t idx = 0; idx < to_deepen.size(); ++idx) {
+        #pragma omp task firstprivate(idx) shared(to_deepen, cache)
+        {
+          to_deepen[idx].first->PlayTrick(to_deepen[idx].second, &cache);
+        }
+      }
+      #pragma omp taskwait
+    }
   }
 
   for (int b : gen_trick.boards) {
@@ -392,7 +404,7 @@ ConditionalLine LineFinder::GetLineFromTrick(
   }
   ConditionalLine a_line;
   a_line.SetAction(gen_trick);
-  if (leader_to_boards.size() > 1 && lvl <= 7) {
+  if (omp_in_parallel() && leader_to_boards.size() > 1 && lvl <= 7) {
     std::vector<std::pair<int, std::set<int>>> entries(
         leader_to_boards.begin(), leader_to_boards.end());
     std::vector<std::vector<ConditionalLine>> branch_results(entries.size());
@@ -517,7 +529,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       }
     }
 
-    if (has_uncomputed) {
+    if (omp_in_parallel() && has_uncomputed) {
       std::vector<std::pair<std::string, const GeneralizedTrick *>> batch;
       std::set<std::string> batch_seen;
       int max_possible_so_far = group_possible_boards[i];
