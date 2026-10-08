@@ -631,3 +631,154 @@ TEST_CASE("Summarize_OpposingDealsFiltersRedundantSingleAtoms",
   REQUIRE_FALSE(report.HasRule("hand 1 always contains the HK"));
   REQUIRE(report.HasRule("AndInvariant(E has the HK, E has the SK)"));
 }
+
+TEST_CASE("HandLabelFormatter_DirectUnitTests", "[cross_hand_summarizer]") {
+  SECTION("Default / Verbatim Mode") {
+    HandLabelFormatter formatter("hand 1", "hand 3", HandLabelMode::kVerbatim);
+    REQUIRE(formatter.hand1_label() == "hand 1");
+    REQUIRE(formatter.hand2_label() == "hand 3");
+    REQUIRE(formatter.mode() == HandLabelMode::kVerbatim);
+
+    REQUIRE(formatter.FormatHand1() == "hand 1");
+    REQUIRE(formatter.FormatHand2() == "hand 3");
+    REQUIRE(formatter.FormatCompositeHand1() == "E");
+    REQUIRE(formatter.FormatCompositeHand2() == "W");
+  }
+
+  SECTION("Compass Mode") {
+    HandLabelFormatter formatter("hand 1", "hand 3", HandLabelMode::kCompass);
+    REQUIRE(formatter.mode() == HandLabelMode::kCompass);
+
+    REQUIRE(formatter.FormatHand1() == "E");
+    REQUIRE(formatter.FormatHand2() == "W");
+    REQUIRE(formatter.FormatCompositeHand1() == "E");
+    REQUIRE(formatter.FormatCompositeHand2() == "W");
+  }
+
+  SECTION("Standard Compass Input Mapping") {
+    HandLabelFormatter formatter("North", "South", HandLabelMode::kCompass);
+    REQUIRE(formatter.FormatHand1() == "N");
+    REQUIRE(formatter.FormatHand2() == "S");
+
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 0") == "N");
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 1") == "E");
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 2") == "S");
+    REQUIRE(HandLabelFormatter::TranslateCompass("hand 3") == "W");
+    REQUIRE(HandLabelFormatter::TranslateCompass("0") == "N");
+    REQUIRE(HandLabelFormatter::TranslateCompass("1") == "E");
+    REQUIRE(HandLabelFormatter::TranslateCompass("2") == "S");
+    REQUIRE(HandLabelFormatter::TranslateCompass("3") == "W");
+  }
+
+  SECTION("Verbatim Mode Preserves Custom and Directional Labels") {
+    HandLabelFormatter formatter("North", "South", HandLabelMode::kVerbatim);
+    REQUIRE(formatter.FormatHand1() == "North");
+    REQUIRE(formatter.FormatHand2() == "South");
+    REQUIRE(formatter.FormatCompositeHand1() == "North");
+    REQUIRE(formatter.FormatCompositeHand2() == "South");
+  }
+
+  SECTION("Custom Unrecognized Labels Default to Verbatim Passthrough") {
+    HandLabelFormatter formatter("Declarer", "Dummy", HandLabelMode::kCompass);
+    REQUIRE(formatter.FormatHand1() == "Declarer");
+    REQUIRE(formatter.FormatHand2() == "Dummy");
+    REQUIRE(formatter.FormatCompositeHand1() == "Declarer");
+    REQUIRE(formatter.FormatCompositeHand2() == "Dummy");
+  }
+
+  SECTION("Empty String Handling") {
+    HandLabelFormatter formatter("", "", HandLabelMode::kCompass);
+    REQUIRE(formatter.FormatHand1() == "");
+    REQUIRE(formatter.FormatHand2() == "");
+    REQUIRE(formatter.FormatCompositeHand1() == "");
+    REQUIRE(formatter.FormatCompositeHand2() == "");
+    REQUIRE(formatter.FormatLabel("") == "");
+    REQUIRE(HandLabelFormatter::TranslateCompass("") == "");
+  }
+}
+
+TEST_CASE("CrossHandDealSetSummarizer_CompassVsVerbatimMode",
+          "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S K2", "S 43"),
+      PairedDeal("S K3", "S 42"),
+      PairedDeal("S K4", "S 32"),
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+
+  SECTION("Verbatim Mode Summary") {
+    HandLabelFormatter verbatim_fmt(
+        "hand 1", "hand 3", HandLabelMode::kVerbatim);
+    CrossHandSummaryReport report = summarizer.Summarize(deals, verbatim_fmt);
+    REQUIRE(report.HasRule("hand 1 always contains the SK"));
+  }
+
+  SECTION("Compass Mode Summary") {
+    HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+    CrossHandSummaryReport report = summarizer.Summarize(deals, compass_fmt);
+    REQUIRE(report.HasRule("E has the SK"));
+  }
+
+  SECTION("Compass Mode With Opposing Deals") {
+    std::vector<PairedDeal> opposing_deals = {
+        PairedDeal("S 43", "S K2"),
+        PairedDeal("S 42", "S K3"),
+    };
+    HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+    CrossHandSummaryReport report =
+        summarizer.Summarize(deals, compass_fmt, nullptr, &opposing_deals);
+    REQUIRE(report.HasRule("E has the SK"));
+  }
+}
+
+TEST_CASE("Extractors_DirectConstructionWithFormatter",
+          "[cross_hand_summarizer]") {
+  PairedDeal deal("S K2; H A", "S 43; H K");
+  HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+
+  JointSuitRuleExtractor suit_extractor(compass_fmt);
+  suit_extractor.ProcessDeal(deal);
+  auto suit_invs = suit_extractor.ExtractInvariants();
+  REQUIRE_FALSE(suit_invs.empty());
+  REQUIRE(suit_invs[0]->ToString() == "E length in S is always 2");
+
+  HonorPossessionClassifier honor_classifier(compass_fmt);
+  honor_classifier.ProcessDeal(deal);
+  auto honor_invs = honor_classifier.ExtractInvariants();
+  REQUIRE_FALSE(honor_invs.empty());
+  REQUIRE(honor_invs[0]->ToString() == "E has the SK");
+
+  CrossSuitConditionalRuleExtractor cond_extractor(compass_fmt);
+  cond_extractor.ProcessDeal(deal);
+  auto cond_invs = cond_extractor.ExtractInvariants();
+  REQUIRE(cond_invs.empty());
+}
+
+TEST_CASE("EvaluateRuleAndFromString_CompassMapping",
+          "[cross_hand_summarizer]") {
+  PairedDeal deal("S AK2; C 43", "S 43; C AK2");
+  HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+
+  SECTION("Exact suit length invariant parsing with raw labels") {
+    auto inv = UnknownCardsInvariant::FromString(
+        "E length in S is always 3", "hand 1", "hand 3");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->HoldsOnDeal(deal));
+  }
+
+  SECTION("Suit length range invariant parsing with raw labels") {
+    auto inv = UnknownCardsInvariant::FromString(
+        "E length in S is between 2 and 4", "hand 1", "hand 3");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->HoldsOnDeal(deal));
+  }
+
+  SECTION("EvaluateRuleOnDeal with HandLabelFormatter") {
+    REQUIRE(EvaluateRuleOnDeal("E has the SA", deal, compass_fmt));
+    REQUIRE(EvaluateRuleOnDeal("E length in S is always 3", deal, compass_fmt));
+    REQUIRE_FALSE(
+        EvaluateRuleOnDeal("W length in S is always 3", deal, compass_fmt));
+  }
+}
+

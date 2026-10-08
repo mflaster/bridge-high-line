@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 
 static int CardsInSuit(uint64_t hand, Suit s) {
@@ -12,6 +13,90 @@ static int CardsInSuit(uint64_t hand, Suit s) {
     suit_bits >>= 1;
   }
   return count;
+}
+
+static std::optional<InvariantHandChoice> ResolveHandChoice(
+    const std::string& label,
+    const std::string& hand1_label,
+    const std::string& hand2_label) {
+  if (label.empty()) return std::nullopt;
+  if (label == hand1_label) return InvariantHandChoice::kHand1;
+  if (label == hand2_label) return InvariantHandChoice::kHand2;
+  if (!hand1_label.empty() &&
+      HandLabelFormatter::TranslateCompass(label) ==
+          HandLabelFormatter::TranslateCompass(hand1_label)) {
+    return InvariantHandChoice::kHand1;
+  }
+  if (!hand2_label.empty() &&
+      HandLabelFormatter::TranslateCompass(label) ==
+          HandLabelFormatter::TranslateCompass(hand2_label)) {
+    return InvariantHandChoice::kHand2;
+  }
+  if (label == "E" || label == "N" || label == "hand 1") {
+    return InvariantHandChoice::kHand1;
+  }
+  if (label == "W" || label == "S" || label == "hand 2" || label == "hand 3") {
+    return InvariantHandChoice::kHand2;
+  }
+  return std::nullopt;
+}
+
+// --- HandLabelFormatter Implementation ---
+
+std::string HandLabelFormatter::TranslateCompass(const std::string& raw_label) {
+  if (raw_label.empty()) return "";
+  if (raw_label == "hand 0" || raw_label == "0" || raw_label == "North" ||
+      raw_label == "north" || raw_label == "N") {
+    return "N";
+  }
+  if (raw_label == "hand 1" || raw_label == "1" || raw_label == "East" ||
+      raw_label == "east" || raw_label == "E") {
+    return "E";
+  }
+  if (raw_label == "hand 2" || raw_label == "2" || raw_label == "South" ||
+      raw_label == "south" || raw_label == "S") {
+    return "S";
+  }
+  if (raw_label == "hand 3" || raw_label == "3" || raw_label == "West" ||
+      raw_label == "west" || raw_label == "W") {
+    return "W";
+  }
+  return raw_label;
+}
+
+std::string HandLabelFormatter::FormatLabel(
+    const std::string& raw_label) const {
+  if (raw_label.empty()) return "";
+  if (mode_ == HandLabelMode::kCompass) {
+    return TranslateCompass(raw_label);
+  }
+  return raw_label;
+}
+
+std::string HandLabelFormatter::FormatHand1() const {
+  return FormatLabel(hand1_label_);
+}
+
+std::string HandLabelFormatter::FormatHand2() const {
+  return FormatLabel(hand2_label_);
+}
+
+std::string HandLabelFormatter::FormatCompositeHand1() const {
+  if (mode_ == HandLabelMode::kCompass) {
+    return FormatHand1();
+  }
+  if (hand1_label_ == "hand 1") return "E";
+  if (hand1_label_ == "hand 2" || hand1_label_ == "hand 3") return "W";
+  return hand1_label_;
+}
+
+std::string HandLabelFormatter::FormatCompositeHand2() const {
+  if (mode_ == HandLabelMode::kCompass) {
+    return FormatHand2();
+  }
+  if (hand2_label_ == "hand 1") return "E";
+  if (hand2_label_ == "hand 2" || hand2_label_ == "hand 3") return "W";
+  return hand2_label_;
 }
 
 // --- UnknownCardsInvariant Implementation ---
@@ -26,19 +111,24 @@ std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
   if (auto res = AndInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
-  if (auto res = CrossSuitConditionalInvariant::FromString(str, hand1_label, hand2_label)) {
+  if (auto res = CrossSuitConditionalInvariant::FromString(
+          str, hand1_label, hand2_label)) {
     return res;
   }
-  if (auto res = HonorPossessionInvariant::FromString(str, hand1_label, hand2_label)) {
+  if (auto res =
+          HonorPossessionInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
-  if (auto res = MaxSuitLengthInvariant::FromString(str, hand1_label, hand2_label)) {
+  if (auto res =
+          MaxSuitLengthInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
-  if (auto res = ExactSuitLengthInvariant::FromString(str, hand1_label, hand2_label)) {
+  if (auto res =
+          ExactSuitLengthInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
-  if (auto res = SuitLengthRangeInvariant::FromString(str, hand1_label, hand2_label)) {
+  if (auto res =
+          SuitLengthRangeInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
   return nullptr;
@@ -73,8 +163,10 @@ std::shared_ptr<OrInvariant> OrInvariant::FromString(
     std::string left_str = content.substr(0, comma_pos);
     std::string right_str = content.substr(comma_pos + 2);
 
-    auto left = UnknownCardsInvariant::FromString(left_str, hand1_label, hand2_label);
-    auto right = UnknownCardsInvariant::FromString(right_str, hand1_label, hand2_label);
+    auto left =
+        UnknownCardsInvariant::FromString(left_str, hand1_label, hand2_label);
+    auto right =
+        UnknownCardsInvariant::FromString(right_str, hand1_label, hand2_label);
     if (!left || !right) {
       return nullptr;
     }
@@ -274,9 +366,9 @@ CrossSuitCardConditionalInvariant::Invert(
        (unknown_cards & target_card_) == 0)) {
     return nullptr;
   }
-  std::string l1 = (hand1_label == "hand 1") ? "E" : hand1_label;
-  std::string l2 =
-      (hand2_label == "hand 2" || hand2_label == "hand 3") ? "W" : hand2_label;
+  HandLabelFormatter fmt(hand1_label, hand2_label);
+  std::string l1 = fmt.FormatCompositeHand1();
+  std::string l2 = fmt.FormatCompositeHand2();
   std::shared_ptr<UnknownCardsInvariant> a1 =
       std::make_shared<HonorPossessionInvariant>(
           HonorPossessionTargetHand::kHand1, condition_card(), l1);
@@ -455,17 +547,13 @@ HonorPossessionInvariant::FromString(const std::string& str,
     CardType card = Card::ParseStringCard(card_str);
     HonorPossessionTargetHand target = HonorPossessionTargetHand::kHand1;
 
-    if (label == hand1_label) {
-      target = HonorPossessionTargetHand::kHand1;
-    } else if (label == hand2_label) {
-      target = HonorPossessionTargetHand::kHand2;
-    } else if (label == "both hands") {
+    if (label == "both hands") {
       target = HonorPossessionTargetHand::kBoth;
-    } else if (label == "E" || label == "N" || label == "hand 1") {
-      target = HonorPossessionTargetHand::kHand1;
-    } else if (label == "W" || label == "S" || label == "hand 2" ||
-               label == "hand 3") {
-      target = HonorPossessionTargetHand::kHand2;
+    } else if (auto choice =
+                   ResolveHandChoice(label, hand1_label, hand2_label)) {
+      target = (*choice == InvariantHandChoice::kHand1)
+                   ? HonorPossessionTargetHand::kHand1
+                   : HonorPossessionTargetHand::kHand2;
     } else {
       return nullptr;
     }
@@ -697,15 +785,9 @@ ExactSuitLengthInvariant::FromString(const std::string& str,
     int n = std::stoi(str.substr(always_pos + 11));
     Suit s = Card::ParseSuit(s_str);
 
-    InvariantHandChoice choice = InvariantHandChoice::kHand1;
-    if (label == hand1_label) {
-      choice = InvariantHandChoice::kHand1;
-    } else if (label == hand2_label) {
-      choice = InvariantHandChoice::kHand2;
-    } else {
-      return nullptr;
-    }
-    return std::make_shared<ExactSuitLengthInvariant>(choice, s, n, label);
+    auto choice = ResolveHandChoice(label, hand1_label, hand2_label);
+    if (!choice) return nullptr;
+    return std::make_shared<ExactSuitLengthInvariant>(*choice, s, n, label);
   } catch (...) {
     return nullptr;
   }
@@ -722,17 +804,10 @@ std::string ExactSuitLengthInvariant::ToString() const {
 
 bool ExactSuitLengthInvariant::HoldsOnDeal(
     const PairedDeal& deal,
-    const std::string& hand1_label,
-    const std::string& hand2_label) const {
-  uint64_t target_hand = 0;
-  if (hand_choice_ == InvariantHandChoice::kHand1 || label_ == hand1_label) {
-    target_hand = deal.hand1;
-  } else if (hand_choice_ == InvariantHandChoice::kHand2 ||
-             label_ == hand2_label) {
-    target_hand = deal.hand2;
-  } else {
-    return false;
-  }
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  uint64_t target_hand =
+      (hand_choice_ == InvariantHandChoice::kHand1) ? deal.hand1 : deal.hand2;
   return CardsInSuit(target_hand, suit_) == exact_len_;
 }
 
@@ -770,15 +845,10 @@ SuitLengthRangeInvariant::FromString(const std::string& str,
     int n2 = std::stoi(str.substr(and_pos + 5));
     Suit s = Card::ParseSuit(s_str);
 
-    InvariantHandChoice choice = InvariantHandChoice::kHand1;
-    if (label == hand1_label) {
-      choice = InvariantHandChoice::kHand1;
-    } else if (label == hand2_label) {
-      choice = InvariantHandChoice::kHand2;
-    } else {
-      return nullptr;
-    }
-    return std::make_shared<SuitLengthRangeInvariant>(choice, s, n1, n2, label);
+    auto choice = ResolveHandChoice(label, hand1_label, hand2_label);
+    if (!choice) return nullptr;
+    return std::make_shared<SuitLengthRangeInvariant>(
+        *choice, s, n1, n2, label);
   } catch (...) {
     return nullptr;
   }
@@ -795,17 +865,10 @@ std::string SuitLengthRangeInvariant::ToString() const {
 
 bool SuitLengthRangeInvariant::HoldsOnDeal(
     const PairedDeal& deal,
-    const std::string& hand1_label,
-    const std::string& hand2_label) const {
-  uint64_t target_hand = 0;
-  if (hand_choice_ == InvariantHandChoice::kHand1 || label_ == hand1_label) {
-    target_hand = deal.hand1;
-  } else if (hand_choice_ == InvariantHandChoice::kHand2 ||
-             label_ == hand2_label) {
-    target_hand = deal.hand2;
-  } else {
-    return false;
-  }
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  uint64_t target_hand =
+      (hand_choice_ == InvariantHandChoice::kHand1) ? deal.hand1 : deal.hand2;
   int len = CardsInSuit(target_hand, suit_);
   return len >= min_len_ && len <= max_len_;
 }

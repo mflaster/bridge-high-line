@@ -31,45 +31,56 @@ struct HonorPossessionStats {
 
 class JointSuitRuleExtractor {
  public:
+  explicit JointSuitRuleExtractor(HandLabelFormatter formatter)
+      : formatter_(std::move(formatter)) {}
+
   JointSuitRuleExtractor(std::string hand1_label = "hand 1",
-                         std::string hand2_label = "hand 2")
-      : hand1_label_(std::move(hand1_label)),
-        hand2_label_(std::move(hand2_label)) {}
+                         std::string hand2_label = "hand 2",
+                         HandLabelMode mode = HandLabelMode::kVerbatim)
+      : formatter_(std::move(hand1_label), std::move(hand2_label), mode) {}
 
   void ProcessDeal(const PairedDeal& deal);
-  const std::map<Suit, JointSuitBounds>& GetSuitBounds() const { return suit_bounds_; }
+  const std::map<Suit, JointSuitBounds>& GetSuitBounds() const {
+    return suit_bounds_;
+  }
   std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
-  std::string hand1_label_;
-  std::string hand2_label_;
+  HandLabelFormatter formatter_;
   std::map<Suit, JointSuitBounds> suit_bounds_;
   int total_deals_ = 0;
 };
 
 class HonorPossessionClassifier {
  public:
+  explicit HonorPossessionClassifier(HandLabelFormatter formatter)
+      : formatter_(std::move(formatter)) {}
+
   HonorPossessionClassifier(std::string hand1_label = "hand 1",
-                            std::string hand2_label = "hand 2")
-      : hand1_label_(std::move(hand1_label)),
-        hand2_label_(std::move(hand2_label)) {}
+                            std::string hand2_label = "hand 2",
+                            HandLabelMode mode = HandLabelMode::kVerbatim)
+      : formatter_(std::move(hand1_label), std::move(hand2_label), mode) {}
 
   void ProcessDeal(const PairedDeal& deal);
-  const std::map<Suit, std::map<int, HonorPossessionStats>>& GetHonorStats() const { return honor_stats_; }
+  const std::map<Suit, std::map<int, HonorPossessionStats>>& GetHonorStats()
+      const {
+    return honor_stats_;
+  }
   std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
   void AddOrInvariants(
-      const std::vector<std::shared_ptr<HonorPossessionInvariant>>& non_100_candidates,
+      const std::vector<std::shared_ptr<HonorPossessionInvariant>>&
+          non_100_candidates,
       std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const;
   void AddAndInvariants(
-      const std::vector<std::shared_ptr<HonorPossessionInvariant>>& all_candidates,
+      const std::vector<std::shared_ptr<HonorPossessionInvariant>>&
+          all_candidates,
       std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const;
 
-  std::string hand1_label_;
-  std::string hand2_label_;
+  HandLabelFormatter formatter_;
   // Map of Suit -> (honor rank 8..12 -> HonorPossessionStats)
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats_;
   int total_deals_ = 0;
@@ -78,18 +89,21 @@ class HonorPossessionClassifier {
 
 class CrossSuitConditionalRuleExtractor {
  public:
-  CrossSuitConditionalRuleExtractor(std::string hand1_label = "hand 1",
-                                     std::string hand2_label = "hand 2")
-      : hand1_label_(std::move(hand1_label)),
-        hand2_label_(std::move(hand2_label)) {}
+  CrossSuitConditionalRuleExtractor() = default;
+
+  explicit CrossSuitConditionalRuleExtractor(
+      const HandLabelFormatter& /*formatter*/) {}
+
+  CrossSuitConditionalRuleExtractor(
+      const std::string& /*hand1_label*/,
+      const std::string& /*hand2_label*/ = "hand 2",
+      HandLabelMode /*mode*/ = HandLabelMode::kVerbatim) {}
 
   void ProcessDeal(const PairedDeal& deal);
   std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
  private:
-  std::string hand1_label_;
-  std::string hand2_label_;
   int total_deals_ = 0;
   std::vector<PairedDeal> deals_;
 };
@@ -119,12 +133,26 @@ bool EvaluateRuleOnDeal(const std::string& rule,
                         const std::string& hand1_label = "hand 1",
                         const std::string& hand2_label = "hand 2");
 
-std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
+bool EvaluateRuleOnDeal(const std::string& rule,
+                        const PairedDeal& deal,
+                        const HandLabelFormatter& formatter);
+
+std::vector<std::shared_ptr<UnknownCardsInvariant>>
+FilterUninterestingInvariants(
     std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
     uint64_t unknown_cards,
     int hand1_size,
     const std::string& hand1_label = "hand 1",
     const std::string& hand2_label = "hand 2",
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
+
+std::vector<std::shared_ptr<UnknownCardsInvariant>>
+FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
     int num_bifurcations = 200,
     const ConditionalLine* line = nullptr);
 
@@ -137,9 +165,23 @@ std::vector<std::string> FilterUninterestingRules(
     int num_bifurcations = 200,
     const ConditionalLine* line = nullptr);
 
+std::vector<std::string> FilterUninterestingRules(
+    const std::vector<std::string>& candidate_rules,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
+
 class CrossHandDealSetSummarizer {
  public:
   CrossHandDealSetSummarizer() = default;
+
+  CrossHandSummaryReport Summarize(
+      const std::vector<PairedDeal>& deals,
+      const HandLabelFormatter& formatter,
+      const ConditionalLine* line = nullptr,
+      const std::vector<PairedDeal>* opposing_deals = nullptr) const;
 
   CrossHandSummaryReport Summarize(
       const std::vector<PairedDeal>& deals,
