@@ -188,6 +188,16 @@ inline const char* INDEX_HTML = R"rawhtml(
           <button id="solveBtn" class="btn btn-primary btn-large">
             <span class="btn-icon">⚡</span> Solve Deal & Build Tree
           </button>
+          <div class="threads-selector" title="Number of solver threads">
+            <label for="numThreads">Threads:</label>
+            <select id="numThreads" class="select-input">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="4" selected>4</option>
+              <option value="8">8</option>
+              <option value="16">16</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -528,6 +538,28 @@ body.is-resizing * {
 
 .solve-action-container {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.solve-action-container .btn-large {
+  flex: 1;
+}
+
+.threads-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.threads-selector .select-input {
+  padding: 9px 10px;
+  cursor: pointer;
 }
 
 .panel-header {
@@ -2445,6 +2477,9 @@ document.addEventListener('DOMContentLoaded', () => {
     solveBtn.disabled = true;
     const startTime = performance.now();
 
+    const numThreadsSelect = document.getElementById('numThreads');
+    const parsedThreads = numThreadsSelect ? parseInt(numThreadsSelect.value, 10) : 4;
+
     const payload = {
       hands: {
         N: inputNorth.value,
@@ -2455,7 +2490,8 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: trumpSelect.value,
       leader: leaderSelect.value,
       min_tricks: isNaN(parseInt(targetTricks.value, 10)) ? 1 : parseInt(targetTricks.value, 10),
-      num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10)
+      num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10),
+      num_threads: isNaN(parsedThreads) ? 4 : parsedThreads
     };
 
     if (inputUnknownCards && inputUnknownCards.value.trim()) {

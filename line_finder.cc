@@ -1,6 +1,9 @@
 #include "line_finder.h"
 
 #include <ctype.h>
+#include <omp.h>
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include "cross_hand_summarizer.h"
@@ -165,10 +168,10 @@ int LineFinder::CountAtLeast(const std::multiset<int> &data, int thresh) {
 namespace {
 std::mutex g_status_mutex;
 std::string g_solve_status = "Idle";
-int g_top_group_idx = 0;
-int g_top_group_total = 0;
-int g_best_covered = 0;
-int g_total_boards = 0;
+std::atomic<int> g_top_group_idx{0};
+std::atomic<int> g_top_group_total{0};
+std::atomic<int> g_best_covered{0};
+std::atomic<int> g_total_boards{0};
 }  // namespace
 
 std::string LineFinder::GetSolveStatus() {
@@ -181,15 +184,20 @@ void LineFinder::SetSolveStatus(const std::string &status) {
   g_solve_status = status;
 }
 
-static uint64_t get_line_from_trick_calls = 0;
+static std::atomic<uint64_t> get_line_from_trick_calls{0};
+static std::atomic<uint64_t> g_play_trick_calls{0};
 
 std::vector<ConditionalLine> LineFinder::Solve(
     int min_tricks,
     const std::vector<uint64_t> &hands, uint64_t unknown_cards,
-    int leader, Suit trump, const std::vector<CardType> &cur_trick) {
+    int leader, Suit trump, const std::vector<CardType> &cur_trick,
+    int num_threads) {
   auto start_solve = std::chrono::high_resolution_clock::now();
   CHECK_EQ(4, hands.size());
+  int max_dds_threads = EnsureDDSInitialized();
+  int effective_threads = std::clamp(num_threads, 1, max_dds_threads);
   get_line_from_trick_calls = 0;
+  g_play_trick_calls = 0;
   g_top_group_idx = 0;
   g_top_group_total = 0;
   g_best_covered = 0;
@@ -203,31 +211,66 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << "[" << HandDebugString(unknown_cards, true) << "]\n\n"
             << "          S: " << HandDebugString(hands[2], true)
             << "\n\nGoal: " << min_tricks << " tricks\n"
-            << "Hands simulated: " << num_iters_ << "\n\n";
+            << "Hands simulated: " << num_iters_
+            << " (threads: " << effective_threads << ")\n\n";
   fuzzy_state_.SetHands(hands, unknown_cards);
   std::set<int> board_offsets;
   std::vector<BoardState> boards =
       SetupBoards(trump, leader, board_offsets, cur_trick);
 
   SolverCache cache;
+  auto start_init_trees = std::chrono::high_resolution_clock::now();
   std::map<int, std::shared_ptr<OptimalPlayTree>> board_trees;
-  for (uint i = 0; i < boards.size(); i++) {
-    SetSolveStatus("Solving initial double-dummy trees (" +
-                   std::to_string(i + 1) + "/" +
-                   std::to_string(boards.size()) + " deals)...");
-    board_trees[i] = OptimalPlayTree::FindOptimalPlayTree(
+  std::vector<std::shared_ptr<OptimalPlayTree>> init_trees(boards.size());
+  std::atomic<int> init_done{0};
+  #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
+      if (effective_threads > 1)
+  for (size_t i = 0; i < boards.size(); i++) {
+    init_trees[i] = OptimalPlayTree::FindOptimalPlayTree(
         boards[i], min_tricks, &cache);
+    int done = ++init_done;
+    SetSolveStatus("Solving initial double-dummy trees (" +
+                   std::to_string(done) + "/" +
+                   std::to_string(boards.size()) + " deals)...");
     VLOG(1) << "Finished computing tree for board " << i
-            << " with mini_max " << board_trees[i]->MiniMax();
+            << " with mini_max " << init_trees[i]->MiniMax();
   }
+  for (size_t i = 0; i < boards.size(); i++) {
+    board_trees[static_cast<int>(i)] = init_trees[i];
+  }
+  auto end_init_trees = std::chrono::high_resolution_clock::now();
+  double init_trees_ms = std::chrono::duration<double, std::milli>(
+      end_init_trees - start_init_trees).count();
 
   SetSolveStatus("Searching play trees across " +
                  std::to_string(boards.size()) + " deals...");
-  auto ans = SolveHelper(min_tricks, cache, board_trees,
-                         board_offsets, leader, 0);
+  std::vector<ConditionalLine> ans;
+  if (effective_threads > 1) {
+    #pragma omp parallel num_threads(effective_threads)
+    {
+      #pragma omp single
+      {
+        ans = SolveHelper(min_tricks, cache, board_trees,
+                          board_offsets, leader, 0);
+      }
+    }
+  } else {
+    ans = SolveHelper(min_tricks, cache, board_trees,
+                      board_offsets, leader, 0);
+  }
   auto end_solve = std::chrono::high_resolution_clock::now();
+  double search_trees_ms = std::chrono::duration<double, std::milli>(
+      end_solve - end_init_trees).count();
   solve_ms_ = std::chrono::duration<double, std::milli>(
       end_solve - start_solve).count();
+  LOG(INFO) << "TIMING: init_trees_ms=" << init_trees_ms
+            << " search_trees_ms=" << search_trees_ms
+            << " (play_trick_calls=" << g_play_trick_calls.load()
+            << " cache_hits=" << cache.tree_hits.load()
+            << " cache_misses=" << cache.tree_misses.load() << ")"
+            << " total_solve_ms=" << solve_ms_
+            << " get_line_from_trick_calls="
+            << get_line_from_trick_calls.load();
 
   auto start_invariant = std::chrono::high_resolution_clock::now();
   CrossHandDealSetSummarizer summarizer;
@@ -284,10 +327,12 @@ std::vector<ConditionalLine> LineFinder::Solve(
   auto end_invariant = std::chrono::high_resolution_clock::now();
   invariant_ms_ = std::chrono::duration<double, std::milli>(
       end_invariant - start_invariant).count();
+  LOG(INFO) << "TIMING: invariant_ms=" << invariant_ms_
+            << " ans.size()=" << ans.size();
 
   SetSolveStatus("Solve complete.");
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
-            << get_line_from_trick_calls;
+            << get_line_from_trick_calls.load();
   return ans;
 }
 
@@ -306,14 +351,15 @@ ConditionalLine LineFinder::GetLineFromTrick(
     std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
     const std::set<int> &board_offsets,
     int leader, int lvl) {
-  get_line_from_trick_calls++;
-  if ((get_line_from_trick_calls & 31) == 0 && g_top_group_total > 0) {
+  uint64_t calls = ++get_line_from_trick_calls;
+  if ((calls & 31) == 0 && g_top_group_total.load() > 0) {
     SetSolveStatus("Searching play trees: group " +
-                   std::to_string(g_top_group_idx) + "/" +
-                   std::to_string(g_top_group_total) + " (best coverage: " +
-                   std::to_string(g_best_covered) + "/" +
-                   std::to_string(g_total_boards) + " deals, " +
-                   std::to_string(get_line_from_trick_calls) +
+                   std::to_string(g_top_group_idx.load()) + "/" +
+                   std::to_string(g_top_group_total.load()) +
+                   " (best coverage: " +
+                   std::to_string(g_best_covered.load()) + "/" +
+                   std::to_string(g_total_boards.load()) + " deals, " +
+                   std::to_string(calls) +
                    " branches)...");
   }
   VLOG(2) << "Pursuing line satisfying boards " << gen_trick.boards.size();
@@ -321,9 +367,33 @@ ConditionalLine LineFinder::GetLineFromTrick(
   VLOG(2) << "demi2.board_to_trick "
           << PrintBoardToTrick(gen_trick.demi2.board_to_trick);
   std::map<int, std::shared_ptr<OptimalPlayTree>> after_play_trees;
+
+  if (omp_in_parallel()) {
+    std::vector<std::pair<std::shared_ptr<OptimalPlayTree>, std::string>>
+        to_deepen;
+    for (int b : gen_trick.boards) {
+      const std::shared_ptr<OptimalPlayTree> &board_tree = board_trees.at(b);
+      CHECK(board_tree);
+      std::string t_str = gen_trick.GetTrickForBoard(b);
+      if (!board_tree->IsDeepened(t_str)) {
+        to_deepen.emplace_back(board_tree, std::move(t_str));
+      }
+    }
+    if (to_deepen.size() > 1) {
+      for (size_t idx = 0; idx < to_deepen.size(); ++idx) {
+        #pragma omp task firstprivate(idx) shared(to_deepen, cache)
+        {
+          to_deepen[idx].first->PlayTrick(to_deepen[idx].second, &cache);
+        }
+      }
+      #pragma omp taskwait
+    }
+  }
+
   for (int b : gen_trick.boards) {
-    std::shared_ptr<OptimalPlayTree> board_tree = board_trees[b];
+    const std::shared_ptr<OptimalPlayTree> &board_tree = board_trees.at(b);
     CHECK(board_tree);
+    ++g_play_trick_calls;
     std::shared_ptr<OptimalPlayTree> after_play =
         board_tree->PlayTrick(gen_trick.GetTrickForBoard(b), &cache);
     CHECK_EQ(0, after_play->MyBoard()->CardsPlayedThisTrick());
@@ -336,26 +406,62 @@ ConditionalLine LineFinder::GetLineFromTrick(
   }
   ConditionalLine a_line;
   a_line.SetAction(gen_trick);
-  for (const auto &[leader, some_board_offsets] : leader_to_boards) {
-    int trick_won = (leader % 2 == 0) ? 1 : 0;
-    VLOG(2) << "Recurse for leader " << leader;
-    std::vector<ConditionalLine> x =
-        SolveHelper(min_tricks - trick_won, cache,
-                    after_play_trees, some_board_offsets, leader, lvl + 1);
-    VLOG(2) << "SolveHelper returns " << x.size() << " lines: " << min_tricks;
-    // CHECK_LE(x.size(), 1);
-    // For now, let's just take the first one returned.
-    if (x.size() >= 1 && x[0].CoveredFinalBoards() > 0) {
-      std::set<std::string> winning_cards;
-      for (int b : some_board_offsets) {
-        std::string trick_str = gen_trick.GetTrickForBoard(b);
-        std::vector<std::string> cards = SplitWords(trick_str);
-        if (cards.size() == 4) {
-          int card_idx = (leader - gen_trick.leader + 4) % 4;
-          winning_cards.insert(cards[card_idx]);
-        }
+  if (omp_in_parallel() && leader_to_boards.size() > 1 && lvl <= 7) {
+    std::vector<std::pair<int, std::set<int>>> entries(
+        leader_to_boards.begin(), leader_to_boards.end());
+    std::vector<std::vector<ConditionalLine>> branch_results(entries.size());
+    for (size_t idx = 0; idx < entries.size(); ++idx) {
+      #pragma omp task firstprivate(idx) \
+          shared(entries, branch_results, cache, after_play_trees)
+      {
+        int next_leader = entries[idx].first;
+        int trick_won = (next_leader % 2 == 0) ? 1 : 0;
+        branch_results[idx] = SolveHelper(
+            min_tricks - trick_won, cache, after_play_trees,
+            entries[idx].second, next_leader, lvl + 1);
       }
-      a_line.AddCondition(new WinnerPlayCondition(leader, winning_cards), x[0]);
+    }
+    #pragma omp taskwait
+    for (size_t idx = 0; idx < entries.size(); ++idx) {
+      int next_leader = entries[idx].first;
+      const auto &some_board_offsets = entries[idx].second;
+      const auto &x = branch_results[idx];
+      if (x.size() >= 1 && x[0].CoveredFinalBoards() > 0) {
+        std::set<std::string> winning_cards;
+        for (int b : some_board_offsets) {
+          std::string trick_str = gen_trick.GetTrickForBoard(b);
+          std::vector<std::string> cards = SplitWords(trick_str);
+          if (cards.size() == 4) {
+            int card_idx = (next_leader - gen_trick.leader + 4) % 4;
+            winning_cards.insert(cards[card_idx]);
+          }
+        }
+        a_line.AddCondition(
+            new WinnerPlayCondition(next_leader, winning_cards), x[0]);
+      }
+    }
+  } else {
+    for (const auto &[next_leader, some_board_offsets] : leader_to_boards) {
+      int trick_won = (next_leader % 2 == 0) ? 1 : 0;
+      VLOG(2) << "Recurse for leader " << next_leader;
+      std::vector<ConditionalLine> x =
+          SolveHelper(min_tricks - trick_won, cache,
+                      after_play_trees, some_board_offsets, next_leader,
+                      lvl + 1);
+      VLOG(2) << "SolveHelper returns " << x.size() << " lines: " << min_tricks;
+      if (x.size() >= 1 && x[0].CoveredFinalBoards() > 0) {
+        std::set<std::string> winning_cards;
+        for (int b : some_board_offsets) {
+          std::string trick_str = gen_trick.GetTrickForBoard(b);
+          std::vector<std::string> cards = SplitWords(trick_str);
+          if (cards.size() == 4) {
+            int card_idx = (next_leader - gen_trick.leader + 4) % 4;
+            winning_cards.insert(cards[card_idx]);
+          }
+        }
+        a_line.AddCondition(
+            new WinnerPlayCondition(next_leader, winning_cards), x[0]);
+      }
     }
   }
   VLOG(2) << "Returning a_line with conditions " << a_line.num_conditions();
@@ -378,6 +484,13 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     }
   }
 
+  std::vector<int> group_possible_boards(groupings.size(), 0);
+  for (size_t i = 0; i < groupings.size(); ++i) {
+    for (const auto &trick : groupings[i]) {
+      group_possible_boards[i] += trick.boards.size();
+    }
+  }
+
   std::multimap<int, ConditionalLine> best_lines;
   std::unordered_map<std::string, ConditionalLine> saved_work;
   int ONLY_ONE_BEST_LINE = 1;
@@ -385,10 +498,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   for (uint i = 0; i < groupings.size(); i++) {
     const std::vector<GeneralizedTrick> &group = groupings[i];
     VLOG(2) << "Trying group " << i << " with tricks " << group.size();
-    int most_possible_boards = 0;
-    for (const auto &trick : group) {
-      most_possible_boards += trick.boards.size();
-    }
+    int most_possible_boards = group_possible_boards[i];
     VLOG(2) << "lvl " << lvl << " most_possible_boards " << most_possible_boards
             << " vs " << most_boards_covered;
     if (most_possible_boards < most_boards_covered ||
@@ -403,12 +513,112 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       g_top_group_total = groupings.size();
       g_best_covered = most_boards_covered;
       SetSolveStatus("Searching play trees: group " +
-                     std::to_string(g_top_group_idx) + "/" +
-                     std::to_string(g_top_group_total) + " (best coverage: " +
-                     std::to_string(g_best_covered) + "/" +
-                     std::to_string(g_total_boards) + " deals, " +
-                     std::to_string(get_line_from_trick_calls) +
+                     std::to_string(g_top_group_idx.load()) + "/" +
+                     std::to_string(g_top_group_total.load()) +
+                     " (best coverage: " +
+                     std::to_string(g_best_covered.load()) + "/" +
+                     std::to_string(g_total_boards.load()) + " deals, " +
+                     std::to_string(get_line_from_trick_calls.load()) +
                      " branches)...");
+    }
+
+    // Check if any trick in this group is not yet in saved_work.
+    bool has_uncomputed = false;
+    for (const GeneralizedTrick &trick : group) {
+      if (saved_work.count(trick.ToString(true)) == 0) {
+        has_uncomputed = true;
+        break;
+      }
+    }
+
+    if (omp_in_parallel() && has_uncomputed) {
+      std::vector<std::pair<std::string, const GeneralizedTrick *>> batch;
+      std::set<std::string> batch_seen;
+      int max_possible_so_far = group_possible_boards[i];
+      for (const GeneralizedTrick &t : groupings[i]) {
+        std::string t_str = t.ToString(true);
+        if (saved_work.count(t_str) == 0 && batch_seen.count(t_str) == 0) {
+          batch_seen.insert(t_str);
+          batch.emplace_back(std::move(t_str), &t);
+        }
+      }
+      if (lvl <= 7) {
+        if ((lvl == 0 && i == 0 && board_offsets.size() >= 30) ||
+            (lvl == 1 && i == 0 && board_offsets.size() >= 60)) {
+          int max_possible = max_possible_so_far;
+          for (int p : group_possible_boards) {
+            max_possible = std::max(max_possible, p);
+          }
+          int thresh = max_possible - (max_possible / 20);
+          for (size_t j = i + 1; j < groupings.size(); ++j) {
+            if (group_possible_boards[j] >= thresh) {
+              for (const GeneralizedTrick &t : groupings[j]) {
+                std::string t_str = t.ToString(true);
+                if (saved_work.count(t_str) == 0 &&
+                    batch_seen.count(t_str) == 0) {
+                  batch_seen.insert(t_str);
+                  batch.emplace_back(std::move(t_str), &t);
+                }
+              }
+            }
+          }
+        } else if (lvl <= 1 && i >= 1 &&
+                   group_possible_boards[0] - most_boards_covered >= 5) {
+          for (size_t j = i + 1; j < groupings.size(); ++j) {
+            if (group_possible_boards[j] >= max_possible_so_far) {
+              max_possible_so_far = group_possible_boards[j];
+              for (const GeneralizedTrick &t : groupings[j]) {
+                std::string t_str = t.ToString(true);
+                if (saved_work.count(t_str) == 0 &&
+                    batch_seen.count(t_str) == 0) {
+                  batch_seen.insert(t_str);
+                  batch.emplace_back(std::move(t_str), &t);
+                }
+              }
+            }
+          }
+        } else {
+          for (size_t j = i + 1; j < groupings.size(); ++j) {
+            if (group_possible_boards[j] > max_possible_so_far) {
+              max_possible_so_far = group_possible_boards[j];
+              for (const GeneralizedTrick &t : groupings[j]) {
+                std::string t_str = t.ToString(true);
+                if (saved_work.count(t_str) == 0 &&
+                    batch_seen.count(t_str) == 0) {
+                  batch_seen.insert(t_str);
+                  batch.emplace_back(std::move(t_str), &t);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (batch.size() == 1) {
+        saved_work[batch[0].first] =
+            GetLineFromTrick(*batch[0].second, min_tricks, cache, board_trees,
+                             board_offsets, leader, lvl);
+      } else if (batch.size() > 1) {
+        std::stable_sort(
+            batch.begin(), batch.end(),
+            [](const auto &a, const auto &b) {
+              return a.second->boards.size() > b.second->boards.size();
+            });
+        std::vector<ConditionalLine> batch_results(batch.size());
+        for (size_t b_idx = 0; b_idx < batch.size(); ++b_idx) {
+          #pragma omp task firstprivate(b_idx) \
+              shared(batch, batch_results, cache, board_trees, board_offsets)
+          {
+            batch_results[b_idx] = GetLineFromTrick(
+                *batch[b_idx].second, min_tricks, cache, board_trees,
+                board_offsets, leader, lvl);
+          }
+        }
+        #pragma omp taskwait
+        for (size_t b_idx = 0; b_idx < batch.size(); ++b_idx) {
+          saved_work[batch[b_idx].first] = std::move(batch_results[b_idx]);
+        }
+      }
     }
 
     // Make a line for this group
@@ -416,8 +626,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     for (const GeneralizedTrick &trick : group) {
       std::string trick_str = trick.ToString(true);
       ConditionalLine trick_line;
-      if (saved_work.count(trick_str)) {
-        trick_line = saved_work[trick_str];
+      auto sw_it = saved_work.find(trick_str);
+      if (sw_it != saved_work.end()) {
+        trick_line = sw_it->second;
       } else {
         trick_line = GetLineFromTrick(trick, min_tricks, cache, board_trees,
                                       board_offsets, leader, lvl);
@@ -476,11 +687,14 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
             << " on boards " << board_trees.size()
             << " (" << StrJoin(board_offsets, ", ") << ")";
   }
-  std::map<int, OptimalLines> board_lines;
-  std::set<int> impossible_boards;
-  Suit trump_suit = NOTRUMP;
+  if (board_offsets.empty()) {
+    return std::vector<ConditionalLine>();
+  }
+  Suit trump_suit =
+      board_trees.at(*board_offsets.begin())->MyBoard()->GetTrump();
+  GeneralizedTrickFinder gen_trick_finder(trump_suit);
   for (int b : board_offsets) {
-    std::shared_ptr<OptimalPlayTree> &play_tree = board_trees[b];
+    const std::shared_ptr<OptimalPlayTree> &play_tree = board_trees.at(b);
     CHECK(play_tree);
     int cards_left = play_tree->CardsLeft();
     if (cards_left == 0) {
@@ -496,39 +710,15 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
       }
     }
 
-    trump_suit = play_tree->MyBoard()->GetTrump();
     int mini_max = play_tree->MiniMax();
-    // if (mini_max < min_tricks) {
     if (!WonEnoughTricks(mini_max, min_tricks, leader, cards_left)) {
-      impossible_boards.insert(b);
       VLOG(2) << "No solution for board " << b << " (" << mini_max
               << " vs " << min_tricks << ")";
       continue;
     }
-    OptimalLines lines = play_tree->GetLines();
-#if 0
-    if (lvl < 3) {
-      VLOG(1) << "MostTricksCanBeWon for " << b << " is " << mini_max
-              << " with choices " << lines.size()
-              << ": " << boards[b].DebugString()
-              << ": " << (lines.empty() ? std::string("") : *lines.begin())
-              << ", " << (lines.size() > 1 ? *(++lines.begin()) : string());
-    }
-#endif
-    for (const auto &line : lines) {
-      VLOG(3) << "    " << line;
-    }
-    // TODO: Don't really have to copy to board_lines.
-    board_lines[b] = lines;
-  }
-
-  GeneralizedTrickFinder gen_trick_finder(trump_suit);
-  std::set<int> solvable_boards;
-  for (int b : board_offsets) {
-    if (impossible_boards.count(b) > 0) { continue; }
-    solvable_boards.insert(b);
-    CHECK(board_lines.count(b) > 0) << b;
-    for (const OptimalLine &trick : board_lines[b]) {
+    const OptimalLines &lines = play_tree->GetLines();
+    for (const OptimalLine &trick : lines) {
+      VLOG(3) << "    " << trick;
       gen_trick_finder.RecordOptimalTrick(leader, trick, b);
     }
   }

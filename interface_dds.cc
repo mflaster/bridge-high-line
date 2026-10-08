@@ -1,5 +1,8 @@
 #include "interface_dds.h"
 
+#include <algorithm>
+#include <omp.h>
+
 #include "glog/logging.h"
 
 namespace {
@@ -9,13 +12,25 @@ class InitThreads {
 #if defined(__linux) || defined(__APPLE__)
     SetMaxThreads(0);
 #endif
+    DDSInfo info;
+    GetDDSInfo(&info);
+    max_threads_ = std::max(1, info.noOfThreads);
   }
+  int max_threads() const { return max_threads_; }
+
+ private:
+  int max_threads_ = 1;
 };
 
-void DoInit() {
+int DoInit() {
   static InitThreads thread_initter;
+  return thread_initter.max_threads();
 }
 }  // namespace
+
+int EnsureDDSInitialized() {
+  return DoInit();
+}
 
 static bool CONSIDER_EQUALS = false;
 
@@ -60,7 +75,7 @@ std::vector<std::string> FindBestCardsToPlay(
   int target = -1;  // Find optimal solution for side to play
   int solutions = 2; // Return all optimum cards and their scores.
   int mode = 1;  // automatic reuse of state / always search
-  int threadindex = 0;
+  int threadindex = omp_get_thread_num();
   futureTricks futp;
   SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
   std::vector<std::string> ans;
@@ -84,7 +99,7 @@ int FindOptimalTricks(const BoardState &bs) {
   int target = -1;  // Find optimal solution for side to play
   int solutions = 2; // Return all optimum cards and their scores.
   int mode = 1;  // automatic reuse of state / always search
-  int threadindex = 0;
+  int threadindex = omp_get_thread_num();
   futureTricks futp;
   SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
   std::vector<std::string> ans;
@@ -117,7 +132,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     int solutions = 2; // Return all optimum cards and their scores.
     // int mode = 1;  // automatic reuse of state / always search
     int mode = 2;  // force reuse of state
-    int threadindex = 0;
+    int threadindex = omp_get_thread_num();
     SolveBoardPBN(dl, target, solutions, mode, &futp_storage, threadindex);
   }
   futureTricks &futp = solved_tricks ? *solved_tricks : futp_storage;
@@ -261,6 +276,30 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
         new OptimalPlayTree(0, bs, tricks_remaining, min_tricks));
     return ans;
   }
+  BoardCacheKey key{};
+  size_t shard = 0;
+  bool use_tree_cache = (cache != nullptr && bs.CardsPlayedThisTrick() == 0);
+  if (use_tree_cache) {
+    uint64_t mask = ~bs.played_cards();
+    key = BoardCacheKey{
+        bs.GetHand(0) & mask,
+        bs.GetHand(1) & mask,
+        bs.GetHand(2) & mask,
+        bs.GetHand(3) & mask,
+        static_cast<uint8_t>(bs.CurPlayer()),
+        static_cast<uint8_t>(bs.GetTrump())};
+    shard = BoardCacheKeyHash{}(key) & (SolverCache::kNumShards - 1);
+    std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
+    auto it = cache->tree_cache[shard].find(key);
+    if (it != cache->tree_cache[shard].end()) {
+      cache->tree_hits.fetch_add(1, std::memory_order_relaxed);
+      std::shared_ptr<OptimalPlayTree> cached = it->second;
+      if (deepen_levels > 0) {
+        cached->Deepen(deepen_levels, cache);
+      }
+      return cached;
+    }
+  }
   OptimalLines lines;
   int mini_max = DDSFindOptimalLines(bs, min_tricks, &lines, cache);
   VLOG(2) << "FindOptimalPlayTreeHelper got " << mini_max;
@@ -268,6 +307,16 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
       new OptimalPlayTree(mini_max, bs, tricks_remaining, min_tricks));
   for (const OptimalLine &line : lines) {
     ans->AddLine(line);
+  }
+  if (use_tree_cache) {
+    std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
+    auto [it, inserted] = cache->tree_cache[shard].emplace(key, ans);
+    if (!inserted) {
+      cache->tree_hits.fetch_add(1, std::memory_order_relaxed);
+      ans = it->second;
+    } else {
+      cache->tree_misses.fetch_add(1, std::memory_order_relaxed);
+    }
   }
   ans->Deepen(deepen_levels, cache);
   return ans;
@@ -299,35 +348,32 @@ void OptimalPlayTree::Deepen(int num_levels, SolverCache *cache) {
 std::shared_ptr<OptimalPlayTree> OptimalPlayTree::Deepen(
     const OptimalLine &line, SolverCache *cache) {
   VLOG(2) << "Deepen on " << line;
-  auto it = all_plays.find(line);
-  CHECK(it != all_plays.end()) << line;
-  if (it->second) {
-    return it->second;
-  } else {
-    BoardState copy(my_bs);
-    copy.PlayTrick(line);
-    int ns_wins_trick = copy.CurPlayer() % 2 == 0 ? 1 : 0;
-    std::shared_ptr<OptimalPlayTree> rest =
-        FindOptimalPlayTreeHelper(copy,
-                                  std::max(0, min_tricks - ns_wins_trick),
-                                  tricks_remaining - 1, 0, cache);
-    it->second = rest;
-    return rest;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    auto it = all_plays.find(line);
+    CHECK(it != all_plays.end()) << line;
+    if (it->second) {
+      return it->second;
+    }
   }
+  BoardState copy(my_bs);
+  copy.PlayTrick(line);
+  int ns_wins_trick = copy.CurPlayer() % 2 == 0 ? 1 : 0;
+  std::shared_ptr<OptimalPlayTree> rest =
+      FindOptimalPlayTreeHelper(copy,
+                                std::max(0, min_tricks - ns_wins_trick),
+                                tricks_remaining - 1, 0, cache);
+  std::lock_guard<std::mutex> lock(mu_);
+  auto it = all_plays.find(line);
+  if (!it->second) {
+    it->second = rest;
+  }
+  return it->second;
 }
 
 std::shared_ptr<OptimalPlayTree> OptimalPlayTree::PlayTrick(
     const OptimalLine &trick, SolverCache *cache) {
   return Deepen(trick, cache);
-}
-
-
-OptimalLines OptimalPlayTree::GetLines() {
-  OptimalLines lines;
-  for (const auto &[line, _rest] : all_plays) {
-    lines.insert(line);
-  }
-  return lines;
 }
 
 /* static */

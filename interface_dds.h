@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include "dll.h"
@@ -8,6 +9,8 @@
 #include "card.h"
 #include "hand.h"
 #include "solver.h"
+
+int EnsureDDSInitialized();
 
 void PopulatePBNDeal(const BoardState &bs, dealPBN *d1);
 
@@ -39,6 +42,13 @@ class OptimalPlayTree {
 
   void AddLine(const OptimalLine &line) {
     all_plays[line] = nullptr;
+    lines_.insert(line);
+  }
+
+  bool IsDeepened(const OptimalLine &trick) const {
+    std::lock_guard<std::mutex> lock(mu_);
+    auto it = all_plays.find(trick);
+    return it != all_plays.end() && it->second != nullptr;
   }
 
   void Deepen(int num_levels, SolverCache *cache);
@@ -77,10 +87,12 @@ class OptimalPlayTree {
   int CardsLeft() const { return tricks_remaining; }
   int MiniMax() const { return mini_max; }
   BoardState *MyBoard() { return &my_bs; }
-  OptimalLines GetLines();
+  const OptimalLines &GetLines() const { return lines_; }
 
  private:
+  mutable std::mutex mu_;
   std::unordered_map<OptimalLine, std::shared_ptr<OptimalPlayTree>> all_plays;
+  OptimalLines lines_;
   BoardState my_bs;
   int tricks_remaining = 0;
   int min_tricks = 0;

@@ -73,7 +73,8 @@ class LineFinder {
   std::vector<ConditionalLine> Solve(
       int min_tricks,
       const std::vector<uint64_t> &hands, uint64_t unknown_cards,
-      int leader, Suit trump, const std::vector<CardType> &cur_trick = {});
+      int leader, Suit trump, const std::vector<CardType> &cur_trick = {},
+      int num_threads = 4);
 
   std::set<std::string> FindBestLead(
       int min_tricks,

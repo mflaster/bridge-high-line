@@ -729,4 +729,30 @@ TEST_CASE("LineFinder_AndInvariant") {
   });
 }
 
+TEST_CASE("Perf9CardHearts100", "[.perf]") {
+  srand48(0);
+  std::vector<uint64_t> hands(4, 0);
+  hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+  hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+  uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+  LineFinder lf(100);
+  auto lines = lf.Solve(6, hands, unknown, 0, HEARTS, {});
+  REQUIRE(!lines.empty());
+  std::cout << "CoveredBoards: " << lines[0].CoveredBoards()
+            << " solve_ms=" << lf.solve_ms()
+            << " invariant_ms=" << lf.invariant_ms() << "\n";
+}
 
+TEST_CASE("Perf9CardHearts150", "[.perf]") {
+  srand48(0);
+  std::vector<uint64_t> hands(4, 0);
+  hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+  hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+  uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+  LineFinder lf(150);
+  auto lines = lf.Solve(6, hands, unknown, 0, HEARTS, {});
+  REQUIRE(!lines.empty());
+  std::cout << "CoveredBoards: " << lines[0].CoveredBoards()
+            << " solve_ms=" << lf.solve_ms()
+            << " invariant_ms=" << lf.invariant_ms() << "\n";
+}

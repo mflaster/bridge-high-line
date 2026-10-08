@@ -191,6 +191,28 @@ body.is-resizing * {
 
 .solve-action-container {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.solve-action-container .btn-large {
+  flex: 1;
+}
+
+.threads-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.threads-selector .select-input {
+  padding: 9px 10px;
+  cursor: pointer;
 }
 
 .panel-header {
