@@ -577,7 +577,8 @@ std::vector<std::string> FilterUninterestingRules(
     const ConditionalLine* line) {
   std::vector<std::shared_ptr<UnknownCardsInvariant>> candidates;
   for (const auto& rule : candidate_rules) {
-    if (auto inv = UnknownCardsInvariant::FromString(rule, hand1_label, hand2_label)) {
+    if (auto inv =
+            UnknownCardsInvariant::FromString(rule, hand1_label, hand2_label)) {
       candidates.push_back(inv);
     }
   }
@@ -606,10 +607,36 @@ std::vector<std::string> FilterUninterestingRules(
       num_bifurcations, line);
 }
 
+static std::vector<std::shared_ptr<UnknownCardsInvariant>>
+ExtractAllCandidateInvariants(const std::vector<PairedDeal>& deals,
+                              const HandLabelFormatter& formatter) {
+  JointSuitRuleExtractor suit_extractor(formatter);
+  HonorPossessionClassifier honor_classifier(formatter);
+  CrossSuitConditionalRuleExtractor conditional_extractor(formatter);
+  for (const auto& deal : deals) {
+    suit_extractor.ProcessDeal(deal);
+    honor_classifier.ProcessDeal(deal);
+    conditional_extractor.ProcessDeal(deal);
+  }
+  auto suit_invariants = suit_extractor.ExtractInvariants();
+  auto conditional_invariants = conditional_extractor.ExtractInvariants();
+  auto honor_invariants = honor_classifier.ExtractInvariants();
+
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> candidates;
+  candidates.insert(candidates.end(), suit_invariants.begin(),
+                    suit_invariants.end());
+  candidates.insert(candidates.end(), conditional_invariants.begin(),
+                    conditional_invariants.end());
+  candidates.insert(candidates.end(), honor_invariants.begin(),
+                    honor_invariants.end());
+  return candidates;
+}
+
 CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     const std::vector<PairedDeal>& deals,
     const HandLabelFormatter& formatter,
-    const ConditionalLine* line) const {
+    const ConditionalLine* line,
+    const std::vector<PairedDeal>* opposing_deals) const {
   CrossHandSummaryReport report;
   report.total_deals = static_cast<int>(deals.size());
   if (deals.empty()) {
@@ -624,7 +651,8 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     }
     if ((deal.hand1 | deal.hand2) != expected_overall) {
       throw std::invalid_argument(
-          "All PairedDeals in a deal set must have the identical overall set of cards.");
+          "All PairedDeals in a deal set must have the identical overall set "
+          "of cards.");
     }
   }
 
@@ -649,9 +677,51 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   auto honor_invariants = honor_classifier.ExtractInvariants();
 
   std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants;
-  candidate_invariants.insert(candidate_invariants.end(), suit_invariants.begin(), suit_invariants.end());
-  candidate_invariants.insert(candidate_invariants.end(), conditional_invariants.begin(), conditional_invariants.end());
-  candidate_invariants.insert(candidate_invariants.end(), honor_invariants.begin(), honor_invariants.end());
+  candidate_invariants.insert(candidate_invariants.end(),
+                              suit_invariants.begin(), suit_invariants.end());
+  candidate_invariants.insert(candidate_invariants.end(),
+                              conditional_invariants.begin(),
+                              conditional_invariants.end());
+  candidate_invariants.insert(candidate_invariants.end(),
+                              honor_invariants.begin(), honor_invariants.end());
+
+  if (opposing_deals != nullptr) {
+    if (opposing_deals->empty()) {
+      candidate_invariants.clear();
+    } else {
+      auto opposing_invariants = ExtractAllCandidateInvariants(
+          *opposing_deals, formatter);
+      std::set<std::string> opposing_rules;
+      std::set<std::string> inverted_opposing_rules;
+      for (const auto& op_inv : opposing_invariants) {
+        if (!op_inv) continue;
+        opposing_rules.insert(op_inv->ToString());
+        if (auto inv_op = op_inv->Invert(report.unknown_cards,
+                                         report.cards_per_hand,
+                                         formatter.FormatHand1(),
+                                         formatter.FormatHand2())) {
+          inverted_opposing_rules.insert(inv_op->ToString());
+        }
+      }
+      std::vector<std::shared_ptr<UnknownCardsInvariant>> matched;
+      for (const auto& inv : candidate_invariants) {
+        if (!inv) continue;
+        bool has_inverse = inverted_opposing_rules.count(inv->ToString()) > 0;
+        if (!has_inverse) {
+          if (auto inv_neg = inv->Invert(report.unknown_cards,
+                                         report.cards_per_hand,
+                                         formatter.FormatHand1(),
+                                         formatter.FormatHand2())) {
+            has_inverse = opposing_rules.count(inv_neg->ToString()) > 0;
+          }
+        }
+        if (has_inverse) {
+          matched.push_back(inv);
+        }
+      }
+      candidate_invariants = std::move(matched);
+    }
+  }
 
   auto filtered_invariants = FilterUninterestingInvariants(
       candidate_invariants, report.unknown_cards, report.cards_per_hand,
@@ -671,6 +741,8 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     const std::vector<PairedDeal>& deals,
     const std::string& hand1_label,
     const std::string& hand2_label,
-    const ConditionalLine* line) const {
-  return Summarize(deals, HandLabelFormatter(hand1_label, hand2_label), line);
+    const ConditionalLine* line,
+    const std::vector<PairedDeal>* opposing_deals) const {
+  return Summarize(deals, HandLabelFormatter(hand1_label, hand2_label), line,
+                   opposing_deals);
 }

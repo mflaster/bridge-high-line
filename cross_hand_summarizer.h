@@ -213,11 +213,13 @@ class CrossHandDealSetSummarizer {
   CrossHandSummaryReport Summarize(
       const std::vector<PairedDeal>& deals,
       const HandLabelFormatter& formatter,
-      const ConditionalLine* line = nullptr) const;
+      const ConditionalLine* line = nullptr,
+      const std::vector<PairedDeal>* opposing_deals = nullptr) const;
 
   CrossHandSummaryReport Summarize(
       const std::vector<PairedDeal>& deals,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2",
-      const ConditionalLine* line = nullptr) const;
+      const ConditionalLine* line = nullptr,
+      const std::vector<PairedDeal>* opposing_deals = nullptr) const;
 };
