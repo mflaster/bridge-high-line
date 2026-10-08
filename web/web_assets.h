@@ -1272,11 +1272,11 @@ body.is-resizing * {
 }
 
 .seat-badge-ns {
-  color: #6ee7b7;
+  color: #38bdf8;
 }
 
 .seat-badge-ew {
-  color: #fcd34d;
+  color: #c084fc;
 }
 
 .card-chips-row {
@@ -1307,24 +1307,28 @@ body.is-resizing * {
   font-weight: bold;
 }
 
-.card-chip.card-suit-s { color: #f8fafc; }
-.card-chip.card-suit-h { color: #f87171; }
-.card-chip.card-suit-d { color: #fb923c; }
-.card-chip.card-suit-c { color: #34d399; }
-.card-chip.card-suit-neutral { color: #cbd5e1; }
+.card-chip .card-rank {
+  color: #f8fafc;
+}
+
+.card-chip.card-suit-s .suit-symbol { color: #f8fafc; }
+.card-chip.card-suit-h .suit-symbol { color: #f87171; }
+.card-chip.card-suit-d .suit-symbol { color: #fb923c; }
+.card-chip.card-suit-c .suit-symbol { color: #34d399; }
+.card-chip.card-suit-neutral .suit-symbol { color: #cbd5e1; }
 
 .card-chip.card-winner {
   font-weight: 800 !important;
 }
 
 .card-chip.card-winner.card-winner-ns {
-  border: 2px solid #10b981 !important;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  border: 2px solid #38bdf8 !important;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
 }
 
 .card-chip.card-winner.card-winner-ew {
-  border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  border: 2px solid #c084fc !important;
+  box-shadow: 0 0 6px rgba(192, 132, 252, 0.4);
 }
 
 /* Tree Nodes SVG Styling */
