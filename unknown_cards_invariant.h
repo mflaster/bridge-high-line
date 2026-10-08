@@ -35,6 +35,12 @@ class UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const = 0;
 
+  virtual std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const = 0;
+
   static std::shared_ptr<UnknownCardsInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
@@ -52,6 +58,12 @@ class OrInvariant : public UnknownCardsInvariant {
 
   bool HoldsOnDeal(
       const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
@@ -79,6 +91,12 @@ class AndInvariant : public UnknownCardsInvariant {
 
   bool HoldsOnDeal(
       const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
@@ -129,6 +147,12 @@ class CrossSuitCardConditionalInvariant : public CrossSuitConditionalInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
   CardType target_card() const { return target_card_; }
 
  private:
@@ -151,6 +175,12 @@ class CrossSuitExactSuitLengthInvariant : public CrossSuitConditionalInvariant {
 
   bool HoldsOnDeal(
       const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
@@ -181,6 +211,12 @@ class CrossSuitMinSuitLengthInvariant : public CrossSuitConditionalInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
   Suit target_suit() const { return target_suit_; }
   int min_len() const { return min_len_; }
 
@@ -205,6 +241,12 @@ class CrossSuitMaxSuitLengthInvariant : public CrossSuitConditionalInvariant {
 
   bool HoldsOnDeal(
       const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
@@ -243,6 +285,12 @@ class HonorPossessionInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
   static std::shared_ptr<HonorPossessionInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
@@ -269,6 +317,12 @@ class MaxSuitLengthInvariant : public UnknownCardsInvariant {
 
   bool HoldsOnDeal(
       const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
@@ -310,6 +364,12 @@ class ExactSuitLengthInvariant : public UnknownCardsInvariant {
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
   static std::shared_ptr<ExactSuitLengthInvariant> FromString(
       const std::string& str,
       const std::string& hand1_label = "hand 1",
@@ -346,6 +406,12 @@ class SuitLengthRangeInvariant : public UnknownCardsInvariant {
 
   bool HoldsOnDeal(
       const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2") const override;
 

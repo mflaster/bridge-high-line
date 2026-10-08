@@ -282,29 +282,15 @@ std::vector<ConditionalLine> LineFinder::Solve(
       line.set_sample_board(boards[0]);
     }
     std::set<int> covered = line.CoveredBoardsSet();
-    if (!covered.empty()) {
-      std::vector<PairedDeal> covered_deals;
-      covered_deals.reserve(covered.size());
-      for (int b_idx : covered) {
-        if (b_idx >= 0 && b_idx < static_cast<int>(boards.size())) {
-          covered_deals.emplace_back(boards[b_idx].GetHand(1),
-                                     boards[b_idx].GetHand(3));
-        }
-      }
-      if (!covered_deals.empty()) {
-        SetSolveStatus("Summarizing deal invariants (line " +
-                       std::to_string(line_idx + 1) + "/" +
-                       std::to_string(ans.size()) + ")...");
-        try {
-          line.set_summary(
-              summarizer.Summarize(covered_deals, "hand 1", "hand 3", &line));
-        } catch (const std::exception &e) {
-          LOG(WARNING) << "Failed to summarize line: " << e.what();
-        }
+    std::vector<PairedDeal> covered_deals;
+    covered_deals.reserve(covered.size());
+    for (int b_idx : covered) {
+      if (b_idx >= 0 && b_idx < static_cast<int>(boards.size())) {
+        covered_deals.emplace_back(boards[b_idx].GetHand(1),
+                                   boards[b_idx].GetHand(3));
       }
     }
 
-    // Also summarize non-covered (failure) boards if any exist
     std::vector<PairedDeal> failure_deals;
     for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
       if (covered.find(b_idx) == covered.end()) {
@@ -312,13 +298,26 @@ std::vector<ConditionalLine> LineFinder::Solve(
                                    boards[b_idx].GetHand(3));
       }
     }
+
+    if (!covered_deals.empty()) {
+      SetSolveStatus("Summarizing deal invariants (line " +
+                     std::to_string(line_idx + 1) + "/" +
+                     std::to_string(ans.size()) + ")...");
+      try {
+        line.set_summary(summarizer.Summarize(
+            covered_deals, "hand 1", "hand 3", &line, &failure_deals));
+      } catch (const std::exception &e) {
+        LOG(WARNING) << "Failed to summarize line: " << e.what();
+      }
+    }
+
     if (!failure_deals.empty()) {
       SetSolveStatus("Summarizing failure invariants (line " +
                      std::to_string(line_idx + 1) + "/" +
                      std::to_string(ans.size()) + ")...");
       try {
-        line.set_failure_summary(
-            summarizer.Summarize(failure_deals, "hand 1", "hand 3"));
+        line.set_failure_summary(summarizer.Summarize(
+            failure_deals, "hand 1", "hand 3", nullptr, &covered_deals));
       } catch (const std::exception &e) {
         LOG(WARNING) << "Failed to summarize failure line: " << e.what();
       }
