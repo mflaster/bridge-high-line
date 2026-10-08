@@ -20,6 +20,43 @@ struct PairedDeal {
       : hand1(ParseHand(h1_str)), hand2(ParseHand(h2_str)) {}
 };
 
+enum class HandLabelMode {
+  kVerbatim,
+  kCompass
+};
+
+class HandLabelFormatter {
+ public:
+  HandLabelFormatter()
+      : hand1_label_("hand 1"),
+        hand2_label_("hand 2"),
+        mode_(HandLabelMode::kVerbatim) {}
+
+  HandLabelFormatter(std::string hand1_label,
+                     std::string hand2_label,
+                     HandLabelMode mode = HandLabelMode::kVerbatim)
+      : hand1_label_(std::move(hand1_label)),
+        hand2_label_(std::move(hand2_label)),
+        mode_(mode) {}
+
+  const std::string& hand1_label() const { return hand1_label_; }
+  const std::string& hand2_label() const { return hand2_label_; }
+  HandLabelMode mode() const { return mode_; }
+
+  std::string FormatLabel(const std::string& raw_label) const;
+  std::string FormatHand1() const;
+  std::string FormatHand2() const;
+  std::string FormatCompositeHand1() const;
+  std::string FormatCompositeHand2() const;
+
+  static std::string TranslateCompass(const std::string& raw_label);
+
+ private:
+  std::string hand1_label_;
+  std::string hand2_label_;
+  HandLabelMode mode_ = HandLabelMode::kVerbatim;
+};
+
 // --- UnknownCardsInvariant Class Hierarchy ---
 
 // Abstract base class representing a structural or distribution invariant that
@@ -113,9 +150,9 @@ class AndInvariant : public UnknownCardsInvariant {
   std::shared_ptr<UnknownCardsInvariant> right_;
 };
 
-// Abstract intermediate base class for conditional invariants where possession of a
-// specific card ("condition_card") in a hand implies a restriction on another suit or
-// card in that same hand.
+// Abstract intermediate base class for conditional invariants where possession
+// of a specific card ("condition_card") in a hand implies a restriction on
+// another suit or card in that same hand.
 class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
  public:
   explicit CrossSuitConditionalInvariant(CardType condition_card)
@@ -134,11 +171,13 @@ class CrossSuitConditionalInvariant : public UnknownCardsInvariant {
 
 // Describes card co-possession rules within the same hand: holding a specific
 // condition card implies holding another target card in the same hand.
-// Example string format: "the hand with the KH also has AC"
+// Example string format: "the hand with the KH also has the AC"
 class CrossSuitCardConditionalInvariant : public CrossSuitConditionalInvariant {
  public:
-  CrossSuitCardConditionalInvariant(CardType condition_card, CardType target_card)
-      : CrossSuitConditionalInvariant(condition_card), target_card_(target_card) {}
+  CrossSuitCardConditionalInvariant(CardType condition_card,
+                                    CardType target_card)
+      : CrossSuitConditionalInvariant(condition_card),
+        target_card_(target_card) {}
 
   std::string ToString() const override;
 
@@ -161,8 +200,9 @@ class CrossSuitCardConditionalInvariant : public CrossSuitConditionalInvariant {
 
 // Describes cross-suit conditional exact length rules: holding a specific
 // condition card implies that hand has an exact card count in a target suit.
-// Example string format: "the hand with the KH length in C is always 3"
-class CrossSuitExactSuitLengthInvariant : public CrossSuitConditionalInvariant {
+// Example string format: "the hand with the KH also has exactly 3 C"
+class CrossSuitExactSuitLengthInvariant
+    : public CrossSuitConditionalInvariant {
  public:
   CrossSuitExactSuitLengthInvariant(CardType condition_card,
                                     Suit target_suit,
@@ -194,7 +234,7 @@ class CrossSuitExactSuitLengthInvariant : public CrossSuitConditionalInvariant {
 
 // Describes cross-suit conditional minimum length rules: holding a specific
 // condition card implies that hand has at least N cards in a target suit.
-// Example string format: "the hand with the KH length in C is at least 3"
+// Example string format: "the hand with the KH also has at least 3 C"
 class CrossSuitMinSuitLengthInvariant : public CrossSuitConditionalInvariant {
  public:
   CrossSuitMinSuitLengthInvariant(CardType condition_card,
@@ -227,7 +267,7 @@ class CrossSuitMinSuitLengthInvariant : public CrossSuitConditionalInvariant {
 
 // Describes cross-suit conditional maximum length rules: holding a specific
 // condition card implies that hand has at most N cards in a target suit.
-// Example string format: "the hand with the KH length in C is at most 3"
+// Example string format: "the hand with the KH also has at most 3 C"
 class CrossSuitMaxSuitLengthInvariant : public CrossSuitConditionalInvariant {
  public:
   CrossSuitMaxSuitLengthInvariant(CardType condition_card,
@@ -264,10 +304,11 @@ enum class HonorPossessionTargetHand {
   kBoth
 };
 
-// Describes honor card possession invariants across paired hands: a specific hand
-// or both hands always contain a designated honor card (A, K, Q, J, 10).
+// Describes honor card possession invariants across paired hands: a specific
+// hand or both hands always contain a designated honor card (A, K, Q, J, 10).
 // Example string formats:
 //   "hand 1 always contains the AS"
+//   "E has the AS"
 //   "both hands always contain the AS"
 class HonorPossessionInvariant : public UnknownCardsInvariant {
  public:
@@ -306,7 +347,8 @@ class HonorPossessionInvariant : public UnknownCardsInvariant {
   std::string label_;
 };
 
-// Describes suit length upper bounds invariant across either hand in a paired deal.
+// Describes suit length upper bounds invariant across either hand in a paired
+// deal.
 // Example string format: "maximum length in S in any hand is 4"
 class MaxSuitLengthInvariant : public UnknownCardsInvariant {
  public:
@@ -387,7 +429,8 @@ class ExactSuitLengthInvariant : public UnknownCardsInvariant {
   std::string label_;
 };
 
-// Describes suit length range invariant (min..max) for a specific hand in a paired deal.
+// Describes suit length range invariant (min..max) for a specific hand in a
+// paired deal.
 // Example string format: "hand 1 length in S is between 2 and 4"
 class SuitLengthRangeInvariant : public UnknownCardsInvariant {
  public:
