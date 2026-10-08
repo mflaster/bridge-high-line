@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
 
   log_summary("=== LineFinder Performance Benchmark Summary ===");
 
+  auto bench_start = std::chrono::high_resolution_clock::now();
   LineFinder lf(num_deals);
 
   for (int ending_size = 6; ending_size <= 13; ending_size++) {
@@ -195,8 +196,14 @@ int main(int argc, char** argv) {
     }
   }
 
-  log_details("\nBenchmark complete.");
-  log_summary("Benchmark complete.");
+  auto bench_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> total_elapsed = bench_end - bench_start;
+  std::stringstream total_ss;
+  total_ss << "Benchmark complete. Total wall time: " << std::fixed
+           << std::setprecision(1) << total_elapsed.count() << "s";
+
+  log_details("\n" + total_ss.str());
+  log_summary(total_ss.str());
 
   return 0;
 }

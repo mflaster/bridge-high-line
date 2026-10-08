@@ -1507,7 +1507,7 @@ Invariant Rules for 6 card ending:
                     when 3 wins the SJ: 
                       after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [74] / HJ C9 CQ H5 
                         when 3 wins the HJ: HAND SUCCEEDED FOR: 74
-Solve took 5.675605 seconds. Status: SUCCESS
+Solve took 3.329708 seconds. Status: SUCCESS
 
 === ending_size = 7, trial = 1 ===
 hand[0] (Declarer): S AJ87; H -; D 6; C AK; 
@@ -1819,6 +1819,6 @@ Invariant Rules for 7 card ending:
                         when 2 wins the DA: 
                           after C4 (R_) CK (C_): C4 (R_) CK (C_) [71] / C4 HJ CK C8 
                             when 0 wins the CK: HAND SUCCEEDED FOR: 71
-Solve took 12.003139 seconds. Status: SUCCESS
+Solve took 4.800071 seconds. Status: SUCCESS
 
-Benchmark complete.
+Benchmark complete. Total wall time: 327.3s
