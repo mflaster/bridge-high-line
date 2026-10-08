@@ -1307,11 +1307,15 @@ body.is-resizing * {
   font-weight: bold;
 }
 
-.card-chip.card-suit-s { color: #f8fafc; }
-.card-chip.card-suit-h { color: #f87171; }
-.card-chip.card-suit-d { color: #fb923c; }
-.card-chip.card-suit-c { color: #34d399; }
-.card-chip.card-suit-neutral { color: #cbd5e1; }
+.card-chip .card-rank {
+  color: #f8fafc;
+}
+
+.card-chip.card-suit-s .suit-symbol { color: #f8fafc; }
+.card-chip.card-suit-h .suit-symbol { color: #f87171; }
+.card-chip.card-suit-d .suit-symbol { color: #fb923c; }
+.card-chip.card-suit-c .suit-symbol { color: #34d399; }
+.card-chip.card-suit-neutral .suit-symbol { color: #cbd5e1; }
 
 .card-chip.card-winner {
   font-weight: 800 !important;
