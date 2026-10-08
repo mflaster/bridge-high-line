@@ -57,17 +57,11 @@ std::string HandLabelFormatter::FormatHand2() const {
 }
 
 std::string HandLabelFormatter::FormatSingleCardHand1() const {
-  if (mode_ == HandLabelMode::kCompass) {
-    return FormatHand1();
-  }
-  return hand1_label_;
+  return FormatHand1();
 }
 
 std::string HandLabelFormatter::FormatSingleCardHand2() const {
-  if (mode_ == HandLabelMode::kCompass) {
-    return FormatHand2();
-  }
-  return hand2_label_;
+  return FormatHand2();
 }
 
 std::string HandLabelFormatter::FormatCompositeHand1() const {
@@ -88,7 +82,7 @@ std::string HandLabelFormatter::FormatCompassOrVerbatim(const std::string& raw_l
   if (raw_label.empty()) return "";
   if (raw_label == "hand 1") return "E";
   if (raw_label == "hand 2" || raw_label == "hand 3") return "W";
-  return TranslateCompass(raw_label);
+  return raw_label;
 }
 
 // --- Extractors Implementation ---
@@ -475,6 +469,12 @@ bool EvaluateRuleOnDeal(const std::string& rule,
   return inv->HoldsOnDeal(deal, hand1_label, hand2_label);
 }
 
+bool EvaluateRuleOnDeal(const std::string& rule,
+                        const PairedDeal& deal,
+                        const HandLabelFormatter& formatter) {
+  return EvaluateRuleOnDeal(rule, deal, formatter.FormatHand1(), formatter.FormatHand2());
+}
+
 std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
     std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
     uint64_t unknown_cards,
@@ -554,6 +554,19 @@ std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariant
   return filtered;
 }
 
+std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
+    int num_bifurcations,
+    const ConditionalLine* line) {
+  return FilterUninterestingInvariants(
+      candidate_invariants, unknown_cards, hand1_size,
+      formatter.FormatHand1(), formatter.FormatHand2(),
+      num_bifurcations, line);
+}
+
 std::vector<std::string> FilterUninterestingRules(
     const std::vector<std::string>& candidate_rules,
     uint64_t unknown_cards,
@@ -578,6 +591,19 @@ std::vector<std::string> FilterUninterestingRules(
     }
   }
   return result;
+}
+
+std::vector<std::string> FilterUninterestingRules(
+    const std::vector<std::string>& candidate_rules,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
+    int num_bifurcations,
+    const ConditionalLine* line) {
+  return FilterUninterestingRules(
+      candidate_rules, unknown_cards, hand1_size,
+      formatter.FormatHand1(), formatter.FormatHand2(),
+      num_bifurcations, line);
 }
 
 CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
@@ -629,7 +655,7 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
 
   auto filtered_invariants = FilterUninterestingInvariants(
       candidate_invariants, report.unknown_cards, report.cards_per_hand,
-      formatter.hand1_label(), formatter.hand2_label(), 200, line);
+      formatter, 200, line);
 
   report.invariant_rules.clear();
   for (const auto& inv : filtered_invariants) {

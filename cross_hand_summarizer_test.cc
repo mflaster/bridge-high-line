@@ -506,7 +506,7 @@ TEST_CASE("HandLabelFormatter_DirectUnitTests", "[cross_hand_summarizer]") {
   }
 
   SECTION("Standard Compass Input Mapping") {
-    HandLabelFormatter formatter("North", "South", true);
+    HandLabelFormatter formatter("North", "South", HandLabelMode::kCompass);
     REQUIRE(formatter.FormatHand1() == "N");
     REQUIRE(formatter.FormatHand2() == "S");
 
@@ -518,6 +518,12 @@ TEST_CASE("HandLabelFormatter_DirectUnitTests", "[cross_hand_summarizer]") {
     REQUIRE(HandLabelFormatter::TranslateCompass("1") == "E");
     REQUIRE(HandLabelFormatter::TranslateCompass("2") == "S");
     REQUIRE(HandLabelFormatter::TranslateCompass("3") == "W");
+  }
+
+  SECTION("Verbatim Mode Composite Formatting for Non-Default Labels") {
+    HandLabelFormatter formatter("North", "South", HandLabelMode::kVerbatim);
+    REQUIRE(formatter.FormatCompositeHand1() == "North");
+    REQUIRE(formatter.FormatCompositeHand2() == "South");
   }
 
   SECTION("Custom Unrecognized Labels Default to Verbatim Passthrough") {
@@ -584,6 +590,28 @@ TEST_CASE("Extractors_DirectConstructionWithFormatter", "[cross_hand_summarizer]
   cond_extractor.ProcessDeal(deal);
   auto cond_invs = cond_extractor.ExtractInvariants();
   // No error thrown
+}
+
+TEST_CASE("EvaluateRuleAndFromString_CompassMapping", "[cross_hand_summarizer]") {
+  PairedDeal deal("S AK2; C 43", "S 43; C AK2");
+  HandLabelFormatter compass_fmt("hand 1", "hand 3", HandLabelMode::kCompass);
+
+  SECTION("Exact suit length invariant parsing with raw labels") {
+    auto inv = UnknownCardsInvariant::FromString("E length in S is always 3", "hand 1", "hand 3");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->HoldsOnDeal(deal, "hand 1", "hand 3"));
+  }
+
+  SECTION("Suit length range invariant parsing with raw labels") {
+    auto inv = UnknownCardsInvariant::FromString("E length in S is between 2 and 4", "hand 1", "hand 3");
+    REQUIRE(inv != nullptr);
+    REQUIRE(inv->HoldsOnDeal(deal, "hand 1", "hand 3"));
+  }
+
+  SECTION("EvaluateRuleOnDeal with HandLabelFormatter") {
+    REQUIRE(EvaluateRuleOnDeal("E has the SA", deal, compass_fmt));
+    REQUIRE(EvaluateRuleOnDeal("E length in S is always 3", deal, compass_fmt));
+  }
 }
 
 

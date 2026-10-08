@@ -46,13 +46,6 @@ class HandLabelFormatter {
         hand2_label_(std::move(hand2_label)),
         mode_(mode) {}
 
-  HandLabelFormatter(std::string hand1_label,
-                     std::string hand2_label,
-                     bool use_compass_mapping)
-      : hand1_label_(std::move(hand1_label)),
-        hand2_label_(std::move(hand2_label)),
-        mode_(use_compass_mapping ? HandLabelMode::kCompass : HandLabelMode::kVerbatim) {}
-
   const std::string& hand1_label() const { return hand1_label_; }
   const std::string& hand2_label() const { return hand2_label_; }
   HandLabelMode mode() const { return mode_; }
@@ -143,6 +136,8 @@ class CrossSuitConditionalRuleExtractor {
   std::vector<std::string> ExtractRules() const;
 
  private:
+  // Stored for constructor symmetry across extractor interfaces, though cross-suit
+  // conditional rules generate hand-label-independent invariant descriptions.
   HandLabelFormatter formatter_;
   int total_deals_ = 0;
   std::vector<PairedDeal> deals_;
@@ -173,8 +168,29 @@ bool EvaluateRuleOnDeal(const std::string& rule,
                         const std::string& hand1_label = "hand 1",
                         const std::string& hand2_label = "hand 2");
 
+bool EvaluateRuleOnDeal(const std::string& rule,
+                        const PairedDeal& deal,
+                        const HandLabelFormatter& formatter);
+
 std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
     std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& hand1_label = "hand 1",
+    const std::string& hand2_label = "hand 2",
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
+
+std::vector<std::shared_ptr<UnknownCardsInvariant>> FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
+
+std::vector<std::string> FilterUninterestingRules(
+    const std::vector<std::string>& candidate_rules,
     uint64_t unknown_cards,
     int hand1_size,
     const std::string& hand1_label = "hand 1",
@@ -186,8 +202,7 @@ std::vector<std::string> FilterUninterestingRules(
     const std::vector<std::string>& candidate_rules,
     uint64_t unknown_cards,
     int hand1_size,
-    const std::string& hand1_label = "hand 1",
-    const std::string& hand2_label = "hand 2",
+    const HandLabelFormatter& formatter,
     int num_bifurcations = 200,
     const ConditionalLine* line = nullptr);
 

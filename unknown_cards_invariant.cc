@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 
+#include "cross_hand_summarizer.h"
+
 static int CardsInSuit(uint64_t hand, Suit s) {
   uint16_t suit_bits = (hand >> (static_cast<int>(s) * 16)) & 0xffff;
   int count = 0;
@@ -317,6 +319,14 @@ HonorPossessionInvariant::FromString(const std::string& str,
       target = HonorPossessionTargetHand::kHand2;
     } else if (label == "both hands") {
       target = HonorPossessionTargetHand::kBoth;
+    } else if (!hand1_label.empty() &&
+               HandLabelFormatter::TranslateCompass(label) ==
+                   HandLabelFormatter::TranslateCompass(hand1_label)) {
+      target = HonorPossessionTargetHand::kHand1;
+    } else if (!hand2_label.empty() &&
+               HandLabelFormatter::TranslateCompass(label) ==
+                   HandLabelFormatter::TranslateCompass(hand2_label)) {
+      target = HonorPossessionTargetHand::kHand2;
     } else if (label == "E" || label == "N" || label == "hand 1") {
       target = HonorPossessionTargetHand::kHand1;
     } else if (label == "W" || label == "S" || label == "hand 2" || label == "hand 3") {
@@ -348,15 +358,25 @@ std::string HonorPossessionInvariant::ToString() const {
 
 bool HonorPossessionInvariant::HoldsOnDeal(
     const PairedDeal& deal,
-    const std::string& /*hand1_label*/,
-    const std::string& /*hand2_label*/) const {
+    const std::string& hand1_label,
+    const std::string& hand2_label) const {
   if (target_hand_ == HonorPossessionTargetHand::kBoth || label_ == "both hands") {
     return (deal.hand1 & card_) != 0 && (deal.hand2 & card_) != 0;
   }
-  if (target_hand_ == HonorPossessionTargetHand::kHand1) {
+  if (target_hand_ == HonorPossessionTargetHand::kHand1 || label_ == hand1_label) {
     return (deal.hand1 & card_) != 0;
   }
-  if (target_hand_ == HonorPossessionTargetHand::kHand2) {
+  if (target_hand_ == HonorPossessionTargetHand::kHand2 || label_ == hand2_label) {
+    return (deal.hand2 & card_) != 0;
+  }
+  if (!hand1_label.empty() &&
+      HandLabelFormatter::TranslateCompass(label_) ==
+          HandLabelFormatter::TranslateCompass(hand1_label)) {
+    return (deal.hand1 & card_) != 0;
+  }
+  if (!hand2_label.empty() &&
+      HandLabelFormatter::TranslateCompass(label_) ==
+          HandLabelFormatter::TranslateCompass(hand2_label)) {
     return (deal.hand2 & card_) != 0;
   }
   return false;
@@ -417,6 +437,18 @@ ExactSuitLengthInvariant::FromString(const std::string& str,
       choice = InvariantHandChoice::kHand1;
     } else if (label == hand2_label) {
       choice = InvariantHandChoice::kHand2;
+    } else if (!hand1_label.empty() &&
+               HandLabelFormatter::TranslateCompass(label) ==
+                   HandLabelFormatter::TranslateCompass(hand1_label)) {
+      choice = InvariantHandChoice::kHand1;
+    } else if (!hand2_label.empty() &&
+               HandLabelFormatter::TranslateCompass(label) ==
+                   HandLabelFormatter::TranslateCompass(hand2_label)) {
+      choice = InvariantHandChoice::kHand2;
+    } else if (label == "E" || label == "N" || label == "hand 1") {
+      choice = InvariantHandChoice::kHand1;
+    } else if (label == "W" || label == "S" || label == "hand 2" || label == "hand 3") {
+      choice = InvariantHandChoice::kHand2;
     } else {
       return nullptr;
     }
@@ -442,6 +474,18 @@ bool ExactSuitLengthInvariant::HoldsOnDeal(
   if (hand_choice_ == InvariantHandChoice::kHand1 || label_ == hand1_label) {
     target_hand = deal.hand1;
   } else if (hand_choice_ == InvariantHandChoice::kHand2 || label_ == hand2_label) {
+    target_hand = deal.hand2;
+  } else if (!hand1_label.empty() &&
+             HandLabelFormatter::TranslateCompass(label_) ==
+                 HandLabelFormatter::TranslateCompass(hand1_label)) {
+    target_hand = deal.hand1;
+  } else if (!hand2_label.empty() &&
+             HandLabelFormatter::TranslateCompass(label_) ==
+                 HandLabelFormatter::TranslateCompass(hand2_label)) {
+    target_hand = deal.hand2;
+  } else if (label_ == "E" || label_ == "N" || label_ == "hand 1") {
+    target_hand = deal.hand1;
+  } else if (label_ == "W" || label_ == "S" || label_ == "hand 2" || label_ == "hand 3") {
     target_hand = deal.hand2;
   } else {
     return false;
@@ -476,6 +520,18 @@ SuitLengthRangeInvariant::FromString(const std::string& str,
       choice = InvariantHandChoice::kHand1;
     } else if (label == hand2_label) {
       choice = InvariantHandChoice::kHand2;
+    } else if (!hand1_label.empty() &&
+               HandLabelFormatter::TranslateCompass(label) ==
+                   HandLabelFormatter::TranslateCompass(hand1_label)) {
+      choice = InvariantHandChoice::kHand1;
+    } else if (!hand2_label.empty() &&
+               HandLabelFormatter::TranslateCompass(label) ==
+                   HandLabelFormatter::TranslateCompass(hand2_label)) {
+      choice = InvariantHandChoice::kHand2;
+    } else if (label == "E" || label == "N" || label == "hand 1") {
+      choice = InvariantHandChoice::kHand1;
+    } else if (label == "W" || label == "S" || label == "hand 2" || label == "hand 3") {
+      choice = InvariantHandChoice::kHand2;
     } else {
       return nullptr;
     }
@@ -502,6 +558,18 @@ bool SuitLengthRangeInvariant::HoldsOnDeal(
   if (hand_choice_ == InvariantHandChoice::kHand1 || label_ == hand1_label) {
     target_hand = deal.hand1;
   } else if (hand_choice_ == InvariantHandChoice::kHand2 || label_ == hand2_label) {
+    target_hand = deal.hand2;
+  } else if (!hand1_label.empty() &&
+             HandLabelFormatter::TranslateCompass(label_) ==
+                 HandLabelFormatter::TranslateCompass(hand1_label)) {
+    target_hand = deal.hand1;
+  } else if (!hand2_label.empty() &&
+             HandLabelFormatter::TranslateCompass(label_) ==
+                 HandLabelFormatter::TranslateCompass(hand2_label)) {
+    target_hand = deal.hand2;
+  } else if (label_ == "E" || label_ == "N" || label_ == "hand 1") {
+    target_hand = deal.hand1;
+  } else if (label_ == "W" || label_ == "S" || label_ == "hand 2" || label_ == "hand 3") {
     target_hand = deal.hand2;
   } else {
     return false;
