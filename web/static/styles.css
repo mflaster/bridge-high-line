@@ -1202,3 +1202,111 @@ body.is-resizing * {
 .summary-table tr:hover td {
   background-color: rgba(255, 255, 255, 0.02);
 }
+
+.node-outcome-failure {
+  fill: #451a03;
+  stroke: #f59e0b;
+}
+
+/* Sample Hands Tab Styles */
+.sample-hands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-right: 6px;
+}
+
+.sample-deal-card {
+  background-color: #1a382b;
+  border: 1px solid #2d5e46;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.sample-deal-id {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6ee7b7;
+  background-color: #0b1b13;
+  border: 1px solid #2d5e46;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  line-height: 1.3;
+}
+
+.sample-deal-row-center {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.sample-deal-row-center .sample-hand-box {
+  width: calc(50% - 2.5px);
+}
+
+.sample-deal-row-we {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  width: 100%;
+}
+
+.sample-hand-box {
+  background-color: #11261d;
+  border: 1px solid #2a5a43;
+  border-radius: 5px;
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+}
+
+.sample-hand-seat {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(110, 231, 183, 0.45);
+  pointer-events: none;
+}
+
+.sample-suit-line {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.22;
+  font-family: monospace;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sample-suit-sym {
+  font-size: 11px;
+  font-weight: 800;
+  width: 10px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.sample-suit-ranks {
+  color: #f1f5f9;
+  letter-spacing: 0.3px;
+}

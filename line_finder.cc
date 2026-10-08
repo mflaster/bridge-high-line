@@ -217,6 +217,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
   std::set<int> board_offsets;
   std::vector<BoardState> boards =
       SetupBoards(trump, leader, board_offsets, cur_trick);
+  boards_ = boards;
 
   SolverCache cache;
   auto start_init_trees = std::chrono::high_resolution_clock::now();

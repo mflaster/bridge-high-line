@@ -93,6 +93,7 @@ class LineFinder {
 
   double solve_ms() const { return solve_ms_; }
   double invariant_ms() const { return invariant_ms_; }
+  const std::vector<BoardState> &boards() const { return boards_; }
 
  protected:
   std::vector<BoardState> SetupBoards(
@@ -136,6 +137,7 @@ class LineFinder {
  private:
   int num_iters_;
   FuzzyBoardState fuzzy_state_;
+  std::vector<BoardState> boards_;
   double solve_ms_ = 0.0;
   double invariant_ms_ = 0.0;
 };
