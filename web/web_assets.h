@@ -2648,7 +2648,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function expandAndInspectNode(targetNode, rootNode) {
+  function expandAndInspectNode(targetNode, rootNode, clickEvent = null) {
     if (!rootNode || !targetNode) return;
     attachParentPointers(rootNode);
 
@@ -2691,11 +2691,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Re-render decision tree layout
     renderDecisionTree(rootNode);
 
+    // Center targetNode under mouse (or in viewport if no mouse click inside treeViewport)
+    centerNodeInTree(targetNode, clickEvent);
+
     // Show line inspector for the reached leaf and select the clicked node's trick if applicable
     showNodeInspector(leaf, targetNode);
   }
 
-  function centerNodeInTree(node) {
+  function centerNodeInTree(node, clickEvent = null) {
     if (!node) return;
     currentCenteredNode = node;
 
@@ -2733,8 +2736,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewportWidth = treeViewport ? (treeViewport.clientWidth || treeViewport.offsetWidth || 800) : 800;
     const viewportHeight = treeViewport ? (treeViewport.clientHeight || treeViewport.offsetHeight || 600) : 600;
 
-    panX = (viewportWidth / 2) - (nodeCenterX * zoomLevel);
-    panY = (viewportHeight / 2) - (nodeCenterY * zoomLevel);
+    let targetX = viewportWidth / 2;
+    let targetY = viewportHeight / 2;
+
+    if (clickEvent && treeViewport && typeof clickEvent.clientX === 'number' && typeof clickEvent.clientY === 'number') {
+      const rect = treeViewport.getBoundingClientRect();
+      if (rect &&
+          clickEvent.clientX >= rect.left && clickEvent.clientX <= rect.right &&
+          clickEvent.clientY >= rect.top && clickEvent.clientY <= rect.bottom) {
+        targetX = clickEvent.clientX - rect.left;
+        targetY = clickEvent.clientY - rect.top;
+      }
+    }
+
+    panX = targetX - (nodeCenterX * zoomLevel);
+    panY = targetY - (nodeCenterY * zoomLevel);
 
     updateTransform();
   }
@@ -2941,7 +2957,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Event Listeners for Interactivity
       g.addEventListener('click', (e) => {
         e.stopPropagation();
-        expandAndInspectNode(node, rootNode);
+        expandAndInspectNode(node, rootNode, e);
       });
 
       treeRootGroup.appendChild(g);
