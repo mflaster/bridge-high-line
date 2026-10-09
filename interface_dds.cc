@@ -126,9 +126,26 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
       return cache->dds_results[bs.CurPlayer()][board_key];
     }
   }
+  bool pair_is_me = (bs.CurPlayer() % 2 == 0);
+  bool defense = !pair_is_me;
+  uint64_t cur_hand = bs.GetHand(bs.CurPlayer()) & ~bs.played_cards();
+  int total_tricks = __builtin_popcountll(cur_hand);
+  if (min_tricks > total_tricks) {
+    return 0;
+  }
+  bool use_min_tricks_target = false;
+  if (pair_is_me && min_tricks >= 1 && bs.SuitLed() != NOTRUMP && level < 3) {
+    uint16_t suit_cards = (cur_hand >> (bs.SuitLed() * 16)) & 0xffff;
+    // Only use target = min_tricks when following suit with >= 2 honors
+    // (T, J, Q, K, A = bits 8..12 = 0x1f00) so finesses like CJ from AKJ
+    // are included without adding suboptimal leads, ducks, or discards.
+    if (__builtin_popcount(suit_cards & 0x1f00) >= 2) {
+      use_min_tricks_target = true;
+    }
+  }
   futureTricks futp_storage;
   if (!solved_tricks) {
-    int target = -1;  // Find optimal solution for side to play
+    int target = use_min_tricks_target ? min_tricks : -1;
     int solutions = 2; // Return all optimum cards and their scores.
     // int mode = 1;  // automatic reuse of state / always search
     int mode = 2;  // force reuse of state
@@ -139,10 +156,16 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   if (futp.cards <= 0) {
     return -1;
   }
-  bool pair_is_me = (bs.CurPlayer() % 2 == 0);
-  bool defense = !pair_is_me;
 
   int result = futp.score[0];
+  if (min_tricks >= 1) {
+    if (defense && total_tricks - result < min_tricks) {
+      return result;
+    }
+    if (pair_is_me && level == 0 && result < min_tricks) {
+      return result;
+    }
+  }
   int lowest_rank = 100;
   int card_to_play = -1;
   if (defense) {
@@ -162,10 +185,26 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     }
     CHECK_GE(card_to_play, 0) << futp.cards;
   }
+  int lowest_discard_rank[4] = {100, 100, 100, 100};
+  if (pair_is_me && bs.SuitLed() != NOTRUMP) {
+    for (int i = 0; i < futp.cards; i++) {
+      int s = futp.suit[i];
+      if (s != bs.SuitLed() && s != bs.GetTrump()) {
+        lowest_discard_rank[s] = std::min(lowest_discard_rank[s], futp.rank[i]);
+      }
+    }
+  }
   OptimalLines my_lines;
   for (int i = 0; i < futp.cards; i++) {
     if (!pair_is_me && i != card_to_play) {
       continue;
+    }
+    if (pair_is_me && bs.SuitLed() != NOTRUMP) {
+      int s = futp.suit[i];
+      if (s != bs.SuitLed() && s != bs.GetTrump() &&
+          futp.rank[i] > lowest_discard_rank[s]) {
+        continue;
+      }
     }
     std::string c = Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i]);
     VLOG(3) << "At level " << level << " trying card " << c
@@ -287,7 +326,8 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
         bs.GetHand(2) & mask,
         bs.GetHand(3) & mask,
         static_cast<uint8_t>(bs.CurPlayer()),
-        static_cast<uint8_t>(bs.GetTrump())};
+        static_cast<uint8_t>(bs.GetTrump()),
+        static_cast<uint8_t>(std::max(0, min_tricks))};
     shard = BoardCacheKeyHash{}(key) & (SolverCache::kNumShards - 1);
     std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
     auto it = cache->tree_cache[shard].find(key);
