@@ -1249,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (node._x === undefined || node._y === undefined) return;
 
-    const nodeWidth = 150;
+    const nodeWidth = 164;
     const nodeHeight = 78;
     const nodeCenterX = node._x + nodeWidth / 2;
     const nodeCenterY = node._y + nodeHeight / 2;
@@ -1312,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 150;
+    const nodeWidth = 164;
     const nodeHeight = 78;
     const levelHeight = 140;
     const siblingGap = 24;
@@ -1433,12 +1433,12 @@ document.addEventListener('DOMContentLoaded', () => {
       title.textContent = truncateText(rawTitle, 28);
       g.appendChild(title);
 
-      // Detail Text
+      // Detail Text (Line 2 and optional Line 3)
       const detail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       detail.setAttribute('x', '8');
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
-      const detailText = formatNodeDeals(node);
+      const { primary: detailText, secondary: failLineText } = formatNodeCardDealLines(node);
       const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
       if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
         detail.textContent = detailText;
@@ -1447,7 +1447,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       g.appendChild(detail);
 
-      // 3rd Line: N/S Won on its own line for leaf/outcome nodes
+      // 3rd Line: N/S Won on outcome nodes, or Fails count on non-outcome nodes
       if (node.type === 'outcome' && node.ns_tricks !== undefined) {
         const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         highlight.setAttribute('x', '8');
@@ -1458,6 +1458,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         highlight.textContent = `N/S Won: ${node.ns_tricks}`;
         g.appendChild(highlight);
+      } else if (failLineText) {
+        const failDetail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        failDetail.setAttribute('x', '8');
+        failDetail.setAttribute('y', '62');
+        failDetail.setAttribute('class', 'node-text-detail');
+        failDetail.textContent = failLineText;
+        g.appendChild(failDetail);
       }
 
 
@@ -1483,23 +1490,31 @@ document.addEventListener('DOMContentLoaded', () => {
     return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
   }
 
-  // Deal counts for a node card / inspector. A failure leaf reports the deals
-  // that fail there; any other node reports the deals it makes and, when some
-  // of the deals reaching it go on to fail, that count as well.
-  function formatNodeDeals(node) {
+  function formatNodeCardDealLines(node) {
     const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
     const withPct = (n) => total ? `${n} (${Math.round((n / total) * 100)}%)` : `${n}`;
     if (node.failure) {
       const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
-      return `Fails: ${withPct(fails)}`;
+      return { primary: `Fails: ${withPct(fails)}`, secondary: '' };
     }
     const wins = node.success_boards !== undefined ? node.success_boards : node.covered_boards;
-    if (wins === undefined) return '';
+    if (wins === undefined) return { primary: '', secondary: '' };
     const fails = node.failure_boards || 0;
     if (fails > 0 && node.type !== 'outcome') {
-      return `Makes: ${withPct(wins)} · Fails: ${fails}`;
+      return {
+        primary: `Makes: ${withPct(wins)}`,
+        secondary: `Fails: ${withPct(fails)}`
+      };
     }
-    return `Deals: ${withPct(wins)}`;
+    return { primary: `Deals: ${withPct(wins)}`, secondary: '' };
+  }
+
+  // Deal counts for a node card / inspector. A failure leaf reports the deals
+  // that fail there; any other node reports the deals it makes and, when some
+  // of the deals reaching it go on to fail, that count as well.
+  function formatNodeDeals(node) {
+    const { primary, secondary } = formatNodeCardDealLines(node);
+    return secondary ? `${primary} · ${secondary}` : primary;
   }
 
   function showNodeInspector(node, clickedNode = null) {
