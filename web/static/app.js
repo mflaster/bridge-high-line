@@ -1474,25 +1474,6 @@ document.addEventListener('DOMContentLoaded', () => {
         g.appendChild(highlight);
       }
 
-      // Expand/Collapse Indicator if children exist
-      if (node.children && node.children.length > 0) {
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', nodeWidth - 12);
-        circle.setAttribute('cy', 14);
-        circle.setAttribute('r', '7');
-        circle.setAttribute('fill', '#334155');
-        g.appendChild(circle);
-
-        const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        badge.setAttribute('x', nodeWidth - 12);
-        badge.setAttribute('y', 17.5);
-        badge.setAttribute('text-anchor', 'middle');
-        badge.setAttribute('fill', '#ffffff');
-        badge.setAttribute('font-size', '9');
-        badge.setAttribute('font-weight', 'bold');
-        badge.textContent = node._collapsed ? '+' : '−';
-        g.appendChild(badge);
-      }
 
       // Event Listeners for Interactivity
       g.addEventListener('click', (e) => {
