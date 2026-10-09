@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'NOTRUMP',
       leader: 'NORTH',
       target: 7,
-      iters: 20,
+      iters: 100,
       north: 'S A43; H A54; D 432; C -;',
       east: '',
       south: 'S 2; H 32; D AK8765; C -;',
