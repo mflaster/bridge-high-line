@@ -466,5 +466,56 @@ TEST_CASE("GeneralizedDemiPlayDiscardNoSuitBranching") {
   }
 }
 
+TEST_CASE("GeneralizedTrickFinderDefenderLeadConsolidation") {
+  GeneralizedTrickFinder gtf(HEARTS);
+  // West (3) is on lead.
+  // Spades: on boards 0, 1, 2, West leads S4, SJ, S6 and East plays S4, SQ, ST
+  // (never SA), South plays SK. On board 3, West leads S4, East plays SA, and
+  // South ducks with S9.
+  gtf.RecordOptimalTrick(3, "S4 S5 S6 SK", 0);
+  gtf.RecordOptimalTrick(3, "SJ S5 SQ SK", 1);
+  gtf.RecordOptimalTrick(3, "S6 S5 ST SK", 2);
+  gtf.RecordOptimalTrick(3, "S4 S5 SA S9", 3);
 
+  // Clubs: on boards 4, 5, West leads low club (C4, C8) and South plays CJ.
+  // On board 6, West leads club honor (CQ) and South covers with CA.
+  // On board 4, playing CA is also optimal at this trick (creating an
+  // overarching (C_) C6 (C_) CA [4,6] trick that overlaps board 4).
+  gtf.RecordOptimalTrick(3, "C4 C6 C3 CJ", 4);
+  gtf.RecordOptimalTrick(3, "C8 C6 CT CJ", 5);
+  gtf.RecordOptimalTrick(3, "CQ C6 C3 CA", 6);
+  gtf.RecordOptimalTrick(3, "C4 C6 C3 CA", 4);
 
+  GeneralizedTricksVector tricks = gtf.GetGeneralizedTricks(50);
+
+  // Verify that when West's lead pattern (S_) and (Sx) produce the same d2
+  // board set (e.g. board 3 with (SA) S9), the more general (S_) pattern is
+  // retained rather than (Sx).
+  bool found_s_any_sa = false;
+  bool found_s_low_sa = false;
+  for (const auto &gt : tricks) {
+    if (gt.demi2.opp_card == "SA" && gt.demi2.my_card == "S9") {
+      if (gt.demi1.opp_card == "S_") found_s_any_sa = true;
+      if (gt.demi1.opp_card == "Sx") found_s_low_sa = true;
+    }
+  }
+  REQUIRE(found_s_any_sa);
+  REQUIRE(!found_s_low_sa);
+
+  // Verify that GroupTricks produces a 4-branch group covering all 7 boards:
+  // (S_) S5 (S_) SK [0,1,2], (S_) S5 (SA) S9 [3], (Cx) C6 (C_) CJ [4,5],
+  // and (CX) C6 (Cx) CA [6].
+  std::vector<std::vector<GeneralizedTrick>> groups = GroupTricks(tricks);
+  bool found_consolidated_group = false;
+  for (const auto &grp : groups) {
+    std::set<int> covered;
+    for (const auto &gt : grp) {
+      covered.insert(gt.boards.begin(), gt.boards.end());
+    }
+    if (covered.size() == 7 && grp.size() == 4) {
+      found_consolidated_group = true;
+      break;
+    }
+  }
+  REQUIRE(found_consolidated_group);
+}

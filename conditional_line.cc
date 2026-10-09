@@ -517,9 +517,17 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
   }
   GeneralizedTricksVector ans;
   ans.reserve(std::min<size_t>(top, sorted.size()));
+  std::map<std::tuple<std::set<int>, std::string, std::string, std::string>,
+           std::vector<size_t>>
+      seen_d1_for_trick;
+  int prev_inter_count = -1;
   for (auto it = sorted.rbegin(); it != sorted.rend(); it++) {
     if (ans.size() >= top) {
       break;
+    }
+    if (it->first != prev_inter_count) {
+      seen_d1_for_trick.clear();
+      prev_inter_count = it->first;
     }
     const auto &[d1_idx, d2_idx] = it->second;
     const auto &d1 = demi1_plays[d1_idx];
@@ -540,6 +548,26 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
           }
         }
       }
+    }
+    if (leader_ % 2 != 0) {
+      auto &seen_indices = seen_d1_for_trick[std::make_tuple(
+          d2.boards, d1.my_card, d2.my_card, d2.opp_card)];
+      bool replaced_or_redundant = false;
+      for (size_t ans_idx : seen_indices) {
+        const std::string &prev_opp1 = ans[ans_idx].demi1.opp_card;
+        if (prev_opp1[0] == d1.opp_card[0] &&
+            CardsAreRedundant(prev_opp1, d1.opp_card)) {
+          if (d1.boards.size() > ans[ans_idx].demi1.boards.size()) {
+            ans[ans_idx] = GeneralizedTrick(d1, d2, d2.boards, leader_);
+          }
+          replaced_or_redundant = true;
+          break;
+        }
+      }
+      if (replaced_or_redundant) {
+        continue;
+      }
+      seen_indices.push_back(ans.size());
     }
     ans.emplace_back(d1, d2, d2.boards, leader_);
   }
@@ -618,6 +646,70 @@ bool AnyIntersection(const set<int> &b1, const set<int> &b2) {
   return false;
 }
 
+int PatternSpecificity(const std::string &pattern) {
+  if (pattern.size() != 2) return 0;
+  if (pattern == "__") return 1;
+  if (pattern == "R_") return 2;
+  if (pattern[1] == '_') return 3;
+  if (pattern[1] == 'x' || pattern[1] == 'X') return 4;
+  return 5;
+}
+
+bool HasActualCardMatchingPattern(const GeneralizedTrick &general_trick,
+                                  const std::string &specific_pattern,
+                                  int opp_pos) {
+  if (general_trick.demi2.board_to_trick.empty()) {
+    return true;
+  }
+  for (int b : general_trick.boards) {
+    auto it = general_trick.demi2.board_to_trick.find(b);
+    if (it == general_trick.demi2.board_to_trick.end()) {
+      return true;
+    }
+    std::vector<std::string> cards = SplitWords(it->second);
+    if (static_cast<int>(cards.size()) <= opp_pos) {
+      return true;
+    }
+    Suit suit_led = GetSuitOfCard(cards[0]);
+    if (GeneralizesTo(cards[opp_pos], specific_pattern, suit_led, NOTRUMP)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
+                            const GeneralizedTrick &trick2,
+                            const std::string &opp1,
+                            const std::string &opp2,
+                            int opp_pos) {
+  if (!CardsAreRedundant(opp1, opp2)) {
+    return true;
+  }
+  if (trick1.leader % 2 == 0) {
+    return false;
+  }
+  if (opp1[0] == opp2[0] &&
+      ((opp1[1] == 'X' && opp2[1] == 'x') ||
+       (opp1[1] == 'x' && opp2[1] == 'X'))) {
+    return true;
+  }
+  if (opp1 == opp2 ||
+      trick1.demi2.board_to_trick.empty() ||
+      trick2.demi2.board_to_trick.empty()) {
+    return false;
+  }
+  int spec1 = PatternSpecificity(opp1);
+  int spec2 = PatternSpecificity(opp2);
+  if (spec1 < spec2) {
+    return !HasActualCardMatchingPattern(trick1, opp2, opp_pos);
+  }
+  if (spec2 < spec1) {
+    return !HasActualCardMatchingPattern(trick2, opp1, opp_pos);
+  }
+  return false;
+}
+
 bool AreCardsDistinguishable(const GeneralizedTrick& trick1,
                              const GeneralizedTrick& trick2) {
   bool any_defensive_diff = false;
@@ -625,25 +717,29 @@ bool AreCardsDistinguishable(const GeneralizedTrick& trick1,
     if (trick1.demi1.my_card != trick2.demi1.my_card) {
       return false;
     }
-    if (!CardsAreRedundant(trick1.demi1.opp_card, trick2.demi1.opp_card)) {
+    if (OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
+                               trick2.demi1.opp_card, 1)) {
       any_defensive_diff = true;
     }
     if (!any_defensive_diff && trick1.demi2.my_card != trick2.demi2.my_card) {
       return false;
     }
     if (!any_defensive_diff &&
-        !CardsAreRedundant(trick1.demi2.opp_card, trick2.demi2.opp_card)) {
+        OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
+                               trick2.demi2.opp_card, 3)) {
       any_defensive_diff = true;
     }
   } else {
-    if (!CardsAreRedundant(trick1.demi1.opp_card, trick2.demi1.opp_card)) {
+    if (OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
+                               trick2.demi1.opp_card, 0)) {
       any_defensive_diff = true;
     }
     if (!any_defensive_diff && trick1.demi1.my_card != trick2.demi1.my_card) {
       return false;
     }
     if (!any_defensive_diff &&
-        !CardsAreRedundant(trick1.demi2.opp_card, trick2.demi2.opp_card)) {
+        OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
+                               trick2.demi2.opp_card, 2)) {
       any_defensive_diff = true;
     }
     if (!any_defensive_diff && trick1.demi2.my_card != trick2.demi2.my_card) {
@@ -731,36 +827,41 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
   std::vector<int> group_indices;
   std::vector<uint64_t> group_mask(num_words, 0);
 
+  auto try_add = [&](uint j) {
+    bool board_overlap = false;
+    for (size_t w = 0; w < num_words; ++w) {
+      if ((group_mask[w] & masks[j][w]) != 0) {
+        board_overlap = true;
+        break;
+      }
+    }
+    if (board_overlap) {
+      return;
+    }
+    const GeneralizedTrick &trick = input[j];
+    for (int idx : group_indices) {
+      if (!AreCardsDistinguishable(input[idx], trick)) {
+        return;
+      }
+    }
+    group_indices.push_back(j);
+    for (size_t w = 0; w < num_words; ++w) {
+      group_mask[w] |= masks[j][w];
+    }
+  };
+
   for (uint i = 0; i < input.size(); i++) {
     group_indices.clear();
     group_indices.push_back(i);
     group_mask = masks[i];
 
+    if (input[i].leader % 2 != 0 && !input[i].demi2.board_to_trick.empty()) {
+      for (uint j = 0; j < i; j++) {
+        try_add(j);
+      }
+    }
     for (uint j = i + 1; j < input.size(); j++) {
-      bool board_overlap = false;
-      for (size_t w = 0; w < num_words; ++w) {
-        if ((group_mask[w] & masks[j][w]) != 0) {
-          board_overlap = true;
-          break;
-        }
-      }
-      if (board_overlap) {
-        continue;
-      }
-      const GeneralizedTrick &trick = input[j];
-      bool any_indistinguishable = false;
-      for (int idx : group_indices) {
-        if (!AreCardsDistinguishable(input[idx], trick)) {
-          any_indistinguishable = true;
-          break;
-        }
-      }
-      if (!any_indistinguishable) {
-        group_indices.push_back(j);
-        for (size_t w = 0; w < num_words; ++w) {
-          group_mask[w] |= masks[j][w];
-        }
-      }
+      try_add(j);
     }
     bool any_new_groupings = false;
     for (int idx : group_indices) {
@@ -827,6 +928,27 @@ std::string GetPatternAtPos(const GeneralizedTrick &gt, int pos) {
     }
   }
   return "";
+}
+
+std::vector<const ConditionalLine *> FilterCandidatesByDefenderCard(
+    const std::vector<const ConditionalLine *> &candidates,
+    const std::string &def_card_str, int pos, Suit suit_led, Suit trump) {
+  std::vector<const ConditionalLine *> matching;
+  int best_spec = -1;
+  for (const ConditionalLine *cand : candidates) {
+    std::string pattern = GetPatternAtPos(cand->do_first(), pos);
+    if (GeneralizesTo(def_card_str, pattern, suit_led, trump)) {
+      int spec = PatternSpecificity(pattern);
+      if (spec > best_spec) {
+        best_spec = spec;
+        matching.clear();
+        matching.push_back(cand);
+      } else if (spec == best_spec) {
+        matching.push_back(cand);
+      }
+    }
+  }
+  return matching;
 }
 
 std::vector<std::vector<std::string>> ExtractTrickLines(
@@ -935,13 +1057,9 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
       cur_opt_lines = std::move(next_opt_lines);
 
       if (candidates.size() > 1) {
-        std::vector<const ConditionalLine *> matching;
-        for (const ConditionalLine *cand : candidates) {
-          std::string pattern = GetPatternAtPos(cand->do_first(), pos);
-          if (GeneralizesTo(def_card_str, pattern, suit_led, copy.GetTrump())) {
-            matching.push_back(cand);
-          }
-        }
+        std::vector<const ConditionalLine *> matching =
+            FilterCandidatesByDefenderCard(
+                candidates, def_card_str, pos, suit_led, copy.GetTrump());
         if (!matching.empty()) {
           candidates = std::move(matching);
         }
@@ -1119,13 +1237,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
         }
         cur_opt_lines = std::move(next_opt_lines);
 
-        std::vector<const ConditionalLine *> matching;
-        for (const ConditionalLine *cand : candidates) {
-          std::string pattern = GetPatternAtPos(cand->do_first(), pos);
-          if (GeneralizesTo(def_card_str, pattern, suit_led, copy.GetTrump())) {
-            matching.push_back(cand);
-          }
-        }
+        std::vector<const ConditionalLine *> matching =
+            FilterCandidatesByDefenderCard(
+                candidates, def_card_str, pos, suit_led, copy.GetTrump());
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
