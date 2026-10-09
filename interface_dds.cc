@@ -136,10 +136,11 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   bool use_min_tricks_target = false;
   if (pair_is_me && min_tricks >= 1 && bs.SuitLed() != NOTRUMP && level < 3) {
     uint16_t suit_cards = (cur_hand >> (bs.SuitLed() * 16)) & 0xffff;
-    // Only use target = min_tricks when following suit with >= 2 honors
-    // (T, J, Q, K, A = bits 8..12 = 0x1f00) so finesses like CJ from AKJ
-    // are included without adding suboptimal leads, ducks, or discards.
-    if (__builtin_popcount(suit_cards & 0x1f00) >= 2) {
+    // Use target = min_tricks when following suit with >= 2 cards so plays
+    // that achieve min_tricks aren't pruned by double-dummy overtricks,
+    // without allowing throwaway leads, ruffs of partner's winners, or
+    // discards of winners when void.
+    if (__builtin_popcount(suit_cards) >= 2) {
       use_min_tricks_target = true;
     }
   }

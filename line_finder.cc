@@ -760,9 +760,6 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
   GeneralizedTrickFinder gen_trick_finder(trump_suit);
   std::set<int> solvable_boards;
   int cards_left = 0;
-  bool opps_have_trumps = false;
-  uint64_t trump_mask =
-      (trump_suit != NOTRUMP) ? (0xffffULL << (trump_suit * 16)) : 0;
   for (int b : board_offsets) {
     const std::shared_ptr<OptimalPlayTree> &play_tree = board_trees.at(b);
     CHECK(play_tree);
@@ -787,40 +784,8 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
       continue;
     }
     solvable_boards.insert(b);
-    const BoardState *bs = play_tree->MyBoard();
-    if (trump_mask != 0 && !opps_have_trumps) {
-      uint64_t opp_cards =
-          (bs->GetHand(1) | bs->GetHand(3)) & ~bs->played_cards();
-      if ((opp_cards & trump_mask) != 0) {
-        opps_have_trumps = true;
-      }
-    }
-  }
-  for (int b : solvable_boards) {
-    const std::shared_ptr<OptimalPlayTree> &play_tree = board_trees.at(b);
-    const BoardState *bs = play_tree->MyBoard();
     const OptimalLines &lines = play_tree->GetLines();
-    int partner = (leader + 2) % 4;
-    uint64_t partner_trumps =
-        (bs->GetHand(partner) & ~bs->played_cards()) & trump_mask;
-    bool filter_idle_trump =
-        (lvl == 0 && trump_suit != NOTRUMP && leader % 2 == 0 &&
-         !opps_have_trumps && partner_trumps == 0 &&
-         bs->CardsPlayedThisTrick() == 0);
-    bool has_non_trump_lead = false;
-    if (filter_idle_trump) {
-      for (const OptimalLine &trick : lines) {
-        if (!trick.empty() && Card::ParseSuit(trick[0]) != trump_suit) {
-          has_non_trump_lead = true;
-          break;
-        }
-      }
-    }
     for (const OptimalLine &trick : lines) {
-      if (has_non_trump_lead && !trick.empty() &&
-          Card::ParseSuit(trick[0]) == trump_suit) {
-        continue;
-      }
       VLOG(3) << "    " << trick;
       gen_trick_finder.RecordOptimalTrick(leader, trick, b);
     }
