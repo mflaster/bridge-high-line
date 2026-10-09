@@ -450,3 +450,17 @@ TEST_CASE("IsCardGoodConditionEvaluateAndResults") {
   REQUIRE(root.ResultsOnHand(bs_ha_gone) == 2);
 }
 
+TEST_CASE("GeneralizedDemiPlayDiscardNoSuitBranching") {
+  GeneralizedDemiPlay demi(HEARTS);
+  demi.RecordOptimalPlay("D4", "SA", 0);
+  demi.RecordOptimalPlay("CQ", "SA", 1);
+
+  GeneralizedPlaysVector plays = demi.GetGeneralizedPlays(0, SPADES, 20);
+  for (const auto &p : plays) {
+    REQUIRE((p.opp_card == "R_" || p.opp_card == "__"));
+    REQUIRE(p.boards == std::set<int>{0, 1});
+  }
+}
+
+
+

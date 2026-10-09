@@ -21,17 +21,17 @@ Invariant Rules for 4 card ending:
                 when 2 wins the HA: HAND SUCCEEDED FOR: 0, 5, 6, 7, 8, 10, 15, 17, 23, 24, 26
       after (S_) S7 (S_) SQ: (S_) S7 (S_) SQ [20] / S3 S7 S4 SQ 
         when 0 wins the SQ: 
-          after SA (S_) S6 (SK): SA (S_) S6 (SK) [20] / SA S9 S6 SK 
-            when 0 wins the SA: 
-              after H2 (R_) HA (R_): H2 (R_) HA (R_) [20] / H2 D4 HA D3 
-                when 2 wins the HA: HAND SUCCEEDED FOR: 20
+          after H2 (__) HA (__): H2 (__) HA (__) [20] / H2 D4 HA D3 
+            when 2 wins the HA: 
+              after S6 (SK) SA (S_): S6 (SK) SA (S_) [20] / S6 SK SA S9 
+                when 0 wins the SA: HAND SUCCEEDED FOR: 20
   after S8 (S_) ST (SK): S8 (S_) ST (SK) [21] / S8 S5 ST SK 
     when 1 wins the SK: 
       after (S_) S7 (S_) SA: (S_) S7 (S_) SA [21] / S3 S7 S4 SA 
         when 0 wins the SA: 
-          after SQ (R_) S6 (SJ): SQ (R_) S6 (SJ) [21] / SQ D4 S6 SJ 
+          after SQ (__) S6 (SJ): SQ (__) S6 (SJ) [21] / SQ D4 S6 SJ 
             when 0 wins the SQ: 
-              after H2 (R_) HA (S_): H2 (R_) HA (S_) [21] / H2 D3 HA S9 
+              after H2 (__) HA (__): H2 (__) HA (__) [21] / H2 D3 HA S9 
                 when 2 wins the HA: HAND SUCCEEDED FOR: 21
   after S8 (S_) ST (Sx): S8 (S_) ST (Sx) [1,2,3,4,9,11,12,13,14,16,18,19,22,25,27,28,29] / S8 S4 ST S5  / S8 S5 ST S9  / S8 S5 ST S9  / S8 S3 ST S5  / S8 S3 ST S4 
     when 0 wins the ST: 

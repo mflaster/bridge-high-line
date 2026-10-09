@@ -681,7 +681,7 @@ void LineFinder::TryBranchOnGoodCards(
     int cards_left, int leader, int lvl,
     std::vector<ConditionalLine> &ans) {
   int best_covered = ans.empty() ? 0 : ans[0].CoveredFinalBoards();
-  if (lvl <= 0 || cards_left > 5 || leader % 2 != 0 ||
+  if (lvl <= 0 || leader % 2 != 0 ||
       best_covered >= static_cast<int>(solvable_boards.size()) ||
       solvable_boards.size() < 2 ||
       get_line_from_trick_calls.load(std::memory_order_relaxed) >= 5000) {
@@ -745,7 +745,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
     std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
     const std::set<int> &board_offsets,
     int leader, int lvl) {
-  CHECK_LT(lvl, 15);
+  CHECK_LT(lvl, 30);
   if (lvl < 3) {
     VLOG(1) << "SolveHelper lvl " << lvl << " to win " << min_tricks
             << " on boards " << board_trees.size()

@@ -19,7 +19,7 @@ Invariant Rules for 5 card ending:
             when 0 wins the DA: 
               after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H5 
                 when 2 wins the HA: 
-                  after HQ (H_) H2 (S_): HQ (H_) H2 (S_) [1] / HQ H4 H2 S4 
+                  after HQ (H_) H2 (__): HQ (H_) H2 (__) [1] / HQ H4 H2 S4 
                     when 2 wins the HQ: HAND SUCCEEDED FOR: 1
               after H3 (Hx) HQ (H_): H3 (Hx) HQ (H_) [3,4,6] / H3 H5 HQ H4  / H3 H5 HQ H7  / H3 H7 HQ H6 
                 when 2 wins the HQ: 

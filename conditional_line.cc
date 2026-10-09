@@ -173,36 +173,36 @@ std::vector<std::string> GeneralizeOppCard(const std::string &card,
   }
   CHECK_GE(card.size(), 2) << card;
   std::vector<std::string> cards;
-#if CONSIDER_INDIVIDUAL_LOW_CARDS
-  cards.push_back(card);
-#endif
-
-  std::string honor_or_not = card;
-  if (isdigit(honor_or_not[1])) {
-    honor_or_not[1] = 'x';
-  } else {
-    honor_or_not[1] = 'X';
-#if !CONSIDER_INDIVIDUAL_LOW_CARDS
-    // Only record raw card if it's an honor
-    cards.push_back(card);
-#endif
-  }
-  cards.push_back(honor_or_not);
-
-  std::string suited = card;
-  suited[1] = '_';
-  cards.push_back(suited);
 
   Suit card_suit = GetSuitOfCard(card);
-  if (CONSIDER_DISCARDS && card_suit != suit_led && card_suit != trump) {
-    suited[0] = 'R';  // discaRd
+  bool is_discard =
+      (suit_led != NOTRUMP && card_suit != suit_led && card_suit != trump);
+
+  if (!is_discard) {
+#if CONSIDER_INDIVIDUAL_LOW_CARDS
+    cards.push_back(card);
+#endif
+
+    std::string honor_or_not = card;
+    if (isdigit(honor_or_not[1])) {
+      honor_or_not[1] = 'x';
+    } else {
+      honor_or_not[1] = 'X';
+#if !CONSIDER_INDIVIDUAL_LOW_CARDS
+      // Only record raw card if it's an honor
+      cards.push_back(card);
+#endif
+    }
+    cards.push_back(honor_or_not);
+
+    std::string suited = card;
+    suited[1] = '_';
     cards.push_back(suited);
+  } else if (CONSIDER_DISCARDS) {
+    cards.push_back("R_");  // discaRd
   }
 
-  std::string unsuited = suited;
-  unsuited[0] = '_';
-  cards.push_back(unsuited);
-
+  cards.push_back("__");
   return cards;
 }
 
@@ -222,7 +222,10 @@ bool GeneralizesTo(const std::string& actual_card,
   if (gen_suit == '_' && gen_rank == '_') {
     return true;
   }
-  if (gen_suit == actual_suit) {
+  Suit card_suit = GetSuitOfCard(actual_card);
+  bool is_discard =
+      (suit_led != NOTRUMP && card_suit != suit_led && card_suit != trump);
+  if (!is_discard && gen_suit == actual_suit) {
     if (gen_rank == '_') return true;
     if (isdigit(actual_rank)) {
       return gen_rank == 'x';
@@ -231,8 +234,7 @@ bool GeneralizesTo(const std::string& actual_card,
     }
   }
   if (gen_suit == 'R' && gen_rank == '_') {
-    Suit card_suit = GetSuitOfCard(actual_card);
-    return CONSIDER_DISCARDS && card_suit != suit_led && card_suit != trump;
+    return CONSIDER_DISCARDS && is_discard;
   }
   return false;
 }
@@ -256,17 +258,28 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
     int leader, Suit known_suit_led, unsigned int top) {
   VLOG(2) << "GetGeneralizedPlays";
   std::map<pair<std::string, std::string>, std::vector<int>> generalized;
-  for (const auto &[opp_card, card_to_boards] : opp_to_card_to_boards_) {
-    for (const auto &[my_card, boards] : card_to_boards) {
-      Suit suit_led = known_suit_led != NOTRUMP ? known_suit_led
-                      : (leader % 2 == 0
-                         ? GetSuitOfCard(my_card)
-                         : GetSuitOfCard(opp_card));
-      auto opp_card_choices =
-          GeneralizeOppCard(opp_card, suit_led, trump_suit_);
-      for (const auto &choice : opp_card_choices) {
-        auto &dest = generalized[make_pair(choice, my_card)];
-        dest.insert(dest.end(), boards.begin(), boards.end());
+  if (!saved_tricks_.empty()) {
+    for (const auto &[opp_choice, me_map] : saved_tricks_) {
+      for (const auto &[my_card, board_map] : me_map) {
+        auto &dest = generalized[make_pair(opp_choice, my_card)];
+        for (const auto &[b, _trick] : board_map) {
+          dest.push_back(b);
+        }
+      }
+    }
+  } else {
+    for (const auto &[opp_card, card_to_boards] : opp_to_card_to_boards_) {
+      for (const auto &[my_card, boards] : card_to_boards) {
+        Suit suit_led = known_suit_led != NOTRUMP ? known_suit_led
+                        : (leader % 2 == 0
+                           ? GetSuitOfCard(my_card)
+                           : GetSuitOfCard(opp_card));
+        auto opp_card_choices =
+            GeneralizeOppCard(opp_card, suit_led, trump_suit_);
+        for (const auto &choice : opp_card_choices) {
+          auto &dest = generalized[make_pair(choice, my_card)];
+          dest.insert(dest.end(), boards.begin(), boards.end());
+        }
       }
     }
   }
@@ -428,10 +441,12 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     if (tricks_it != d1_to_tricks.end()) {
       for (uint i : tricks_it->second) {
         const auto &[cards, board] = tricks_[i];
+        const std::string *trick_ptr =
+            (d1_suit_led == NOTRUMP) ? &raw_tricks_[i] : nullptr;
         if (leader_ % 2 == 0) {
-          demi2.RecordOptimalPlay(cards[3], cards[2], board, nullptr);
+          demi2.RecordOptimalPlay(cards[3], cards[2], board, trick_ptr);
         } else {
-          demi2.RecordOptimalPlay(cards[2], cards[3], board, nullptr);
+          demi2.RecordOptimalPlay(cards[2], cards[3], board, trick_ptr);
         }
       }
     }
@@ -457,7 +472,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     }
     const auto &[d1_idx, d2_idx] = it->second;
     const auto &d1 = demi1_plays[d1_idx];
-    auto &d2 = all_demi2_plays[d1_idx][d2_idx];
+    GeneralizedDemiStruct d2 = all_demi2_plays[d1_idx][d2_idx];
     if (d2.board_to_trick.empty()) {
       auto tricks_it = d1_to_tricks.find(make_pair(d1.opp_card, d1.my_card));
       if (tricks_it != d1_to_tricks.end()) {
