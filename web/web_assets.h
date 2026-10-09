@@ -2930,7 +2930,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (node._x === undefined || node._y === undefined) return;
 
-    const nodeWidth = 180;
+    const nodeWidth = 150;
     const nodeHeight = 78;
     const nodeCenterX = node._x + nodeWidth / 2;
     const nodeCenterY = node._y + nodeHeight / 2;
@@ -2993,7 +2993,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 180;
+    const nodeWidth = 150;
     const nodeHeight = 78;
     const levelHeight = 140;
     const siblingGap = 24;
