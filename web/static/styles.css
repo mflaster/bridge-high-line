@@ -605,6 +605,22 @@ body.is-resizing * {
   background-color: currentColor;
 }
 
+.status-progress {
+  flex: 0 0 160px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.status-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background-color: currentColor;
+  transition: width 0.3s ease;
+}
+
 .exec-time {
   margin-left: auto;
   font-size: 12px;
