@@ -2,6 +2,10 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 cmake_minimum_required(VERSION 3.20)
 project(bridge CXX C)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -54,9 +58,20 @@ if(NOT TARGET Boost::headers)
   add_library(Boost::headers ALIAS boost_headers)
 endif()
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 FetchContent_GetProperties(dds)
 if(NOT dds_POPULATED)
   FetchContent_Populate(dds)
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE}
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/patch_dds.py"
+      "${dds_SOURCE_DIR}"
+    RESULT_VARIABLE patch_dds_result
+  )
+  if(NOT patch_dds_result EQUAL 0)
+    message(FATAL_ERROR "Failed to patch DDS sources")
+  endif()
   file(GLOB DDS_SOURCES "${dds_SOURCE_DIR}/src/*.cpp")
   add_library(dds STATIC ${DDS_SOURCES})
   target_compile_definitions(dds PRIVATE DDS_THREADS_OPENMP)
@@ -67,8 +82,6 @@ if(NOT dds_POPULATED)
   find_package(OpenMP REQUIRED)
   target_link_libraries(dds PUBLIC OpenMP::OpenMP_CXX boost_headers)
 endif()
-
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/web/web_assets.h

@@ -2,7 +2,10 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
+#include <string>
+#include <unordered_map>
 
 #include "conditional_line.h"
 #include "interface_dds.h"
@@ -48,7 +51,9 @@ class FuzzyBoardState {
 
 class LineFinder {
  public:
-  LineFinder(int num_iters) : num_iters_(num_iters) {}
+  LineFinder(int num_iters)
+      : num_iters_(num_iters),
+        solve_memo_(std::make_unique<SolveMemo>()) {}
 
   void SetRequirements(
       const std::vector<std::shared_ptr<HandRequirements>> &reqs1,
@@ -145,10 +150,25 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl);
 
+  std::vector<ConditionalLine> SolveHelperUncached(
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets,
+      int leader, int lvl);
+
  private:
+  static constexpr size_t kMemoShards = 64;
+  struct SolveMemo {
+    std::mutex mu[kMemoShards];
+    std::unordered_map<std::string, std::vector<ConditionalLine>>
+        shards[kMemoShards];
+  };
+
   int num_iters_;
   FuzzyBoardState fuzzy_state_;
   std::vector<BoardState> boards_;
+  std::unique_ptr<SolveMemo> solve_memo_;
   double solve_ms_ = 0.0;
   double invariant_ms_ = 0.0;
 };

@@ -6,7 +6,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_DIR"
 
-cmake -B build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target line_finder_perf -j4
 
 ./build/line_finder_perf "$@"
