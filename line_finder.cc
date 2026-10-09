@@ -248,6 +248,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
       SetupBoards(trump, leader, board_offsets, cur_trick);
   boards_ = boards;
 
+  solve_memo_ = std::make_unique<SolveMemo>();
   SolverCache cache;
   auto start_init_trees = std::chrono::high_resolution_clock::now();
   std::map<int, std::shared_ptr<OptimalPlayTree>> board_trees;
@@ -911,6 +912,44 @@ void LineFinder::TryBranchOnGoodCards(
 }
 
 std::vector<ConditionalLine> LineFinder::SolveHelper(
+    int min_tricks,
+    SolverCache &cache_in,
+    std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+    const std::set<int> &board_offsets,
+    int leader, int lvl, SearchProgress::Node *progress) {
+  if (lvl <= 0 || board_offsets.empty() || !solve_memo_) {
+    return SolveHelperUncached(min_tricks, cache_in, board_trees,
+                               board_offsets, leader, lvl, progress);
+  }
+  std::string key;
+  key.reserve(2 + board_offsets.size() * 12);
+  key.push_back(static_cast<char>(leader));
+  key.push_back(static_cast<char>(std::max(min_tricks, 0)));
+  for (int b : board_offsets) {
+    uint32_t bid = static_cast<uint32_t>(b);
+    uint64_t played = board_trees.at(b)->MyBoard()->played_cards();
+    key.append(reinterpret_cast<const char *>(&bid), sizeof(bid));
+    key.append(reinterpret_cast<const char *>(&played), sizeof(played));
+  }
+  size_t shard = std::hash<std::string>{}(key) & (kMemoShards - 1);
+  {
+    std::lock_guard<std::mutex> lock(solve_memo_->mu[shard]);
+    auto it = solve_memo_->shards[shard].find(key);
+    if (it != solve_memo_->shards[shard].end()) {
+      SearchProgress::Complete(progress);
+      return it->second;
+    }
+  }
+  std::vector<ConditionalLine> res = SolveHelperUncached(
+      min_tricks, cache_in, board_trees, board_offsets, leader, lvl, progress);
+  {
+    std::lock_guard<std::mutex> lock(solve_memo_->mu[shard]);
+    solve_memo_->shards[shard].emplace(std::move(key), res);
+  }
+  return res;
+}
+
+std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
     int min_tricks,
     SolverCache &cache_in,
     // const std::vector<BoardState> &boards,
