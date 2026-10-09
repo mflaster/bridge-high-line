@@ -1017,6 +1017,7 @@ void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
     item["total_bifurcations"] = st.total_bifurcations;
     item["holds_percent"] = st.holds_percent();
     item["has_line_stats"] = st.has_line_stats;
+    item["is_failure_mode"] = st.is_failure_mode;
     if (st.has_line_stats) {
       item["success_when_holds_count"] = st.success_when_holds_count;
       item["success_when_holds_percent"] = st.success_when_holds_percent();

@@ -115,6 +115,7 @@ struct InvariantStats {
   int total_bifurcations = 0;
   int success_when_holds_count = 0;
   bool has_line_stats = false;
+  bool is_failure_mode = false;
 
   double holds_rate() const {
     return total_bifurcations > 0
@@ -170,7 +171,8 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     const std::string& hand1_label = "hand 1",
     const std::string& hand2_label = "hand 2",
     int num_bifurcations = 200,
-    const ConditionalLine* line = nullptr);
+    const ConditionalLine* line = nullptr,
+    bool is_failure_mode = false);
 
 std::vector<InvariantStats> EvaluateCandidateInvariants(
     std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
@@ -178,7 +180,8 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     int hand1_size,
     const HandLabelFormatter& formatter,
     int num_bifurcations = 200,
-    const ConditionalLine* line = nullptr);
+    const ConditionalLine* line = nullptr,
+    bool is_failure_mode = false);
 
 std::vector<std::shared_ptr<UnknownCardsInvariant>>
 FilterUninterestingInvariants(
@@ -224,12 +227,15 @@ class CrossHandDealSetSummarizer {
       const std::vector<PairedDeal>& deals,
       const HandLabelFormatter& formatter,
       const ConditionalLine* line = nullptr,
-      const std::vector<PairedDeal>* opposing_deals = nullptr) const;
+      const std::vector<PairedDeal>* opposing_deals = nullptr,
+      bool is_failure_mode = false) const;
 
   CrossHandSummaryReport Summarize(
       const std::vector<PairedDeal>& deals,
       const std::string& hand1_label = "hand 1",
       const std::string& hand2_label = "hand 2",
       const ConditionalLine* line = nullptr,
-      const std::vector<PairedDeal>* opposing_deals = nullptr) const;
+      const std::vector<PairedDeal>* opposing_deals = nullptr,
+      bool is_failure_mode = false) const;
 };
+
