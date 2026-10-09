@@ -11,16 +11,13 @@ Line 1: Covers 61/100 (61.0%) [1, 2, 4, 5, 8, 10, 11, 14, 15, 17, 20, 21, 23, 24
 Cross-Hand Deal Set Summary Report
 Total Deals: 61
 Invariant Rules for 6 card ending:
-  - hand 1 length in C is between 0 and 3
-  - hand 3 length in C is between 1 and 4
-  - the hand with the SJ also has at most 3 C
-  - the hand with the DT also has at most 3 C
+  (None)
 
-  after (D_) DA (__) DJ: (D_) DA (__) DJ [1,4,5,10,11,25,27,32,35,37,44,46,47,50,56,59,60,61,74,80,96,98] / DT DA S4 DJ  / D4 DA DT DJ  / DT DA D4 DJ  / D4 DA DT DJ  / D4 DA DT DJ 
+  after (D_) DA (__) DJ: (D_) DA (__) DJ [1,4,5,10,11,25,27,32,35,37,44,46,47,50,56,59,60,61,74,80,96,98] / DT DA C6 DJ  / D4 DA DT DJ  / DT DA D4 DJ  / D4 DA DT DJ  / D4 DA DT DJ 
     if 2 wins the DA: 
-      after H7 (__) HA (H_): H7 (__) HA (H_) [4,5,10,11,25,27,32,35,37,44,46,47,50,56,61,74,80,96,98] / H7 H6 HA HJ  / H7 H6 HA HJ  / H7 H6 HA HJ  / H7 H6 HA HQ  / H7 HQ HA H6 
+      after H7 (__) HA (H_): H7 (__) HA (H_) [1,4,5,10,11,25,27,32,35,37,44,46,47,50,56,61,74,80,96,98] / H7 H6 HA HQ  / H7 H6 HA HJ  / H7 H6 HA HJ  / H7 H6 HA HJ  / H7 H6 HA HQ 
         when 0 wins the HA: 
-          after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [4,5,10,11,25,27,32,35,37,44,46,47,50,56,61,74,80,96,98] / CJ CK C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK  / CJ CT C8 CQ  / CJ CK C8 C6 
+          after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [1,4,5,10,11,25,27,32,35,37,44,46,47,50,56,61,74,80,96,98] / CJ CT C8 CK  / CJ CK C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK  / CJ CT C8 CQ 
             if 1 wins the CK,CQ: 
               after (C_) S9 (__) C9: (C_) S9 (__) C9 [4,5,35,47,74] / C6 S9 SJ C9  / CQ S9 CT C9  / CQ S9 CT C9  / C6 S9 SJ C9  / CQ S9 SJ C9 
                 if 2 wins the S9: 
@@ -59,12 +56,12 @@ Invariant Rules for 6 card ending:
                       after (SJ) C9 (R_) S6: (SJ) C9 (R_) S6 [25,27] / SJ C9 CT S6  / SJ C9 CT S6 
                         when 3 wins the SJ: HAND SUCCEEDED FOR: 25, 27
             if 3 wins the CK,CQ: 
-              after (S_) S3 (S_) S9: (S_) S3 (S_) S9 [11,32,37,56,80,98] / SA S3 S4 S9  / S4 S3 SA S9  / SA S3 S4 S9  / SJ S3 S4 S9  / SA S3 SJ S9 
+              after (S_) S3 (S_) S9: (S_) S3 (S_) S9 [1,11,32,37,56,80,98] / S4 S3 SA S9  / SA S3 S4 S9  / S4 S3 SA S9  / SA S3 S4 S9  / SJ S3 S4 S9 
                 if 1 wins the SA: 
-                  after (HQ) H5 (R_) SK: (HQ) H5 (R_) SK [32] / HQ H5 CQ SK 
+                  after (__) H5 (__) SK: (__) H5 (__) SK [1,32] / D4 H5 HJ SK  / HQ H5 CQ SK 
                     when 0 wins the SK: 
-                      after C9 (R_) S6 (SJ): C9 (R_) S6 (SJ) [32] / C9 HJ S6 SJ 
-                        when 3 wins the SJ: HAND SUCCEEDED FOR: 32
+                      after C9 (__) S6 (SJ): C9 (__) S6 (SJ) [1,32] / C9 CQ S6 SJ  / C9 HJ S6 SJ 
+                        when 3 wins the SJ: HAND SUCCEEDED FOR: 1, 32
                 if 3 wins the SA,SJ: 
                   after (S_) SK (R_) S6: (S_) SK (R_) S6 [11,37,80,98] / SJ SK HJ S6  / SJ SK HQ S6  / S4 SK HQ S6  / SJ SK HJ S6 
                     when 0 wins the SK: 
@@ -87,17 +84,16 @@ Invariant Rules for 6 card ending:
                       after (HJ) SK (SA) H5: (HJ) SK (SA) H5 [50] / HJ SK SA H5 
                         when 1 wins the SA: HAND SUCCEEDED FOR: 50
     if 3 wins the S4: 
-      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [1,59,60] / C6 CJ CQ C8  / C6 CJ CQ C8  / C6 CJ CK C8 
+      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [59,60] / C6 CJ CQ C8  / C6 CJ CK C8 
         when 1 wins the CK,CQ: 
-          after (D_) S9 (R_) SK: (D_) S9 (R_) SK [1,59,60] / D4 S9 H6 SK  / D4 S9 H6 SK  / D4 S9 H6 SK 
-            when 0 wins the SK: 
-              after HA (HQ) H7 (HJ): HA (HQ) H7 (HJ) [1,59,60] / HA HQ H7 HJ  / HA HQ H7 HJ  / HA HQ H7 HJ 
+          after (D_) S9 (R_) S3: (D_) S9 (R_) S3 [59,60] / D4 S9 CK S3  / D4 S9 CQ S3 
+            when 2 wins the S9: 
+              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [59,60] / H7 H6 HA HQ  / H7 H6 HA HQ 
                 when 0 wins the HA: 
-                  after C9 (CT) S6 (CX): C9 (CT) S6 (CX) [1,59,60] / C9 CT S6 CK  / C9 CT S6 CK  / C9 CT S6 CQ 
+                  after C9 (CT) S6 (R_): C9 (CT) S6 (R_) [59,60] / C9 CT S6 HJ  / C9 CT S6 HJ 
                     when 2 wins the S6: 
-                      after H5 (SX) S3 (SX): H5 (SX) S3 (SX) [1,59,60] / H5 SJ S3 SA  / H5 SA S3 SJ  / H5 SA S3 SJ 
-                        if 1 wins the SA: HAND SUCCEEDED FOR: 1
-                        if 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
+                      after H5 (SA) SK (SJ): H5 (SA) SK (SJ) [59,60] / H5 SA SK SJ  / H5 SA SK SJ 
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
   after (S_) S9 (__) S3: (S_) S9 (__) S3 [2,8,14,17,21,23,26,28,29,36,40,51,58,68,75,78,90,94] / S4 S9 SA S3  / S4 S9 SA S3  / S4 S9 C6 S3  / S4 S9 C6 S3  / S4 S9 C6 S3 
     if 2 wins the S9: 
       after DA (__) DJ (DT): DA (__) DJ (DT) [14,17,21,26,28] / DA D4 DJ DT  / DA CT DJ DT  / DA D4 DJ DT  / DA D4 DJ DT  / DA D4 DJ DT 
@@ -118,25 +114,24 @@ Invariant Rules for 6 card ending:
     if 3 wins the SA: 
       after (D_) DJ (DT) DA: (D_) DJ (DT) DA [2,23,58,75,78,94] / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA 
         when 2 wins the DA: 
-          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK H6  / S6 SJ SK C6  / S6 SJ SK H6  / S6 SJ SK CT  / S6 CT SK SJ 
+          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK CT  / S6 CT SK SJ 
             when 0 wins the SK: 
-              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA HQ H7 HJ  / HA HJ H7 H6  / HA HJ H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
+              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA H6 H7 HJ  / HA HJ H7 H6  / HA H6 H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
                 when 0 wins the HA: 
-                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ C6 C8 CQ  / CJ CT C8 CQ  / CJ C6 C8 CK  / CJ CK C8 C6  / CJ C6 C8 CK 
-                    if 1 wins the CK: 
-                      after (HJ) H5 (R_) C9: (HJ) H5 (R_) C9 [75] / HJ H5 CQ C9 
-                        when 1 wins the HJ: HAND SUCCEEDED FOR: 75
+                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ CK C8 CT  / CJ CT C8 CQ  / CJ CQ C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK 
+                    if 1 wins the CK,CQ: 
+                      after (HX) H5 (R_) C9: (HX) H5 (R_) C9 [2,58,75] / HQ H5 CQ C9  / HJ H5 CK C9  / HJ H5 CQ C9 
+                        when 1 wins the HJ,HQ: HAND SUCCEEDED FOR: 2, 58, 75
                     if 3 wins the CK,CQ: 
-                      after (__) C9 (__) H5: (__) C9 (__) H5 [2,23,58,78,94] / CT C9 CK H5  / HQ C9 CK H5  / CT C9 CQ H5  / CQ C9 HJ H5  / C6 C9 CK H5 
-                        if 1 wins the CK,CQ: HAND SUCCEEDED FOR: 2, 58, 94
-                        if 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78
+                      after (__) C9 (__) H5: (__) C9 (__) H5 [23,78,94] / HQ C9 CK H5  / CQ C9 HJ H5  / HQ C9 CK H5 
+                        when 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78, 94
       after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [29,36,40,51,90] / C6 CJ CK C8  / C6 CJ CQ C8  / C6 CJ CK C8  / C6 CJ CK C8  / C6 CJ CQ C8 
         when 1 wins the CK,CQ: 
-          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 DT SK  / SJ S6 DT SK 
+          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 CK SK  / SJ S6 CK SK 
             when 0 wins the SK: 
               after HA (H_) H7 (H_): HA (H_) H7 (H_) [36,90] / HA H6 H7 HQ  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after DJ (D_) DA (R_): DJ (D_) DA (R_) [36,90] / DJ D4 DA CK  / DJ D4 DA CK 
+                  after DJ (D_) DA (DT): DJ (D_) DA (DT) [36,90] / DJ D4 DA DT  / DJ D4 DA DT 
                     when 2 wins the DA: 
                       after H5 (HJ) C9 (R_): H5 (HJ) C9 (R_) [36,90] / H5 HJ C9 CT  / H5 HJ C9 CT 
                         when 3 wins the HJ: HAND SUCCEEDED FOR: 36, 90
@@ -269,12 +264,13 @@ Invariant Rules for 6 card ending:
         if 3 wins the SA: 
           after (D_) DJ (DT) DA: (D_) DJ (DT) DA [31,65] / D4 DJ DT DA  / D4 DJ DT DA 
             when 2 wins the DA: 
-              after S6 (S_) S3 (R_): S6 (S_) S3 (R_) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 H6 
+              after S6 (S_) S3 (__): S6 (S_) S3 (__) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 CK 
                 when 2 wins the S6: 
-                  after H7 (H_) HA (HJ): H7 (H_) HA (HJ) [31,65] / H7 H6 HA HJ  / H7 HQ HA HJ 
+                  after H7 (H_) HA (H_): H7 (H_) HA (H_) [31,65] / H7 H6 HA HJ  / H7 HQ HA H6 
                     when 0 wins the HA: 
-                      after C9 (CK) H5 (C_): C9 (CK) H5 (C_) [31,65] / C9 CK H5 C6  / C9 CK H5 CT 
-                        when 1 wins the CK: HAND SUCCEEDED FOR: 31, 65
+                      after C9 (__) H5 (C_): C9 (__) H5 (C_) [31,65] / C9 CK H5 C6  / C9 HJ H5 CT 
+                        if 1 wins the CK: HAND SUCCEEDED FOR: 31
+                        if 3 wins the CT: HAND SUCCEEDED FOR: 65
       after (D_) DJ (__) DA: (D_) DJ (__) DA [62,63] / D4 DJ DT DA  / DT DJ S4 DA 
         if 1 wins the S4: 
           after (H_) H7 (HQ) HA: (H_) H7 (HQ) HA [63] / H6 H7 HQ HA 
@@ -298,10 +294,7 @@ Line 2: Covers 61/100 (61.0%) [1, 2, 4, 5, 8, 10, 11, 14, 15, 17, 20, 21, 23, 24
 Cross-Hand Deal Set Summary Report
 Total Deals: 61
 Invariant Rules for 6 card ending:
-  - hand 1 length in C is between 0 and 3
-  - hand 3 length in C is between 1 and 4
-  - the hand with the SJ also has at most 3 C
-  - the hand with the DT also has at most 3 C
+  (None)
 
   after (S_) S9 (__) S3: (S_) S9 (__) S3 [2,8,14,17,21,23,26,28,29,36,40,51,58,68,75,78,90,94] / S4 S9 SA S3  / S4 S9 SA S3  / S4 S9 C6 S3  / S4 S9 C6 S3  / S4 S9 C6 S3 
     if 2 wins the S9: 
@@ -323,25 +316,24 @@ Invariant Rules for 6 card ending:
     if 3 wins the SA: 
       after (D_) DJ (DT) DA: (D_) DJ (DT) DA [2,23,58,75,78,94] / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA 
         when 2 wins the DA: 
-          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK H6  / S6 SJ SK C6  / S6 SJ SK H6  / S6 SJ SK CT  / S6 CT SK SJ 
+          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK CT  / S6 CT SK SJ 
             when 0 wins the SK: 
-              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA HQ H7 HJ  / HA HJ H7 H6  / HA HJ H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
+              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA H6 H7 HJ  / HA HJ H7 H6  / HA H6 H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
                 when 0 wins the HA: 
-                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ C6 C8 CQ  / CJ CT C8 CQ  / CJ C6 C8 CK  / CJ CK C8 C6  / CJ C6 C8 CK 
-                    if 1 wins the CK: 
-                      after (HJ) H5 (R_) C9: (HJ) H5 (R_) C9 [75] / HJ H5 CQ C9 
-                        when 1 wins the HJ: HAND SUCCEEDED FOR: 75
+                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ CK C8 CT  / CJ CT C8 CQ  / CJ CQ C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK 
+                    if 1 wins the CK,CQ: 
+                      after (HX) H5 (R_) C9: (HX) H5 (R_) C9 [2,58,75] / HQ H5 CQ C9  / HJ H5 CK C9  / HJ H5 CQ C9 
+                        when 1 wins the HJ,HQ: HAND SUCCEEDED FOR: 2, 58, 75
                     if 3 wins the CK,CQ: 
-                      after (__) C9 (__) H5: (__) C9 (__) H5 [2,23,58,78,94] / CT C9 CK H5  / HQ C9 CK H5  / CT C9 CQ H5  / CQ C9 HJ H5  / C6 C9 CK H5 
-                        if 1 wins the CK,CQ: HAND SUCCEEDED FOR: 2, 58, 94
-                        if 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78
+                      after (__) C9 (__) H5: (__) C9 (__) H5 [23,78,94] / HQ C9 CK H5  / CQ C9 HJ H5  / HQ C9 CK H5 
+                        when 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78, 94
       after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [29,36,40,51,90] / C6 CJ CK C8  / C6 CJ CQ C8  / C6 CJ CK C8  / C6 CJ CK C8  / C6 CJ CQ C8 
         when 1 wins the CK,CQ: 
-          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 DT SK  / SJ S6 DT SK 
+          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 CK SK  / SJ S6 CK SK 
             when 0 wins the SK: 
               after HA (H_) H7 (H_): HA (H_) H7 (H_) [36,90] / HA H6 H7 HQ  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after DJ (D_) DA (R_): DJ (D_) DA (R_) [36,90] / DJ D4 DA CK  / DJ D4 DA CK 
+                  after DJ (D_) DA (DT): DJ (D_) DA (DT) [36,90] / DJ D4 DA DT  / DJ D4 DA DT 
                     when 2 wins the DA: 
                       after H5 (HJ) C9 (R_): H5 (HJ) C9 (R_) [36,90] / H5 HJ C9 CT  / H5 HJ C9 CT 
                         when 3 wins the HJ: HAND SUCCEEDED FOR: 36, 90
@@ -544,12 +536,13 @@ Invariant Rules for 6 card ending:
         if 3 wins the SA: 
           after (D_) DJ (DT) DA: (D_) DJ (DT) DA [31,65] / D4 DJ DT DA  / D4 DJ DT DA 
             when 2 wins the DA: 
-              after S6 (S_) S3 (R_): S6 (S_) S3 (R_) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 H6 
+              after S6 (S_) S3 (__): S6 (S_) S3 (__) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 CK 
                 when 2 wins the S6: 
-                  after H7 (H_) HA (HJ): H7 (H_) HA (HJ) [31,65] / H7 H6 HA HJ  / H7 HQ HA HJ 
+                  after H7 (H_) HA (H_): H7 (H_) HA (H_) [31,65] / H7 H6 HA HJ  / H7 HQ HA H6 
                     when 0 wins the HA: 
-                      after C9 (CK) H5 (C_): C9 (CK) H5 (C_) [31,65] / C9 CK H5 C6  / C9 CK H5 CT 
-                        when 1 wins the CK: HAND SUCCEEDED FOR: 31, 65
+                      after C9 (__) H5 (C_): C9 (__) H5 (C_) [31,65] / C9 CK H5 C6  / C9 HJ H5 CT 
+                        if 1 wins the CK: HAND SUCCEEDED FOR: 31
+                        if 3 wins the CT: HAND SUCCEEDED FOR: 65
       after (D_) DJ (__) DA: (D_) DJ (__) DA [62,63] / D4 DJ DT DA  / DT DJ S4 DA 
         if 1 wins the S4: 
           after (H_) H7 (HQ) HA: (H_) H7 (HQ) HA [63] / H6 H7 HQ HA 
@@ -569,39 +562,38 @@ Invariant Rules for 6 card ending:
                     when 0 wins the HA: 
                       after C9 (CT) H5 (R_): C9 (CT) H5 (R_) [62] / C9 CT H5 HQ 
                         when 1 wins the CT: HAND SUCCEEDED FOR: 62
-  after (DT) DA (S_) DJ: (DT) DA (S_) DJ [1,59,60] / DT DA S4 DJ  / DT DA S4 DJ  / DT DA S4 DJ 
+  after (DT) DA (S_) DJ: (DT) DA (S_) DJ [59,60] / DT DA S4 DJ  / DT DA S4 DJ 
     when 3 wins the S4: 
-      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [1,59,60] / C6 CJ CQ C8  / C6 CJ CQ C8  / C6 CJ CK C8 
+      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [59,60] / C6 CJ CQ C8  / C6 CJ CK C8 
         when 1 wins the CK,CQ: 
-          after (D_) S9 (R_) SK: (D_) S9 (R_) SK [1,59,60] / D4 S9 H6 SK  / D4 S9 H6 SK  / D4 S9 H6 SK 
-            when 0 wins the SK: 
-              after HA (HQ) H7 (HJ): HA (HQ) H7 (HJ) [1,59,60] / HA HQ H7 HJ  / HA HQ H7 HJ  / HA HQ H7 HJ 
+          after (D_) S9 (R_) S3: (D_) S9 (R_) S3 [59,60] / D4 S9 CK S3  / D4 S9 CQ S3 
+            when 2 wins the S9: 
+              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [59,60] / H7 H6 HA HQ  / H7 H6 HA HQ 
                 when 0 wins the HA: 
-                  after C9 (CT) S6 (CX): C9 (CT) S6 (CX) [1,59,60] / C9 CT S6 CK  / C9 CT S6 CK  / C9 CT S6 CQ 
+                  after C9 (CT) S6 (R_): C9 (CT) S6 (R_) [59,60] / C9 CT S6 HJ  / C9 CT S6 HJ 
                     when 2 wins the S6: 
-                      after H5 (SX) S3 (SX): H5 (SX) S3 (SX) [1,59,60] / H5 SJ S3 SA  / H5 SA S3 SJ  / H5 SA S3 SJ 
-                        if 1 wins the SA: HAND SUCCEEDED FOR: 1
-                        if 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
-  after (DT) DA (R_) DJ: (DT) DA (R_) DJ [74] / DT DA C6 DJ 
+                      after H5 (SA) SK (SJ): H5 (SA) SK (SJ) [59,60] / H5 SA SK SJ  / H5 SA SK SJ 
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
+  after (DT) DA (R_) DJ: (DT) DA (R_) DJ [1,74] / DT DA C6 DJ  / DT DA C6 DJ 
     when 2 wins the DA: 
-      after S9 (S_) SK (SA): S9 (S_) SK (SA) [74] / S9 S4 SK SA 
+      after S9 (S_) S3 (SA): S9 (S_) S3 (SA) [1,74] / S9 S4 S3 SA  / S9 S4 S3 SA 
         when 1 wins the SA: 
-          after (D_) S6 (R_) S3: (D_) S6 (R_) S3 [74] / D4 S6 CT S3 
-            when 2 wins the S6: 
-              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [74] / H7 H6 HA HQ 
+          after (D_) S6 (SJ) SK: (D_) S6 (SJ) SK [1,74] / D4 S6 SJ SK  / D4 S6 SJ SK 
+            when 0 wins the SK: 
+              after HA (HQ) H7 (H_): HA (HQ) H7 (H_) [1,74] / HA HQ H7 H6  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after CJ (CK) C8 (SJ): CJ (CK) C8 (SJ) [74] / CJ CK C8 SJ 
-                    when 3 wins the SJ: 
-                      after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [74] / HJ C9 CQ H5 
-                        when 3 wins the HJ: HAND SUCCEEDED FOR: 74
+                  after CJ (CX) C8 (CX): CJ (CX) C8 (CX) [1,74] / CJ CT C8 CK  / CJ CK C8 CT 
+                    if 1 wins the CK: 
+                      after (CQ) H5 (R_) C9: (CQ) H5 (R_) C9 [74] / CQ H5 HJ C9 
+                        when 1 wins the CQ: HAND SUCCEEDED FOR: 74
+                    if 3 wins the CK: 
+                      after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [1] / HJ C9 CQ H5 
+                        when 3 wins the HJ: HAND SUCCEEDED FOR: 1
 Line 3: Covers 61/100 (61.0%) [1, 2, 4, 5, 8, 10, 11, 14, 15, 17, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 39, 40, 41, 42, 44, 46, 47, 48, 49, 50, 51, 54, 56, 58, 59, 60, 61, 62, 63, 65, 68, 69, 74, 75, 77, 78, 80, 83, 90, 91, 93, 94, 95, 96, 98, 99]
 Cross-Hand Deal Set Summary Report
 Total Deals: 61
 Invariant Rules for 6 card ending:
-  - hand 1 length in C is between 0 and 3
-  - hand 3 length in C is between 1 and 4
-  - the hand with the SJ also has at most 3 C
-  - the hand with the DT also has at most 3 C
+  (None)
 
   after (D_) DA (D_) DJ: (D_) DA (D_) DJ [4,5,10,11,25,27,32,35,37,44,46,47,50,56,61,80,96,98] / D4 DA DT DJ  / DT DA D4 DJ  / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ 
     when 2 wins the DA: 
@@ -747,25 +739,24 @@ Invariant Rules for 6 card ending:
     when 3 wins the SA: 
       after (D_) DJ (DT) DA: (D_) DJ (DT) DA [2,23,58,75,78,94] / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA 
         when 2 wins the DA: 
-          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK H6  / S6 SJ SK C6  / S6 SJ SK H6  / S6 SJ SK CT  / S6 CT SK SJ 
+          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK CT  / S6 CT SK SJ 
             when 0 wins the SK: 
-              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA HQ H7 HJ  / HA HJ H7 H6  / HA HJ H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
+              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA H6 H7 HJ  / HA HJ H7 H6  / HA H6 H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
                 when 0 wins the HA: 
-                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ C6 C8 CQ  / CJ CT C8 CQ  / CJ C6 C8 CK  / CJ CK C8 C6  / CJ C6 C8 CK 
-                    if 1 wins the CK: 
-                      after (HJ) H5 (R_) C9: (HJ) H5 (R_) C9 [75] / HJ H5 CQ C9 
-                        when 1 wins the HJ: HAND SUCCEEDED FOR: 75
+                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ CK C8 CT  / CJ CT C8 CQ  / CJ CQ C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK 
+                    if 1 wins the CK,CQ: 
+                      after (HX) H5 (R_) C9: (HX) H5 (R_) C9 [2,58,75] / HQ H5 CQ C9  / HJ H5 CK C9  / HJ H5 CQ C9 
+                        when 1 wins the HJ,HQ: HAND SUCCEEDED FOR: 2, 58, 75
                     if 3 wins the CK,CQ: 
-                      after (__) C9 (__) H5: (__) C9 (__) H5 [2,23,58,78,94] / CT C9 CK H5  / HQ C9 CK H5  / CT C9 CQ H5  / CQ C9 HJ H5  / C6 C9 CK H5 
-                        if 1 wins the CK,CQ: HAND SUCCEEDED FOR: 2, 58, 94
-                        if 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78
+                      after (__) C9 (__) H5: (__) C9 (__) H5 [23,78,94] / HQ C9 CK H5  / CQ C9 HJ H5  / HQ C9 CK H5 
+                        when 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78, 94
       after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [29,36,40,51,90] / C6 CJ CK C8  / C6 CJ CQ C8  / C6 CJ CK C8  / C6 CJ CK C8  / C6 CJ CQ C8 
         when 1 wins the CK,CQ: 
-          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 DT SK  / SJ S6 DT SK 
+          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 CK SK  / SJ S6 CK SK 
             when 0 wins the SK: 
               after HA (H_) H7 (H_): HA (H_) H7 (H_) [36,90] / HA H6 H7 HQ  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after DJ (D_) DA (R_): DJ (D_) DA (R_) [36,90] / DJ D4 DA CK  / DJ D4 DA CK 
+                  after DJ (D_) DA (DT): DJ (D_) DA (DT) [36,90] / DJ D4 DA DT  / DJ D4 DA DT 
                     when 2 wins the DA: 
                       after H5 (HJ) C9 (R_): H5 (HJ) C9 (R_) [36,90] / H5 HJ C9 CT  / H5 HJ C9 CT 
                         when 3 wins the HJ: HAND SUCCEEDED FOR: 36, 90
@@ -828,12 +819,13 @@ Invariant Rules for 6 card ending:
         if 3 wins the SA: 
           after (D_) DJ (DT) DA: (D_) DJ (DT) DA [31,65] / D4 DJ DT DA  / D4 DJ DT DA 
             when 2 wins the DA: 
-              after S6 (S_) S3 (R_): S6 (S_) S3 (R_) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 H6 
+              after S6 (S_) S3 (__): S6 (S_) S3 (__) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 CK 
                 when 2 wins the S6: 
-                  after H7 (H_) HA (HJ): H7 (H_) HA (HJ) [31,65] / H7 H6 HA HJ  / H7 HQ HA HJ 
+                  after H7 (H_) HA (H_): H7 (H_) HA (H_) [31,65] / H7 H6 HA HJ  / H7 HQ HA H6 
                     when 0 wins the HA: 
-                      after C9 (CK) H5 (C_): C9 (CK) H5 (C_) [31,65] / C9 CK H5 C6  / C9 CK H5 CT 
-                        when 1 wins the CK: HAND SUCCEEDED FOR: 31, 65
+                      after C9 (__) H5 (C_): C9 (__) H5 (C_) [31,65] / C9 CK H5 C6  / C9 HJ H5 CT 
+                        if 1 wins the CK: HAND SUCCEEDED FOR: 31
+                        if 3 wins the CT: HAND SUCCEEDED FOR: 65
       after (D_) DJ (__) DA: (D_) DJ (__) DA [62,63] / D4 DJ DT DA  / DT DJ S4 DA 
         if 1 wins the S4: 
           after (H_) H7 (HQ) HA: (H_) H7 (HQ) HA [63] / H6 H7 HQ HA 
@@ -872,38 +864,38 @@ Invariant Rules for 6 card ending:
                     when 2 wins the DA: 
                       after S6 (R_) C9 (SJ): S6 (R_) C9 (SJ) [17] / S6 CT C9 SJ 
                         when 1 wins the SJ: HAND SUCCEEDED FOR: 17
-  after (DT) DA (S_) DJ: (DT) DA (S_) DJ [1,59,60] / DT DA S4 DJ  / DT DA S4 DJ  / DT DA S4 DJ 
+  after (DT) DA (S_) DJ: (DT) DA (S_) DJ [59,60] / DT DA S4 DJ  / DT DA S4 DJ 
     when 3 wins the S4: 
-      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [1,59,60] / C6 CJ CQ C8  / C6 CJ CQ C8  / C6 CJ CK C8 
+      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [59,60] / C6 CJ CQ C8  / C6 CJ CK C8 
         when 1 wins the CK,CQ: 
-          after (D_) S9 (R_) SK: (D_) S9 (R_) SK [1,59,60] / D4 S9 H6 SK  / D4 S9 H6 SK  / D4 S9 H6 SK 
-            when 0 wins the SK: 
-              after HA (HQ) H7 (HJ): HA (HQ) H7 (HJ) [1,59,60] / HA HQ H7 HJ  / HA HQ H7 HJ  / HA HQ H7 HJ 
+          after (D_) S9 (R_) S3: (D_) S9 (R_) S3 [59,60] / D4 S9 CK S3  / D4 S9 CQ S3 
+            when 2 wins the S9: 
+              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [59,60] / H7 H6 HA HQ  / H7 H6 HA HQ 
                 when 0 wins the HA: 
-                  after C9 (CT) S6 (CX): C9 (CT) S6 (CX) [1,59,60] / C9 CT S6 CK  / C9 CT S6 CK  / C9 CT S6 CQ 
+                  after C9 (CT) S6 (R_): C9 (CT) S6 (R_) [59,60] / C9 CT S6 HJ  / C9 CT S6 HJ 
                     when 2 wins the S6: 
-                      after H5 (SX) S3 (SX): H5 (SX) S3 (SX) [1,59,60] / H5 SJ S3 SA  / H5 SA S3 SJ  / H5 SA S3 SJ 
-                        if 1 wins the SA: HAND SUCCEEDED FOR: 1
-                        if 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
-  after (DT) DA (R_) DJ: (DT) DA (R_) DJ [74] / DT DA C6 DJ 
+                      after H5 (SA) SK (SJ): H5 (SA) SK (SJ) [59,60] / H5 SA SK SJ  / H5 SA SK SJ 
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
+  after (DT) DA (R_) DJ: (DT) DA (R_) DJ [1,74] / DT DA C6 DJ  / DT DA C6 DJ 
     when 2 wins the DA: 
-      after S9 (S_) SK (SA): S9 (S_) SK (SA) [74] / S9 S4 SK SA 
+      after S9 (S_) S3 (SA): S9 (S_) S3 (SA) [1,74] / S9 S4 S3 SA  / S9 S4 S3 SA 
         when 1 wins the SA: 
-          after (D_) S6 (R_) S3: (D_) S6 (R_) S3 [74] / D4 S6 CT S3 
-            when 2 wins the S6: 
-              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [74] / H7 H6 HA HQ 
+          after (D_) S6 (SJ) SK: (D_) S6 (SJ) SK [1,74] / D4 S6 SJ SK  / D4 S6 SJ SK 
+            when 0 wins the SK: 
+              after HA (HQ) H7 (H_): HA (HQ) H7 (H_) [1,74] / HA HQ H7 H6  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after CJ (CK) C8 (SJ): CJ (CK) C8 (SJ) [74] / CJ CK C8 SJ 
-                    when 3 wins the SJ: 
-                      after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [74] / HJ C9 CQ H5 
-                        when 3 wins the HJ: HAND SUCCEEDED FOR: 74
+                  after CJ (CX) C8 (CX): CJ (CX) C8 (CX) [1,74] / CJ CT C8 CK  / CJ CK C8 CT 
+                    if 1 wins the CK: 
+                      after (CQ) H5 (R_) C9: (CQ) H5 (R_) C9 [74] / CQ H5 HJ C9 
+                        when 1 wins the CQ: HAND SUCCEEDED FOR: 74
+                    if 3 wins the CK: 
+                      after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [1] / HJ C9 CQ H5 
+                        when 3 wins the HJ: HAND SUCCEEDED FOR: 1
 Line 4: Covers 61/100 (61.0%) [1, 2, 4, 5, 8, 10, 11, 14, 15, 17, 20, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 39, 40, 41, 42, 44, 46, 47, 48, 49, 50, 51, 54, 56, 58, 59, 60, 61, 62, 63, 65, 68, 69, 74, 75, 77, 78, 80, 83, 90, 91, 93, 94, 95, 96, 98, 99]
 Cross-Hand Deal Set Summary Report
 Total Deals: 61
 Invariant Rules for 6 card ending:
-  - hand 1 length in C is between 0 and 3
-  - hand 3 length in C is between 1 and 4
-  - the hand with the SJ also has at most 3 C
+  (None)
 
   after (Dx) DA (DT) DJ: (Dx) DA (DT) DJ [4,10,11,25,27,32,37,44,46,47,50,56,61,80,96,98] / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ 
     when 2 wins the DA: 
@@ -1044,25 +1036,24 @@ Invariant Rules for 6 card ending:
     when 3 wins the SA: 
       after (D_) DJ (DT) DA: (D_) DJ (DT) DA [2,23,58,75,78,94] / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA 
         when 2 wins the DA: 
-          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK H6  / S6 SJ SK C6  / S6 SJ SK H6  / S6 SJ SK CT  / S6 CT SK SJ 
+          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK CT  / S6 CT SK SJ 
             when 0 wins the SK: 
-              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA HQ H7 HJ  / HA HJ H7 H6  / HA HJ H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
+              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA H6 H7 HJ  / HA HJ H7 H6  / HA H6 H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
                 when 0 wins the HA: 
-                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ C6 C8 CQ  / CJ CT C8 CQ  / CJ C6 C8 CK  / CJ CK C8 C6  / CJ C6 C8 CK 
-                    if 1 wins the CK: 
-                      after (HJ) H5 (R_) C9: (HJ) H5 (R_) C9 [75] / HJ H5 CQ C9 
-                        when 1 wins the HJ: HAND SUCCEEDED FOR: 75
+                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ CK C8 CT  / CJ CT C8 CQ  / CJ CQ C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK 
+                    if 1 wins the CK,CQ: 
+                      after (HX) H5 (R_) C9: (HX) H5 (R_) C9 [2,58,75] / HQ H5 CQ C9  / HJ H5 CK C9  / HJ H5 CQ C9 
+                        when 1 wins the HJ,HQ: HAND SUCCEEDED FOR: 2, 58, 75
                     if 3 wins the CK,CQ: 
-                      after (__) C9 (__) H5: (__) C9 (__) H5 [2,23,58,78,94] / CT C9 CK H5  / HQ C9 CK H5  / CT C9 CQ H5  / CQ C9 HJ H5  / C6 C9 CK H5 
-                        if 1 wins the CK,CQ: HAND SUCCEEDED FOR: 2, 58, 94
-                        if 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78
+                      after (__) C9 (__) H5: (__) C9 (__) H5 [23,78,94] / HQ C9 CK H5  / CQ C9 HJ H5  / HQ C9 CK H5 
+                        when 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78, 94
       after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [29,36,40,51,90] / C6 CJ CK C8  / C6 CJ CQ C8  / C6 CJ CK C8  / C6 CJ CK C8  / C6 CJ CQ C8 
         when 1 wins the CK,CQ: 
-          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 DT SK  / SJ S6 DT SK 
+          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 CK SK  / SJ S6 CK SK 
             when 0 wins the SK: 
               after HA (H_) H7 (H_): HA (H_) H7 (H_) [36,90] / HA H6 H7 HQ  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after DJ (D_) DA (R_): DJ (D_) DA (R_) [36,90] / DJ D4 DA CK  / DJ D4 DA CK 
+                  after DJ (D_) DA (DT): DJ (D_) DA (DT) [36,90] / DJ D4 DA DT  / DJ D4 DA DT 
                     when 2 wins the DA: 
                       after H5 (HJ) C9 (R_): H5 (HJ) C9 (R_) [36,90] / H5 HJ C9 CT  / H5 HJ C9 CT 
                         when 3 wins the HJ: HAND SUCCEEDED FOR: 36, 90
@@ -1125,12 +1116,13 @@ Invariant Rules for 6 card ending:
         if 3 wins the SA: 
           after (D_) DJ (DT) DA: (D_) DJ (DT) DA [31,65] / D4 DJ DT DA  / D4 DJ DT DA 
             when 2 wins the DA: 
-              after S6 (S_) S3 (R_): S6 (S_) S3 (R_) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 H6 
+              after S6 (S_) S3 (__): S6 (S_) S3 (__) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 CK 
                 when 2 wins the S6: 
-                  after H7 (H_) HA (HJ): H7 (H_) HA (HJ) [31,65] / H7 H6 HA HJ  / H7 HQ HA HJ 
+                  after H7 (H_) HA (H_): H7 (H_) HA (H_) [31,65] / H7 H6 HA HJ  / H7 HQ HA H6 
                     when 0 wins the HA: 
-                      after C9 (CK) H5 (C_): C9 (CK) H5 (C_) [31,65] / C9 CK H5 C6  / C9 CK H5 CT 
-                        when 1 wins the CK: HAND SUCCEEDED FOR: 31, 65
+                      after C9 (__) H5 (C_): C9 (__) H5 (C_) [31,65] / C9 CK H5 C6  / C9 HJ H5 CT 
+                        if 1 wins the CK: HAND SUCCEEDED FOR: 31
+                        if 3 wins the CT: HAND SUCCEEDED FOR: 65
       after (D_) DJ (__) DA: (D_) DJ (__) DA [62,63] / D4 DJ DT DA  / DT DJ S4 DA 
         if 1 wins the S4: 
           after (H_) H7 (HQ) HA: (H_) H7 (HQ) HA [63] / H6 H7 HQ HA 
@@ -1150,12 +1142,12 @@ Invariant Rules for 6 card ending:
                     when 0 wins the HA: 
                       after C9 (CT) H5 (R_): C9 (CT) H5 (R_) [62] / C9 CT H5 HQ 
                         when 1 wins the CT: HAND SUCCEEDED FOR: 62
-  after (DT) DA (__) DJ: (DT) DA (__) DJ [1,5,35,59,60,74] / DT DA S4 DJ  / DT DA D4 DJ  / DT DA D4 DJ  / DT DA S4 DJ  / DT DA S4 DJ 
+  after (DT) DA (__) DJ: (DT) DA (__) DJ [1,5,35,59,60,74] / DT DA C6 DJ  / DT DA D4 DJ  / DT DA D4 DJ  / DT DA S4 DJ  / DT DA S4 DJ 
     if 2 wins the DA: 
-      after H7 (H_) HA (HX): H7 (H_) HA (HX) [5,35,74] / H7 H6 HA HJ  / H7 H6 HA HQ  / H7 H6 HA HQ 
+      after H7 (H_) HA (HX): H7 (H_) HA (HX) [1,5,35,74] / H7 H6 HA HQ  / H7 H6 HA HJ  / H7 H6 HA HQ  / H7 H6 HA HQ 
         when 0 wins the HA: 
-          after CJ (CK) C8 (C_): CJ (CK) C8 (C_) [5,35,74] / CJ CK C8 C6  / CJ CK C8 C6  / CJ CK C8 CT 
-            when 1 wins the CK: 
+          after CJ (CX) C8 (C_): CJ (CX) C8 (C_) [1,5,35,74] / CJ CT C8 CK  / CJ CK C8 C6  / CJ CK C8 C6  / CJ CK C8 CT 
+            if 1 wins the CK: 
               after (CQ) S9 (__) C9: (CQ) S9 (__) C9 [5,35,74] / CQ S9 CT C9  / CQ S9 CT C9  / CQ S9 SJ C9 
                 if 2 wins the S9: 
                   after S6 (S_) S3 (SJ): S6 (S_) S3 (SJ) [5,35] / S6 S4 S3 SJ  / S6 S4 S3 SJ 
@@ -1167,18 +1159,24 @@ Invariant Rules for 6 card ending:
                     when 1 wins the SA: 
                       after (D_) H5 (R_) S3: (D_) H5 (R_) S3 [74] / D4 H5 HJ S3 
                         when 0 wins the S3: HAND SUCCEEDED FOR: 74
+            if 3 wins the CK: 
+              after (S_) SK (SA) S9: (S_) SK (SA) S9 [1] / S4 SK SA S9 
+                when 1 wins the SA: 
+                  after (D_) S6 (SJ) C9: (D_) S6 (SJ) C9 [1] / D4 S6 SJ C9 
+                    when 3 wins the SJ: 
+                      after (HJ) S3 (R_) H5: (HJ) S3 (R_) H5 [1] / HJ S3 CQ H5 
+                        when 0 wins the S3: HAND SUCCEEDED FOR: 1
     if 3 wins the S4: 
-      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [1,59,60] / C6 CJ CQ C8  / C6 CJ CQ C8  / C6 CJ CK C8 
+      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [59,60] / C6 CJ CQ C8  / C6 CJ CK C8 
         when 1 wins the CK,CQ: 
-          after (D_) S9 (R_) SK: (D_) S9 (R_) SK [1,59,60] / D4 S9 H6 SK  / D4 S9 H6 SK  / D4 S9 H6 SK 
-            when 0 wins the SK: 
-              after HA (HQ) H7 (HJ): HA (HQ) H7 (HJ) [1,59,60] / HA HQ H7 HJ  / HA HQ H7 HJ  / HA HQ H7 HJ 
+          after (D_) S9 (R_) S3: (D_) S9 (R_) S3 [59,60] / D4 S9 CK S3  / D4 S9 CQ S3 
+            when 2 wins the S9: 
+              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [59,60] / H7 H6 HA HQ  / H7 H6 HA HQ 
                 when 0 wins the HA: 
-                  after C9 (CT) S6 (CX): C9 (CT) S6 (CX) [1,59,60] / C9 CT S6 CK  / C9 CT S6 CK  / C9 CT S6 CQ 
+                  after C9 (CT) S6 (R_): C9 (CT) S6 (R_) [59,60] / C9 CT S6 HJ  / C9 CT S6 HJ 
                     when 2 wins the S6: 
-                      after H5 (SX) S3 (SX): H5 (SX) S3 (SX) [1,59,60] / H5 SJ S3 SA  / H5 SA S3 SJ  / H5 SA S3 SJ 
-                        if 1 wins the SA: HAND SUCCEEDED FOR: 1
-                        if 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
+                      after H5 (SA) SK (SJ): H5 (SA) SK (SJ) [59,60] / H5 SA SK SJ  / H5 SA SK SJ 
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
   after (S_) S9 (R_) SK: (S_) S9 (R_) SK [14,17,21,26,28] / S4 S9 C6 SK  / S4 S9 C6 SK  / S4 S9 C6 SK  / S4 S9 C6 SK  / S4 S9 C6 SK 
     when 0 wins the SK: 
       after HA (H_) H7 (H_): HA (H_) H7 (H_) [14,17,21,26,28] / HA HJ H7 H6  / HA H6 H7 HQ  / HA H6 H7 HQ  / HA HQ H7 H6  / HA HQ H7 H6 
@@ -1202,9 +1200,7 @@ Line 5: Covers 61/100 (61.0%) [1, 2, 4, 5, 8, 10, 11, 14, 15, 17, 20, 21, 23, 24
 Cross-Hand Deal Set Summary Report
 Total Deals: 61
 Invariant Rules for 6 card ending:
-  - hand 1 length in C is between 0 and 3
-  - hand 3 length in C is between 1 and 4
-  - the hand with the SJ also has at most 3 C
+  (None)
 
   after (D_) DA (DT) DJ: (D_) DA (DT) DJ [4,10,11,25,27,32,37,44,46,47,50,56,61,80,96,98] / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ  / D4 DA DT DJ 
     when 2 wins the DA: 
@@ -1345,25 +1341,24 @@ Invariant Rules for 6 card ending:
     when 3 wins the SA: 
       after (D_) DJ (DT) DA: (D_) DJ (DT) DA [2,23,58,75,78,94] / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA  / D4 DJ DT DA 
         when 2 wins the DA: 
-          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK H6  / S6 SJ SK C6  / S6 SJ SK H6  / S6 SJ SK CT  / S6 CT SK SJ 
+          after S6 (__) SK (__): S6 (__) SK (__) [2,23,58,75,78,94] / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK C6  / S6 SJ SK CT  / S6 CT SK SJ 
             when 0 wins the SK: 
-              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA HQ H7 HJ  / HA HJ H7 H6  / HA HJ H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
+              after HA (H_) H7 (H_): HA (H_) H7 (H_) [2,23,58,75,78,94] / HA H6 H7 HJ  / HA HJ H7 H6  / HA H6 H7 HQ  / HA H6 H7 HQ  / HA H6 H7 HQ 
                 when 0 wins the HA: 
-                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ C6 C8 CQ  / CJ CT C8 CQ  / CJ C6 C8 CK  / CJ CK C8 C6  / CJ C6 C8 CK 
-                    if 1 wins the CK: 
-                      after (HJ) H5 (R_) C9: (HJ) H5 (R_) C9 [75] / HJ H5 CQ C9 
-                        when 1 wins the HJ: HAND SUCCEEDED FOR: 75
+                  after CJ (C_) C8 (C_): CJ (C_) C8 (C_) [2,23,58,75,78,94] / CJ CK C8 CT  / CJ CT C8 CQ  / CJ CQ C8 CT  / CJ CK C8 C6  / CJ C6 C8 CK 
+                    if 1 wins the CK,CQ: 
+                      after (HX) H5 (R_) C9: (HX) H5 (R_) C9 [2,58,75] / HQ H5 CQ C9  / HJ H5 CK C9  / HJ H5 CQ C9 
+                        when 1 wins the HJ,HQ: HAND SUCCEEDED FOR: 2, 58, 75
                     if 3 wins the CK,CQ: 
-                      after (__) C9 (__) H5: (__) C9 (__) H5 [2,23,58,78,94] / CT C9 CK H5  / HQ C9 CK H5  / CT C9 CQ H5  / CQ C9 HJ H5  / C6 C9 CK H5 
-                        if 1 wins the CK,CQ: HAND SUCCEEDED FOR: 2, 58, 94
-                        if 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78
+                      after (__) C9 (__) H5: (__) C9 (__) H5 [23,78,94] / HQ C9 CK H5  / CQ C9 HJ H5  / HQ C9 CK H5 
+                        when 3 wins the CQ,HQ: HAND SUCCEEDED FOR: 23, 78, 94
       after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [29,36,40,51,90] / C6 CJ CK C8  / C6 CJ CQ C8  / C6 CJ CK C8  / C6 CJ CK C8  / C6 CJ CQ C8 
         when 1 wins the CK,CQ: 
-          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 DT SK  / SJ S6 DT SK 
+          after (SJ) S6 (R_) SK: (SJ) S6 (R_) SK [36,90] / SJ S6 CK SK  / SJ S6 CK SK 
             when 0 wins the SK: 
               after HA (H_) H7 (H_): HA (H_) H7 (H_) [36,90] / HA H6 H7 HQ  / HA HQ H7 H6 
                 when 0 wins the HA: 
-                  after DJ (D_) DA (R_): DJ (D_) DA (R_) [36,90] / DJ D4 DA CK  / DJ D4 DA CK 
+                  after DJ (D_) DA (DT): DJ (D_) DA (DT) [36,90] / DJ D4 DA DT  / DJ D4 DA DT 
                     when 2 wins the DA: 
                       after H5 (HJ) C9 (R_): H5 (HJ) C9 (R_) [36,90] / H5 HJ C9 CT  / H5 HJ C9 CT 
                         when 3 wins the HJ: HAND SUCCEEDED FOR: 36, 90
@@ -1426,12 +1421,13 @@ Invariant Rules for 6 card ending:
         if 3 wins the SA: 
           after (D_) DJ (DT) DA: (D_) DJ (DT) DA [31,65] / D4 DJ DT DA  / D4 DJ DT DA 
             when 2 wins the DA: 
-              after S6 (S_) S3 (R_): S6 (S_) S3 (R_) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 H6 
+              after S6 (S_) S3 (__): S6 (S_) S3 (__) [31,65] / S6 S4 S3 HQ  / S6 S4 S3 CK 
                 when 2 wins the S6: 
-                  after H7 (H_) HA (HJ): H7 (H_) HA (HJ) [31,65] / H7 H6 HA HJ  / H7 HQ HA HJ 
+                  after H7 (H_) HA (H_): H7 (H_) HA (H_) [31,65] / H7 H6 HA HJ  / H7 HQ HA H6 
                     when 0 wins the HA: 
-                      after C9 (CK) H5 (C_): C9 (CK) H5 (C_) [31,65] / C9 CK H5 C6  / C9 CK H5 CT 
-                        when 1 wins the CK: HAND SUCCEEDED FOR: 31, 65
+                      after C9 (__) H5 (C_): C9 (__) H5 (C_) [31,65] / C9 CK H5 C6  / C9 HJ H5 CT 
+                        if 1 wins the CK: HAND SUCCEEDED FOR: 31
+                        if 3 wins the CT: HAND SUCCEEDED FOR: 65
       after (D_) DJ (__) DA: (D_) DJ (__) DA [62,63] / D4 DJ DT DA  / DT DJ S4 DA 
         if 1 wins the S4: 
           after (H_) H7 (HQ) HA: (H_) H7 (HQ) HA [63] / H6 H7 HQ HA 
@@ -1470,19 +1466,33 @@ Invariant Rules for 6 card ending:
                     when 2 wins the DA: 
                       after S6 (R_) C9 (SJ): S6 (R_) C9 (SJ) [17] / S6 CT C9 SJ 
                         when 1 wins the SJ: HAND SUCCEEDED FOR: 17
-  after (DT) DA (S_) DJ: (DT) DA (S_) DJ [1,59,60] / DT DA S4 DJ  / DT DA S4 DJ  / DT DA S4 DJ 
+  after (DT) DA (S_) DJ: (DT) DA (S_) DJ [59,60] / DT DA S4 DJ  / DT DA S4 DJ 
     when 3 wins the S4: 
-      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [1,59,60] / C6 CJ CQ C8  / C6 CJ CQ C8  / C6 CJ CK C8 
+      after (C_) CJ (CX) C8: (C_) CJ (CX) C8 [59,60] / C6 CJ CQ C8  / C6 CJ CK C8 
         when 1 wins the CK,CQ: 
-          after (D_) S9 (R_) SK: (D_) S9 (R_) SK [1,59,60] / D4 S9 H6 SK  / D4 S9 H6 SK  / D4 S9 H6 SK 
-            when 0 wins the SK: 
-              after HA (HQ) H7 (HJ): HA (HQ) H7 (HJ) [1,59,60] / HA HQ H7 HJ  / HA HQ H7 HJ  / HA HQ H7 HJ 
+          after (D_) S9 (R_) S3: (D_) S9 (R_) S3 [59,60] / D4 S9 CK S3  / D4 S9 CQ S3 
+            when 2 wins the S9: 
+              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [59,60] / H7 H6 HA HQ  / H7 H6 HA HQ 
                 when 0 wins the HA: 
-                  after C9 (CT) S6 (CX): C9 (CT) S6 (CX) [1,59,60] / C9 CT S6 CK  / C9 CT S6 CK  / C9 CT S6 CQ 
+                  after C9 (CT) S6 (R_): C9 (CT) S6 (R_) [59,60] / C9 CT S6 HJ  / C9 CT S6 HJ 
                     when 2 wins the S6: 
-                      after H5 (SX) S3 (SX): H5 (SX) S3 (SX) [1,59,60] / H5 SJ S3 SA  / H5 SA S3 SJ  / H5 SA S3 SJ 
-                        if 1 wins the SA: HAND SUCCEEDED FOR: 1
-                        if 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
+                      after H5 (SA) SK (SJ): H5 (SA) SK (SJ) [59,60] / H5 SA SK SJ  / H5 SA SK SJ 
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 59, 60
+  after (DT) DA (R_) DJ: (DT) DA (R_) DJ [1,74] / DT DA C6 DJ  / DT DA C6 DJ 
+    when 2 wins the DA: 
+      after S9 (S_) S3 (SA): S9 (S_) S3 (SA) [1,74] / S9 S4 S3 SA  / S9 S4 S3 SA 
+        when 1 wins the SA: 
+          after (D_) S6 (SJ) SK: (D_) S6 (SJ) SK [1,74] / D4 S6 SJ SK  / D4 S6 SJ SK 
+            when 0 wins the SK: 
+              after HA (HQ) H7 (H_): HA (HQ) H7 (H_) [1,74] / HA HQ H7 H6  / HA HQ H7 H6 
+                when 0 wins the HA: 
+                  after CJ (CX) C8 (CX): CJ (CX) C8 (CX) [1,74] / CJ CT C8 CK  / CJ CK C8 CT 
+                    if 1 wins the CK: 
+                      after (CQ) H5 (R_) C9: (CQ) H5 (R_) C9 [74] / CQ H5 HJ C9 
+                        when 1 wins the CQ: HAND SUCCEEDED FOR: 74
+                    if 3 wins the CK: 
+                      after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [1] / HJ C9 CQ H5 
+                        when 3 wins the HJ: HAND SUCCEEDED FOR: 1
   after (D_) DA (Dx) DJ: (D_) DA (Dx) DJ [5,35] / DT DA D4 DJ  / DT DA D4 DJ 
     when 2 wins the DA: 
       after H7 (H_) HA (HX): H7 (H_) HA (HX) [5,35] / H7 H6 HA HJ  / H7 H6 HA HQ 
@@ -1495,19 +1505,7 @@ Invariant Rules for 6 card ending:
                     when 1 wins the SJ: 
                       after (SA) H5 (R_) SK: (SA) H5 (R_) SK [5,35] / SA H5 HQ SK  / SA H5 HJ SK 
                         when 1 wins the SA: HAND SUCCEEDED FOR: 5, 35
-  after (DT) DA (R_) DJ: (DT) DA (R_) DJ [74] / DT DA C6 DJ 
-    when 2 wins the DA: 
-      after S9 (S_) SK (SA): S9 (S_) SK (SA) [74] / S9 S4 SK SA 
-        when 1 wins the SA: 
-          after (D_) S6 (R_) S3: (D_) S6 (R_) S3 [74] / D4 S6 CT S3 
-            when 2 wins the S6: 
-              after H7 (H_) HA (HQ): H7 (H_) HA (HQ) [74] / H7 H6 HA HQ 
-                when 0 wins the HA: 
-                  after CJ (CK) C8 (SJ): CJ (CK) C8 (SJ) [74] / CJ CK C8 SJ 
-                    when 3 wins the SJ: 
-                      after (HJ) C9 (R_) H5: (HJ) C9 (R_) H5 [74] / HJ C9 CQ H5 
-                        when 3 wins the HJ: HAND SUCCEEDED FOR: 74
-Solve took 3.329708 seconds. Status: SUCCESS
+Solve took 1.043356 seconds. Status: SUCCESS
 
 === ending_size = 7, trial = 1 ===
 hand[0] (Declarer): S AJ87; H -; D 6; C AK; 
@@ -1519,11 +1517,7 @@ Line 1: Covers 75/100 (75.0%) [0, 1, 2, 3, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 2
 Cross-Hand Deal Set Summary Report
 Total Deals: 75
 Invariant Rules for 7 card ending:
-  - hand 1 length in S is between 0 and 4
-  - hand 3 length in S is between 1 and 5
-  - the hand with the HJ also has at most 4 S
-  - the hand with the DJ also has at most 4 S
-  - the hand with the DK also has at least 1 S
+  (None)
 
   after (C_) CQ (C_) CA: (C_) CQ (C_) CA [2,3,4,5,7,10,12,14,17,18,20,21,26,27,29,35,37,39,42,43,46,50,51,52,53,54,56,57,58,60,62,68,69,70,72,73,74,75,77,78,82,84,86,88,93,95,96,97,98] / C2 CQ C3 CA  / C2 CQ C3 CA  / C3 CQ C2 CA  / C2 CQ C3 CA  / C3 CQ C2 CA 
     when 0 wins the CA: 
@@ -1819,6 +1813,6 @@ Invariant Rules for 7 card ending:
                         when 2 wins the DA: 
                           after C4 (R_) CK (C_): C4 (R_) CK (C_) [71] / C4 HJ CK C8 
                             when 0 wins the CK: HAND SUCCEEDED FOR: 71
-Solve took 4.800071 seconds. Status: SUCCESS
+Solve took 4.815015 seconds. Status: SUCCESS
 
-Benchmark complete. Total wall time: 327.3s
+Benchmark complete. Total wall time: 231.1s
