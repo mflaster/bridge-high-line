@@ -2930,7 +2930,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (node._x === undefined || node._y === undefined) return;
 
-    const nodeWidth = 120;
+    const nodeWidth = 180;
     const nodeHeight = 78;
     const nodeCenterX = node._x + nodeWidth / 2;
     const nodeCenterY = node._y + nodeHeight / 2;
@@ -2993,7 +2993,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 120;
+    const nodeWidth = 180;
     const nodeHeight = 78;
     const levelHeight = 140;
     const siblingGap = 24;
@@ -3111,7 +3111,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rawTitle.startsWith('after ')) {
         rawTitle = rawTitle.substring(6);
       }
-      title.textContent = truncateText(rawTitle, 18);
+      title.textContent = truncateText(rawTitle, 28);
       g.appendChild(title);
 
       // Detail Text
@@ -3130,7 +3130,11 @@ document.addEventListener('DOMContentLoaded', () => {
         detailText = `Deals: ${nodeDealsCount}`;
       }
       const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
-      detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
+      if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
+        detail.textContent = detailText;
+      } else {
+        detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
+      }
       g.appendChild(detail);
 
       // 3rd Line: N/S Won on its own line for leaf/outcome nodes

@@ -261,7 +261,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         node->covered_boards = success_cnt;
       }
       node->total_boards = total;
-      node->label = label_str + " (" + std::to_string(current_ns) + " tricks won by N/S)";
+      node->label = label_str;
       return node;
     } else {
       node->type = "action";
@@ -495,7 +495,7 @@ std::shared_ptr<DecisionTreeNode> BuildFailureSingleGroupNode(
       int out_ns = 0;
       std::string ns_str = format_ns_tricks_range(grp_indices, out_ns);
       node->ns_tricks = out_ns;
-      node->label = label_str + " (" + ns_str + " tricks won by N/S)";
+      node->label = label_str;
       return node;
     } else {
       node->type = "action";
