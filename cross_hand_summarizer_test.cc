@@ -860,5 +860,33 @@ TEST_CASE("InvariantStats_EvaluationSortingAndInlineFormat",
     REQUIRE(parsed != nullptr);
     REQUIRE(parsed->ToString() == st.rule);
   }
+
+  // Test failure mode summary over simulated deals (e.g. Simple Finesse where
+  // 3/10 boards succeed when West has SK and 7/10 fail when East has SK).
+  std::vector<PairedDeal> failure_deals = {
+      PairedDeal("S K4", "S 32"),
+      PairedDeal("S K3", "S 42"),
+      PairedDeal("S K2", "S 43"),
+  };
+  std::vector<PairedDeal> covered_deals = {
+      PairedDeal("S 32", "S K4"),
+      PairedDeal("S 42", "S K3"),
+  };
+  CrossHandSummaryReport failure_report = summarizer.Summarize(
+      failure_deals, "hand 1", "hand 3", nullptr, &covered_deals,
+      /*is_failure_mode=*/true);
+  REQUIRE(failure_report.invariant_stats.size() == 1);
+  REQUIRE(failure_report.invariant_stats[0].is_failure_mode);
+  REQUIRE(failure_report.invariant_stats[0].holds_percent() == 60);
+  REQUIRE(failure_report.invariant_stats[0].success_when_holds_percent() ==
+          100);
+  REQUIRE(failure_report.invariant_rules[0] ==
+          "hand 1 always contains the SK (holds: 60%, failures when holds: "
+          "100%)");
+  auto parsed_fail =
+      UnknownCardsInvariant::FromString(failure_report.invariant_rules[0]);
+  REQUIRE(parsed_fail != nullptr);
+  REQUIRE(parsed_fail->ToString() == "hand 1 always contains the SK");
 }
+
 

@@ -418,7 +418,8 @@ std::string InvariantStats::FormatRuleWithStats() const {
   std::string out =
       rule + " (holds: " + std::to_string(holds_percent()) + "%";
   if (has_line_stats) {
-    out += ", success when holds: " +
+    out += (is_failure_mode ? ", failures when holds: "
+                            : ", success when holds: ") +
            std::to_string(success_when_holds_percent()) + "%";
   }
   out += ")";
@@ -463,7 +464,8 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     const std::string& hand1_label,
     const std::string& hand2_label,
     int num_bifurcations,
-    const ConditionalLine* line) {
+    const ConditionalLine* line,
+    bool is_failure_mode) {
   std::vector<InvariantStats> stats_list;
   if (candidate_invariants.empty() || unknown_cards == 0) {
     for (const auto& inv : candidate_invariants) {
@@ -471,6 +473,7 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
       InvariantStats st;
       st.invariant = inv;
       st.rule = inv->ToString();
+      st.is_failure_mode = is_failure_mode;
       stats_list.push_back(std::move(st));
     }
     return stats_list;
@@ -494,6 +497,7 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
       InvariantStats st;
       st.invariant = inv;
       st.rule = inv->ToString();
+      st.is_failure_mode = is_failure_mode;
       stats_list.push_back(std::move(st));
     }
     return stats_list;
@@ -542,6 +546,7 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     st.holds_count = holds_count;
     st.total_bifurcations = total_bif;
     st.has_line_stats = can_eval_line;
+    st.is_failure_mode = is_failure_mode;
 
     // Discard "boring" invariants that hold on >= 95% of random bifurcations.
     if (holds_count * 20 >= 19 * total_bif || st.holds_percent() >= 95) {
@@ -549,17 +554,18 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     }
 
     if (can_eval_line) {
-      int success_count = 0;
+      int match_count = 0;
       for (size_t b_idx : holding_indices) {
         if (deal_results[b_idx] < 0) {
           deal_results[b_idx] = line->ResultsOnHand(bifurcations[b_idx]);
         }
-        if (deal_results[b_idx] >= line->min_tricks()) {
-          success_count++;
+        bool succeeded = (deal_results[b_idx] >= line->min_tricks());
+        if (is_failure_mode ? !succeeded : succeeded) {
+          match_count++;
         }
       }
-      st.success_when_holds_count = success_count;
-      if (success_count * 2 <= holds_count ||
+      st.success_when_holds_count = match_count;
+      if (match_count * 2 <= holds_count ||
           st.success_when_holds_percent() <= 50) {
         continue;
       }
@@ -594,10 +600,12 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     int hand1_size,
     const HandLabelFormatter& formatter,
     int num_bifurcations,
-    const ConditionalLine* line) {
+    const ConditionalLine* line,
+    bool is_failure_mode) {
   return EvaluateCandidateInvariants(
       std::move(candidate_invariants), unknown_cards, hand1_size,
-      formatter.FormatHand1(), formatter.FormatHand2(), num_bifurcations, line);
+      formatter.FormatHand1(), formatter.FormatHand2(), num_bifurcations, line,
+      is_failure_mode);
 }
 
 std::vector<std::shared_ptr<UnknownCardsInvariant>>
@@ -701,7 +709,8 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     const std::vector<PairedDeal>& deals,
     const HandLabelFormatter& formatter,
     const ConditionalLine* line,
-    const std::vector<PairedDeal>* opposing_deals) const {
+    const std::vector<PairedDeal>* opposing_deals,
+    bool is_failure_mode) const {
   CrossHandSummaryReport report;
   report.total_deals = static_cast<int>(deals.size());
   if (deals.empty()) {
@@ -784,7 +793,8 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
       st.rule = inv->ToString();
       st.holds_count = holds_count;
       st.total_bifurcations = total_sim;
-      st.has_line_stats = (line != nullptr);
+      st.has_line_stats = (line != nullptr || is_failure_mode);
+      st.is_failure_mode = is_failure_mode;
       st.success_when_holds_count = holds_in_deals;
 
       // Discard "boring" invariants that hold on >= 95% of simulated deals.
@@ -792,7 +802,7 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
         continue;
       }
 
-      // Discard invariants where success_when_holds is <= 50%.
+      // Discard invariants where success/failure_when_holds is <= 50%.
       int success_pct =
           holds_count > 0
               ? static_cast<int>(
@@ -832,7 +842,7 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   } else {
     report.invariant_stats = EvaluateCandidateInvariants(
         candidate_invariants, report.unknown_cards, report.cards_per_hand,
-        formatter, 200, line);
+        formatter, 200, line, is_failure_mode);
   }
 
   report.invariant_rules.clear();
@@ -848,7 +858,9 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     const std::string& hand1_label,
     const std::string& hand2_label,
     const ConditionalLine* line,
-    const std::vector<PairedDeal>* opposing_deals) const {
+    const std::vector<PairedDeal>* opposing_deals,
+    bool is_failure_mode) const {
   return Summarize(deals, HandLabelFormatter(hand1_label, hand2_label), line,
-                   opposing_deals);
+                   opposing_deals, is_failure_mode);
 }
+
