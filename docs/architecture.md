@@ -249,3 +249,6 @@ The system modules are categorized below by their primary architectural layer, h
 
 3. **Performance Optimization via Memoization**:
    - `SolverCache` eliminates redundant double-dummy calculations across identical remaining card holdings, dramatically speeding up multi-deal sampling.
+
+4. **Web Frontend & Client State Architecture**:
+   - For detailed client state machine diagrams, event dispatch sequence flows, JSDoc contract enums, and SVG rendering data contracts governing the single-page web UI, refer to [`docs/web_frontend_architecture.md`](web_frontend_architecture.md).

@@ -205,6 +205,7 @@
           <div class="tab-buttons">
             <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>
             <button id="tabSummaryBtn" class="tab-btn" type="button">Distribution Summary <span id="ruleCounterBadge" class="badge-counter hidden">0</span></button>
+            <button id="tabSampleHandsBtn" class="tab-btn" type="button">Sample Hands <span id="sampleHandsCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
             <button id="toggleInspectorBtn" class="btn btn-secondary-sm" title="Toggle Inspector Side Panel">Inspector ◧</button>
@@ -233,11 +234,11 @@
             <span class="stat-label">Optimal Lead</span>
             <span id="statLead" class="stat-value">-</span>
           </div>
-          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success distribution summary">
+          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success deals (Decision Tree, Summary, and Sample Hands)">
             <span class="stat-label">Success Rate</span>
             <span id="statSuccess" class="stat-value">-</span>
           </div>
-          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure distribution summary">
+          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure deals (Decision Tree, Summary, and Sample Hands)">
             <span class="stat-label">Failure Rate</span>
             <span id="statFailure" class="stat-value">-</span>
           </div>
@@ -326,6 +327,18 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Tab Panel 3: Sample Hands -->
+        <div id="panelSampleHands" class="tab-panel hidden">
+          <div id="sampleHandsModeHeader" class="summary-mode-header hidden">
+            <span id="sampleHandsModeBadge" class="mode-badge mode-success">Success Deals</span>
+            <span id="sampleHandsModeSub" class="mode-sub"></span>
+          </div>
+          <div id="sampleHandsEmptyNotice" class="summary-empty">
+            No sample hands available for this deal. Click "Solve Deal" to view sample hands.
+          </div>
+          <div id="sampleHandsGrid" class="sample-hands-grid hidden"></div>
         </div>
       </section>
     </div>

@@ -15,6 +15,8 @@
 #include "line_finder.h"
 #include "glog/logging.h"
 
+#include <functional>
+
 namespace {
 
 void GetHandSuitDistribution(uint64_t hand, int dist[4]) {
@@ -48,13 +50,59 @@ int EstimateMedianMinTricks(const std::vector<uint64_t>& hands,
   return std::max(1, *med_it);
 }
 
+void RunPerf9CardHeartsCase(
+    const std::string& name, int num_deals,
+    const std::function<void(const std::string&)>& log_summary,
+    const std::function<void(const std::string&)>& log_details) {
+  srand48(0);
+  std::vector<uint64_t> hands(4, 0);
+  hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+  hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+  uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+
+  LineFinder lf(num_deals);
+  auto start = std::chrono::high_resolution_clock::now();
+  std::vector<ConditionalLine> lines =
+      lf.Solve(6, hands, unknown, 0, HEARTS, {});
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> elapsed = end - start;
+
+  bool succeeded = !lines.empty();
+  std::string status = succeeded ? "SUCCESS" : "FAILED";
+  int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
+  double pct = (100.0 * covered) / num_deals;
+
+  std::stringstream ss;
+  ss << name << " num_deals=" << std::setw(3) << num_deals
+     << " time=" << std::fixed << std::setprecision(1) << elapsed.count() << "s"
+     << " (solve=" << std::fixed << std::setprecision(1) << lf.solve_ms()
+     << "ms, invariant=" << std::fixed << std::setprecision(1)
+     << lf.invariant_ms() << "ms)"
+     << " result=" << status << " (covered=" << covered << "/" << num_deals
+     << ", " << std::fixed << std::setprecision(1) << pct
+     << "%, lines=" << lines.size() << ")";
+
+  log_details("\n=== " + name + " ===");
+  log_details(ss.str());
+  log_summary(ss.str());
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
 
-  std::ofstream details_log("perf/details.log");
-  std::ofstream summary_log("perf/summary.log");
+  bool append_9_card_hearts_only = false;
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--append-9-card-hearts") {
+      append_9_card_hearts_only = true;
+    }
+  }
+
+  std::ios_base::openmode mode =
+      append_9_card_hearts_only ? std::ios::app : std::ios::out;
+  std::ofstream details_log("perf/details.log", mode);
+  std::ofstream summary_log("perf/summary.log", mode);
 
   auto log_details = [&](const std::string& msg) {
     std::cout << msg << std::endl;
@@ -66,144 +114,149 @@ int main(int argc, char** argv) {
     summary_log << msg << std::endl;
   };
 
-  std::mt19937 rng(12345);
+  if (!append_9_card_hearts_only) {
+    std::mt19937 rng(12345);
 
-  std::vector<CardType> full_deck;
-  for (int suit = 0; suit < 4; suit++) {
-    for (int val = 0; val < 13; val++) {
-      full_deck.push_back(Card::GetSuitedCard(static_cast<Suit>(suit), val));
+    std::vector<CardType> full_deck;
+    for (int suit = 0; suit < 4; suit++) {
+      for (int val = 0; val < 13; val++) {
+        full_deck.push_back(Card::GetSuitedCard(static_cast<Suit>(suit), val));
+      }
     }
-  }
 
-  log_details("Starting LineFinder Performance Benchmark");
-  const int num_deals = 100;
-  log_details("Range: ending_size 6..13, 3 trials per ending_size, num_deals=" +
-              std::to_string(num_deals));
+    log_details("Starting LineFinder Performance Benchmark");
+    const int num_deals = 100;
+    log_details(
+        "Range: ending_size 6..13, 3 trials per ending_size, num_deals=" +
+        std::to_string(num_deals));
 
-  log_summary("=== LineFinder Performance Benchmark Summary ===");
+    log_summary("=== LineFinder Performance Benchmark Summary ===");
 
-  auto bench_start = std::chrono::high_resolution_clock::now();
-  LineFinder lf(num_deals);
+    auto bench_start = std::chrono::high_resolution_clock::now();
+    LineFinder lf(num_deals);
 
-  for (int ending_size = 6; ending_size <= 13; ending_size++) {
-    for (int trial = 1; trial <= 3; trial++) {
-      int leader = 1;  // Leader is hand 1 (EAST)
-      int min_fit = ending_size * 2 / 3;
-      int min_tricks = 1;
+    for (int ending_size = 6; ending_size <= 13; ending_size++) {
+      for (int trial = 1; trial <= 3; trial++) {
+        int leader = 1;  // Leader is hand 1 (EAST)
+        int min_fit = ending_size * 2 / 3;
+        int min_tricks = 1;
 
-      std::vector<uint64_t> hands(4, 0);
-      uint64_t unknown_cards = 0;
-      int dist0[4] = {0};
-      int dist2[4] = {0};
-      Suit trump = SPADES;
-      int max_combined = -1;
+        std::vector<uint64_t> hands(4, 0);
+        uint64_t unknown_cards = 0;
+        int dist0[4] = {0};
+        int dist2[4] = {0};
+        Suit trump = SPADES;
+        int max_combined = -1;
 
-      while (true) {
-        std::vector<CardType> deck = full_deck;
-        std::shuffle(deck.begin(), deck.end(), rng);
+        while (true) {
+          std::vector<CardType> deck = full_deck;
+          std::shuffle(deck.begin(), deck.end(), rng);
 
-        hands.assign(4, 0);
-        unknown_cards = 0;
+          hands.assign(4, 0);
+          unknown_cards = 0;
 
-        for (int i = 0; i < ending_size; i++) {
-          hands[0] |= deck[i];
-        }
-        for (int i = 0; i < ending_size; i++) {
-          hands[2] |= deck[ending_size + i];
-        }
-        for (int i = 0; i < 2 * ending_size; i++) {
-          unknown_cards |= deck[2 * ending_size + i];
-        }
+          for (int i = 0; i < ending_size; i++) {
+            hands[0] |= deck[i];
+          }
+          for (int i = 0; i < ending_size; i++) {
+            hands[2] |= deck[ending_size + i];
+          }
+          for (int i = 0; i < 2 * ending_size; i++) {
+            unknown_cards |= deck[2 * ending_size + i];
+          }
 
-        GetHandSuitDistribution(hands[0], dist0);
-        GetHandSuitDistribution(hands[2], dist2);
+          GetHandSuitDistribution(hands[0], dist0);
+          GetHandSuitDistribution(hands[2], dist2);
 
-        trump = SPADES;
-        max_combined = -1;
-        for (int s = 0; s < 4; s++) {
-          int combined = dist0[s] + dist2[s];
-          if (combined > max_combined) {
-            max_combined = combined;
-            trump = static_cast<Suit>(s);
+          trump = SPADES;
+          max_combined = -1;
+          for (int s = 0; s < 4; s++) {
+            int combined = dist0[s] + dist2[s];
+            if (combined > max_combined) {
+              max_combined = combined;
+              trump = static_cast<Suit>(s);
+            }
+          }
+          if (max_combined < min_fit) {
+            continue;
+          }
+
+          long seed = 12345 + ending_size * 10 + trial;
+          min_tricks = EstimateMedianMinTricks(hands, unknown_cards, leader,
+                                               trump, seed);
+          if (min_tricks > 0) {
+            break;
           }
         }
-        if (max_combined < min_fit) {
-          continue;
+
+        std::string suit_len_str = "(" + std::to_string(dist0[trump]) + "-" +
+                                   std::to_string(dist2[trump]) + ")";
+
+        bool should_log_details = (ending_size < 8 && trial == 1);
+        if (should_log_details) {
+          log_details("\n=== ending_size = " + std::to_string(ending_size) +
+                      ", trial = " + std::to_string(trial) + " ===");
+          log_details("hand[0] (Declarer): " + HandDebugString(hands[0]));
+          log_details("hand[2] (Partner):  " + HandDebugString(hands[2]));
+          log_details("unknown_cards:      " + HandDebugString(unknown_cards));
+          log_details("Trump: " + SuitDebugString(trump) + " " + suit_len_str +
+                      ", Leader: " + std::to_string(leader) +
+                      ", Min Tricks: " + std::to_string(min_tricks));
         }
 
-        long seed = 12345 + ending_size * 10 + trial;
-        min_tricks = EstimateMedianMinTricks(hands, unknown_cards, leader,
-                                             trump, seed);
-        if (min_tricks > 0) {
-          break;
+        srand48(12345 + ending_size * 10 + trial);
+
+        auto start = std::chrono::high_resolution_clock::now();
+        std::vector<ConditionalLine> lines =
+            lf.Solve(min_tricks, hands, unknown_cards, leader, trump);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+
+        bool succeeded = !lines.empty();
+        std::string status = succeeded ? "SUCCESS" : "FAILED";
+
+        if (should_log_details) {
+          log_details("Found " + std::to_string(lines.size()) +
+                      " lines for ending_size = " +
+                      std::to_string(ending_size) + " trial " +
+                      std::to_string(trial));
+          for (size_t i = 0; i < lines.size(); i++) {
+            log_details("Line " + std::to_string(i + 1) + ": " +
+                        lines[i].Describe());
+          }
+          log_details("Solve took " + std::to_string(elapsed.count()) +
+                      " seconds. Status: " + status);
         }
+
+        int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
+        double pct = (100.0 * covered) / num_deals;
+        std::stringstream ss;
+        ss << "ending_size=" << std::setw(2) << ending_size
+           << " trial=" << trial << " time=" << std::fixed
+           << std::setprecision(1) << elapsed.count() << "s"
+           << " trump=" << std::setw(2) << SuitDebugString(trump)
+           << " fit=" << std::setw(6) << suit_len_str
+           << " min_tricks=" << std::setw(2) << min_tricks
+           << " result=" << status << " (covered=" << covered << "/"
+           << num_deals << ", " << std::fixed << std::setprecision(1) << pct
+           << "%, lines=" << lines.size() << ")";
+
+        log_summary(ss.str());
       }
-
-      std::string suit_len_str = "(" + std::to_string(dist0[trump]) + "-" +
-                                 std::to_string(dist2[trump]) + ")";
-
-      bool should_log_details = (ending_size < 8 && trial == 1);
-      if (should_log_details) {
-        log_details("\n=== ending_size = " + std::to_string(ending_size) +
-                    ", trial = " + std::to_string(trial) + " ===");
-        log_details("hand[0] (Declarer): " + HandDebugString(hands[0]));
-        log_details("hand[2] (Partner):  " + HandDebugString(hands[2]));
-        log_details("unknown_cards:      " + HandDebugString(unknown_cards));
-        log_details("Trump: " + SuitDebugString(trump) + " " + suit_len_str +
-                    ", Leader: " + std::to_string(leader) +
-                    ", Min Tricks: " + std::to_string(min_tricks));
-      }
-
-      srand48(12345 + ending_size * 10 + trial);
-
-      auto start = std::chrono::high_resolution_clock::now();
-      std::vector<ConditionalLine> lines =
-          lf.Solve(min_tricks, hands, unknown_cards, leader, trump);
-      auto end = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double> elapsed = end - start;
-
-      bool succeeded = !lines.empty();
-      std::string status = succeeded ? "SUCCESS" : "FAILED";
-
-      if (should_log_details) {
-        log_details("Found " + std::to_string(lines.size()) +
-                    " lines for ending_size = " + std::to_string(ending_size) +
-                    " trial " + std::to_string(trial));
-        for (size_t i = 0; i < lines.size(); i++) {
-          log_details("Line " + std::to_string(i + 1) + ": " +
-                      lines[i].Describe());
-        }
-        log_details("Solve took " + std::to_string(elapsed.count()) +
-                    " seconds. Status: " + status);
-      }
-
-      int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
-      double pct = (100.0 * covered) / num_deals;
-      std::stringstream ss;
-      ss << "ending_size=" << std::setw(2) << ending_size
-         << " trial=" << trial
-         << " time=" << std::fixed << std::setprecision(1)
-         << elapsed.count() << "s"
-         << " trump=" << std::setw(2) << SuitDebugString(trump)
-         << " fit=" << std::setw(6) << suit_len_str
-         << " min_tricks=" << std::setw(2) << min_tricks
-         << " result=" << status
-         << " (covered=" << covered << "/" << num_deals << ", "
-         << std::fixed << std::setprecision(1) << pct << "%, lines="
-         << lines.size() << ")";
-
-      log_summary(ss.str());
     }
+
+    auto bench_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> total_elapsed = bench_end - bench_start;
+    std::stringstream total_ss;
+    total_ss << "Benchmark complete. Total wall time: " << std::fixed
+             << std::setprecision(1) << total_elapsed.count() << "s";
+
+    log_details("\n" + total_ss.str());
+    log_summary(total_ss.str());
   }
 
-  auto bench_end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> total_elapsed = bench_end - bench_start;
-  std::stringstream total_ss;
-  total_ss << "Benchmark complete. Total wall time: " << std::fixed
-           << std::setprecision(1) << total_elapsed.count() << "s";
-
-  log_details("\n" + total_ss.str());
-  log_summary(total_ss.str());
+  RunPerf9CardHeartsCase("Perf9CardHearts100", 100, log_summary, log_details);
+  RunPerf9CardHeartsCase("Perf9CardHearts150", 150, log_summary, log_details);
 
   return 0;
 }

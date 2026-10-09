@@ -907,3 +907,168 @@ int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
   bs.SetHands(hands);
   return ResultsOnHand(bs);
 }
+
+ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
+    const BoardState &bs, int board_id) const {
+  BoardPlayTrace trace;
+  trace.board_id = board_id;
+  BoardState copy = bs;
+  const ConditionalLine *cur_line = this;
+
+  while (!copy.Finished() && cur_line != nullptr) {
+    if (cur_line->do_first().Empty() && cur_line->conditions().empty()) {
+      break;
+    }
+
+    std::vector<const ConditionalLine *> candidates;
+    if (!cur_line->do_first().Empty()) {
+      candidates.push_back(cur_line);
+    } else {
+      for (const auto &[_cond, child_line] : cur_line->conditions()) {
+        if (child_line && !child_line->do_first().Empty()) {
+          candidates.push_back(child_line.get());
+        }
+      }
+      while (candidates.empty() && cur_line &&
+             !cur_line->conditions().empty() &&
+             cur_line->conditions()[0].second) {
+        cur_line = cur_line->conditions()[0].second.get();
+        if (!cur_line->do_first().Empty()) {
+          candidates.push_back(cur_line);
+        } else {
+          for (const auto &[_cond, child_line] : cur_line->conditions()) {
+            if (child_line && !child_line->do_first().Empty()) {
+              candidates.push_back(child_line.get());
+            }
+          }
+        }
+      }
+    }
+
+    if (candidates.empty()) {
+      break;
+    }
+
+    int trick_leader = copy.CurPlayer();
+    std::vector<std::string> played_cards;
+    played_cards.reserve(4);
+    std::string my1_str;
+    std::string my2_str;
+    bool diverged_during_trick = false;
+    std::vector<std::vector<std::string>> cur_opt_lines;
+
+    for (int pos = 0; pos < 4; ++pos) {
+      if (copy.Finished()) break;
+      int p = copy.CurPlayer();
+      if (p % 2 == 0) {
+        std::string decl_card_str =
+            GetPatternAtPos(candidates[0]->do_first(), pos);
+        CardType chosen_card = ChooseValidCard(copy, decl_card_str);
+        std::string chosen_str = Card::PrintCard(chosen_card);
+        copy.PlayCard(p, chosen_card);
+        played_cards.push_back(chosen_str);
+        if (pos < 2) {
+          my1_str = chosen_str;
+        } else {
+          my2_str = chosen_str;
+        }
+
+        std::vector<std::vector<std::string>> next_opt_lines;
+        for (const auto &seq : cur_opt_lines) {
+          if (!seq.empty() && seq[0] == chosen_str) {
+            next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
+          }
+        }
+        cur_opt_lines = std::move(next_opt_lines);
+      } else {
+        if (cur_opt_lines.empty()) {
+          auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
+          cur_opt_lines = ExtractTrickLines(tree->GetLines());
+        }
+        std::string def_card_str;
+        CardType def_card = 0;
+        if (!cur_opt_lines.empty() && !cur_opt_lines[0].empty()) {
+          def_card_str = cur_opt_lines[0][0];
+          def_card = Card::ParseStringCard(def_card_str);
+        } else {
+          def_card = copy.ValidCardsToPlay()[0];
+          def_card_str = Card::PrintCard(def_card);
+        }
+        Suit suit_led =
+            (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
+        copy.PlayCard(p, def_card);
+        played_cards.push_back(def_card_str);
+
+        std::vector<std::vector<std::string>> next_opt_lines;
+        for (const auto &seq : cur_opt_lines) {
+          if (!seq.empty() && seq[0] == def_card_str) {
+            next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
+          }
+        }
+        cur_opt_lines = std::move(next_opt_lines);
+
+        std::vector<const ConditionalLine *> matching;
+        for (const ConditionalLine *cand : candidates) {
+          std::string pattern = GetPatternAtPos(cand->do_first(), pos);
+          if (GeneralizesTo(def_card_str, pattern, suit_led, copy.GetTrump())) {
+            matching.push_back(cand);
+          }
+        }
+        if (!matching.empty()) {
+          candidates = std::move(matching);
+        } else {
+          diverged_during_trick = true;
+          candidates.resize(1);
+        }
+      }
+    }
+
+    if (played_cards.size() < 4) {
+      break;
+    }
+
+    int winner = copy.CurPlayer();
+    int win_idx = (winner - trick_leader + 4) % 4;
+    const ConditionalLine *next_line = nullptr;
+    if (!diverged_during_trick) {
+      const ConditionalLine *chosen_node = candidates[0];
+      for (const auto &[cond, child_line] : chosen_node->conditions()) {
+        if (!child_line) continue;
+        auto *winner_cond =
+            dynamic_cast<const WinnerPlayCondition *>(cond.get());
+        if (winner_cond && winner_cond->who() == winner) {
+          if (!child_line->do_first().Empty() ||
+              !child_line->conditions().empty()) {
+            next_line = child_line.get();
+          }
+          break;
+        }
+      }
+    }
+
+    PlayedTrickStep step;
+    step.leader = trick_leader;
+    step.trick_str = played_cards[0] + " " + played_cards[1] + " " +
+                     played_cards[2] + " " + played_cards[3];
+    step.my1_card = my1_str;
+    step.my2_card = my2_str;
+    step.winner = winner;
+    step.winning_card = played_cards[win_idx];
+    step.ns_tricks_so_far = copy.tricks_won_even();
+    step.diverged_after = (next_line == nullptr);
+    trace.steps.push_back(std::move(step));
+
+    cur_line = next_line;
+  }
+
+  if (copy.Finished()) {
+    trace.final_ns_tricks = copy.tricks_won_even();
+  } else {
+    int cards_left = CardsInHand(copy.GetHand(0), copy.played_cards()).size();
+    int opt = FindOptimalTricks(copy);
+    int rem_ns = (copy.CurPlayer() % 2 == 0) ? opt : (cards_left - opt);
+    trace.final_ns_tricks = copy.tricks_won_even() + rem_ns;
+  }
+
+  return trace;
+}

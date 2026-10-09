@@ -46,30 +46,43 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tab Switcher Elements
   const tabDecisionTreeBtn = document.getElementById('tabDecisionTreeBtn');
   const tabSummaryBtn = document.getElementById('tabSummaryBtn');
+  const tabSampleHandsBtn = document.getElementById('tabSampleHandsBtn');
   const panelDecisionTree = document.getElementById('panelDecisionTree');
   const panelDistributionSummary = document.getElementById('panelDistributionSummary');
+  const panelSampleHands = document.getElementById('panelSampleHands');
   const ruleCounterBadge = document.getElementById('ruleCounterBadge');
+  const sampleHandsCounterBadge = document.getElementById('sampleHandsCounterBadge');
   const summaryEmptyNotice = document.getElementById('summaryEmptyNotice');
   const summaryContent = document.getElementById('summaryContent');
   const summaryRulesList = document.getElementById('summaryRulesList');
   const summaryBoundsTable = document.getElementById('summaryBoundsTable');
   const summaryHonorTable = document.getElementById('summaryHonorTable');
 
-  // Tab Switching Event Listeners
-  if (tabDecisionTreeBtn && tabSummaryBtn) {
-    tabDecisionTreeBtn.addEventListener('click', () => {
-      tabDecisionTreeBtn.classList.add('active');
-      tabSummaryBtn.classList.remove('active');
-      panelDecisionTree.classList.remove('hidden');
-      panelDistributionSummary.classList.add('hidden');
-    });
+  const sampleHandsModeHeader = document.getElementById('sampleHandsModeHeader');
+  const sampleHandsModeBadge = document.getElementById('sampleHandsModeBadge');
+  const sampleHandsModeSub = document.getElementById('sampleHandsModeSub');
+  const sampleHandsEmptyNotice = document.getElementById('sampleHandsEmptyNotice');
+  const sampleHandsGrid = document.getElementById('sampleHandsGrid');
 
-    tabSummaryBtn.addEventListener('click', () => {
-      tabSummaryBtn.classList.add('active');
-      tabDecisionTreeBtn.classList.remove('active');
-      panelDistributionSummary.classList.remove('hidden');
-      panelDecisionTree.classList.add('hidden');
-    });
+  function activateTab(tabName) {
+    if (tabDecisionTreeBtn) tabDecisionTreeBtn.classList.toggle('active', tabName === 'tree');
+    if (tabSummaryBtn) tabSummaryBtn.classList.toggle('active', tabName === 'summary');
+    if (tabSampleHandsBtn) tabSampleHandsBtn.classList.toggle('active', tabName === 'sample_hands');
+
+    if (panelDecisionTree) panelDecisionTree.classList.toggle('hidden', tabName !== 'tree');
+    if (panelDistributionSummary) panelDistributionSummary.classList.toggle('hidden', tabName !== 'summary');
+    if (panelSampleHands) panelSampleHands.classList.toggle('hidden', tabName !== 'sample_hands');
+  }
+
+  // Tab Switching Event Listeners
+  if (tabDecisionTreeBtn) {
+    tabDecisionTreeBtn.addEventListener('click', () => activateTab('tree'));
+  }
+  if (tabSummaryBtn) {
+    tabSummaryBtn.addEventListener('click', () => activateTab('summary'));
+  }
+  if (tabSampleHandsBtn) {
+    tabSampleHandsBtn.addEventListener('click', () => activateTab('sample_hands'));
   }
 
   // Inspector Side Panel Toggle Listeners
@@ -200,6 +213,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateViewMode(mode) {
     activeViewMode = mode;
+    const total = (currentSolveData && currentSolveData.total_boards) ? currentSolveData.total_boards : 1;
+    const success = (currentSolveData && currentSolveData.success_boards !== undefined)
+      ? currentSolveData.success_boards
+      : ((currentSolveData && currentSolveData.covered_boards) || 0);
+    const failure = (currentSolveData && currentSolveData.failure_boards !== undefined)
+      ? currentSolveData.failure_boards
+      : Math.max(0, total - success);
+
     if (mode === 'success') {
       if (cardStatSuccess) cardStatSuccess.classList.add('active');
       if (cardStatFailure) cardStatFailure.classList.remove('active');
@@ -207,17 +228,48 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryModeBadge.className = 'mode-badge mode-success';
         summaryModeBadge.textContent = 'Success Deals';
       }
-      if (summaryModeSub && currentSolveData) {
-        const total = currentSolveData.total_boards || 1;
-        const success = currentSolveData.success_boards !== undefined ? currentSolveData.success_boards : (currentSolveData.covered_boards || 0);
+      if (sampleHandsModeBadge) {
+        sampleHandsModeBadge.className = 'mode-badge mode-success';
+        sampleHandsModeBadge.textContent = 'Covered Deals';
+      }
+      if (currentSolveData) {
         const pct = Math.round((success / total) * 100);
-        summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
+        if (summaryModeSub) {
+          summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
+        }
+        const sampleList = currentSolveData.sample_hands || [];
+        if (sampleHandsModeSub) {
+          sampleHandsModeSub.textContent =
+            `(${success}/${total} boards, ${pct}% — showing ${sampleList.length})`;
+        }
       }
       if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (sampleHandsModeHeader) sampleHandsModeHeader.classList.remove('hidden');
+
       if (currentSolveData && currentSolveData.distribution_summary) {
         renderDistributionSummary(currentSolveData.distribution_summary);
       } else {
         clearDistributionSummary('No distribution summary available for success deals.');
+      }
+
+      if (currentSolveData && Array.isArray(currentSolveData.sample_hands) &&
+          currentSolveData.sample_hands.length > 0) {
+        renderSampleHands(currentSolveData.sample_hands);
+      } else {
+        clearSampleHands('No covered sample hands available.');
+      }
+
+      if (currentSolveData && currentSolveData.tree) {
+        currentTreeData = currentSolveData.tree;
+        expandAndInspectNode(currentSolveData.tree, currentSolveData.tree, null, false);
+      } else if (currentSolveData) {
+        currentTreeData = null;
+        activeTrickCardStates = null;
+        updateDealSvg();
+        if (treeRootGroup) {
+          treeRootGroup.innerHTML =
+            `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated for success deals.</text>`;
+        }
       }
     } else {
       if (cardStatFailure) cardStatFailure.classList.add('active');
@@ -226,18 +278,55 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryModeBadge.className = 'mode-badge mode-failure';
         summaryModeBadge.textContent = 'Failure Deals';
       }
-      if (summaryModeSub && currentSolveData) {
-        const total = currentSolveData.total_boards || 1;
-        const success = currentSolveData.success_boards !== undefined ? currentSolveData.success_boards : (currentSolveData.covered_boards || 0);
-        const failure = currentSolveData.failure_boards !== undefined ? currentSolveData.failure_boards : Math.max(0, total - success);
+      if (sampleHandsModeBadge) {
+        sampleHandsModeBadge.className = 'mode-badge mode-failure';
+        sampleHandsModeBadge.textContent = 'Non-Covered (Failed) Deals';
+      }
+      if (currentSolveData) {
         const pct = Math.round((failure / total) * 100);
-        summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
+        if (summaryModeSub) {
+          summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
+        }
+        const failSampleList = currentSolveData.failure_sample_hands || [];
+        if (sampleHandsModeSub) {
+          sampleHandsModeSub.textContent =
+            `(${failure}/${total} boards, ${pct}% — showing ${failSampleList.length})`;
+        }
       }
       if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (sampleHandsModeHeader) sampleHandsModeHeader.classList.remove('hidden');
+
       if (currentSolveData && currentSolveData.failure_distribution_summary) {
         renderDistributionSummary(currentSolveData.failure_distribution_summary);
       } else {
         clearDistributionSummary('No failure distribution summary available (100% success rate or no failure deals).');
+      }
+
+      if (currentSolveData && Array.isArray(currentSolveData.failure_sample_hands) &&
+          currentSolveData.failure_sample_hands.length > 0) {
+        renderSampleHands(currentSolveData.failure_sample_hands);
+      } else {
+        clearSampleHands('No failed sample hands available (100% success rate or no failure deals).');
+      }
+
+      if (currentSolveData && currentSolveData.failure_tree) {
+        currentTreeData = currentSolveData.failure_tree;
+        expandAndInspectNode(currentSolveData.failure_tree, currentSolveData.failure_tree, null, false);
+      } else if (currentSolveData) {
+        currentTreeData = null;
+        currentCenteredNode = null;
+        activeTrickCardStates = null;
+        updateDealSvg();
+        if (treeRootGroup) {
+          treeRootGroup.innerHTML =
+            `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="15">No failed deals to display in the decision tree (100% success rate).</text>`;
+        }
+        if (inspectorContent) {
+          inspectorContent.innerHTML = `
+            <div class="inspector-placeholder">
+              No failed deals for this line of play.
+            </div>`;
+        }
       }
     }
   }
@@ -245,12 +334,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cardStatSuccess) {
     cardStatSuccess.addEventListener('click', () => {
       updateViewMode('success');
-      if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
     });
     cardStatSuccess.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         updateViewMode('success');
-        if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
       }
     });
   }
@@ -258,12 +345,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cardStatFailure) {
     cardStatFailure.addEventListener('click', () => {
       updateViewMode('failure');
-      if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
     });
     cardStatFailure.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         updateViewMode('failure');
-        if (tabSummaryBtn && panelDistributionSummary.classList.contains('hidden')) tabSummaryBtn.click();
       }
     });
   }
@@ -782,12 +867,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (summaryModeSub) summaryModeSub.textContent = '';
 
-    if (tabDecisionTreeBtn && tabSummaryBtn) {
-      tabDecisionTreeBtn.classList.add('active');
-      tabSummaryBtn.classList.remove('active');
-      if (panelDecisionTree) panelDecisionTree.classList.remove('hidden');
-      if (panelDistributionSummary) panelDistributionSummary.classList.add('hidden');
+    clearSampleHands('No sample hands available yet. Click "Solve Deal" to generate and inspect deals.');
+    if (sampleHandsModeHeader) sampleHandsModeHeader.classList.add('hidden');
+    if (sampleHandsModeBadge) {
+      sampleHandsModeBadge.className = 'mode-badge mode-success';
+      sampleHandsModeBadge.textContent = 'Covered Deals';
     }
+    if (sampleHandsModeSub) sampleHandsModeSub.textContent = '';
+
+    activateTab('tree');
   }
 
   function loadPreset(key) {
@@ -1018,15 +1106,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
-      // Render Decision Tree
-      if (data.tree) {
-        currentTreeData = data.tree;
-        expandAndInspectNode(data.tree, data.tree);
-      } else {
-        treeRootGroup.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
-      }
-
-      // Update View Mode (Success vs Failure)
+      // Update View Mode (Success vs Failure) - renders Decision Tree, Distribution Summary, and Sample Hands
       updateViewMode(activeViewMode);
 
     } catch (err) {
@@ -1097,7 +1177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function expandAndInspectNode(targetNode, rootNode, clickEvent = null) {
+  function expandAndInspectNode(targetNode, rootNode, clickEvent = null, switchTab = false) {
     if (!rootNode || !targetNode) return;
     attachParentPointers(rootNode);
 
@@ -1141,21 +1221,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDecisionTree(rootNode);
 
     // Center targetNode under mouse (or in viewport if no mouse click inside treeViewport)
-    centerNodeInTree(targetNode, clickEvent);
+    centerNodeInTree(targetNode, clickEvent, switchTab);
 
     // Show line inspector for the reached leaf and select the clicked node's trick if applicable
     showNodeInspector(leaf, targetNode);
   }
 
-  function centerNodeInTree(node, clickEvent = null) {
+  function centerNodeInTree(node, clickEvent = null, switchTab = false) {
     if (!node) return;
     currentCenteredNode = node;
 
-    if (tabDecisionTreeBtn && panelDecisionTree) {
-      if (tabSummaryBtn) tabSummaryBtn.classList.remove('active');
-      tabDecisionTreeBtn.classList.add('active');
-      panelDecisionTree.classList.remove('hidden');
-      if (panelDistributionSummary) panelDistributionSummary.classList.add('hidden');
+    if (switchTab) {
+      activateTab('tree');
     }
 
     let p = node._parent;
@@ -1177,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (node._x === undefined || node._y === undefined) return;
 
-    const nodeWidth = 240;
+    const nodeWidth = 150;
     const nodeHeight = 78;
     const nodeCenterX = node._x + nodeWidth / 2;
     const nodeCenterY = node._y + nodeHeight / 2;
@@ -1240,15 +1317,16 @@ document.addEventListener('DOMContentLoaded', () => {
     attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 240;
+    const nodeWidth = 150;
     const nodeHeight = 78;
     const levelHeight = 140;
-    const siblingGap = 40;
+    const siblingGap = 24;
 
     let leafCounter = 0;
 
-    function layoutNode(node, depth = 0) {
+    function layoutNode(node, depth = 0, y = 0) {
       node._depth = depth;
+      node._y = y;
       if (node._collapsed === undefined) {
         if (node.collapsed !== undefined) {
           node._collapsed = node.collapsed;
@@ -1262,12 +1340,13 @@ document.addEventListener('DOMContentLoaded', () => {
         leafCounter++;
         node._width = nodeWidth;
       } else {
-        node.children.forEach(child => layoutNode(child, depth + 1));
+        const gap = (node.children.length === 1) ? 31 : 62;
+        const nextY = y + nodeHeight + gap;
+        node.children.forEach(child => layoutNode(child, depth + 1, nextY));
         const firstChild = node.children[0];
         const lastChild = node.children[node.children.length - 1];
         node._x = (firstChild._x + lastChild._x) / 2;
       }
-      node._y = depth * levelHeight;
     }
 
     layoutNode(rootNode);
@@ -1338,7 +1417,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let cardClass = 'node-action';
       if (node.type === 'condition') cardClass = 'node-condition';
-      if (node.type === 'outcome') cardClass = 'node-outcome';
+      if (node.type === 'outcome') {
+        cardClass = (activeViewMode === 'failure') ? 'node-outcome-failure' : 'node-outcome';
+      }
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
       node._svgRect = rect;
@@ -1347,61 +1428,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Title Text
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      title.setAttribute('x', '12');
+      title.setAttribute('x', '8');
       title.setAttribute('y', '22');
       title.setAttribute('class', 'node-text-title');
       let rawTitle = node.label || node.trick || 'Node';
       if (rawTitle.startsWith('after ')) {
         rawTitle = rawTitle.substring(6);
       }
-      title.textContent = truncateText(rawTitle, 40);
+      title.textContent = truncateText(rawTitle, 28);
       g.appendChild(title);
 
       // Detail Text
       const detail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      detail.setAttribute('x', '12');
+      detail.setAttribute('x', '8');
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
       let detailText = '';
-      if (node.success_boards !== undefined && node.total_boards !== undefined) {
-        const pct = Math.round((node.success_boards / node.total_boards) * 100);
-        detailText = `Deals: ${node.success_boards} (${pct}%)`;
-      } else if (node.covered_boards !== undefined) {
-        detailText = `Deals: ${node.covered_boards}`;
+      const nodeDealsCount = (activeViewMode === 'failure' && node.failure_boards !== undefined && node.failure_boards > 0)
+        ? node.failure_boards
+        : (node.success_boards !== undefined && node.success_boards > 0 ? node.success_boards : node.covered_boards);
+      if (nodeDealsCount !== undefined && node.total_boards !== undefined && node.total_boards > 0) {
+        const pct = Math.round((nodeDealsCount / node.total_boards) * 100);
+        detailText = `Deals: ${nodeDealsCount} (${pct}%)`;
+      } else if (nodeDealsCount !== undefined) {
+        detailText = `Deals: ${nodeDealsCount}`;
       }
       const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
-      detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
+      if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
+        detail.textContent = detailText;
+      } else {
+        detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
+      }
       g.appendChild(detail);
 
       // 3rd Line: N/S Won on its own line for leaf/outcome nodes
       if (node.type === 'outcome' && node.ns_tricks !== undefined) {
         const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        highlight.setAttribute('x', '12');
+        highlight.setAttribute('x', '8');
         highlight.setAttribute('y', '62');
         highlight.setAttribute('class', 'node-text-highlight');
+        if (activeViewMode === 'failure') {
+          highlight.setAttribute('fill', '#fca5a5');
+        }
         highlight.textContent = `N/S Won: ${node.ns_tricks}`;
         g.appendChild(highlight);
       }
 
-      // Expand/Collapse Indicator if children exist
-      if (node.children && node.children.length > 0) {
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', nodeWidth - 16);
-        circle.setAttribute('cy', 16);
-        circle.setAttribute('r', '8');
-        circle.setAttribute('fill', '#334155');
-        g.appendChild(circle);
-
-        const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        badge.setAttribute('x', nodeWidth - 16);
-        badge.setAttribute('y', 20);
-        badge.setAttribute('text-anchor', 'middle');
-        badge.setAttribute('fill', '#ffffff');
-        badge.setAttribute('font-size', '10');
-        badge.setAttribute('font-weight', 'bold');
-        badge.textContent = node._collapsed ? '+' : '−';
-        g.appendChild(badge);
-      }
 
       // Event Listeners for Interactivity
       g.addEventListener('click', (e) => {
@@ -1580,14 +1652,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryCard = document.createElement('div');
     summaryCard.className = 'node-summary-card';
 
-    let dealsInfo = '';
-    if (node.success_boards !== undefined && node.total_boards !== undefined) {
-      const sPct = Math.round((node.success_boards / node.total_boards) * 100);
-      dealsInfo = `${node.success_boards} (${sPct}%)`;
-    } else if (node.covered_boards !== undefined) {
-      dealsInfo = `${node.covered_boards}`;
-    } else {
-      dealsInfo = '-';
+    const inspectorDealsCount = (activeViewMode === 'failure' && node.failure_boards !== undefined && node.failure_boards > 0)
+      ? node.failure_boards
+      : (node.success_boards !== undefined && node.success_boards > 0 ? node.success_boards : node.covered_boards);
+    let dealsInfo = '-';
+    if (inspectorDealsCount !== undefined && node.total_boards !== undefined && node.total_boards > 0) {
+      const sPct = Math.round((inspectorDealsCount / node.total_boards) * 100);
+      dealsInfo = `${inspectorDealsCount} (${sPct}%)`;
+    } else if (inspectorDealsCount !== undefined) {
+      dealsInfo = `${inspectorDealsCount}`;
     }
 
     const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
@@ -1956,8 +2029,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function extractTrickString(node) {
     if (!node) return null;
 
-    // Check if node.label explicitly matches "Trick <N>:"
-    if (node.label && /^Trick\s+\d+:/i.test(node.label.trim())) {
+    // Check if node.label explicitly matches "Trick <N>:" or "#<N>:"
+    if (node.label && /^(?:Trick\s+\d+|#\d+):/i.test(node.label.trim())) {
       let lbl = node.label.trim();
       const colonIdx = lbl.indexOf(':');
       if (colonIdx !== -1) {
@@ -2137,6 +2210,108 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function createSampleHandBox(seatTitle, handStr) {
+    const box = document.createElement('div');
+    box.className = 'sample-hand-box';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'sample-hand-seat';
+    titleEl.textContent = seatTitle;
+    box.appendChild(titleEl);
+
+    const suitsData = parseHandToSuits(handStr || '');
+    const suitOrder = [
+      { key: 'S', symbol: '♠', cls: 'card-suit-s' },
+      { key: 'H', symbol: '♥', cls: 'card-suit-h' },
+      { key: 'D', symbol: '♦', cls: 'card-suit-d' },
+      { key: 'C', symbol: '♣', cls: 'card-suit-c' }
+    ];
+
+    suitOrder.forEach(s => {
+      const line = document.createElement('div');
+      line.className = 'sample-suit-line';
+
+      const symSpan = document.createElement('span');
+      symSpan.className = `sample-suit-sym ${s.cls}`;
+      symSpan.textContent = s.symbol;
+
+      const ranksSpan = document.createElement('span');
+      ranksSpan.className = 'sample-suit-ranks';
+      ranksSpan.textContent = suitsData[s.key] ? suitsData[s.key] : '-';
+
+      line.appendChild(symSpan);
+      line.appendChild(ranksSpan);
+      box.appendChild(line);
+    });
+
+    return box;
+  }
+
+  function renderSampleHands(handsList) {
+    if (!handsList || !Array.isArray(handsList) || handsList.length === 0) {
+      clearSampleHands('No sample hands available for this mode.');
+      return;
+    }
+
+    if (sampleHandsCounterBadge) {
+      sampleHandsCounterBadge.textContent = String(handsList.length);
+      sampleHandsCounterBadge.classList.remove('hidden');
+    }
+
+    if (sampleHandsGrid) {
+      sampleHandsGrid.innerHTML = '';
+      const cappedList = handsList.slice(0, 100);
+      cappedList.forEach((deal, idx) => {
+        const card = document.createElement('div');
+        card.className = 'sample-deal-card';
+
+        const idBadge = document.createElement('span');
+        idBadge.className = 'sample-deal-id';
+        const boardNum = (deal.board_id !== undefined) ? (deal.board_id + 1) : (idx + 1);
+        idBadge.textContent = `#${boardNum}`;
+        card.appendChild(idBadge);
+
+        const rowNorth = document.createElement('div');
+        rowNorth.className = 'sample-deal-row-center';
+        rowNorth.appendChild(createSampleHandBox('NORTH', deal.N));
+        card.appendChild(rowNorth);
+
+        const rowWE = document.createElement('div');
+        rowWE.className = 'sample-deal-row-we';
+        rowWE.appendChild(createSampleHandBox('WEST', deal.W));
+        rowWE.appendChild(createSampleHandBox('EAST', deal.E));
+        card.appendChild(rowWE);
+
+        const rowSouth = document.createElement('div');
+        rowSouth.className = 'sample-deal-row-center';
+        rowSouth.appendChild(createSampleHandBox('SOUTH', deal.S));
+        card.appendChild(rowSouth);
+
+        sampleHandsGrid.appendChild(card);
+      });
+      sampleHandsGrid.classList.remove('hidden');
+    }
+
+    if (sampleHandsEmptyNotice) {
+      sampleHandsEmptyNotice.classList.add('hidden');
+    }
+  }
+
+  function clearSampleHands(msg = 'No sample hands available yet. Click "Solve Deal" to generate and inspect deals.') {
+    if (sampleHandsCounterBadge) {
+      sampleHandsCounterBadge.textContent = '0';
+      sampleHandsCounterBadge.classList.add('hidden');
+    }
+    if (sampleHandsGrid) {
+      sampleHandsGrid.innerHTML = '';
+      sampleHandsGrid.classList.add('hidden');
+    }
+    if (sampleHandsEmptyNotice) {
+      sampleHandsEmptyNotice.textContent = msg;
+      sampleHandsEmptyNotice.classList.remove('hidden');
+    }
+  }
+
   // Initial UI Render & Fetch Presets
   fetchPresets().then(() => {
     if (presetSelect && presetSelect.value) {
@@ -2146,3 +2321,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
