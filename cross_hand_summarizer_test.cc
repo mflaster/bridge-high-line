@@ -654,14 +654,36 @@ TEST_CASE("Summarize_OpposingDealsFiltersRedundantSingleAtoms",
   CrossHandSummaryReport report = summarizer.Summarize(
       covered_deals, "hand 1", "hand 3", nullptr, &opposing_deals);
 
-  // Neither "hand 1 always contains the SK" nor "hand 1 always contains the HK"
-  // should appear alone because their inverses ("W has SK", "W has HK") do not
-  // hold across all opposing deals; only AndInvariant(E has the HK, E has the
-  // SK) has an inverse OrInvariant(W has the HK, W has the SK) that holds on
-  // all opposing deals.
-  REQUIRE_FALSE(report.HasRule("hand 1 always contains the SK"));
-  REQUIRE_FALSE(report.HasRule("hand 1 always contains the HK"));
-  REQUIRE(report.HasRule("AndInvariant(E has the HK, E has the SK)"));
+  // AndInvariant(E has the HK, E has the SK) holds on 2/5 (40%) of the
+  // simulated deals and succeeds on 2/2 (100%) when it holds, so it sorts
+  // ahead of the individual SK and HK rules (which hold on 3/5 = 60% and
+  // succeed on 2/3 = 67% when they hold).
+  int and_idx = -1, sk_idx = -1, hk_idx = -1;
+  for (size_t i = 0; i < report.invariant_stats.size(); ++i) {
+    const auto &st = report.invariant_stats[i];
+    if (st.rule == "AndInvariant(E has the HK, E has the SK)") {
+      and_idx = static_cast<int>(i);
+      REQUIRE(st.holds_count == 2);
+      REQUIRE(st.total_bifurcations == 5);
+      REQUIRE(st.success_when_holds_count == 2);
+      REQUIRE(st.holds_percent() == 40);
+    } else if (st.rule == "hand 1 always contains the SK") {
+      sk_idx = static_cast<int>(i);
+      REQUIRE(st.holds_count == 3);
+      REQUIRE(st.total_bifurcations == 5);
+      REQUIRE(st.success_when_holds_count == 2);
+      REQUIRE(st.holds_percent() == 60);
+    } else if (st.rule == "hand 1 always contains the HK") {
+      hk_idx = static_cast<int>(i);
+      REQUIRE(st.holds_count == 3);
+      REQUIRE(st.total_bifurcations == 5);
+      REQUIRE(st.success_when_holds_count == 2);
+      REQUIRE(st.holds_percent() == 60);
+    }
+  }
+  REQUIRE(and_idx >= 0);
+  REQUIRE(sk_idx > and_idx);
+  REQUIRE(hk_idx > and_idx);
 }
 
 TEST_CASE("HandLabelFormatter_DirectUnitTests", "[cross_hand_summarizer]") {

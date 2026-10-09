@@ -10,13 +10,9 @@ Covers 4/10 (40.0%) [1, 3, 4, 6]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules for 5 card ending:
-  - AndInvariant(E has the HK, E has the SK) (holds: 23%, success when holds: 93%)
-  - hand 1 always contains the SK (holds: 42%, success when holds: 51%)
-  - hand 1 always contains the HK (holds: 56%, success when holds: 39%)
-  - hand 1 length in S is between 2 and 4 (holds: 90%, success when holds: 24%)
-  - hand 3 length in S is between 1 and 3 (holds: 90%, success when holds: 24%)
-  - hand 1 length in H is between 1 and 3 (holds: 90%, success when holds: 24%)
-  - hand 3 length in H is between 2 and 4 (holds: 90%, success when holds: 24%)
+  - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
+  - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
+  - hand 1 always contains the SK (holds: 80%, success when holds: 50%)
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,3,4,6] / S3 S5 SQ S6  / S3 S7 SQ S6  / S3 S7 SQ S5  / S3 S6 SQ S5 
     when 2 wins the SQ: 
@@ -38,13 +34,9 @@ Covers 4/10 (40.0%) [1, 3, 4, 6]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules for 5 card ending:
-  - AndInvariant(E has the HK, E has the SK) (holds: 23%, success when holds: 93%)
-  - hand 1 always contains the SK (holds: 42%, success when holds: 51%)
-  - hand 1 always contains the HK (holds: 56%, success when holds: 39%)
-  - hand 1 length in S is between 2 and 4 (holds: 90%, success when holds: 24%)
-  - hand 3 length in S is between 1 and 3 (holds: 90%, success when holds: 24%)
-  - hand 1 length in H is between 1 and 3 (holds: 90%, success when holds: 24%)
-  - hand 3 length in H is between 2 and 4 (holds: 90%, success when holds: 24%)
+  - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
+  - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
+  - hand 1 always contains the SK (holds: 80%, success when holds: 50%)
 
   after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H7 
     when 2 wins the HA: 

@@ -323,7 +323,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
                      std::to_string(ans.size()) + ")...");
       try {
         line.set_summary(summarizer.Summarize(
-            covered_deals, "hand 1", "hand 3", &line));
+            covered_deals, "hand 1", "hand 3", &line, &failure_deals));
       } catch (const std::exception &e) {
         LOG(WARNING) << "Failed to summarize line: " << e.what();
       }
@@ -335,7 +335,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
                      std::to_string(ans.size()) + ")...");
       try {
         line.set_failure_summary(summarizer.Summarize(
-            failure_deals, "hand 1", "hand 3", &line));
+            failure_deals, "hand 1", "hand 3", nullptr, &covered_deals));
       } catch (const std::exception &e) {
         LOG(WARNING) << "Failed to summarize failure line: " << e.what();
       }

@@ -10,7 +10,7 @@ Covers 10/20 (50.0%) [1, 3, 4, 10, 11, 12, 14, 16, 17, 19]
 Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules for 3 card ending:
-  - hand 1 always contains the SQ (holds: 42%, success when holds: 100%)
+  - hand 1 always contains the SQ (holds: 50%, success when holds: 100%)
 
   after SK (S_) S4 (S_): SK (S_) S4 (S_) [1,3,4,10,11,12,14,16,17,19] / SK S6 S4 S7  / SK S6 S4 S7  / SK S6 S4 S8  / SK S8 S4 S7  / SK S6 S4 S7 
     when 0 wins the SK: 
@@ -24,7 +24,7 @@ Covers 10/20 (50.0%) [1, 3, 4, 10, 11, 12, 14, 16, 17, 19]
 Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules for 3 card ending:
-  - hand 1 always contains the SQ (holds: 42%, success when holds: 100%)
+  - hand 1 always contains the SQ (holds: 50%, success when holds: 100%)
 
   after S3 (S_) SJ (S_): S3 (S_) SJ (S_) [1,3,4,10,11,12,14,16,17,19] / S3 S6 SJ S7  / S3 S6 SJ S7  / S3 S6 SJ S8  / S3 S8 SJ S7  / S3 S6 SJ S7 
     when 2 wins the SJ: 
