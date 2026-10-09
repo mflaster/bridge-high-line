@@ -131,20 +131,32 @@ TEST_CASE("HonorPossessionClassifier_MultipleHonors", "[cross_hand_summarizer]")
 }
 
 TEST_CASE("MaximumSuitLength_AcrossBifurcations", "[cross_hand_summarizer]") {
-  // Test case provided by reviewer:
-  // Overall cards across all deals: S 5432, H 5432
+  // Overall cards: S 432, H 432 (6 cards total, 3 per hand).
+  // Max length 2 in S (i.e. not 3-0) holds on 18/20 = 90% < 95% of deals.
   std::vector<PairedDeal> deals = {
-      PairedDeal("S 32 H 32", "S 54 H 54"),
-      PairedDeal("S 42 H 42", "S 53 H 53"),
-      PairedDeal("S 432 H 2", "S 5 H 543")
+      PairedDeal("S 32 H 2", "S 4 H 43"),
+      PairedDeal("S 42 H 3", "S 3 H 42"),
+      PairedDeal("S 2 H 32", "S 43 H 4")
   };
 
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 
   REQUIRE(report.total_deals == 3);
-  REQUIRE(report.HasRule("maximum length in S in any hand is 3"));
-  REQUIRE(report.HasRule("maximum length in H in any hand is 3"));
+  REQUIRE(report.HasRule("maximum length in S in any hand is 2"));
+  REQUIRE(report.HasRule("maximum length in H in any hand is 2"));
+
+  // Overall cards: S 5432, H 5432 (8 cards total, 4 per hand).
+  // Max length 3 in S (i.e. not 4-0) holds on 68/70 = 97.1% >= 95% of deals,
+  // so it is discarded as boring.
+  std::vector<PairedDeal> boring_deals = {
+      PairedDeal("S 32 H 32", "S 54 H 54"),
+      PairedDeal("S 42 H 42", "S 53 H 53"),
+      PairedDeal("S 432 H 2", "S 5 H 543")
+  };
+  CrossHandSummaryReport boring_report = summarizer.Summarize(boring_deals);
+  REQUIRE_FALSE(boring_report.HasRule("maximum length in S in any hand is 3"));
+  REQUIRE_FALSE(boring_report.HasRule("maximum length in H in any hand is 3"));
 }
 
 TEST_CASE("Validation_InvalidDealSetThrows", "[cross_hand_summarizer]") {
@@ -474,8 +486,28 @@ TEST_CASE("FilterUninterestingInvariants_LineFiltering",
 
   CrossHandSummaryReport report_with_line =
       summarizer.Summarize(deals, "hand 1", "hand 3", &line);
-  REQUIRE(report_with_line.HasRule("hand 1 always contains the SK"));
-  REQUIRE_FALSE(report_with_line.HasRule("hand 1 always contains the ST"));
+  REQUIRE(report_with_line.invariant_stats.size() == 3);
+  // "hand 1 always contains the SK" holds ~50% and succeeds 100% when it holds,
+  // so it sorts first ahead of AndInvariant (which holds ~17%) and ST (~35%
+  // success when holds).
+  REQUIRE(report_with_line.invariant_stats[0].rule ==
+          "hand 1 always contains the SK");
+  REQUIRE(report_with_line.invariant_stats[0].success_when_holds_percent() ==
+          100);
+  REQUIRE(report_with_line.invariant_stats[1].rule ==
+          "AndInvariant(E has the SK, E has the ST)");
+  REQUIRE(report_with_line.invariant_stats[1].success_when_holds_percent() ==
+          100);
+  REQUIRE(report_with_line.invariant_stats[0].holds_count >
+          report_with_line.invariant_stats[1].holds_count);
+  REQUIRE(report_with_line.invariant_stats[2].rule ==
+          "hand 1 always contains the ST");
+  REQUIRE(report_with_line.invariant_stats[2].success_when_holds_percent() <
+          50);
+  REQUIRE(report_with_line.invariant_stats[0].holds_percent() >= 40);
+  REQUIRE(report_with_line.invariant_stats[0].holds_percent() <= 60);
+  REQUIRE(report_with_line.HasRule(
+      report_with_line.invariant_stats[0].FormatRuleWithStats()));
 }
 
 TEST_CASE("UnknownCardsInvariant_Invert", "[cross_hand_summarizer]") {
@@ -779,6 +811,35 @@ TEST_CASE("EvaluateRuleAndFromString_CompassMapping",
     REQUIRE(EvaluateRuleOnDeal("E length in S is always 3", deal, compass_fmt));
     REQUIRE_FALSE(
         EvaluateRuleOnDeal("W length in S is always 3", deal, compass_fmt));
+  }
+}
+
+TEST_CASE("InvariantStats_EvaluationSortingAndInlineFormat",
+          "[cross_hand_summarizer]") {
+  // Unknown cards: S K, S 4, S 3, S 2, H 4, H 3, H 2, D 4, D 3, D 2 (10 cards,
+  // 5 per hand).
+  // Covered deals: Hand 1 always has SK, and Hand 1 has at least 1 Heart.
+  std::vector<PairedDeal> deals = {
+      PairedDeal("S K4 H 43 D 4", "S 32 H 2 D 32"),
+      PairedDeal("S K3 H 42 D 3", "S 42 H 3 D 42"),
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE_FALSE(report.invariant_stats.empty());
+  REQUIRE(report.invariant_stats.size() == report.invariant_rules.size());
+
+  // Verify every reported invariant holds on < 95% of random bifurcations,
+  // has inline "(holds: X%)" formatting, and round-trips through FromString.
+  for (size_t i = 0; i < report.invariant_stats.size(); ++i) {
+    const auto &st = report.invariant_stats[i];
+    REQUIRE(st.total_bifurcations == 200);
+    REQUIRE(st.holds_percent() < 95);
+    REQUIRE(report.invariant_rules[i] == st.FormatRuleWithStats());
+    auto parsed = UnknownCardsInvariant::FromString(report.invariant_rules[i]);
+    REQUIRE(parsed != nullptr);
+    REQUIRE(parsed->ToString() == st.rule);
   }
 }
 

@@ -10,7 +10,20 @@ Covers 10/10 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules for 4 card ending:
-  (None)
+  - hand 1 length in D is between 2 and 4 (holds: 93%, success when holds: 100%)
+  - hand 3 length in D is between 1 and 3 (holds: 93%, success when holds: 100%)
+  - the hand with the DT also has at most 1 S (holds: 89%, success when holds: 100%)
+  - the hand with the DK also has at most 3 D (holds: 88%, success when holds: 100%)
+  - OrInvariant(E has the DT, E has the HT) (holds: 79%, success when holds: 100%)
+  - hand 1 length in S is between 0 and 1 (holds: 78%, success when holds: 100%)
+  - hand 3 length in S is between 1 and 2 (holds: 78%, success when holds: 100%)
+  - OrInvariant(W has the DA, W has the ST) (holds: 78%, success when holds: 100%)
+  - OrInvariant(E has the DJ, E has the DT) (holds: 78%, success when holds: 100%)
+  - OrInvariant(E has the DJ, E has the DK) (holds: 78%, success when holds: 100%)
+  - OrInvariant(E has the DJ, E has the DQ) (holds: 77%, success when holds: 100%)
+  - OrInvariant(W has the DA, W has the DK) (holds: 74%, success when holds: 100%)
+  - the hand with the DT also has at least 3 D (holds: 69%, success when holds: 100%)
+  - OrInvariant(E has the DJ, W has the DA) (holds: 63%, success when holds: 100%)
 
   after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA ST SQ S9 
     when 0 wins the SA: 
@@ -26,7 +39,20 @@ Covers 10/10 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules for 4 card ending:
-  (None)
+  - hand 1 length in D is between 2 and 4 (holds: 93%, success when holds: 100%)
+  - hand 3 length in D is between 1 and 3 (holds: 93%, success when holds: 100%)
+  - the hand with the DT also has at most 1 S (holds: 89%, success when holds: 100%)
+  - the hand with the DK also has at most 3 D (holds: 88%, success when holds: 100%)
+  - OrInvariant(E has the DT, E has the HT) (holds: 79%, success when holds: 100%)
+  - hand 1 length in S is between 0 and 1 (holds: 78%, success when holds: 100%)
+  - hand 3 length in S is between 1 and 2 (holds: 78%, success when holds: 100%)
+  - OrInvariant(W has the DA, W has the ST) (holds: 78%, success when holds: 100%)
+  - OrInvariant(E has the DJ, E has the DT) (holds: 78%, success when holds: 100%)
+  - OrInvariant(E has the DJ, E has the DK) (holds: 78%, success when holds: 100%)
+  - OrInvariant(E has the DJ, E has the DQ) (holds: 77%, success when holds: 100%)
+  - OrInvariant(W has the DA, W has the DK) (holds: 74%, success when holds: 100%)
+  - the hand with the DT also has at least 3 D (holds: 69%, success when holds: 100%)
+  - OrInvariant(E has the DJ, W has the DA) (holds: 63%, success when holds: 100%)
 
   after SA (S_) SQ (Sx): SA (S_) SQ (Sx) [4,6,9] / SA ST SQ S9  / SA ST SQ S9  / SA ST SQ S9 
     when 0 wins the SA: 
@@ -50,7 +76,20 @@ Covers 10/10 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules for 4 card ending:
-  (None)
+  - hand 1 length in S is between 0 and 1 (holds: 78%, success when holds: 100%)
+  - hand 3 length in S is between 1 and 2 (holds: 78%, success when holds: 100%)
+  - OrInvariant(W has the DA, W has the ST) (holds: 78%, success when holds: 94%)
+  - OrInvariant(E has the DT, E has the HT) (holds: 79%, success when holds: 92%)
+  - the hand with the DT also has at most 1 S (holds: 89%, success when holds: 90%)
+  - OrInvariant(E has the DJ, E has the DK) (holds: 78%, success when holds: 90%)
+  - OrInvariant(E has the DJ, E has the DQ) (holds: 77%, success when holds: 89%)
+  - OrInvariant(E has the DJ, W has the DA) (holds: 63%, success when holds: 89%)
+  - OrInvariant(E has the DJ, E has the DT) (holds: 78%, success when holds: 88%)
+  - the hand with the DT also has at least 3 D (holds: 69%, success when holds: 88%)
+  - hand 1 length in D is between 2 and 4 (holds: 93%, success when holds: 84%)
+  - hand 3 length in D is between 1 and 3 (holds: 93%, success when holds: 84%)
+  - OrInvariant(W has the DA, W has the DK) (holds: 74%, success when holds: 84%)
+  - the hand with the DK also has at most 3 D (holds: 88%, success when holds: 84%)
 
   after SA (R_) SQ (ST): SA (R_) SQ (ST) [1,2,3,5] / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA DJ SQ ST 
     when 0 wins the SA: 

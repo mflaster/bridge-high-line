@@ -1008,6 +1008,23 @@ void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
   j["unknown_cards"] = summary.unknown_cards;
   j["invariant_rules"] = summary.invariant_rules;
 
+  nlohmann::json stats_json = nlohmann::json::array();
+  for (const auto &st : summary.invariant_stats) {
+    nlohmann::json item;
+    item["rule"] = st.rule;
+    item["formatted_rule"] = st.FormatRuleWithStats();
+    item["holds_count"] = st.holds_count;
+    item["total_bifurcations"] = st.total_bifurcations;
+    item["holds_percent"] = st.holds_percent();
+    item["has_line_stats"] = st.has_line_stats;
+    if (st.has_line_stats) {
+      item["success_when_holds_count"] = st.success_when_holds_count;
+      item["success_when_holds_percent"] = st.success_when_holds_percent();
+    }
+    stats_json.push_back(std::move(item));
+  }
+  j["invariant_stats"] = std::move(stats_json);
+
   nlohmann::json suit_bounds_json = nlohmann::json::object();
   for (const auto &[suit, bounds] : summary.suit_bounds) {
     std::string suit_key = SuitDebugString(suit);
