@@ -266,6 +266,9 @@
                   <marker id="arrow-failure" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
                   </marker>
+                  <marker id="arrow-traced" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+                  </marker>
                 </defs>
                 <g id="treeRootGroup">
                   <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
@@ -281,6 +284,13 @@
                 <h3>Line Inspector</h3>
                 <button id="closeInspectorBtn" class="inspector-close-btn" title="Collapse Side Panel">✕</button>
               </div>
+              <div class="inspector-trace-bar" id="inspectorTraceBar">
+                <label for="traceHandInput" class="trace-hand-label">Hand #</label>
+                <input type="text" inputmode="numeric" id="traceHandInput" class="trace-hand-input" placeholder="1..N" title="Enter a sampled hand number (1..N) to run the line of play on that hand">
+                <button id="traceHandBtn" type="button" class="btn btn-secondary-sm trace-hand-btn">Trace</button>
+                <button id="clearTraceHandBtn" type="button" class="btn btn-secondary-sm trace-hand-clear-btn hidden" title="Clear traced hand">Clear</button>
+              </div>
+              <div id="traceHandError" class="trace-hand-error hidden"></div>
               <div id="inspectorContent" class="inspector-content">
                 <div class="inspector-placeholder">
                   Select a node in the decision tree to view trick-by-trick lines of play.

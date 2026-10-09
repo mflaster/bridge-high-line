@@ -273,6 +273,9 @@ inline const char* INDEX_HTML = R"rawhtml(
                   <marker id="arrow-failure" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
                   </marker>
+                  <marker id="arrow-traced" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+                  </marker>
                 </defs>
                 <g id="treeRootGroup">
                   <text x="50%" y="50%" text-anchor="middle" fill="#6c757d" font-size="16">
@@ -288,6 +291,13 @@ inline const char* INDEX_HTML = R"rawhtml(
                 <h3>Line Inspector</h3>
                 <button id="closeInspectorBtn" class="inspector-close-btn" title="Collapse Side Panel">✕</button>
               </div>
+              <div class="inspector-trace-bar" id="inspectorTraceBar">
+                <label for="traceHandInput" class="trace-hand-label">Hand #</label>
+                <input type="text" inputmode="numeric" id="traceHandInput" class="trace-hand-input" placeholder="1..N" title="Enter a sampled hand number (1..N) to run the line of play on that hand">
+                <button id="traceHandBtn" type="button" class="btn btn-secondary-sm trace-hand-btn">Trace</button>
+                <button id="clearTraceHandBtn" type="button" class="btn btn-secondary-sm trace-hand-clear-btn hidden" title="Clear traced hand">Clear</button>
+              </div>
+              <div id="traceHandError" class="trace-hand-error hidden"></div>
               <div id="inspectorContent" class="inspector-content">
                 <div class="inspector-placeholder">
                   Select a node in the decision tree to view trick-by-trick lines of play.
@@ -1736,6 +1746,179 @@ body.is-resizing * {
   letter-spacing: 0.3px;
 }
 
+.sample-deal-card {
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sample-deal-card:hover {
+  transform: translateY(-1px);
+  border-color: #22d3ee;
+  box-shadow: 0 4px 10px rgba(34, 211, 238, 0.25);
+}
+
+.sample-deal-card.traced-deal-card {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 1px #22d3ee, 0 4px 12px rgba(34, 211, 238, 0.35);
+}
+
+/* Hand Trace Bar & Banner in Line Inspector */
+.inspector-trace-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: #0b1324;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.trace-hand-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.trace-hand-input {
+  width: 64px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: monospace;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+}
+
+.trace-hand-input:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+}
+
+.trace-hand-btn,
+.trace-hand-clear-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.trace-hand-btn {
+  background-color: #0e7490;
+  border-color: #06b6d4;
+  color: #ecfeff;
+}
+
+.trace-hand-btn:hover {
+  background-color: #0891b2;
+  border-color: #22d3ee;
+}
+
+.trace-hand-error {
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #fca5a5;
+  background-color: rgba(127, 29, 29, 0.35);
+  border-bottom: 1px solid #7f1d1d;
+}
+
+.trace-hand-error.hidden,
+.trace-hand-clear-btn.hidden {
+  display: none !important;
+}
+
+.traced-hand-banner {
+  background-color: #082f49;
+  border: 1px solid #06b6d4;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.traced-hand-banner.traced-hand-failure {
+  background-color: #3b0a14;
+  border-color: #f43f5e;
+}
+
+.traced-hand-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.traced-hand-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ecfeff;
+  font-family: monospace;
+}
+
+.traced-hand-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.traced-hand-badge.badge-makes {
+  background-color: #065f46;
+  color: #6ee7b7;
+  border: 1px solid #10b981;
+}
+
+.traced-hand-badge.badge-fails {
+  background-color: #7f1d1d;
+  color: #fecaca;
+  border: 1px solid #ef4444;
+}
+
+.traced-hand-holdings {
+  font-size: 11px;
+  font-family: monospace;
+  color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Highlighted Full Branch in Decision Tree */
+.node-card.traced-branch-node {
+  stroke: #22d3ee !important;
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 7px rgba(34, 211, 238, 0.65));
+}
+
+.node-card.traced-branch-node.centered-node {
+  stroke: #f59e0b !important;
+  stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.85));
+}
+
+.tree-link.traced-branch-link {
+  stroke: #22d3ee !important;
+  stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.5));
+}
+
+.tree-edge-label-bg-traced {
+  stroke: #22d3ee !important;
+  stroke-width: 1.5px !important;
+}
+
+.tree-edge-label-traced {
+  fill: #67e8f9 !important;
+  font-weight: 700;
+}
+
+
 )rawcss";
 
 inline const char* APP_JS = R"rawjs(
@@ -1785,6 +1968,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const inspectorContent = document.getElementById('inspectorContent');
   const nodeDetailBanner = document.getElementById('nodeDetailBanner');
   const nodeDetailContent = document.getElementById('nodeDetailContent');
+  const traceHandInput = document.getElementById('traceHandInput');
+  const traceHandBtn = document.getElementById('traceHandBtn');
+  const clearTraceHandBtn = document.getElementById('clearTraceHandBtn');
+  const traceHandError = document.getElementById('traceHandError');
 
   // Tab Switcher Elements
   const tabDecisionTreeBtn = document.getElementById('tabDecisionTreeBtn');
@@ -1953,6 +2140,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSolveData = null;
   let currentCenteredNode = null;
   let activeViewMode = 'success'; // 'success' or 'failure'
+  let activeTracedBoardId = null;
+  let activeTracedDeal = null;
+  let activeTracedNodeSet = null;
 
   // Renders the decision tree for the current solve. Success and failure
   // outcomes live in one tree (failures as red leaves where the line runs
@@ -2514,15 +2704,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Update SVG Deal Diagram from UI Inputs
+  // Update SVG Deal Diagram from UI Inputs (or active traced hand when E/W inputs are empty)
   function updateDealSvg() {
+    const eInput = inputEast ? inputEast.value : '';
+    const wInput = inputWest ? inputWest.value : '';
+    const useTracedEW = Boolean(
+      activeTracedDeal &&
+      (activeTracedDeal.E || activeTracedDeal.W) &&
+      countHandCards(eInput) === 0 &&
+      countHandCards(wInput) === 0
+    );
+    const eStr = useTracedEW ? (activeTracedDeal.E || '') : eInput;
+    const wStr = useTracedEW ? (activeTracedDeal.W || '') : wInput;
+
     renderSvgHand('cardsNorthGroup', inputNorth.value, false, 'N');
-    renderSvgHand('cardsEastGroup', inputEast.value, false, 'E');
+    renderSvgHand('cardsEastGroup', eStr, false, 'E');
     renderSvgHand('cardsSouthGroup', inputSouth.value, false, 'S');
-    renderSvgHand('cardsWestGroup', inputWest.value, false, 'W');
+    renderSvgHand('cardsWestGroup', wStr, false, 'W');
 
     if (inputUnknownCards) {
-      renderSvgHand('cardsUnknownGroup', inputUnknownCards.value.trim(), true, 'U');
+      const uStr = useTracedEW ? '' : inputUnknownCards.value.trim();
+      renderSvgHand('cardsUnknownGroup', uStr, true, 'U');
     }
 
     const svgTrumpText = document.getElementById('svgTrumpText');
@@ -2565,6 +2767,18 @@ document.addEventListener('DOMContentLoaded', () => {
     currentCenteredNode = null;
     activeTrickCardStates = null;
     activeViewMode = 'success';
+    activeTracedBoardId = null;
+    activeTracedDeal = null;
+    activeTracedNodeSet = null;
+    if (traceHandInput) {
+      traceHandInput.value = '';
+      traceHandInput.placeholder = '1..N';
+    }
+    if (clearTraceHandBtn) clearTraceHandBtn.classList.add('hidden');
+    if (traceHandError) {
+      traceHandError.textContent = '';
+      traceHandError.classList.add('hidden');
+    }
     updateDealSvg();
 
     if (execTime) execTime.textContent = '';
@@ -2842,6 +3056,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+      if (traceHandInput) {
+        traceHandInput.placeholder = `1..${total}`;
+      }
 
       // Render the combined decision tree, then the Distribution Summary and
       // Sample Hands panels for the active view mode (Success vs Failure).
@@ -2929,9 +3146,176 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function setTraceHandError(msg) {
+    if (!traceHandError) return;
+    if (msg) {
+      traceHandError.textContent = msg;
+      traceHandError.classList.remove('hidden');
+    } else {
+      traceHandError.textContent = '';
+      traceHandError.classList.add('hidden');
+    }
+  }
+
+  function updateSampleHandCardsSelection() {
+    if (!sampleHandsGrid) return;
+    const cards = sampleHandsGrid.querySelectorAll('.sample-deal-card');
+    cards.forEach(card => {
+      const bId = card.dataset.boardId !== undefined ? parseInt(card.dataset.boardId, 10) : -1;
+      card.classList.toggle('traced-deal-card', activeTracedBoardId !== null && bId === activeTracedBoardId);
+    });
+  }
+
+  function clearTracedHandStateOnly() {
+    activeTracedBoardId = null;
+    activeTracedDeal = null;
+    activeTracedNodeSet = null;
+    if (clearTraceHandBtn) clearTraceHandBtn.classList.add('hidden');
+    setTraceHandError('');
+    updateSampleHandCardsSelection();
+  }
+
+  function clearTracedHand(rerender = true) {
+    clearTracedHandStateOnly();
+    if (traceHandInput) traceHandInput.value = '';
+    if (rerender && currentTreeData) {
+      expandAndInspectNode(currentTreeData, currentTreeData, null, false);
+    } else {
+      updateDealSvg();
+    }
+  }
+
+  function findDealByBoardId(boardId) {
+    if (!currentSolveData) return null;
+    const lists = [
+      currentSolveData.all_hands,
+      currentSolveData.sample_hands,
+      currentSolveData.failure_sample_hands
+    ];
+    for (const list of lists) {
+      if (Array.isArray(list)) {
+        const found = list.find(d => d && d.board_id === boardId);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function findLeafForBoard(node, boardId) {
+    if (!node) return null;
+    const isLeaf = !node.children || node.children.length === 0;
+    const hasBoard = Array.isArray(node.boards) && node.boards.includes(boardId);
+    if (isLeaf && hasBoard) {
+      return node;
+    }
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        const found = findLeafForBoard(child, boardId);
+        if (found) return found;
+      }
+    }
+    if (hasBoard) {
+      return node;
+    }
+    return null;
+  }
+
+  function traceHandByNumber(rawInput) {
+    if (!currentSolveData || !currentTreeData) {
+      setTraceHandError('Solve a deal first to trace a hand.');
+      return false;
+    }
+    const cleaned = String(rawInput !== undefined && rawInput !== null ? rawInput : '').replace(/^#/, '').trim();
+    const handNum = parseInt(cleaned, 10);
+    const totalBoards = currentSolveData.total_boards || 1;
+    if (!cleaned || isNaN(handNum) || handNum < 1 || handNum > totalBoards) {
+      setTraceHandError(`Enter a hand number between 1 and ${totalBoards}.`);
+      return false;
+    }
+
+    const boardId = handNum - 1;
+    attachParentPointers(currentTreeData);
+    const leaf = findLeafForBoard(currentTreeData, boardId);
+    if (!leaf) {
+      setTraceHandError(`Hand #${handNum} was not found in the decision tree.`);
+      return false;
+    }
+
+    const pathToLeaf = [];
+    let curr = leaf;
+    while (curr) {
+      pathToLeaf.unshift(curr);
+      curr = curr._parent;
+    }
+
+    for (let i = 0; i < pathToLeaf.length; i++) {
+      const current = pathToLeaf[i];
+      current._collapsed = false;
+      if (current.children && current.children.length > 0) {
+        const nextInPath = pathToLeaf[i + 1];
+        current.children.forEach(child => {
+          if (child !== nextInPath) {
+            collapseSubtree(child);
+          }
+        });
+      }
+    }
+
+    activeTracedBoardId = boardId;
+    activeTracedDeal = findDealByBoardId(boardId);
+    activeTracedNodeSet = new Set(pathToLeaf);
+    currentCenteredNode = leaf;
+
+    if (traceHandInput) traceHandInput.value = String(handNum);
+    if (clearTraceHandBtn) clearTraceHandBtn.classList.remove('hidden');
+    setTraceHandError('');
+    updateSampleHandCardsSelection();
+
+    activateTab('tree');
+    if (treeInspectorPanel) {
+      treeInspectorPanel.classList.remove('collapsed');
+    }
+
+    renderDecisionTree(currentTreeData, false);
+
+    // Center the branch in the tree viewport
+    const midNode = pathToLeaf[Math.floor(pathToLeaf.length / 2)] || leaf;
+    centerNodeInTree(midNode, null, false);
+    currentCenteredNode = leaf;
+    updateCenteredNodeHighlight();
+
+    showNodeInspector(leaf, leaf);
+    return true;
+  }
+
+  if (traceHandBtn) {
+    traceHandBtn.addEventListener('click', () => {
+      traceHandByNumber(traceHandInput ? traceHandInput.value : '');
+    });
+  }
+
+  if (traceHandInput) {
+    traceHandInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        traceHandByNumber(traceHandInput.value);
+      }
+    });
+  }
+
+  if (clearTraceHandBtn) {
+    clearTraceHandBtn.addEventListener('click', () => {
+      clearTracedHand(true);
+    });
+  }
+
   function expandAndInspectNode(targetNode, rootNode, clickEvent = null, switchTab = false) {
     if (!rootNode || !targetNode) return;
     attachParentPointers(rootNode);
+
+    if (activeTracedNodeSet && !activeTracedNodeSet.has(targetNode)) {
+      clearTracedHandStateOnly();
+    }
 
     // Build path from rootNode to targetNode using _parent pointers
     const pathToTarget = [];
@@ -2955,15 +3339,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Expand down from targetNode to (one) leaf taking left branches (children[0])
+    // Expand down from targetNode to (one) leaf, following the traced branch if active
     let leaf = targetNode;
     while (leaf.children && leaf.children.length > 0) {
       leaf._collapsed = false;
-      const leftChild = leaf.children[0];
-      for (let i = 1; i < leaf.children.length; i++) {
-        collapseSubtree(leaf.children[i]);
+      let chosenIdx = 0;
+      if (activeTracedNodeSet) {
+        const tracedIdx = leaf.children.findIndex(c => activeTracedNodeSet.has(c));
+        if (tracedIdx !== -1) {
+          chosenIdx = tracedIdx;
+        }
       }
-      leaf = leftChild;
+      const chosenChild = leaf.children[chosenIdx];
+      for (let i = 0; i < leaf.children.length; i++) {
+        if (i !== chosenIdx) {
+          collapseSubtree(leaf.children[i]);
+        }
+      }
+      leaf = chosenChild;
     }
     leaf._collapsed = false;
 
@@ -3107,6 +3500,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawLinks(node) {
       if (node.children && node.children.length > 0 && !node._collapsed) {
         node.children.forEach(child => {
+          const isTracedEdge = Boolean(
+            activeTracedNodeSet &&
+            activeTracedNodeSet.has(node) &&
+            activeTracedNodeSet.has(child)
+          );
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           const startX = node._x + nodeWidth / 2;
           const startY = node._y + nodeHeight;
@@ -3116,8 +3514,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const d = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
           path.setAttribute('d', d);
-          path.setAttribute('class', child.failure ? 'tree-link tree-link-failure' : 'tree-link');
-          path.setAttribute('marker-end', child.failure ? 'url(#arrow-failure)' : 'url(#arrow)');
+          let linkClass = child.failure ? 'tree-link tree-link-failure' : 'tree-link';
+          if (isTracedEdge) {
+            linkClass += ' traced-branch-link';
+          }
+          path.setAttribute('class', linkClass);
+          path.setAttribute(
+            'marker-end',
+            isTracedEdge ? 'url(#arrow-traced)' : (child.failure ? 'url(#arrow-failure)' : 'url(#arrow)')
+          );
           treeRootGroup.appendChild(path);
 
           if (child.condition) {
@@ -3138,13 +3543,19 @@ document.addEventListener('DOMContentLoaded', () => {
             rect.setAttribute('width', labelWidth);
             rect.setAttribute('height', labelHeight);
             rect.setAttribute('rx', '4');
-            rect.setAttribute('class', child.failure ? 'tree-edge-label-bg tree-edge-label-bg-failure' : 'tree-edge-label-bg');
+            let bgClass = child.failure ? 'tree-edge-label-bg tree-edge-label-bg-failure' : 'tree-edge-label-bg';
+            let txtClass = child.failure ? 'tree-edge-label tree-edge-label-failure' : 'tree-edge-label';
+            if (isTracedEdge) {
+              bgClass += ' tree-edge-label-bg-traced';
+              txtClass += ' tree-edge-label-traced';
+            }
+            rect.setAttribute('class', bgClass);
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('x', midX);
             text.setAttribute('y', midY + 4);
             text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('class', child.failure ? 'tree-edge-label tree-edge-label-failure' : 'tree-edge-label');
+            text.setAttribute('class', txtClass);
             text.textContent = condText;
 
             labelGroup.appendChild(rect);
@@ -3171,6 +3582,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (node.type === 'condition') cardClass = 'node-condition';
       if (node.type === 'outcome') {
         cardClass = node.failure ? 'node-outcome-failure' : 'node-outcome';
+      }
+      if (activeTracedNodeSet && activeTracedNodeSet.has(node)) {
+        cardClass += ' traced-branch-node';
       }
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
@@ -3288,6 +3702,10 @@ document.addEventListener('DOMContentLoaded', () => {
       curr = curr._parent;
     }
 
+    const isTracingBoard = (activeTracedBoardId !== null &&
+      (!node || !Array.isArray(node.boards) || node.boards.length === 0 || node.boards.includes(activeTracedBoardId)));
+    const tracedBoardKey = isTracingBoard ? String(activeTracedBoardId) : null;
+
     // Determine initial leader
     let initialLeader = getSeatIndex(leaderSelect ? leaderSelect.value : 'NORTH');
     if (currentSolveData && currentSolveData.leader) {
@@ -3299,8 +3717,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const trickRows = [];
 
     path.forEach((pathNode, stepIdx) => {
-      const rawTrick = extractTrickString(pathNode);
+      let rawTrick = extractTrickString(pathNode);
       if (!rawTrick) return;
+
+      let usedConcreteBoardTrick = false;
+      if (tracedBoardKey !== null && pathNode.board_to_trick && pathNode.board_to_trick[tracedBoardKey]) {
+        rawTrick = pathNode.board_to_trick[tracedBoardKey];
+        usedConcreteBoardTrick = true;
+      }
 
       const tokens = tokenizeTrick(rawTrick);
       if (tokens.length === 0) return;
@@ -3329,65 +3753,67 @@ document.addEventListener('DOMContentLoaded', () => {
       let explicitPlayedSeat = null;
       let explicitPlayedCard = null;
 
-      // 1. Next node in path specifies the selected branch rule (branch_winner / condition)
-      if (stepIdx + 1 < path.length) {
-        const nextNode = path[stepIdx + 1];
-        if (nextNode) {
-          if (typeof nextNode.branch_winner === 'number' &&
-              nextNode.branch_winner >= 0 && nextNode.branch_winner <= 3) {
-            explicitWinnerSeat = nextNode.branch_winner;
-          }
-          if (nextNode.condition) {
-            const cond = nextNode.condition;
-            const mWin = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+wins(?:\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+))?/i);
-            if (mWin) {
-              if (explicitWinnerSeat === null) {
-                explicitWinnerSeat = getSeatIndex(mWin[1]);
-              }
-              if (mWin[2]) {
-                const cardList = mWin[2].trim().split(/[\s,]+/).filter(Boolean);
-                if (cardList.length === 1) {
-                  explicitWinnerCard = cardList[0].trim();
+      if (!usedConcreteBoardTrick) {
+        // 1. Next node in path specifies the selected branch rule (branch_winner / condition)
+        if (stepIdx + 1 < path.length) {
+          const nextNode = path[stepIdx + 1];
+          if (nextNode) {
+            if (typeof nextNode.branch_winner === 'number' &&
+                nextNode.branch_winner >= 0 && nextNode.branch_winner <= 3) {
+              explicitWinnerSeat = nextNode.branch_winner;
+            }
+            if (nextNode.condition) {
+              const cond = nextNode.condition;
+              const mWin = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+wins(?:\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+))?/i);
+              if (mWin) {
+                if (explicitWinnerSeat === null) {
+                  explicitWinnerSeat = getSeatIndex(mWin[1]);
+                }
+                if (mWin[2]) {
+                  const cardList = mWin[2].trim().split(/[\s,]+/).filter(Boolean);
+                  if (cardList.length === 1) {
+                    explicitWinnerCard = cardList[0].trim();
+                  }
                 }
               }
-            }
-            const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_]+)/i);
-            if (mPlay) {
-              explicitPlayedSeat = getSeatIndex(mPlay[1]);
-              explicitPlayedCard = mPlay[2].trim();
+              const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_]+)/i);
+              if (mPlay) {
+                explicitPlayedSeat = getSeatIndex(mPlay[1]);
+                explicitPlayedCard = mPlay[2].trim();
+              }
             }
           }
         }
-      }
 
-      // 2. Use pathNode.winner (populated directly from C++ WinnerPlayCondition / BoardState)
-      if (explicitWinnerSeat === null && typeof pathNode.winner === 'number' &&
-          pathNode.winner >= 0 && pathNode.winner <= 3) {
-        explicitWinnerSeat = pathNode.winner;
-      }
-
-      // 3. Fall back to pathNode.label if needed
-      if (explicitWinnerSeat === null && pathNode.label) {
-        const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
-        if (mWin) {
-          explicitWinnerSeat = getSeatIndex(mWin[1]);
+        // 2. Use pathNode.winner (populated directly from C++ WinnerPlayCondition / BoardState)
+        if (explicitWinnerSeat === null && typeof pathNode.winner === 'number' &&
+            pathNode.winner >= 0 && pathNode.winner <= 3) {
+          explicitWinnerSeat = pathNode.winner;
         }
-      }
 
-      if (explicitPlayedSeat !== null && explicitPlayedCard) {
-        const playedIdx = parsedCards.findIndex(c => c.seatIdx === explicitPlayedSeat);
-        if (playedIdx !== -1) {
-          const updatedCard = parseSingleCardToken(explicitPlayedCard, leadSuit, trumpCode);
-          updatedCard.seatIdx = explicitPlayedSeat;
-          updatedCard.seatName = getSeatName(explicitPlayedSeat);
-          parsedCards[playedIdx] = updatedCard;
+        // 3. Fall back to pathNode.label if needed
+        if (explicitWinnerSeat === null && pathNode.label) {
+          const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
+          if (mWin) {
+            explicitWinnerSeat = getSeatIndex(mWin[1]);
+          }
+        }
+
+        if (explicitPlayedSeat !== null && explicitPlayedCard) {
+          const playedIdx = parsedCards.findIndex(c => c.seatIdx === explicitPlayedSeat);
+          if (playedIdx !== -1) {
+            const updatedCard = parseSingleCardToken(explicitPlayedCard, leadSuit, trumpCode);
+            updatedCard.seatIdx = explicitPlayedSeat;
+            updatedCard.seatName = getSeatName(explicitPlayedSeat);
+            parsedCards[playedIdx] = updatedCard;
+          }
         }
       }
 
       // Determine winning card index and update card token if specific winner card is provided
       let winningCardIdx = -1;
 
-      if (explicitWinnerSeat !== null) {
+      if (!usedConcreteBoardTrick && explicitWinnerSeat !== null) {
         const foundIdx = parsedCards.findIndex(c => c.seatIdx === explicitWinnerSeat);
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
@@ -3401,7 +3827,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      if (winningCardIdx === -1 && explicitWinnerCard !== null) {
+      if (!usedConcreteBoardTrick && winningCardIdx === -1 && explicitWinnerCard !== null) {
         const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard.toUpperCase()));
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
@@ -3458,6 +3884,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render Inspector Panel HTML
     inspectorContent.innerHTML = '';
 
+    // Traced Hand Banner (when tracing a specific board)
+    if (isTracingBoard) {
+      const handNum = activeTracedBoardId + 1;
+      const isFail = Boolean(
+        (activeTracedDeal && activeTracedDeal.succeeded === false) ||
+        (node && node.failure)
+      );
+      const bannerEl = document.createElement('div');
+      bannerEl.className = `traced-hand-banner${isFail ? ' traced-hand-failure' : ''}`;
+      let holdingsHtml = '';
+      if (activeTracedDeal) {
+        const formatCompactHand = (hStr) => {
+          const suits = parseHandToSuits(hStr || '');
+          return [
+            `<span class="card-suit-s">♠</span>${suits.S || '-'}`,
+            `<span class="card-suit-h">♥</span>${suits.H || '-'}`,
+            `<span class="card-suit-d">♦</span>${suits.D || '-'}`,
+            `<span class="card-suit-c">♣</span>${suits.C || '-'}`
+          ].join(' ');
+        };
+        holdingsHtml = `
+          <div class="traced-hand-holdings">
+            <div><strong>W:</strong> ${formatCompactHand(activeTracedDeal.W)}</div>
+            <div><strong>E:</strong> ${formatCompactHand(activeTracedDeal.E)}</div>
+          </div>
+        `;
+      }
+      bannerEl.innerHTML = `
+        <div class="traced-hand-banner-header">
+          <span class="traced-hand-title">Traced Hand #${handNum}</span>
+          <span class="traced-hand-badge ${isFail ? 'badge-fails' : 'badge-makes'}">${isFail ? 'FAILS' : 'MAKES'}</span>
+        </div>
+        ${holdingsHtml}
+      `;
+      inspectorContent.appendChild(bannerEl);
+    }
+
     // Node Summary Card
     const summaryCard = document.createElement('div');
     summaryCard.className = 'node-summary-card';
@@ -3506,10 +3969,11 @@ document.addEventListener('DOMContentLoaded', () => {
         U: { played: [], current: [] }
       };
 
-      const eHasCards = countHandCards(inputEast ? inputEast.value : '') > 0;
-      const wHasCards = countHandCards(inputWest ? inputWest.value : '') > 0;
+      const hasTracedEW = Boolean(isTracingBoard && activeTracedDeal && (activeTracedDeal.E || activeTracedDeal.W));
+      const eHasCards = hasTracedEW || countHandCards(inputEast ? inputEast.value : '') > 0;
+      const wHasCards = hasTracedEW || countHandCards(inputWest ? inputWest.value : '') > 0;
       const uStr = inputUnknownCards ? inputUnknownCards.value.trim() : '';
-      const uHasCards = countUnknownCardsString(uStr) > 0;
+      const uHasCards = !hasTracedEW && countUnknownCardsString(uStr) > 0;
       const uSuits = parseHandToSuits(uStr);
       const uSuitTokens = {
         S: tokenizeSuitRanks(uSuits.S || '-'),
@@ -3524,11 +3988,12 @@ document.addEventListener('DOMContentLoaded', () => {
         C: new Array(uSuitTokens.C.length).fill(false)
       };
 
-      // Pick a representative board covered by this inspected line (or the selected trick node)
-      let repBoardId = null;
-      if (node && Array.isArray(node.boards) && node.boards.length > 0) {
+      // Pick the traced board ID (if active) or a representative board covered by this inspected line
+      let repBoardId = tracedBoardKey;
+      if (repBoardId === null && node && Array.isArray(node.boards) && node.boards.length > 0) {
         repBoardId = String(node.boards[0]);
-      } else if (trickRows[selectedIdx].node && Array.isArray(trickRows[selectedIdx].node.boards) &&
+      } else if (repBoardId === null && trickRows[selectedIdx].node &&
+                 Array.isArray(trickRows[selectedIdx].node.boards) &&
                  trickRows[selectedIdx].node.boards.length > 0) {
         repBoardId = String(trickRows[selectedIdx].node.boards[0]);
       }
@@ -3736,6 +4201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window._showNodeInspector = showNodeInspector;
     window._expandAndInspectNode = expandAndInspectNode;
     window._centerNodeInTree = centerNodeInTree;
+    window._traceHandByNumber = traceHandByNumber;
+    window._clearTracedHand = clearTracedHand;
   }
 
   function getSeatIndex(seatStr) {
@@ -4068,11 +4535,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const cappedList = handsList.slice(0, 100);
       cappedList.forEach((deal, idx) => {
         const card = document.createElement('div');
-        card.className = 'sample-deal-card';
+        const boardId = (deal.board_id !== undefined) ? deal.board_id : idx;
+        const boardNum = boardId + 1;
+        card.className = `sample-deal-card${activeTracedBoardId === boardId ? ' traced-deal-card' : ''}`;
+        card.dataset.boardId = String(boardId);
+        card.title = `Click to trace Hand #${boardNum} in the Decision Tree`;
+        card.addEventListener('click', () => {
+          traceHandByNumber(boardNum);
+        });
 
         const idBadge = document.createElement('span');
         idBadge.className = 'sample-deal-id';
-        const boardNum = (deal.board_id !== undefined) ? (deal.board_id + 1) : (idx + 1);
         idBadge.textContent = `#${boardNum}`;
         card.appendChild(idBadge);
 

@@ -1363,3 +1363,176 @@ body.is-resizing * {
   color: #f1f5f9;
   letter-spacing: 0.3px;
 }
+
+.sample-deal-card {
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sample-deal-card:hover {
+  transform: translateY(-1px);
+  border-color: #22d3ee;
+  box-shadow: 0 4px 10px rgba(34, 211, 238, 0.25);
+}
+
+.sample-deal-card.traced-deal-card {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 1px #22d3ee, 0 4px 12px rgba(34, 211, 238, 0.35);
+}
+
+/* Hand Trace Bar & Banner in Line Inspector */
+.inspector-trace-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: #0b1324;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.trace-hand-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.trace-hand-input {
+  width: 64px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: monospace;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+}
+
+.trace-hand-input:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+}
+
+.trace-hand-btn,
+.trace-hand-clear-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.trace-hand-btn {
+  background-color: #0e7490;
+  border-color: #06b6d4;
+  color: #ecfeff;
+}
+
+.trace-hand-btn:hover {
+  background-color: #0891b2;
+  border-color: #22d3ee;
+}
+
+.trace-hand-error {
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #fca5a5;
+  background-color: rgba(127, 29, 29, 0.35);
+  border-bottom: 1px solid #7f1d1d;
+}
+
+.trace-hand-error.hidden,
+.trace-hand-clear-btn.hidden {
+  display: none !important;
+}
+
+.traced-hand-banner {
+  background-color: #082f49;
+  border: 1px solid #06b6d4;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.traced-hand-banner.traced-hand-failure {
+  background-color: #3b0a14;
+  border-color: #f43f5e;
+}
+
+.traced-hand-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.traced-hand-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ecfeff;
+  font-family: monospace;
+}
+
+.traced-hand-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.traced-hand-badge.badge-makes {
+  background-color: #065f46;
+  color: #6ee7b7;
+  border: 1px solid #10b981;
+}
+
+.traced-hand-badge.badge-fails {
+  background-color: #7f1d1d;
+  color: #fecaca;
+  border: 1px solid #ef4444;
+}
+
+.traced-hand-holdings {
+  font-size: 11px;
+  font-family: monospace;
+  color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Highlighted Full Branch in Decision Tree */
+.node-card.traced-branch-node {
+  stroke: #22d3ee !important;
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 7px rgba(34, 211, 238, 0.65));
+}
+
+.node-card.traced-branch-node.centered-node {
+  stroke: #f59e0b !important;
+  stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.85));
+}
+
+.tree-link.traced-branch-link {
+  stroke: #22d3ee !important;
+  stroke-width: 3.5px !important;
+  filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.5));
+}
+
+.tree-edge-label-bg-traced {
+  stroke: #22d3ee !important;
+  stroke-width: 1.5px !important;
+}
+
+.tree-edge-label-traced {
+  fill: #67e8f9 !important;
+  font-weight: 700;
+}
+

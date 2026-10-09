@@ -24,11 +24,16 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index);
   REQUIRE(res_index->status == 200);
   REQUIRE(res_index->body.find("Bridge Deal Solver") != std::string::npos);
+  REQUIRE(res_index->body.find("traceHandInput") != std::string::npos);
+  REQUIRE(res_index->body.find("traceHandBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("arrow-traced") != std::string::npos);
 
   // Test CSS serving
   auto res_css = client.Get("/styles.css");
   REQUIRE(res_css);
   REQUIRE(res_css->status == 200);
+  REQUIRE(res_css->body.find(".traced-branch-node") != std::string::npos);
+  REQUIRE(res_css->body.find(".traced-branch-link") != std::string::npos);
 
   // Test JS serving
   auto res_js = client.Get("/app.js");
@@ -36,6 +41,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->status == 200);
   REQUIRE(res_js->body.find("const nodeDetailBanner = document.getElementById('nodeDetailBanner');") != std::string::npos);
   REQUIRE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
+  REQUIRE(res_js->body.find("function traceHandByNumber") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");
@@ -213,6 +219,33 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(finesse_json["sample_hands"][0].contains("W"));
   REQUIRE(finesse_json.contains("failure_sample_hands"));
   REQUIRE(finesse_json["failure_sample_hands"].is_array());
+  REQUIRE(finesse_json.contains("all_hands"));
+  REQUIRE(finesse_json["all_hands"].is_array());
+  REQUIRE(static_cast<int>(finesse_json["all_hands"].size()) ==
+          finesse_json["total_boards"].get<int>());
+  for (int b = 0; b < finesse_json["total_boards"].get<int>(); ++b) {
+    REQUIRE(finesse_json["all_hands"][b]["board_id"] == b);
+    REQUIRE(finesse_json["all_hands"][b].contains("E"));
+    REQUIRE(finesse_json["all_hands"][b].contains("W"));
+    REQUIRE(finesse_json["all_hands"][b].contains("succeeded"));
+  }
+  std::set<int> leaf_boards;
+  std::function<void(const nlohmann::json &)> collect_leaf_boards =
+      [&](const nlohmann::json &n) {
+    if (!n.contains("children") || n["children"].empty()) {
+      REQUIRE(n.contains("boards"));
+      for (const auto &b : n["boards"]) {
+        leaf_boards.insert(b.get<int>());
+      }
+      return;
+    }
+    for (const auto &c : n["children"]) {
+      collect_leaf_boards(c);
+    }
+  };
+  collect_leaf_boards(finesse_json["tree"]);
+  REQUIRE(static_cast<int>(leaf_boards.size()) ==
+          finesse_json["total_boards"].get<int>());
   REQUIRE(!finesse_json.contains("failure_tree"));
   // Failed boards are attached to the single tree as failure leaves; together
   // they account for every failed board exactly once.
