@@ -1149,6 +1149,10 @@ void WebServer::HandleSolveStatus(const httplib::Request &,
                                   httplib::Response &res) {
   nlohmann::json response;
   response["status"] = LineFinder::GetSolveStatus();
+  double progress = LineFinder::GetSolveProgress();
+  if (progress >= 0.0) {
+    response["progress"] = progress;
+  }
   res.set_content(response.dump(), "application/json");
 }
 
