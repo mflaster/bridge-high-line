@@ -208,6 +208,11 @@
             <button id="tabSampleHandsBtn" class="tab-btn" type="button">Sample Hands <span id="sampleHandsCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
+            <div class="tree-legend" title="Blue: a trick to play. Green: the contract is made. Red: the defense beats this line.">
+              <span><span class="legend-swatch legend-play"></span>Play</span>
+              <span><span class="legend-swatch legend-makes"></span>Makes</span>
+              <span><span class="legend-swatch legend-fails"></span>Fails</span>
+            </div>
             <button id="toggleInspectorBtn" class="btn btn-secondary-sm" title="Toggle Inspector Side Panel">Inspector ◧</button>
             <button id="expandAllBtn" class="btn btn-secondary-sm">Expand All</button>
             <button id="collapseAllBtn" class="btn btn-secondary-sm">Collapse All</button>
@@ -234,11 +239,11 @@
             <span class="stat-label">Optimal Lead</span>
             <span id="statLead" class="stat-value">-</span>
           </div>
-          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success deals (Decision Tree, Summary, and Sample Hands)">
+          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success deals in the Distribution Summary and Sample Hands tabs">
             <span class="stat-label">Success Rate</span>
             <span id="statSuccess" class="stat-value">-</span>
           </div>
-          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure deals (Decision Tree, Summary, and Sample Hands)">
+          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure deals in the Distribution Summary and Sample Hands tabs">
             <span class="stat-label">Failure Rate</span>
             <span id="statFailure" class="stat-value">-</span>
           </div>
@@ -253,6 +258,9 @@
                 <defs>
                   <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
+                  </marker>
+                  <marker id="arrow-failure" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
                   </marker>
                 </defs>
                 <g id="treeRootGroup">

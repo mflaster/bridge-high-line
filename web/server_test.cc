@@ -1,5 +1,6 @@
 #include <catch2/catch_all.hpp>
 #include <chrono>
+#include <functional>
 #include <thread>
 
 #include "line_finder.h"
@@ -209,13 +210,33 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(finesse_json["sample_hands"][0].contains("W"));
   REQUIRE(finesse_json.contains("failure_sample_hands"));
   REQUIRE(finesse_json["failure_sample_hands"].is_array());
+  REQUIRE(!finesse_json.contains("failure_tree"));
+  // Failed boards are attached to the single tree as failure leaves; together
+  // they account for every failed board exactly once.
+  std::function<int(const nlohmann::json &)> count_failure_leaf_boards =
+      [&](const nlohmann::json &n) -> int {
+    int sum = 0;
+    if (n.value("failure", false)) {
+      REQUIRE(n["type"] == "outcome");
+      REQUIRE(n["label"].get<std::string>().rfind("Hand Failed", 0) == 0);
+      REQUIRE(n["children"].empty());
+      sum += static_cast<int>(n["boards"].size());
+    }
+    if (n.contains("children")) {
+      for (const auto &c : n["children"]) {
+        sum += count_failure_leaf_boards(c);
+      }
+    }
+    return sum;
+  };
   if (finesse_json["failure_boards"].get<int>() > 0) {
     REQUIRE(!finesse_json["failure_sample_hands"].empty());
-    REQUIRE(finesse_json.contains("failure_tree"));
-    REQUIRE(!finesse_json["failure_tree"].is_null());
-    REQUIRE(finesse_json["failure_tree"].contains("label"));
-    REQUIRE(finesse_json["failure_tree"]["failure_boards"].get<int>() ==
+    REQUIRE(count_failure_leaf_boards(finesse_json["tree"]) ==
             finesse_json["failure_boards"].get<int>());
+    REQUIRE(finesse_json["tree"]["failure_boards"].get<int>() ==
+            finesse_json["failure_boards"].get<int>());
+  } else {
+    REQUIRE(count_failure_leaf_boards(finesse_json["tree"]) == 0);
   }
   auto &finesse_tree = finesse_json["tree"];
   REQUIRE(finesse_tree.contains("label"));
@@ -434,6 +455,137 @@ TEST_CASE("FormatWinnerCondition and FormatBranchCondition Formatting") {
   REQUIRE(FormatWinnerCondition(&cond_with_cards) == "East wins the SK,SQ");
   REQUIRE(FormatBranchCondition(&cond_with_cards, false) == "if E wins the SK,SQ");
   REQUIRE(FormatBranchCondition(&cond_with_cards, true) == "when E wins the SK,SQ");
+}
+
+TEST_CASE("BuildTreeFromConditionalLine Preserves Trick Leader and Winner") {
+  std::set<int> boards = {0, 1};
+  ConditionalLine leaf_line(boards);
+
+  // Trick 2: West (3) leads (S_), North plays S5, East plays (Sx), South wins SK
+  ConditionalLine trick2_line;
+  trick2_line.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("S_", "S5", boards),
+      GeneralizedDemiStruct("Sx", "SK", boards),
+      boards, /*ldr=*/3));
+  trick2_line.AddCondition(new WinnerPlayCondition(2), leaf_line);
+
+  // Trick 1: North (0) leads DT, East plays (Dx), South plays D8, West wins (DX)
+  ConditionalLine trick1_line;
+  trick1_line.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("Dx", "DT", boards),
+      GeneralizedDemiStruct("DX", "D8", boards),
+      boards, /*ldr=*/0));
+  trick1_line.AddCondition(
+      new WinnerPlayCondition(3, std::vector<std::string>{"DJ", "DQ", "DK"}),
+      trick2_line);
+
+  int node_id = 0;
+  auto tree = BuildTreeFromConditionalLine(trick1_line, node_id);
+  REQUIRE(tree != nullptr);
+  REQUIRE(tree->leader == 0);
+  REQUIRE(tree->winner == 3);
+  REQUIRE(tree->children.size() == 1);
+
+  auto trick2_node = tree->children[0];
+  REQUIRE(trick2_node != nullptr);
+  REQUIRE(trick2_node->leader == 3);
+  REQUIRE(trick2_node->winner == 2);
+  REQUIRE(trick2_node->branch_winner == 3);
+
+  nlohmann::json j = *tree;
+  REQUIRE(j["leader"] == 0);
+  REQUIRE(j["winner"] == 3);
+  REQUIRE(j["children"][0]["leader"] == 3);
+  REQUIRE(j["children"][0]["winner"] == 2);
+  REQUIRE(j["children"][0]["branch_winner"] == 3);
+}
+
+TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
+  // North (0) leads C6; South (2) holds CJ.
+  // Variant 1: C6 (Cx) CJ (C_) -> when S wins (board 0)
+  // Variant 2: C6 (CA) CJ (C_) -> when E wins (board 1)
+  // Failed board 2: East plays C2 (matches Cx), West plays CQ (matches C_) and
+  // wins -> winner failure ("if W wins the CQ"), must attach under Variant 1.
+  // Failed board 3: East is void in clubs and plays D6 -> unmatched defender
+  // play ("if E plays D6"), must attach to "C6 is led (2 variants)" as a
+  // sibling of Variant 1, NOT as a child of Variant 1.
+  std::set<int> b0 = {0};
+  std::set<int> b1 = {1};
+  ConditionalLine leaf0(b0);
+  ConditionalLine leaf1(b1);
+
+  ConditionalLine var1;
+  var1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("Cx", "C6", b0),
+      GeneralizedDemiStruct("C_", "CJ", b0), b0, /*ldr=*/0));
+  var1.AddCondition(new WinnerPlayCondition(2), leaf0);
+
+  ConditionalLine var2;
+  var2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("CA", "C6", b1),
+      GeneralizedDemiStruct("C_", "CJ", b1), b1, /*ldr=*/0));
+  var2.AddCondition(new WinnerPlayCondition(1), leaf1);
+
+  ConditionalLine multi_root;
+  multi_root.set_total_boards(4);
+  multi_root.AddCondition(new TrickPlayCondition("C6 (Cx) CJ (C_)"), var1);
+  multi_root.AddCondition(new TrickPlayCondition("C6 (CA) CJ (C_)"), var2);
+
+  auto make_board = [](const std::string &n, const std::string &e,
+                       const std::string &s, const std::string &w) {
+    BoardState bs;
+    bs.SetHands({ParseHand(n), ParseHand(e), ParseHand(s), ParseHand(w)});
+    bs.SetTrump(NOTRUMP);
+    bs.SetLead(NORTH);
+    bs.MarkMissingCardsAsPlayed();
+    return bs;
+  };
+
+  std::vector<BoardState> boards = {
+      make_board("C6", "C2", "CJ", "C3"),  // board 0: S wins CJ
+      make_board("C6", "CA", "CJ", "C3"),  // board 1: E wins CA
+      make_board("C6", "C2", "CJ", "CQ"),  // board 2: W wins CQ (matches C_)
+      make_board("C6", "D6", "CJ", "C3"),  // board 3: E plays D6 (unmatched)
+  };
+
+  FailureIndex failures = IndexFailures(multi_root, boards, {2, 3}, 1);
+  int node_id = 0;
+  auto tree =
+      BuildTreeFromConditionalLine(multi_root, node_id, 1, 4, 0, &failures);
+  REQUIRE(tree != nullptr);
+  REQUIRE(tree->type == "condition");
+  REQUIRE(tree->label == "C6 is led (2 variants)");
+  // 2 trick variants + 1 sibling failure leaf ("if E plays D6")
+  REQUIRE(tree->children.size() == 3);
+
+  auto var1_node = tree->children[0];
+  REQUIRE(var1_node->label == "#1: C6 (Cx) CJ (C_)");
+  // Variant 1 has 1 success child + 1 winner-failure child ("if W wins the CQ")
+  REQUIRE(var1_node->children.size() == 2);
+  REQUIRE(var1_node->children[1]->failure == true);
+  REQUIRE(var1_node->children[1]->condition == "if W wins the CQ");
+
+  auto sibling_fail = tree->children[2];
+  REQUIRE(sibling_fail->failure == true);
+  REQUIRE(sibling_fail->condition == "if E plays D6");
+  REQUIRE(sibling_fail->trick == "C6 D6 CJ C3");
+  REQUIRE(sibling_fail->leader == 0);
+  REQUIRE(sibling_fail->winner == 2);
+
+  // Also verify single-variant trick node wraps in "C6 is led" when an
+  // unmatched defender play occurs.
+  FailureIndex single_failures = IndexFailures(var1, boards, {3}, 1);
+  int single_node_id = 0;
+  auto single_tree = BuildTreeFromConditionalLine(var1, single_node_id, 1, 4, 0,
+                                                  &single_failures);
+  REQUIRE(single_tree != nullptr);
+  REQUIRE(single_tree->type == "condition");
+  REQUIRE(single_tree->label == "C6 is led");
+  REQUIRE(single_tree->children.size() == 2);
+  REQUIRE(single_tree->children[0]->label == "#1: C6 (Cx) CJ (C_)");
+  REQUIRE(single_tree->children[0]->condition == "C6 (Cx) CJ (C_)");
+  REQUIRE(single_tree->children[1]->failure == true);
+  REQUIRE(single_tree->children[1]->condition == "if E plays D6");
 }
 
 TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {

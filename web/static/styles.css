@@ -1204,9 +1204,46 @@ body.is-resizing * {
 }
 
 .node-outcome-failure {
-  fill: #451a03;
-  stroke: #f59e0b;
+  fill: #450a0a;
+  stroke: #ef4444;
 }
+
+.tree-link-failure {
+  stroke: #991b1b;
+  stroke-dasharray: 6 4;
+}
+
+.tree-edge-label-bg-failure {
+  stroke: #b91c1c;
+}
+
+.tree-edge-label-failure {
+  fill: #fca5a5;
+}
+
+.tree-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.tree-legend .legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  border: 1.5px solid;
+}
+
+.tree-legend .legend-play { background: #1e293b; border-color: #3b82f6; }
+.tree-legend .legend-makes { background: #064e3b; border-color: #10b981; }
+.tree-legend .legend-fails { background: #450a0a; border-color: #ef4444; }
 
 /* Sample Hands Tab Styles */
 .sample-hands-grid {

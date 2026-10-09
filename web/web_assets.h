@@ -215,6 +215,11 @@ inline const char* INDEX_HTML = R"rawhtml(
             <button id="tabSampleHandsBtn" class="tab-btn" type="button">Sample Hands <span id="sampleHandsCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
+            <div class="tree-legend" title="Blue: a trick to play. Green: the contract is made. Red: the defense beats this line.">
+              <span><span class="legend-swatch legend-play"></span>Play</span>
+              <span><span class="legend-swatch legend-makes"></span>Makes</span>
+              <span><span class="legend-swatch legend-fails"></span>Fails</span>
+            </div>
             <button id="toggleInspectorBtn" class="btn btn-secondary-sm" title="Toggle Inspector Side Panel">Inspector ◧</button>
             <button id="expandAllBtn" class="btn btn-secondary-sm">Expand All</button>
             <button id="collapseAllBtn" class="btn btn-secondary-sm">Collapse All</button>
@@ -241,11 +246,11 @@ inline const char* INDEX_HTML = R"rawhtml(
             <span class="stat-label">Optimal Lead</span>
             <span id="statLead" class="stat-value">-</span>
           </div>
-          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success deals (Decision Tree, Summary, and Sample Hands)">
+          <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success deals in the Distribution Summary and Sample Hands tabs">
             <span class="stat-label">Success Rate</span>
             <span id="statSuccess" class="stat-value">-</span>
           </div>
-          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure deals (Decision Tree, Summary, and Sample Hands)">
+          <div id="cardStatFailure" class="stat-card stat-card-toggle" role="button" tabindex="0" title="Click to view Failure deals in the Distribution Summary and Sample Hands tabs">
             <span class="stat-label">Failure Rate</span>
             <span id="statFailure" class="stat-value">-</span>
           </div>
@@ -260,6 +265,9 @@ inline const char* INDEX_HTML = R"rawhtml(
                 <defs>
                   <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a6572"/>
+                  </marker>
+                  <marker id="arrow-failure" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
                   </marker>
                 </defs>
                 <g id="treeRootGroup">
@@ -1564,9 +1572,46 @@ body.is-resizing * {
 }
 
 .node-outcome-failure {
-  fill: #451a03;
-  stroke: #f59e0b;
+  fill: #450a0a;
+  stroke: #ef4444;
 }
+
+.tree-link-failure {
+  stroke: #991b1b;
+  stroke-dasharray: 6 4;
+}
+
+.tree-edge-label-bg-failure {
+  stroke: #b91c1c;
+}
+
+.tree-edge-label-failure {
+  fill: #fca5a5;
+}
+
+.tree-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.tree-legend .legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  border: 1.5px solid;
+}
+
+.tree-legend .legend-play { background: #1e293b; border-color: #3b82f6; }
+.tree-legend .legend-makes { background: #064e3b; border-color: #10b981; }
+.tree-legend .legend-fails { background: #450a0a; border-color: #ef4444; }
 
 /* Sample Hands Tab Styles */
 .sample-hands-grid {
@@ -1887,6 +1932,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentCenteredNode = null;
   let activeViewMode = 'success'; // 'success' or 'failure'
 
+  // Renders the decision tree for the current solve. Success and failure
+  // outcomes live in one tree (failures as red leaves where the line runs
+  // out), so this is independent of the Success/Failure view mode.
+  function renderSolveTree() {
+    if (currentSolveData && currentSolveData.tree &&
+        Object.keys(currentSolveData.tree).length > 0) {
+      currentTreeData = currentSolveData.tree;
+      expandAndInspectNode(currentSolveData.tree, currentSolveData.tree, null, false);
+    } else if (currentSolveData) {
+      currentTreeData = null;
+      currentCenteredNode = null;
+      activeTrickCardStates = null;
+      updateDealSvg();
+      if (treeRootGroup) {
+        treeRootGroup.innerHTML =
+          `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
+      }
+    }
+  }
+
   function updateViewMode(mode) {
     activeViewMode = mode;
     const total = (currentSolveData && currentSolveData.total_boards) ? currentSolveData.total_boards : 1;
@@ -1934,19 +1999,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         clearSampleHands('No covered sample hands available.');
       }
-
-      if (currentSolveData && currentSolveData.tree) {
-        currentTreeData = currentSolveData.tree;
-        expandAndInspectNode(currentSolveData.tree, currentSolveData.tree, null, false);
-      } else if (currentSolveData) {
-        currentTreeData = null;
-        activeTrickCardStates = null;
-        updateDealSvg();
-        if (treeRootGroup) {
-          treeRootGroup.innerHTML =
-            `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated for success deals.</text>`;
-        }
-      }
     } else {
       if (cardStatFailure) cardStatFailure.classList.add('active');
       if (cardStatSuccess) cardStatSuccess.classList.remove('active');
@@ -1983,26 +2035,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSampleHands(currentSolveData.failure_sample_hands);
       } else {
         clearSampleHands('No failed sample hands available (100% success rate or no failure deals).');
-      }
-
-      if (currentSolveData && currentSolveData.failure_tree) {
-        currentTreeData = currentSolveData.failure_tree;
-        expandAndInspectNode(currentSolveData.failure_tree, currentSolveData.failure_tree, null, false);
-      } else if (currentSolveData) {
-        currentTreeData = null;
-        currentCenteredNode = null;
-        activeTrickCardStates = null;
-        updateDealSvg();
-        if (treeRootGroup) {
-          treeRootGroup.innerHTML =
-            `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="15">No failed deals to display in the decision tree (100% success rate).</text>`;
-        }
-        if (inspectorContent) {
-          inspectorContent.innerHTML = `
-            <div class="inspector-placeholder">
-              No failed deals for this line of play.
-            </div>`;
-        }
       }
     }
   }
@@ -2238,21 +2270,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const normActual = (actualRankToken === '10') ? 'T' : actualRankToken.toUpperCase();
     const normPat = (patternRank === '10') ? 'T' : patternRank;
     if (normPat === normActual) return true;
-    // Wildcard matching ('x' or '_') matches non-honor spot cards or 'x' tokens first
-    if (normPat === 'x' || normPat === 'X' || normPat === '_') {
-      if (actualRankToken === 'x' || actualRankToken === 'X' || '23456789'.includes(normActual)) {
+    if (normPat === 'x') {
+      if (actualRankToken === 'x' || '23456789'.includes(normActual)) {
         return true;
       }
+    } else if (normPat === 'X') {
+      if (actualRankToken === 'X' || 'AKQJT'.includes(normActual)) {
+        return true;
+      }
+    } else if (normPat === '_') {
+      return true;
     }
     return false;
   }
 
   function rankOrderValue(rankToken) {
+    if (rankToken === 'x') return 1;
     const norm = (rankToken === '10') ? 'T' : rankToken.toUpperCase();
     const order = {
-      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, 'X': 10,
       '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
-      'X': 1, '_': 0
+      '_': 0
     };
     return order[norm] !== undefined ? order[norm] : 0;
   }
@@ -2782,7 +2820,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
-      // Update View Mode (Success vs Failure) - renders Decision Tree, Distribution Summary, and Sample Hands
+      // Render the combined decision tree, then the Distribution Summary and
+      // Sample Hands panels for the active view mode (Success vs Failure).
+      renderSolveTree();
       updateViewMode(activeViewMode);
 
     } catch (err) {
@@ -2930,7 +2970,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (node._x === undefined || node._y === undefined) return;
 
-    const nodeWidth = 150;
+    const nodeWidth = 164;
     const nodeHeight = 78;
     const nodeCenterX = node._x + nodeWidth / 2;
     const nodeCenterY = node._y + nodeHeight / 2;
@@ -2993,7 +3033,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 150;
+    const nodeWidth = 164;
     const nodeHeight = 78;
     const levelHeight = 140;
     const siblingGap = 24;
@@ -3040,8 +3080,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const d = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
           path.setAttribute('d', d);
-          path.setAttribute('class', 'tree-link');
-          path.setAttribute('marker-end', 'url(#arrow)');
+          path.setAttribute('class', child.failure ? 'tree-link tree-link-failure' : 'tree-link');
+          path.setAttribute('marker-end', child.failure ? 'url(#arrow-failure)' : 'url(#arrow)');
           treeRootGroup.appendChild(path);
 
           if (child.condition) {
@@ -3062,13 +3102,13 @@ document.addEventListener('DOMContentLoaded', () => {
             rect.setAttribute('width', labelWidth);
             rect.setAttribute('height', labelHeight);
             rect.setAttribute('rx', '4');
-            rect.setAttribute('class', 'tree-edge-label-bg');
+            rect.setAttribute('class', child.failure ? 'tree-edge-label-bg tree-edge-label-bg-failure' : 'tree-edge-label-bg');
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('x', midX);
             text.setAttribute('y', midY + 4);
             text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('class', 'tree-edge-label');
+            text.setAttribute('class', child.failure ? 'tree-edge-label tree-edge-label-failure' : 'tree-edge-label');
             text.textContent = condText;
 
             labelGroup.appendChild(rect);
@@ -3094,7 +3134,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let cardClass = 'node-action';
       if (node.type === 'condition') cardClass = 'node-condition';
       if (node.type === 'outcome') {
-        cardClass = (activeViewMode === 'failure') ? 'node-outcome-failure' : 'node-outcome';
+        cardClass = node.failure ? 'node-outcome-failure' : 'node-outcome';
       }
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
@@ -3114,21 +3154,12 @@ document.addEventListener('DOMContentLoaded', () => {
       title.textContent = truncateText(rawTitle, 28);
       g.appendChild(title);
 
-      // Detail Text
+      // Detail Text (Line 2 and optional Line 3)
       const detail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       detail.setAttribute('x', '8');
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
-      let detailText = '';
-      const nodeDealsCount = (activeViewMode === 'failure' && node.failure_boards !== undefined && node.failure_boards > 0)
-        ? node.failure_boards
-        : (node.success_boards !== undefined && node.success_boards > 0 ? node.success_boards : node.covered_boards);
-      if (nodeDealsCount !== undefined && node.total_boards !== undefined && node.total_boards > 0) {
-        const pct = Math.round((nodeDealsCount / node.total_boards) * 100);
-        detailText = `Deals: ${nodeDealsCount} (${pct}%)`;
-      } else if (nodeDealsCount !== undefined) {
-        detailText = `Deals: ${nodeDealsCount}`;
-      }
+      const { primary: detailText, secondary: failLineText } = formatNodeCardDealLines(node);
       const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
       if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
         detail.textContent = detailText;
@@ -3137,17 +3168,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       g.appendChild(detail);
 
-      // 3rd Line: N/S Won on its own line for leaf/outcome nodes
+      // 3rd Line: N/S Won on outcome nodes, or Fails count on non-outcome nodes
       if (node.type === 'outcome' && node.ns_tricks !== undefined) {
         const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         highlight.setAttribute('x', '8');
         highlight.setAttribute('y', '62');
         highlight.setAttribute('class', 'node-text-highlight');
-        if (activeViewMode === 'failure') {
+        if (node.failure) {
           highlight.setAttribute('fill', '#fca5a5');
         }
         highlight.textContent = `N/S Won: ${node.ns_tricks}`;
         g.appendChild(highlight);
+      } else if (failLineText) {
+        const failDetail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        failDetail.setAttribute('x', '8');
+        failDetail.setAttribute('y', '62');
+        failDetail.setAttribute('class', 'node-text-detail');
+        failDetail.textContent = failLineText;
+        g.appendChild(failDetail);
       }
 
 
@@ -3171,6 +3209,33 @@ document.addEventListener('DOMContentLoaded', () => {
   function truncateText(str, maxLen) {
     if (!str) return '';
     return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
+  }
+
+  function formatNodeCardDealLines(node) {
+    const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
+    const withPct = (n) => total ? `${n} (${Math.round((n / total) * 100)}%)` : `${n}`;
+    if (node.failure) {
+      const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
+      return { primary: `Fails: ${withPct(fails)}`, secondary: '' };
+    }
+    const wins = node.success_boards !== undefined ? node.success_boards : node.covered_boards;
+    if (wins === undefined) return { primary: '', secondary: '' };
+    const fails = node.failure_boards || 0;
+    if (fails > 0 && node.type !== 'outcome') {
+      return {
+        primary: `Makes: ${withPct(wins)}`,
+        secondary: `Fails: ${withPct(fails)}`
+      };
+    }
+    return { primary: `Deals: ${withPct(wins)}`, secondary: '' };
+  }
+
+  // Deal counts for a node card / inspector. A failure leaf reports the deals
+  // that fail there; any other node reports the deals it makes and, when some
+  // of the deals reaching it go on to fail, that count as well.
+  function formatNodeDeals(node) {
+    const { primary, secondary } = formatNodeCardDealLines(node);
+    return secondary ? `${primary} · ${secondary}` : primary;
   }
 
   function showNodeInspector(node, clickedNode = null) {
@@ -3204,6 +3269,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const tokens = tokenizeTrick(rawTrick);
       if (tokens.length === 0) return;
 
+      if (typeof pathNode.leader === 'number' && pathNode.leader >= 0 && pathNode.leader <= 3) {
+        currentLeader = pathNode.leader;
+      }
+
       // Parse cards
       const parsedCards = [];
       let leadSuit = null;
@@ -3218,35 +3287,64 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedCards.push(cardObj);
       });
 
-      // Check explicit winner from next node condition (if present) or pathNode label
+      // Check explicit winner and branch card from next node or pathNode
       let explicitWinnerSeat = null;
       let explicitWinnerCard = null;
+      let explicitPlayedSeat = null;
+      let explicitPlayedCard = null;
 
-      // 1. Next node condition in path takes priority as it specifies the selected branch rule
+      // 1. Next node in path specifies the selected branch rule (branch_winner / condition)
       if (stepIdx + 1 < path.length) {
         const nextNode = path[stepIdx + 1];
-        if (nextNode && nextNode.condition) {
-          const cond = nextNode.condition;
-          const mSeat = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\b/i);
-          if (mSeat) {
-            explicitWinnerSeat = getSeatIndex(mSeat[1]);
+        if (nextNode) {
+          if (typeof nextNode.branch_winner === 'number' &&
+              nextNode.branch_winner >= 0 && nextNode.branch_winner <= 3) {
+            explicitWinnerSeat = nextNode.branch_winner;
           }
-          const mCard = cond.match(/wins\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+)/i);
-          if (mCard) {
-            let rawCardMatch = mCard[1].trim();
-            let firstTok = rawCardMatch.split(/[\s,]+/)[0].trim();
-            if (firstTok) {
-              explicitWinnerCard = firstTok.toUpperCase();
+          if (nextNode.condition) {
+            const cond = nextNode.condition;
+            const mWin = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+wins(?:\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+))?/i);
+            if (mWin) {
+              if (explicitWinnerSeat === null) {
+                explicitWinnerSeat = getSeatIndex(mWin[1]);
+              }
+              if (mWin[2]) {
+                const cardList = mWin[2].trim().split(/[\s,]+/).filter(Boolean);
+                if (cardList.length === 1) {
+                  explicitWinnerCard = cardList[0].trim();
+                }
+              }
+            }
+            const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_]+)/i);
+            if (mPlay) {
+              explicitPlayedSeat = getSeatIndex(mPlay[1]);
+              explicitPlayedCard = mPlay[2].trim();
             }
           }
         }
       }
 
-      // 2. Fall back to pathNode.label if nextNode condition didn't specify a winner seat
+      // 2. Use pathNode.winner (populated directly from C++ WinnerPlayCondition / BoardState)
+      if (explicitWinnerSeat === null && typeof pathNode.winner === 'number' &&
+          pathNode.winner >= 0 && pathNode.winner <= 3) {
+        explicitWinnerSeat = pathNode.winner;
+      }
+
+      // 3. Fall back to pathNode.label if needed
       if (explicitWinnerSeat === null && pathNode.label) {
         const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
         if (mWin) {
           explicitWinnerSeat = getSeatIndex(mWin[1]);
+        }
+      }
+
+      if (explicitPlayedSeat !== null && explicitPlayedCard) {
+        const playedIdx = parsedCards.findIndex(c => c.seatIdx === explicitPlayedSeat);
+        if (playedIdx !== -1) {
+          const updatedCard = parseSingleCardToken(explicitPlayedCard, leadSuit, trumpCode);
+          updatedCard.seatIdx = explicitPlayedSeat;
+          updatedCard.seatName = getSeatName(explicitPlayedSeat);
+          parsedCards[playedIdx] = updatedCard;
         }
       }
 
@@ -3268,7 +3366,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (winningCardIdx === -1 && explicitWinnerCard !== null) {
-        const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard));
+        const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard.toUpperCase()));
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
         }
@@ -3328,24 +3426,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryCard = document.createElement('div');
     summaryCard.className = 'node-summary-card';
 
-    const inspectorDealsCount = (activeViewMode === 'failure' && node.failure_boards !== undefined && node.failure_boards > 0)
-      ? node.failure_boards
-      : (node.success_boards !== undefined && node.success_boards > 0 ? node.success_boards : node.covered_boards);
-    let dealsInfo = '-';
-    if (inspectorDealsCount !== undefined && node.total_boards !== undefined && node.total_boards > 0) {
-      const sPct = Math.round((inspectorDealsCount / node.total_boards) * 100);
-      dealsInfo = `${inspectorDealsCount} (${sPct}%)`;
-    } else if (inspectorDealsCount !== undefined) {
-      dealsInfo = `${inspectorDealsCount}`;
-    }
+    const dealsInfo = formatNodeDeals(node) || 'Deals: -';
 
     const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
-    const summaryTypeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'node').toUpperCase();
+    const summaryTypeLabel = (node.type === 'condition')
+      ? 'BRANCH'
+      : (node.failure ? 'FAILURE' : (node.type || 'node').toUpperCase());
 
     summaryCard.innerHTML = `
       <div class="node-summary-title">Node #${node.id} (${summaryTypeLabel})</div>
       <div class="node-summary-detail">Label: "${truncateText(node.label || node.trick || 'Root', 35)}"</div>
-      <div class="node-summary-detail">Deals: ${dealsInfo}${nsTricksInfo}</div>
+      <div class="node-summary-detail">${dealsInfo}${nsTricksInfo}</div>
     `;
     inspectorContent.appendChild(summaryCard);
 
@@ -3650,7 +3741,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function parseSingleCardToken(token, leadSuit, trumpSuit) {
-    let cleanToken = token.replace(/[\(\)]/g, '').trim().toUpperCase();
+    let rawClean = token.replace(/[\(\)]/g, '').trim();
+    let cleanToken = rawClean.toUpperCase();
     let suit = null;
     let rankStr = '';
 
@@ -3663,21 +3755,22 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(0))) {
         suit = cleanToken.charAt(0);
-        rankStr = cleanToken.substring(1);
+        rankStr = rawClean.substring(1);
       } else if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(cleanToken.length - 1))) {
         suit = cleanToken.charAt(cleanToken.length - 1);
-        rankStr = cleanToken.substring(0, cleanToken.length - 1);
+        rankStr = rawClean.substring(0, rawClean.length - 1);
       } else {
         suit = leadSuit || 'S';
-        rankStr = cleanToken;
+        rankStr = rawClean;
       }
     }
 
     if (rankStr === '10') rankStr = 'T';
     if (rankStr === '') rankStr = '_';
+    if (rankStr !== 'x') rankStr = rankStr.toUpperCase();
 
     const rankValueMap = {
-      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10,
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10, 'X': 10.5,
       '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
     };
     const rankVal = rankValueMap[rankStr] || 1;

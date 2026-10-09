@@ -900,6 +900,18 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
         }
       }
       cur_opt_lines = std::move(next_opt_lines);
+
+      if (candidates.size() > 1) {
+        std::vector<const ConditionalLine *> matching;
+        for (const ConditionalLine *cand : candidates) {
+          if (GetPatternAtPos(cand->do_first(), pos) == decl_card_str) {
+            matching.push_back(cand);
+          }
+        }
+        if (!matching.empty()) {
+          candidates = std::move(matching);
+        }
+      }
     } else {
       // Defender side: query DDS OptimalPlayTree when needed.
       if (cur_opt_lines.empty()) {
@@ -978,7 +990,31 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
   const ConditionalLine *cur_line = this;
 
   while (!copy.Finished() && cur_line != nullptr) {
-    if (cur_line->do_first().Empty() && cur_line->conditions().empty()) {
+    while (cur_line && cur_line->do_first().Empty()) {
+      const ConditionalLine *good_branch = nullptr;
+      for (const auto &[cond, child_line] : cur_line->conditions()) {
+        if (!child_line) continue;
+        if (auto *good_cond =
+                dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
+          if (good_cond->Evaluate(copy) == good_cond->is_good()) {
+            good_branch = child_line.get();
+            break;
+          }
+        }
+      }
+      if (good_branch) {
+        cur_line = good_branch;
+        continue;
+      }
+      if (cur_line->conditions().size() == 1 &&
+          cur_line->conditions()[0].second) {
+        cur_line = cur_line->conditions()[0].second.get();
+        continue;
+      }
+      break;
+    }
+    if (!cur_line ||
+        (cur_line->do_first().Empty() && cur_line->conditions().empty())) {
       break;
     }
 
@@ -1017,6 +1053,8 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     std::string my1_str;
     std::string my2_str;
     bool diverged_during_trick = false;
+    int unmatched_seat = -1;
+    std::string unmatched_card;
     std::vector<std::vector<std::string>> cur_opt_lines;
 
     for (int pos = 0; pos < 4; ++pos) {
@@ -1042,6 +1080,18 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
           }
         }
         cur_opt_lines = std::move(next_opt_lines);
+
+        if (candidates.size() > 1) {
+          std::vector<const ConditionalLine *> matching;
+          for (const ConditionalLine *cand : candidates) {
+            if (GetPatternAtPos(cand->do_first(), pos) == decl_card_str) {
+              matching.push_back(cand);
+            }
+          }
+          if (!matching.empty()) {
+            candidates = std::move(matching);
+          }
+        }
       } else {
         if (cur_opt_lines.empty()) {
           auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
@@ -1079,6 +1129,10 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
+          if (!diverged_during_trick) {
+            unmatched_seat = p;
+            unmatched_card = def_card_str;
+          }
           diverged_during_trick = true;
           candidates.resize(1);
         }
@@ -1118,6 +1172,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     step.winning_card = played_cards[win_idx];
     step.ns_tricks_so_far = copy.tricks_won_even();
     step.diverged_after = (next_line == nullptr);
+    step.node = diverged_during_trick ? cur_line : candidates[0];
+    step.unmatched_seat = unmatched_seat;
+    step.unmatched_card = unmatched_card;
     trace.steps.push_back(std::move(step));
 
     cur_line = next_line;
