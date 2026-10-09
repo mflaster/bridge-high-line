@@ -273,6 +273,23 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << " get_line_from_trick_calls="
             << get_line_from_trick_calls.load();
 
+  // Tied lines can be the same line of play described with different
+  // branching (say, splitting on a defender's card rather than on who won the
+  // trick). Keep only the first of each set that prescribes identical declarer
+  // plays on every covered board.
+  {
+    std::vector<ConditionalLine> distinct;
+    std::vector<std::map<int, std::string>> seen;
+    for (ConditionalLine &line : ans) {
+      std::map<int, std::string> sig = line.DeclarerPlaySignature();
+      if (std::find(seen.begin(), seen.end(), sig) == seen.end()) {
+        seen.push_back(std::move(sig));
+        distinct.push_back(std::move(line));
+      }
+    }
+    ans = std::move(distinct);
+  }
+
   auto start_invariant = std::chrono::high_resolution_clock::now();
   CrossHandDealSetSummarizer summarizer;
   for (size_t line_idx = 0; line_idx < ans.size(); ++line_idx) {

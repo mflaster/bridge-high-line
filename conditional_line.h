@@ -242,6 +242,12 @@ class ConditionalLine {  // ConditionalLineBranch
   // Recursively gathers set of distinct final boards covered across all leaf subtrees, avoiding cycles.
   std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
 
+  // Returns, for each covered board, the cards declarer's side plays along
+  // this line, trick by trick. Two lines with equal signatures prescribe the
+  // same plays on every covered board and differ only in how the tree happens
+  // to be branched (e.g. on a defender's card versus on the trick winner).
+  std::map<int, std::string> DeclarerPlaySignature() const;
+
   // Returns the GeneralizedTrick action to execute first at this node (the next trick).
   const GeneralizedTrick &do_first() const { return do_first_; }
 

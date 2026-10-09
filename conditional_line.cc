@@ -64,6 +64,56 @@ std::set<int> ConditionalLine::CoveredFinalBoardsSet(std::set<const ConditionalL
   return CoveredFinalBoardsSetHelper(this, visited);
 }
 
+namespace {
+// Extracts the cards played by declarer's side (even seats) from a concrete
+// four-card trick string led by `leader`.
+std::string DeclarerCardsOfTrick(const std::string &trick, int leader) {
+  std::vector<std::string> cards = SplitWords(trick);
+  std::string ans;
+  for (size_t i = 0; i < cards.size(); ++i) {
+    if ((leader + static_cast<int>(i)) % 2 == 0) {
+      ans += cards[i] + " ";
+    }
+  }
+  return ans;
+}
+
+void DeclarerPlaySignatureHelper(const ConditionalLine &line,
+                                 std::map<int, std::string> &out) {
+  if (!line.final_covered_boards().empty()) {
+    for (int b : line.final_covered_boards()) {
+      out.emplace(b, "");
+    }
+    return;
+  }
+  const GeneralizedTrick &action = line.do_first();
+  for (const auto &[_cond, child] : line.conditions()) {
+    if (!child) {
+      continue;
+    }
+    std::map<int, std::string> sub;
+    DeclarerPlaySignatureHelper(*child, sub);
+    for (auto &[b, rest] : sub) {
+      std::string prefix;
+      if (!action.Empty()) {
+        auto it = action.demi2.board_to_trick.find(b);
+        std::string trick =
+            (it != action.demi2.board_to_trick.end()) ? it->second
+                                                       : action.ToString(true);
+        prefix = DeclarerCardsOfTrick(trick, action.leader) + "/ ";
+      }
+      out[b] = prefix + rest;
+    }
+  }
+}
+}  // namespace
+
+std::map<int, std::string> ConditionalLine::DeclarerPlaySignature() const {
+  std::map<int, std::string> ans;
+  DeclarerPlaySignatureHelper(*this, ans);
+  return ans;
+}
+
 std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
   if (!final_covered_boards_.empty()) {
     return "HAND SUCCEEDED FOR: " + StrJoin(final_covered_boards_);
