@@ -102,9 +102,14 @@ std::string HandLabelFormatter::FormatCompositeHand2() const {
 // --- UnknownCardsInvariant Implementation ---
 
 std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
-    const std::string& str,
+    const std::string& raw_str,
     const std::string& hand1_label,
     const std::string& hand2_label) {
+  std::string str = raw_str;
+  size_t stats_pos = str.rfind(" (holds: ");
+  if (stats_pos != std::string::npos && !str.empty() && str.back() == ')') {
+    str = str.substr(0, stats_pos);
+  }
   if (auto res = OrInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }

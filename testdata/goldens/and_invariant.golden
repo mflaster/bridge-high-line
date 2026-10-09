@@ -10,7 +10,8 @@ Covers 4/10 (40.0%) [1, 3, 4, 6]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules for 5 card ending:
-  - AndInvariant(E has the HK, E has the SK)
+  - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
+  - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
 
   after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,3,4,6] / S3 S5 SQ S6  / S3 S7 SQ S6  / S3 S7 SQ S5  / S3 S6 SQ S5 
     when 2 wins the SQ: 
@@ -32,7 +33,8 @@ Covers 4/10 (40.0%) [1, 3, 4, 6]
 Cross-Hand Deal Set Summary Report
 Total Deals: 4
 Invariant Rules for 5 card ending:
-  - AndInvariant(E has the HK, E has the SK)
+  - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
+  - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
 
   after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H7 
     when 2 wins the HA: 
