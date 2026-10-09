@@ -23,6 +23,14 @@ struct DecisionTreeNode {
   bool collapsed = false;
   // True for outcome leaves where the contract failed.
   bool failure = false;
+  // Seat index (0=N, 1=E, 2=S, 3=W) of the trick leader, or -1 if not a trick.
+  int leader = -1;
+  // Seat index (0=N, 1=E, 2=S, 3=W) of the trick winner at this trick node,
+  // or -1 if not a trick node.
+  int winner = -1;
+  // Seat index (0=N, 1=E, 2=S, 3=W) of the parent trick's winner along this
+  // branch, or -1 if not a winner-conditioned branch.
+  int branch_winner = -1;
   int ns_tricks = 0;
   int success_boards = 0;
   int failure_boards = 0;
@@ -44,6 +52,7 @@ struct FailureIndex {
     // "if W plays DK" (a card outside every pattern) or "if E wins the SA"
     // (a trick winner the line has no continuation for).
     std::string condition;
+    int winner = -1;
     std::vector<int> boards;
     int min_ns_tricks = 0;
     int max_ns_tricks = 0;

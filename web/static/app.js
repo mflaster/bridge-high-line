@@ -549,21 +549,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const normActual = (actualRankToken === '10') ? 'T' : actualRankToken.toUpperCase();
     const normPat = (patternRank === '10') ? 'T' : patternRank;
     if (normPat === normActual) return true;
-    // Wildcard matching ('x' or '_') matches non-honor spot cards or 'x' tokens first
-    if (normPat === 'x' || normPat === 'X' || normPat === '_') {
-      if (actualRankToken === 'x' || actualRankToken === 'X' || '23456789'.includes(normActual)) {
+    if (normPat === 'x') {
+      if (actualRankToken === 'x' || '23456789'.includes(normActual)) {
         return true;
       }
+    } else if (normPat === 'X') {
+      if (actualRankToken === 'X' || 'AKQJT'.includes(normActual)) {
+        return true;
+      }
+    } else if (normPat === '_') {
+      return true;
     }
     return false;
   }
 
   function rankOrderValue(rankToken) {
+    if (rankToken === 'x') return 1;
     const norm = (rankToken === '10') ? 'T' : rankToken.toUpperCase();
     const order = {
-      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10,
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, 'X': 10,
       '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
-      'X': 1, '_': 0
+      '_': 0
     };
     return order[norm] !== undefined ? order[norm] : 0;
   }
@@ -1527,6 +1533,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const tokens = tokenizeTrick(rawTrick);
       if (tokens.length === 0) return;
 
+      if (typeof pathNode.leader === 'number' && pathNode.leader >= 0 && pathNode.leader <= 3) {
+        currentLeader = pathNode.leader;
+      }
+
       // Parse cards
       const parsedCards = [];
       let leadSuit = null;
@@ -1541,35 +1551,64 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedCards.push(cardObj);
       });
 
-      // Check explicit winner from next node condition (if present) or pathNode label
+      // Check explicit winner and branch card from next node or pathNode
       let explicitWinnerSeat = null;
       let explicitWinnerCard = null;
+      let explicitPlayedSeat = null;
+      let explicitPlayedCard = null;
 
-      // 1. Next node condition in path takes priority as it specifies the selected branch rule
+      // 1. Next node in path specifies the selected branch rule (branch_winner / condition)
       if (stepIdx + 1 < path.length) {
         const nextNode = path[stepIdx + 1];
-        if (nextNode && nextNode.condition) {
-          const cond = nextNode.condition;
-          const mSeat = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\b/i);
-          if (mSeat) {
-            explicitWinnerSeat = getSeatIndex(mSeat[1]);
+        if (nextNode) {
+          if (typeof nextNode.branch_winner === 'number' &&
+              nextNode.branch_winner >= 0 && nextNode.branch_winner <= 3) {
+            explicitWinnerSeat = nextNode.branch_winner;
           }
-          const mCard = cond.match(/wins\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+)/i);
-          if (mCard) {
-            let rawCardMatch = mCard[1].trim();
-            let firstTok = rawCardMatch.split(/[\s,]+/)[0].trim();
-            if (firstTok) {
-              explicitWinnerCard = firstTok.toUpperCase();
+          if (nextNode.condition) {
+            const cond = nextNode.condition;
+            const mWin = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+wins(?:\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+))?/i);
+            if (mWin) {
+              if (explicitWinnerSeat === null) {
+                explicitWinnerSeat = getSeatIndex(mWin[1]);
+              }
+              if (mWin[2]) {
+                const cardList = mWin[2].trim().split(/[\s,]+/).filter(Boolean);
+                if (cardList.length === 1) {
+                  explicitWinnerCard = cardList[0].trim();
+                }
+              }
+            }
+            const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_]+)/i);
+            if (mPlay) {
+              explicitPlayedSeat = getSeatIndex(mPlay[1]);
+              explicitPlayedCard = mPlay[2].trim();
             }
           }
         }
       }
 
-      // 2. Fall back to pathNode.label if nextNode condition didn't specify a winner seat
+      // 2. Use pathNode.winner (populated directly from C++ WinnerPlayCondition / BoardState)
+      if (explicitWinnerSeat === null && typeof pathNode.winner === 'number' &&
+          pathNode.winner >= 0 && pathNode.winner <= 3) {
+        explicitWinnerSeat = pathNode.winner;
+      }
+
+      // 3. Fall back to pathNode.label if needed
       if (explicitWinnerSeat === null && pathNode.label) {
         const mWin = pathNode.label.match(/\((North|East|South|West|N|E|S|W)\s+wins/i);
         if (mWin) {
           explicitWinnerSeat = getSeatIndex(mWin[1]);
+        }
+      }
+
+      if (explicitPlayedSeat !== null && explicitPlayedCard) {
+        const playedIdx = parsedCards.findIndex(c => c.seatIdx === explicitPlayedSeat);
+        if (playedIdx !== -1) {
+          const updatedCard = parseSingleCardToken(explicitPlayedCard, leadSuit, trumpCode);
+          updatedCard.seatIdx = explicitPlayedSeat;
+          updatedCard.seatName = getSeatName(explicitPlayedSeat);
+          parsedCards[playedIdx] = updatedCard;
         }
       }
 
@@ -1591,7 +1630,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (winningCardIdx === -1 && explicitWinnerCard !== null) {
-        const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard));
+        const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard.toUpperCase()));
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
         }
@@ -1966,7 +2005,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function parseSingleCardToken(token, leadSuit, trumpSuit) {
-    let cleanToken = token.replace(/[\(\)]/g, '').trim().toUpperCase();
+    let rawClean = token.replace(/[\(\)]/g, '').trim();
+    let cleanToken = rawClean.toUpperCase();
     let suit = null;
     let rankStr = '';
 
@@ -1979,21 +2019,22 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(0))) {
         suit = cleanToken.charAt(0);
-        rankStr = cleanToken.substring(1);
+        rankStr = rawClean.substring(1);
       } else if (['S', 'H', 'D', 'C'].includes(cleanToken.charAt(cleanToken.length - 1))) {
         suit = cleanToken.charAt(cleanToken.length - 1);
-        rankStr = cleanToken.substring(0, cleanToken.length - 1);
+        rankStr = rawClean.substring(0, rawClean.length - 1);
       } else {
         suit = leadSuit || 'S';
-        rankStr = cleanToken;
+        rankStr = rawClean;
       }
     }
 
     if (rankStr === '10') rankStr = 'T';
     if (rankStr === '') rankStr = '_';
+    if (rankStr !== 'x') rankStr = rankStr.toUpperCase();
 
     const rankValueMap = {
-      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10,
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10, 'X': 10.5,
       '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
     };
     const rankVal = rankValueMap[rankStr] || 1;

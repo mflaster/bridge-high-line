@@ -457,6 +457,49 @@ TEST_CASE("FormatWinnerCondition and FormatBranchCondition Formatting") {
   REQUIRE(FormatBranchCondition(&cond_with_cards, true) == "when E wins the SK,SQ");
 }
 
+TEST_CASE("BuildTreeFromConditionalLine Preserves Trick Leader and Winner") {
+  std::set<int> boards = {0, 1};
+  ConditionalLine leaf_line(boards);
+
+  // Trick 2: West (3) leads (S_), North plays S5, East plays (Sx), South wins SK
+  ConditionalLine trick2_line;
+  trick2_line.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("S_", "S5", boards),
+      GeneralizedDemiStruct("Sx", "SK", boards),
+      boards, /*ldr=*/3));
+  trick2_line.AddCondition(new WinnerPlayCondition(2), leaf_line);
+
+  // Trick 1: North (0) leads DT, East plays (Dx), South plays D8, West wins (DX)
+  ConditionalLine trick1_line;
+  trick1_line.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("Dx", "DT", boards),
+      GeneralizedDemiStruct("DX", "D8", boards),
+      boards, /*ldr=*/0));
+  trick1_line.AddCondition(
+      new WinnerPlayCondition(3, std::vector<std::string>{"DJ", "DQ", "DK"}),
+      trick2_line);
+
+  int node_id = 0;
+  auto tree = BuildTreeFromConditionalLine(trick1_line, node_id);
+  REQUIRE(tree != nullptr);
+  REQUIRE(tree->leader == 0);
+  REQUIRE(tree->winner == 3);
+  REQUIRE(tree->children.size() == 1);
+
+  auto trick2_node = tree->children[0];
+  REQUIRE(trick2_node != nullptr);
+  REQUIRE(trick2_node->leader == 3);
+  REQUIRE(trick2_node->winner == 2);
+  REQUIRE(trick2_node->branch_winner == 3);
+
+  nlohmann::json j = *tree;
+  REQUIRE(j["leader"] == 0);
+  REQUIRE(j["winner"] == 3);
+  REQUIRE(j["children"][0]["leader"] == 3);
+  REQUIRE(j["children"][0]["winner"] == 2);
+  REQUIRE(j["children"][0]["branch_winner"] == 3);
+}
+
 TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {
   int port = 18082;
   WebServer server("127.0.0.1", port);
