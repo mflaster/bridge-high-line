@@ -1906,8 +1906,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let rankStr = '';
 
     if (cleanToken === 'R_' || cleanToken === 'R' || (cleanToken.startsWith('R') && cleanToken.length <= 2)) {
-      suit = (trumpSuit && trumpSuit !== 'NT') ? trumpSuit : (leadSuit || 'S');
-      rankStr = cleanToken.substring(1) || '_';
+      suit = null;
+      rankStr = cleanToken;
     } else if (cleanToken === '__' || cleanToken === '_' || cleanToken.startsWith('_')) {
       suit = null;
       rankStr = cleanToken;

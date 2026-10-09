@@ -272,11 +272,16 @@ int BoardState::FindBestDiscard(int n, int *suit, int *rank) const {
   }
 
   int decl_best_rank[4] = {0, 0, 0, 0};
+  int decl_higher_count[4] = {0, 0, 0, 0};
   uint64_t decl_cards = h0 | h2;
   for (int s = 0; s < 4; ++s) {
     uint16_t suit_bits = (decl_cards >> (s * 16)) & 0xffff;
     if (suit_bits != 0) {
       decl_best_rank[s] = (31 - __builtin_clz(suit_bits)) + 2;
+    }
+    if (best_rank_in_suit[s] > 0) {
+      uint16_t higher_mask = ~((1u << (best_rank_in_suit[s] - 1)) - 1);
+      decl_higher_count[s] = __builtin_popcount(suit_bits & higher_mask);
     }
   }
 
@@ -287,7 +292,19 @@ int BoardState::FindBestDiscard(int n, int *suit, int *rank) const {
     int suit_i = suit[i];
     int decl_max = std::max(hand0_dist[suit_i], hand2_dist[suit_i]);
     int suit_surplus = myhand_dist[suit_i] - decl_max;
-    if (suit_surplus > 0) {
+    int higher = decl_higher_count[suit_i];
+
+    // If we hold a guarded honor (or ten) with `higher` N/S cards above it,
+    // we need at least `higher + 1` cards in the suit so N/S cannot drop our
+    // honor from the top without taking a finesse.
+    bool would_unguard_honor =
+        best_rank_in_suit[suit_i] >= 10 && higher > 0 &&
+        myhand_dist[suit_i] == higher + 1 &&
+        hand0_dist[suit_i] + hand2_dist[suit_i] > higher;
+
+    if (would_unguard_honor) {
+      score -= 2000 + best_rank_in_suit[suit_i] * 50;
+    } else if (suit_surplus > 0) {
       score += 1000 * suit_surplus;
     } else if (suit_surplus == 0 && best_rank_in_suit[suit_i] >= 10 &&
                decl_best_rank[suit_i] > best_rank_in_suit[suit_i] &&
