@@ -153,7 +153,14 @@ std::shared_ptr<DecisionTreeNode> MakeFailureLeaf(
   leaf->type = "outcome";
   leaf->failure = true;
   leaf->condition = condition;
-  leaf->branch_winner = group.winner;
+  if (!group.trick_str.empty()) {
+    leaf->leader = group.leader;
+    leaf->winner = group.winner;
+    leaf->trick = group.trick_str;
+    leaf->board_to_trick = group.board_to_trick;
+  } else {
+    leaf->branch_winner = group.winner;
+  }
   leaf->ns_tricks = group.max_ns_tricks;
   int cnt = static_cast<int>(group.boards.size());
   leaf->label = "Hand Failed (" + std::to_string(cnt) + "/" +
@@ -167,9 +174,10 @@ std::shared_ptr<DecisionTreeNode> MakeFailureLeaf(
   return leaf;
 }
 
-// Adds the failed boards that left the line after `line`'s trick as failure
-// leaves under `node`, and records what they actually played at this trick so
-// the inspector can replay them.
+// Adds the failed boards that completed `line`'s trick pattern and left the
+// line because the trick winner had no continuation as failure leaves under
+// `node`, and records what failed boards actually played at this trick so the
+// inspector can replay them.
 void AttachFailures(const std::shared_ptr<DecisionTreeNode> &node,
                     const ConditionalLine &line, const FailureIndex *failures,
                     int &node_id, int total) {
@@ -190,6 +198,61 @@ void AttachFailures(const std::shared_ptr<DecisionTreeNode> &node,
 
 bool HasFailuresAt(const ConditionalLine &line, const FailureIndex *failures) {
   return failures && failures->leaves.count(&line) > 0;
+}
+
+void AttachUnmatchedFailures(const std::shared_ptr<DecisionTreeNode> &cond_node,
+                             const ConditionalLine &line,
+                             const FailureIndex *failures, int &node_id,
+                             int total) {
+  if (!failures) return;
+  auto it = failures->unmatched_leaves.find(&line);
+  if (it == failures->unmatched_leaves.end()) return;
+  for (const auto &[_key, group] : it->second) {
+    cond_node->children.push_back(
+        MakeFailureLeaf(group, group.condition, node_id, total));
+  }
+}
+
+bool HasUnmatchedFailuresAt(const ConditionalLine &line,
+                            const FailureIndex *failures) {
+  return failures && failures->unmatched_leaves.count(&line) > 0;
+}
+
+// When a single-variant trick node has unmatched defender plays (e.g.
+// "if E plays D6" when the trick pattern required "(C_)"), wraps the trick
+// node and those failure leaves in a condition node so the unmatched play is a
+// sibling of the trick node rather than a child contradicting its cards.
+std::shared_ptr<DecisionTreeNode> WrapWithUnmatchedFailures(
+    const std::shared_ptr<DecisionTreeNode> &node, const ConditionalLine &line,
+    const FailureIndex *failures, int &node_id, int trick_num, int total,
+    int ns_tricks) {
+  if (!HasUnmatchedFailuresAt(line, failures)) {
+    return node;
+  }
+  const auto &gt = line.do_first();
+  std::string cards_played = gt.ToString(true);
+  std::string first_card = ExtractFirstCard(cards_played);
+
+  auto cond_node = std::make_shared<DecisionTreeNode>();
+  cond_node->id = "node_" + std::to_string(++node_id);
+  cond_node->type = "condition";
+  cond_node->collapsed = false;
+  cond_node->ns_tricks = ns_tricks;
+  cond_node->total_boards = total;
+  cond_node->success_boards = node->success_boards;
+  cond_node->failure_boards = node->failure_boards;
+  cond_node->covered_boards = node->covered_boards;
+  cond_node->boards = node->boards;
+  if (gt.leader % 2 == 0 && !first_card.empty()) {
+    cond_node->label = first_card + " is led";
+  } else {
+    cond_node->label = "Trick #" + std::to_string(trick_num);
+  }
+
+  node->condition = cards_played;
+  cond_node->children.push_back(node);
+  AttachUnmatchedFailures(cond_node, line, failures, node_id, total);
+  return cond_node;
 }
 
 }  // namespace
@@ -253,6 +316,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         root_node->label = "Solve Lines (" + std::to_string(conds.size()) + " variants)";
       }
 
+      AttachUnmatchedFailures(root_node, line, failures, node_id, total);
       return root_node;
     }
 
@@ -333,7 +397,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       node->total_boards = total;
       node->label = label_str;
       AttachFailures(node, line, failures, node_id, total);
-      return node;
+      return WrapWithUnmatchedFailures(node, line, failures, node_id,
+                                       trick_num, total, ns_tricks);
     }
 
     node->type = "action";
@@ -380,7 +445,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       node->children.push_back(child_node);
     }
     AttachFailures(node, line, failures, node_id, total);
-    return node;
+    return WrapWithUnmatchedFailures(node, line, failures, node_id,
+                                     trick_num, total, ns_tricks);
   } else {
     auto node = std::make_shared<DecisionTreeNode>();
     node->id = "node_" + std::to_string(++node_id);
@@ -427,7 +493,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       }
     }
     AttachFailures(node, line, failures, node_id, total);
-    return node;
+    return WrapWithUnmatchedFailures(node, line, failures, node_id,
+                                     trick_num, total, ns_tricks);
   }
 }
 
@@ -469,31 +536,39 @@ FailureIndex IndexFailures(const ConditionalLine &line,
     }
     std::string board_key = std::to_string(trace.board_id);
     for (const auto &step : trace.steps) {
-      if (step.node) {
+      if (step.node && step.unmatched_seat < 0) {
         index.tricks[step.node][board_key] = step.trick_str;
       }
     }
     const auto &last = trace.steps.back();
-    std::string key;
-    std::string condition;
     if (last.unmatched_seat >= 0) {
-      // A defender produced a card the line had no pattern for.
-      key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
-            last.unmatched_card + ":w" + std::to_string(last.winner);
-      condition = "if " + SeatLetter(last.unmatched_seat) + " plays " +
-                  last.unmatched_card;
+      // A defender produced a card the line had no pattern for during this
+      // trick; attach as a sibling under the trick's condition node.
+      std::string key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
+                        last.unmatched_card + ":w" +
+                        std::to_string(last.winner);
+      FailureIndex::Group &group = index.unmatched_leaves[last.node][key];
+      group.condition = "if " + SeatLetter(last.unmatched_seat) + " plays " +
+                        last.unmatched_card;
+      group.leader = last.leader;
+      group.winner = last.winner;
+      if (group.trick_str.empty()) {
+        group.trick_str = last.trick_str;
+      }
+      group.board_to_trick[board_key] = last.trick_str;
+      add_to_group(group, trace.board_id, trace.final_ns_tricks);
     } else {
       // The trick went as expected but the line has no continuation for
-      // this winner.
-      key = "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
+      // this winner; attach as a child of the trick node.
+      std::string key =
+          "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
       WinnerPlayCondition cond(last.winner,
                                std::set<std::string>{last.winning_card});
-      condition = FormatBranchCondition(&cond, false);
+      FailureIndex::Group &group = index.leaves[last.node][key];
+      group.condition = FormatBranchCondition(&cond, false);
+      group.winner = last.winner;
+      add_to_group(group, trace.board_id, trace.final_ns_tricks);
     }
-    FailureIndex::Group &group = index.leaves[last.node][key];
-    group.condition = condition;
-    group.winner = last.winner;
-    add_to_group(group, trace.board_id, trace.final_ns_tricks);
   }
   return index;
 }
@@ -736,7 +811,9 @@ void SetDefaultCollapsedState(std::shared_ptr<DecisionTreeNode> &node, bool is_r
       (node->label.find("Solve Lines") != std::string::npos ||
        node->label.find("Failure Lines") != std::string::npos ||
        node->label.find("Optimal Lines") != std::string::npos ||
-       node->label.find("variants") != std::string::npos)) {
+       node->label.find("variants") != std::string::npos ||
+       node->label.find("is led") != std::string::npos ||
+       node->type == "condition")) {
     node->collapsed = false;
   } else {
     // All trick nodes (e.g. Trick 1) and sub-nodes are collapsed by default.

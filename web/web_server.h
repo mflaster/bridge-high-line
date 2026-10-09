@@ -52,16 +52,23 @@ struct FailureIndex {
     // "if W plays DK" (a card outside every pattern) or "if E wins the SA"
     // (a trick winner the line has no continuation for).
     std::string condition;
+    int leader = -1;
     int winner = -1;
+    std::string trick_str;
+    std::map<std::string, std::string> board_to_trick;
     std::vector<int> boards;
     int min_ns_tricks = 0;
     int max_ns_tricks = 0;
   };
   // Concrete trick played on each failed board at each line node it passed.
   std::map<const ConditionalLine *, std::map<std::string, std::string>> tricks;
-  // Failed boards that left the line after the given node, keyed by a
-  // condition key that is unique per (reason, seat, card).
+  // Failed boards that completed the node's trick pattern and left the line
+  // because the trick winner had no continuation (children of the trick node).
   std::map<const ConditionalLine *, std::map<std::string, Group>> leaves;
+  // Failed boards where a defender played a card outside the trick's patterns
+  // during the trick (siblings of the trick node under its condition node).
+  std::map<const ConditionalLine *, std::map<std::string, Group>>
+      unmatched_leaves;
   // Failed boards for which no trick of the line could be played at all.
   Group unplaced;
 };
