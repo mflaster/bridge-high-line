@@ -10,7 +10,7 @@ Covers 20/52 (38.5%) [3, 4, 9, 15, 18, 19, 20, 21, 24, 25, 32, 33, 34, 37, 38, 4
 Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 7 card ending:
-  - hand 1 always contains the DA
+  - hand 1 always contains the DA (holds: 38%, success when holds: 100%)
 
   after C6 (__) C9 (__): C6 (__) C9 (__) [3,4,9,15,18,19,20,21,24,25,32,33,34,37,38,41,44,46,47,51] / C6 C7 C9 S5  / C6 S5 C9 C7  / C6 D8 C9 C7  / C6 C7 C9 D8  / C6 C7 C9 D8 
     when 0 wins the C9: 
@@ -122,7 +122,7 @@ Covers 20/52 (38.5%) [3, 4, 9, 15, 18, 19, 20, 21, 24, 25, 32, 33, 34, 37, 38, 4
 Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 7 card ending:
-  - hand 1 always contains the DA
+  - hand 1 always contains the DA (holds: 38%, success when holds: 100%)
 
   after C6 (C_) C9 (__): C6 (C_) C9 (__) [3,15,18,20,25,32,33,34,38,44,47] / C6 C7 C9 S5  / C6 C7 C9 D8  / C6 C7 C9 D8  / C6 C7 C9 DT  / C6 C7 C9 D8 
     when 0 wins the C9: 

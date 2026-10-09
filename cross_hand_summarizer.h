@@ -108,11 +108,37 @@ class CrossSuitConditionalRuleExtractor {
   std::vector<PairedDeal> deals_;
 };
 
+struct InvariantStats {
+  std::shared_ptr<UnknownCardsInvariant> invariant;
+  std::string rule;
+  int holds_count = 0;
+  int total_bifurcations = 0;
+  int success_when_holds_count = 0;
+  bool has_line_stats = false;
+
+  double holds_rate() const {
+    return total_bifurcations > 0
+               ? static_cast<double>(holds_count) / total_bifurcations
+               : 0.0;
+  }
+
+  double success_when_holds_rate() const {
+    return (has_line_stats && holds_count > 0)
+               ? static_cast<double>(success_when_holds_count) / holds_count
+               : 0.0;
+  }
+
+  int holds_percent() const;
+  int success_when_holds_percent() const;
+  std::string FormatRuleWithStats() const;
+};
+
 struct CrossHandSummaryReport {
   int total_deals = 0;
   uint64_t unknown_cards = 0;
   int cards_per_hand = 0;
   std::vector<std::string> invariant_rules;
+  std::vector<InvariantStats> invariant_stats;
   std::map<Suit, JointSuitBounds> suit_bounds;
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats;
 
@@ -136,6 +162,23 @@ bool EvaluateRuleOnDeal(const std::string& rule,
 bool EvaluateRuleOnDeal(const std::string& rule,
                         const PairedDeal& deal,
                         const HandLabelFormatter& formatter);
+
+std::vector<InvariantStats> EvaluateCandidateInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& hand1_label = "hand 1",
+    const std::string& hand2_label = "hand 2",
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
+
+std::vector<InvariantStats> EvaluateCandidateInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
+    int num_bifurcations = 200,
+    const ConditionalLine* line = nullptr);
 
 std::vector<std::shared_ptr<UnknownCardsInvariant>>
 FilterUninterestingInvariants(

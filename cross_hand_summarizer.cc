@@ -1,6 +1,7 @@
 #include "cross_hand_summarizer.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -402,6 +403,28 @@ std::vector<std::string> CrossSuitConditionalRuleExtractor::ExtractRules()
   return rules;
 }
 
+int InvariantStats::holds_percent() const {
+  return static_cast<int>(std::lround(holds_rate() * 100.0));
+}
+
+int InvariantStats::success_when_holds_percent() const {
+  return static_cast<int>(std::lround(success_when_holds_rate() * 100.0));
+}
+
+std::string InvariantStats::FormatRuleWithStats() const {
+  if (total_bifurcations <= 0) {
+    return rule;
+  }
+  std::string out =
+      rule + " (holds: " + std::to_string(holds_percent()) + "%";
+  if (has_line_stats) {
+    out += ", success when holds: " +
+           std::to_string(success_when_holds_percent()) + "%";
+  }
+  out += ")";
+  return out;
+}
+
 std::string CrossHandSummaryReport::ToString() const {
   std::string out = "Cross-Hand Deal Set Summary Report\n";
   out += "Total Deals: " + std::to_string(total_deals) + "\n";
@@ -433,8 +456,7 @@ bool EvaluateRuleOnDeal(const std::string& rule,
       rule, deal, formatter.FormatHand1(), formatter.FormatHand2());
 }
 
-std::vector<std::shared_ptr<UnknownCardsInvariant>>
-FilterUninterestingInvariants(
+std::vector<InvariantStats> EvaluateCandidateInvariants(
     std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
     uint64_t unknown_cards,
     int hand1_size,
@@ -442,8 +464,16 @@ FilterUninterestingInvariants(
     const std::string& hand2_label,
     int num_bifurcations,
     const ConditionalLine* line) {
+  std::vector<InvariantStats> stats_list;
   if (candidate_invariants.empty() || unknown_cards == 0) {
-    return candidate_invariants;
+    for (const auto& inv : candidate_invariants) {
+      if (!inv) continue;
+      InvariantStats st;
+      st.invariant = inv;
+      st.rule = inv->ToString();
+      stats_list.push_back(std::move(st));
+    }
+    return stats_list;
   }
 
   std::vector<CardType> card_list;
@@ -457,8 +487,16 @@ FilterUninterestingInvariants(
     }
   }
 
-  if (hand1_size <= 0 || static_cast<size_t>(hand1_size) >= card_list.size()) {
-    return candidate_invariants;
+  if (hand1_size <= 0 || static_cast<size_t>(hand1_size) >= card_list.size() ||
+      num_bifurcations <= 0) {
+    for (const auto& inv : candidate_invariants) {
+      if (!inv) continue;
+      InvariantStats st;
+      st.invariant = inv;
+      st.rule = inv->ToString();
+      stats_list.push_back(std::move(st));
+    }
+    return stats_list;
   }
 
   std::vector<PairedDeal> bifurcations;
@@ -485,29 +523,100 @@ FilterUninterestingInvariants(
   }
   std::vector<int> deal_results(bifurcations.size(), -1);
 
-  std::vector<std::shared_ptr<UnknownCardsInvariant>> filtered;
   for (const auto& inv : candidate_invariants) {
     if (!inv) continue;
-    bool true_for_all_random = true;
-    bool works_on_false_hand = false;
+    std::vector<size_t> holding_indices;
+    holding_indices.reserve(bifurcations.size());
     for (size_t b_idx = 0; b_idx < bifurcations.size(); ++b_idx) {
-      const auto& deal = bifurcations[b_idx];
-      if (!inv->HoldsOnDeal(deal, hand1_label, hand2_label)) {
-        true_for_all_random = false;
-        if (!can_eval_line) {
-          break;
-        }
-        if (deal_results[b_idx] < 0) {
-          deal_results[b_idx] = line->ResultsOnHand(deal);
-        }
-        if (deal_results[b_idx] >= line->min_tricks()) {
-          works_on_false_hand = true;
-          break;
-        }
+      if (inv->HoldsOnDeal(bifurcations[b_idx], hand1_label, hand2_label)) {
+        holding_indices.push_back(b_idx);
       }
     }
-    if (!true_for_all_random && !works_on_false_hand) {
-      filtered.push_back(inv);
+
+    int holds_count = static_cast<int>(holding_indices.size());
+    int total_bif = static_cast<int>(bifurcations.size());
+
+    InvariantStats st;
+    st.invariant = inv;
+    st.rule = inv->ToString();
+    st.holds_count = holds_count;
+    st.total_bifurcations = total_bif;
+    st.has_line_stats = can_eval_line;
+
+    // Discard "boring" invariants that hold on >= 95% of random bifurcations.
+    if (holds_count * 20 >= 19 * total_bif || st.holds_percent() >= 95) {
+      continue;
+    }
+
+    if (can_eval_line) {
+      int success_count = 0;
+      for (size_t b_idx : holding_indices) {
+        if (deal_results[b_idx] < 0) {
+          deal_results[b_idx] = line->ResultsOnHand(bifurcations[b_idx]);
+        }
+        if (deal_results[b_idx] >= line->min_tricks()) {
+          success_count++;
+        }
+      }
+      st.success_when_holds_count = success_count;
+      if (success_count * 2 <= holds_count ||
+          st.success_when_holds_percent() <= 50) {
+        continue;
+      }
+    }
+
+    stats_list.push_back(std::move(st));
+  }
+
+  if (can_eval_line) {
+    std::stable_sort(stats_list.begin(), stats_list.end(),
+                     [](const InvariantStats& a, const InvariantStats& b) {
+                       double sa = a.success_when_holds_rate();
+                       double sb = b.success_when_holds_rate();
+                       if (std::abs(sa - sb) > 1e-9) {
+                         return sa > sb;
+                       }
+                       double ha = a.holds_rate();
+                       double hb = b.holds_rate();
+                       if (std::abs(ha - hb) > 1e-9) {
+                         return ha > hb;
+                       }
+                       return false;
+                     });
+  }
+
+  return stats_list;
+}
+
+std::vector<InvariantStats> EvaluateCandidateInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter,
+    int num_bifurcations,
+    const ConditionalLine* line) {
+  return EvaluateCandidateInvariants(
+      std::move(candidate_invariants), unknown_cards, hand1_size,
+      formatter.FormatHand1(), formatter.FormatHand2(), num_bifurcations, line);
+}
+
+std::vector<std::shared_ptr<UnknownCardsInvariant>>
+FilterUninterestingInvariants(
+    std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& hand1_label,
+    const std::string& hand2_label,
+    int num_bifurcations,
+    const ConditionalLine* line) {
+  auto stats_list = EvaluateCandidateInvariants(
+      std::move(candidate_invariants), unknown_cards, hand1_size, hand1_label,
+      hand2_label, num_bifurcations, line);
+  std::vector<std::shared_ptr<UnknownCardsInvariant>> filtered;
+  filtered.reserve(stats_list.size());
+  for (const auto& st : stats_list) {
+    if (st.invariant) {
+      filtered.push_back(st.invariant);
     }
   }
   return filtered;
@@ -541,14 +650,12 @@ std::vector<std::string> FilterUninterestingRules(
       candidates.push_back(inv);
     }
   }
-  auto filtered = FilterUninterestingInvariants(
+  auto stats_list = EvaluateCandidateInvariants(
       candidates, unknown_cards, hand1_size, hand1_label, hand2_label,
       num_bifurcations, line);
   std::vector<std::string> result;
-  for (const auto& inv : filtered) {
-    if (inv) {
-      result.push_back(inv->ToString());
-    }
+  for (const auto& st : stats_list) {
+    result.push_back(st.FormatRuleWithStats());
   }
   return result;
 }
@@ -647,50 +754,90 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   std::string fmt_h2 = formatter.FormatHand2();
 
   if (opposing_deals != nullptr) {
-    if (opposing_deals->empty()) {
-      candidate_invariants.clear();
-    } else {
-      auto opposing_invariants =
-          ExtractAllCandidateInvariants(*opposing_deals, formatter);
-      std::set<std::string> opposing_rules;
-      std::set<std::string> inverted_opposing_rules;
-      for (const auto& op_inv : opposing_invariants) {
-        if (!op_inv) continue;
-        opposing_rules.insert(op_inv->ToString());
-        if (auto inv_op = op_inv->Invert(report.unknown_cards,
-                                         report.cards_per_hand, fmt_h1,
-                                         fmt_h2)) {
-          inverted_opposing_rules.insert(inv_op->ToString());
+    // First filter out structural tautologies using random bifurcations
+    // (without evaluating the line on random bifurcations).
+    auto non_tautological = FilterUninterestingInvariants(
+        candidate_invariants, report.unknown_cards, report.cards_per_hand,
+        formatter, 200, nullptr);
+
+    int total_sim =
+        static_cast<int>(deals.size() + opposing_deals->size());
+    std::vector<InvariantStats> sim_stats;
+    for (const auto& inv : non_tautological) {
+      if (!inv) continue;
+      int holds_in_deals = 0;
+      for (const auto& d : deals) {
+        if (inv->HoldsOnDeal(d, fmt_h1, fmt_h2)) {
+          holds_in_deals++;
         }
       }
-      std::vector<std::shared_ptr<UnknownCardsInvariant>> matched;
-      for (const auto& inv : candidate_invariants) {
-        if (!inv) continue;
-        bool has_inverse = inverted_opposing_rules.count(inv->ToString()) > 0;
-        if (!has_inverse) {
-          if (auto inv_neg = inv->Invert(report.unknown_cards,
-                                         report.cards_per_hand, fmt_h1,
-                                         fmt_h2)) {
-            has_inverse = opposing_rules.count(inv_neg->ToString()) > 0;
-          }
-        }
-        if (has_inverse) {
-          matched.push_back(inv);
+      int holds_in_opposing = 0;
+      for (const auto& d : *opposing_deals) {
+        if (inv->HoldsOnDeal(d, fmt_h1, fmt_h2)) {
+          holds_in_opposing++;
         }
       }
-      candidate_invariants = std::move(matched);
+      int holds_count = holds_in_deals + holds_in_opposing;
+
+      InvariantStats st;
+      st.invariant = inv;
+      st.rule = inv->ToString();
+      st.holds_count = holds_count;
+      st.total_bifurcations = total_sim;
+      st.has_line_stats = (line != nullptr);
+      st.success_when_holds_count = holds_in_deals;
+
+      // Discard "boring" invariants that hold on >= 95% of simulated deals.
+      if (holds_count * 20 >= 19 * total_sim || st.holds_percent() >= 95) {
+        continue;
+      }
+
+      // Discard invariants where success_when_holds is <= 50%.
+      int success_pct =
+          holds_count > 0
+              ? static_cast<int>(
+                    std::lround(100.0 * holds_in_deals / holds_count))
+              : 0;
+      if (holds_in_deals * 2 <= holds_count || success_pct <= 50) {
+        continue;
+      }
+
+      sim_stats.push_back(std::move(st));
     }
+
+    std::stable_sort(sim_stats.begin(), sim_stats.end(),
+                     [](const InvariantStats& a, const InvariantStats& b) {
+                       double sa = a.holds_count > 0
+                                       ? static_cast<double>(
+                                             a.success_when_holds_count) /
+                                             a.holds_count
+                                       : 0.0;
+                       double sb = b.holds_count > 0
+                                       ? static_cast<double>(
+                                             b.success_when_holds_count) /
+                                             b.holds_count
+                                       : 0.0;
+                       if (std::abs(sa - sb) > 1e-9) {
+                         return sa > sb;
+                       }
+                       double ha = a.holds_rate();
+                       double hb = b.holds_rate();
+                       if (std::abs(ha - hb) > 1e-9) {
+                         return ha > hb;
+                       }
+                       return false;
+                     });
+
+    report.invariant_stats = std::move(sim_stats);
+  } else {
+    report.invariant_stats = EvaluateCandidateInvariants(
+        candidate_invariants, report.unknown_cards, report.cards_per_hand,
+        formatter, 200, line);
   }
 
-  auto filtered_invariants = FilterUninterestingInvariants(
-      candidate_invariants, report.unknown_cards, report.cards_per_hand,
-      formatter, 200, line);
-
   report.invariant_rules.clear();
-  for (const auto& inv : filtered_invariants) {
-    if (inv) {
-      report.invariant_rules.push_back(inv->ToString());
-    }
+  for (const auto& st : report.invariant_stats) {
+    report.invariant_rules.push_back(st.FormatRuleWithStats());
   }
 
   return report;

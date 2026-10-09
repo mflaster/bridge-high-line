@@ -9,8 +9,8 @@ Covers 11/60 (18.3%) [4, 5, 14, 19, 21, 27, 35, 45, 47, 49, 53]
 Cross-Hand Deal Set Summary Report
 Total Deals: 11
 Invariant Rules for 6 card ending:
-  - the hand with the HA also has at least 4 S
-  - the hand with the HA also has at most 2 H
+  - the hand with the HA also has at least 4 S (holds: 18%, success when holds: 100%)
+  - the hand with the HA also has at most 2 H (holds: 18%, success when holds: 100%)
 
   after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19,21,27,35,45,47,49,53] / DA H8 D4 S7  / DA H8 D4 S8  / DA HT D4 SJ  / DA S9 D4 HT  / DA HT D4 SQ 
     when 0 wins the DA: 
