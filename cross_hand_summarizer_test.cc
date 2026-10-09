@@ -889,4 +889,82 @@ TEST_CASE("InvariantStats_EvaluationSortingAndInlineFormat",
   REQUIRE(parsed_fail->ToString() == "hand 1 always contains the SK");
 }
 
+TEST_CASE("HonorPossessionClassifier_NearUniversalTolerance",
+          "[cross_hand_summarizer]") {
+  // 20 deals where 19/20 (95%) satisfy:
+  // - single honor: E (hand 1) has DA
+  // - OrInvariant(E has the CQ, E has the SA)
+  // and 1 outlier deal (#20) violates both.
+  std::vector<PairedDeal> deals;
+  for (int i = 0; i < 10; ++i) {
+    deals.emplace_back("S A2 D A C 32", "S 43 D 2 C Q4");
+  }
+  for (int i = 0; i < 9; ++i) {
+    deals.emplace_back("S 42 D A C Q2", "S A3 D 2 C 43");
+  }
+  // 1 outlier deal out of 20 (95% holds rate on the 20-deal set):
+  deals.emplace_back("S 42 D 2 C 43", "S A3 D A C Q2");
+
+  HonorPossessionClassifier classifier("hand 1", "hand 3");
+  for (const auto& d : deals) {
+    classifier.ProcessDeal(d);
+  }
+  auto invs = classifier.ExtractInvariants();
+  bool found_da = false;
+  bool found_or = false;
+  for (const auto& inv : invs) {
+    if (inv->ToString() == "hand 1 always contains the DA") {
+      found_da = true;
+    } else if (inv->ToString() == "OrInvariant(E has the CQ, E has the SA)") {
+      found_or = true;
+    }
+  }
+  REQUIRE(found_da);
+  REQUIRE(found_or);
+}
+
+TEST_CASE("Summarize_IncludesInvertedOpposingInvariants",
+          "[cross_hand_summarizer]") {
+  // 21 covered deals:
+  // - 10 deals where E has SA and W has CQ
+  // - 9 deals where E has CQ and W has SA
+  // - 2 outlier deals where W has BOTH SA and CQ (so Or(E has CQ, E has SA)
+  //   holds on 19/21 = 90.5% < 95% of covered_deals, meaning it is not
+  //   extracted directly from covered_deals alone).
+  // 7 opposing (failure) deals:
+  // - All 7/7 (100%) have W holding BOTH SA and CQ:
+  //   AndInvariant(W has the CQ, W has the SA).
+  // Inverting the opposing AndInvariant yields OrInvariant(E has the CQ, E has
+  // the SA), which holds on 19/28 (68%) of all deals and succeeds on 19/19
+  // (100%) when it holds.
+  std::vector<PairedDeal> covered_deals;
+  for (int i = 0; i < 10; ++i) {
+    covered_deals.emplace_back("S A2 C 32", "S 43 C Q4");
+  }
+  for (int i = 0; i < 9; ++i) {
+    covered_deals.emplace_back("S 42 C Q2", "S A3 C 43");
+  }
+  for (int i = 0; i < 2; ++i) {
+    covered_deals.emplace_back("S 42 C 43", "S A3 C Q2");
+  }
+
+  std::vector<PairedDeal> failure_deals;
+  for (int i = 0; i < 7; ++i) {
+    failure_deals.emplace_back("S 43 C 43", "S A2 C Q2");
+  }
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport success_report = summarizer.Summarize(
+      covered_deals, "hand 1", "hand 3", nullptr, &failure_deals,
+      /*is_failure_mode=*/false);
+
+  REQUIRE_FALSE(success_report.invariant_stats.empty());
+  REQUIRE(success_report.invariant_stats[0].rule ==
+          "OrInvariant(E has the CQ, E has the SA)");
+  REQUIRE(success_report.invariant_stats[0].holds_count == 19);
+  REQUIRE(success_report.invariant_stats[0].total_bifurcations == 28);
+  REQUIRE(success_report.invariant_stats[0].success_when_holds_count == 19);
+  REQUIRE(success_report.invariant_stats[0].holds_percent() == 68);
+}
+
 

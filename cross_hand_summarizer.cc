@@ -134,6 +134,10 @@ void HonorPossessionClassifier::ProcessDeal(const PairedDeal& deal) {
   }
 }
 
+static bool HoldsOnNearAllDeals(int holds_count, int total_deals) {
+  return total_deals > 0 && holds_count * 20 >= 19 * total_deals;
+}
+
 std::vector<std::shared_ptr<UnknownCardsInvariant>>
 HonorPossessionClassifier::ExtractInvariants() const {
   std::vector<std::shared_ptr<UnknownCardsInvariant>> invariants;
@@ -159,17 +163,17 @@ HonorPossessionClassifier::ExtractInvariants() const {
       const auto& stats = r_it->second;
       CardType card = Card::GetSuitedCard(suit, r);
 
-      if (stats.hand1_count == total_deals_) {
+      if (HoldsOnNearAllDeals(stats.hand1_count, total_deals_)) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand1, card, l1_single));
         all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand1, card, l1_composite));
-      } else if (stats.hand2_count == total_deals_) {
+      } else if (HoldsOnNearAllDeals(stats.hand2_count, total_deals_)) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand2, card, l2_single));
         all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand2, card, l2_composite));
-      } else if (stats.both_count == total_deals_) {
+      } else if (HoldsOnNearAllDeals(stats.both_count, total_deals_)) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kBoth, card, "both hands"));
       } else if (stats.hand1_count + stats.hand2_count + stats.both_count > 0) {
@@ -212,14 +216,13 @@ void HonorPossessionClassifier::AddOrInvariants(
       if (emitted_or_rules.count(rule_str) > 0) {
         continue;
       }
-      bool holds_for_all = true;
+      int holds_count = 0;
       for (const auto& deal : deals_) {
-        if (!or_inv->HoldsOnDeal(deal)) {
-          holds_for_all = false;
-          break;
+        if (or_inv->HoldsOnDeal(deal)) {
+          holds_count++;
         }
       }
-      if (holds_for_all) {
+      if (HoldsOnNearAllDeals(holds_count, total_deals_)) {
         emitted_or_rules.insert(rule_str);
         invariants.push_back(or_inv);
       }
@@ -248,14 +251,13 @@ void HonorPossessionClassifier::AddAndInvariants(
       if (emitted_and_rules.count(rule_str) > 0) {
         continue;
       }
-      bool holds_for_all = true;
+      int holds_count = 0;
       for (const auto& deal : deals_) {
-        if (!and_inv->HoldsOnDeal(deal)) {
-          holds_for_all = false;
-          break;
+        if (and_inv->HoldsOnDeal(deal)) {
+          holds_count++;
         }
       }
-      if (holds_for_all) {
+      if (HoldsOnNearAllDeals(holds_count, total_deals_)) {
         emitted_and_rules.insert(rule_str);
         invariants.push_back(and_inv);
       }
@@ -763,6 +765,25 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
   std::string fmt_h2 = formatter.FormatHand2();
 
   if (opposing_deals != nullptr) {
+    if (!opposing_deals->empty()) {
+      std::set<std::string> seen_rules;
+      for (const auto& inv : candidate_invariants) {
+        if (inv) {
+          seen_rules.insert(inv->ToString());
+        }
+      }
+      auto opposing_invariants =
+          ExtractAllCandidateInvariants(*opposing_deals, formatter);
+      for (const auto& op_inv : opposing_invariants) {
+        if (!op_inv) continue;
+        auto inv_op = op_inv->Invert(report.unknown_cards,
+                                     report.cards_per_hand, fmt_h1, fmt_h2);
+        if (inv_op && seen_rules.insert(inv_op->ToString()).second) {
+          candidate_invariants.push_back(inv_op);
+        }
+      }
+    }
+
     // First filter out structural tautologies using random bifurcations
     // (without evaluating the line on random bifurcations).
     auto non_tautological = FilterUninterestingInvariants(
@@ -780,6 +801,13 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
           holds_in_deals++;
         }
       }
+      // Require the invariant to hold on at least 90% of the target deal set
+      // so inverted near-tautologies from opposing_deals (which hold on <= 5%
+      // of deals) are not reported as invariants of deals.
+      if (holds_in_deals * 10 < 9 * static_cast<int>(deals.size())) {
+        continue;
+      }
+
       int holds_in_opposing = 0;
       for (const auto& d : *opposing_deals) {
         if (inv->HoldsOnDeal(d, fmt_h1, fmt_h2)) {
