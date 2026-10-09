@@ -1820,3 +1820,10 @@ Invariant Rules for 7 card ending:
 Solve took 6.451240 seconds. Status: SUCCESS
 
 Benchmark complete. Total wall time: 232.6s
+
+=== Perf9CardHearts100 ===
+Perf9CardHearts100 num_deals=100 time=69.5s (solve=69481.5ms, invariant=14.2ms) result=SUCCESS (covered=76/100, 76.0%, lines=1)
+
+=== Perf9CardHearts150 ===
+Perf9CardHearts150 num_deals=150 time=107.3s (solve=107182.2ms, invariant=44.5ms) result=SUCCESS (covered=112/150, 74.7%, lines=3)
+
