@@ -224,6 +224,12 @@ class ConditionalLine {  // ConditionalLineBranch
     std::string winning_card;
     int ns_tricks_so_far = 0;
     bool diverged_after = false;
+    // The action node of this line whose trick was followed for this step.
+    const ConditionalLine *node = nullptr;
+    // When a defender's card matched none of the line's patterns for this
+    // trick, the seat and card that broke the pattern.
+    int unmatched_seat = -1;
+    std::string unmatched_card;
   };
 
   struct BoardPlayTrace {

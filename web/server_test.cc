@@ -1,5 +1,6 @@
 #include <catch2/catch_all.hpp>
 #include <chrono>
+#include <functional>
 #include <thread>
 
 #include "line_finder.h"
@@ -209,13 +210,33 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(finesse_json["sample_hands"][0].contains("W"));
   REQUIRE(finesse_json.contains("failure_sample_hands"));
   REQUIRE(finesse_json["failure_sample_hands"].is_array());
+  REQUIRE(!finesse_json.contains("failure_tree"));
+  // Failed boards are attached to the single tree as failure leaves; together
+  // they account for every failed board exactly once.
+  std::function<int(const nlohmann::json &)> count_failure_leaf_boards =
+      [&](const nlohmann::json &n) -> int {
+    int sum = 0;
+    if (n.value("failure", false)) {
+      REQUIRE(n["type"] == "outcome");
+      REQUIRE(n["label"].get<std::string>().rfind("Hand Failed", 0) == 0);
+      REQUIRE(n["children"].empty());
+      sum += static_cast<int>(n["boards"].size());
+    }
+    if (n.contains("children")) {
+      for (const auto &c : n["children"]) {
+        sum += count_failure_leaf_boards(c);
+      }
+    }
+    return sum;
+  };
   if (finesse_json["failure_boards"].get<int>() > 0) {
     REQUIRE(!finesse_json["failure_sample_hands"].empty());
-    REQUIRE(finesse_json.contains("failure_tree"));
-    REQUIRE(!finesse_json["failure_tree"].is_null());
-    REQUIRE(finesse_json["failure_tree"].contains("label"));
-    REQUIRE(finesse_json["failure_tree"]["failure_boards"].get<int>() ==
+    REQUIRE(count_failure_leaf_boards(finesse_json["tree"]) ==
             finesse_json["failure_boards"].get<int>());
+    REQUIRE(finesse_json["tree"]["failure_boards"].get<int>() ==
+            finesse_json["failure_boards"].get<int>());
+  } else {
+    REQUIRE(count_failure_leaf_boards(finesse_json["tree"]) == 0);
   }
   auto &finesse_tree = finesse_json["tree"];
   REQUIRE(finesse_tree.contains("label"));

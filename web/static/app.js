@@ -211,6 +211,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentCenteredNode = null;
   let activeViewMode = 'success'; // 'success' or 'failure'
 
+  // Renders the decision tree for the current solve. Success and failure
+  // outcomes live in one tree (failures as red leaves where the line runs
+  // out), so this is independent of the Success/Failure view mode.
+  function renderSolveTree() {
+    if (currentSolveData && currentSolveData.tree &&
+        Object.keys(currentSolveData.tree).length > 0) {
+      currentTreeData = currentSolveData.tree;
+      expandAndInspectNode(currentSolveData.tree, currentSolveData.tree, null, false);
+    } else if (currentSolveData) {
+      currentTreeData = null;
+      currentCenteredNode = null;
+      activeTrickCardStates = null;
+      updateDealSvg();
+      if (treeRootGroup) {
+        treeRootGroup.innerHTML =
+          `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
+      }
+    }
+  }
+
   function updateViewMode(mode) {
     activeViewMode = mode;
     const total = (currentSolveData && currentSolveData.total_boards) ? currentSolveData.total_boards : 1;
@@ -258,19 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         clearSampleHands('No covered sample hands available.');
       }
-
-      if (currentSolveData && currentSolveData.tree) {
-        currentTreeData = currentSolveData.tree;
-        expandAndInspectNode(currentSolveData.tree, currentSolveData.tree, null, false);
-      } else if (currentSolveData) {
-        currentTreeData = null;
-        activeTrickCardStates = null;
-        updateDealSvg();
-        if (treeRootGroup) {
-          treeRootGroup.innerHTML =
-            `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated for success deals.</text>`;
-        }
-      }
     } else {
       if (cardStatFailure) cardStatFailure.classList.add('active');
       if (cardStatSuccess) cardStatSuccess.classList.remove('active');
@@ -307,26 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSampleHands(currentSolveData.failure_sample_hands);
       } else {
         clearSampleHands('No failed sample hands available (100% success rate or no failure deals).');
-      }
-
-      if (currentSolveData && currentSolveData.failure_tree) {
-        currentTreeData = currentSolveData.failure_tree;
-        expandAndInspectNode(currentSolveData.failure_tree, currentSolveData.failure_tree, null, false);
-      } else if (currentSolveData) {
-        currentTreeData = null;
-        currentCenteredNode = null;
-        activeTrickCardStates = null;
-        updateDealSvg();
-        if (treeRootGroup) {
-          treeRootGroup.innerHTML =
-            `<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="15">No failed deals to display in the decision tree (100% success rate).</text>`;
-        }
-        if (inspectorContent) {
-          inspectorContent.innerHTML = `
-            <div class="inspector-placeholder">
-              No failed deals for this line of play.
-            </div>`;
-        }
       }
     }
   }
@@ -1106,7 +1093,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
-      // Update View Mode (Success vs Failure) - renders Decision Tree, Distribution Summary, and Sample Hands
+      // Render the combined decision tree, then the Distribution Summary and
+      // Sample Hands panels for the active view mode (Success vs Failure).
+      renderSolveTree();
       updateViewMode(activeViewMode);
 
     } catch (err) {
@@ -1364,8 +1353,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const d = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
           path.setAttribute('d', d);
-          path.setAttribute('class', 'tree-link');
-          path.setAttribute('marker-end', 'url(#arrow)');
+          path.setAttribute('class', child.failure ? 'tree-link tree-link-failure' : 'tree-link');
+          path.setAttribute('marker-end', child.failure ? 'url(#arrow-failure)' : 'url(#arrow)');
           treeRootGroup.appendChild(path);
 
           if (child.condition) {
@@ -1386,13 +1375,13 @@ document.addEventListener('DOMContentLoaded', () => {
             rect.setAttribute('width', labelWidth);
             rect.setAttribute('height', labelHeight);
             rect.setAttribute('rx', '4');
-            rect.setAttribute('class', 'tree-edge-label-bg');
+            rect.setAttribute('class', child.failure ? 'tree-edge-label-bg tree-edge-label-bg-failure' : 'tree-edge-label-bg');
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('x', midX);
             text.setAttribute('y', midY + 4);
             text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('class', 'tree-edge-label');
+            text.setAttribute('class', child.failure ? 'tree-edge-label tree-edge-label-failure' : 'tree-edge-label');
             text.textContent = condText;
 
             labelGroup.appendChild(rect);
@@ -1418,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let cardClass = 'node-action';
       if (node.type === 'condition') cardClass = 'node-condition';
       if (node.type === 'outcome') {
-        cardClass = (activeViewMode === 'failure') ? 'node-outcome-failure' : 'node-outcome';
+        cardClass = node.failure ? 'node-outcome-failure' : 'node-outcome';
       }
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
@@ -1443,16 +1432,7 @@ document.addEventListener('DOMContentLoaded', () => {
       detail.setAttribute('x', '8');
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
-      let detailText = '';
-      const nodeDealsCount = (activeViewMode === 'failure' && node.failure_boards !== undefined && node.failure_boards > 0)
-        ? node.failure_boards
-        : (node.success_boards !== undefined && node.success_boards > 0 ? node.success_boards : node.covered_boards);
-      if (nodeDealsCount !== undefined && node.total_boards !== undefined && node.total_boards > 0) {
-        const pct = Math.round((nodeDealsCount / node.total_boards) * 100);
-        detailText = `Deals: ${nodeDealsCount} (${pct}%)`;
-      } else if (nodeDealsCount !== undefined) {
-        detailText = `Deals: ${nodeDealsCount}`;
-      }
+      const detailText = formatNodeDeals(node);
       const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
       if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
         detail.textContent = detailText;
@@ -1467,7 +1447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         highlight.setAttribute('x', '8');
         highlight.setAttribute('y', '62');
         highlight.setAttribute('class', 'node-text-highlight');
-        if (activeViewMode === 'failure') {
+        if (node.failure) {
           highlight.setAttribute('fill', '#fca5a5');
         }
         highlight.textContent = `N/S Won: ${node.ns_tricks}`;
@@ -1495,6 +1475,25 @@ document.addEventListener('DOMContentLoaded', () => {
   function truncateText(str, maxLen) {
     if (!str) return '';
     return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
+  }
+
+  // Deal counts for a node card / inspector. A failure leaf reports the deals
+  // that fail there; any other node reports the deals it makes and, when some
+  // of the deals reaching it go on to fail, that count as well.
+  function formatNodeDeals(node) {
+    const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
+    const withPct = (n) => total ? `${n} (${Math.round((n / total) * 100)}%)` : `${n}`;
+    if (node.failure) {
+      const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
+      return `Fails: ${withPct(fails)}`;
+    }
+    const wins = node.success_boards !== undefined ? node.success_boards : node.covered_boards;
+    if (wins === undefined) return '';
+    const fails = node.failure_boards || 0;
+    if (fails > 0 && node.type !== 'outcome') {
+      return `Makes: ${withPct(wins)} · Fails: ${fails}`;
+    }
+    return `Deals: ${withPct(wins)}`;
   }
 
   function showNodeInspector(node, clickedNode = null) {
@@ -1652,24 +1651,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryCard = document.createElement('div');
     summaryCard.className = 'node-summary-card';
 
-    const inspectorDealsCount = (activeViewMode === 'failure' && node.failure_boards !== undefined && node.failure_boards > 0)
-      ? node.failure_boards
-      : (node.success_boards !== undefined && node.success_boards > 0 ? node.success_boards : node.covered_boards);
-    let dealsInfo = '-';
-    if (inspectorDealsCount !== undefined && node.total_boards !== undefined && node.total_boards > 0) {
-      const sPct = Math.round((inspectorDealsCount / node.total_boards) * 100);
-      dealsInfo = `${inspectorDealsCount} (${sPct}%)`;
-    } else if (inspectorDealsCount !== undefined) {
-      dealsInfo = `${inspectorDealsCount}`;
-    }
+    const dealsInfo = formatNodeDeals(node) || 'Deals: -';
 
     const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
-    const summaryTypeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'node').toUpperCase();
+    const summaryTypeLabel = (node.type === 'condition')
+      ? 'BRANCH'
+      : (node.failure ? 'FAILURE' : (node.type || 'node').toUpperCase());
 
     summaryCard.innerHTML = `
       <div class="node-summary-title">Node #${node.id} (${summaryTypeLabel})</div>
       <div class="node-summary-detail">Label: "${truncateText(node.label || node.trick || 'Root', 35)}"</div>
-      <div class="node-summary-detail">Deals: ${dealsInfo}${nsTricksInfo}</div>
+      <div class="node-summary-detail">${dealsInfo}${nsTricksInfo}</div>
     `;
     inspectorContent.appendChild(summaryCard);
 

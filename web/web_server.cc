@@ -65,6 +65,16 @@ std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   return desc;
 }
 
+std::string SeatLetter(int player) {
+  switch ((player % 4 + 4) % 4) {
+    case NORTH: return "N";
+    case EAST:  return "E";
+    case SOUTH: return "S";
+    case WEST:  return "W";
+    default:    return std::to_string(player);
+  }
+}
+
 std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice) {
   if (!cond_ptr) return "";
   std::string desc = cond_ptr->Describe(only_choice);
@@ -75,15 +85,8 @@ std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choic
   std::smatch match;
   while (std::regex_search(desc, match, kPlayerWinsRegex)) {
     int player = std::stoi(match[1].str());
-    std::string dir;
-    switch ((player % 4 + 4) % 4) {
-      case NORTH: dir = "N"; break;
-      case EAST:  dir = "E"; break;
-      case SOUTH: dir = "S"; break;
-      case WEST:  dir = "W"; break;
-      default:    dir = std::to_string(player); break;
-    }
-    desc.replace(match.position(0), match.length(0), dir + " wins");
+    desc.replace(match.position(0), match.length(0),
+                 SeatLetter(player) + " wins");
   }
   return desc;
 }
@@ -132,15 +135,76 @@ std::string GetFirstCardFromNode(const std::shared_ptr<DecisionTreeNode> &node) 
   return "";
 }
 
+namespace {
+
+std::string NsTricksRange(const FailureIndex::Group &group) {
+  if (group.min_ns_tricks == group.max_ns_tricks) {
+    return std::to_string(group.min_ns_tricks);
+  }
+  return std::to_string(group.min_ns_tricks) + "-" +
+         std::to_string(group.max_ns_tricks);
+}
+
+std::shared_ptr<DecisionTreeNode> MakeFailureLeaf(
+    const FailureIndex::Group &group, const std::string &condition,
+    int &node_id, int total) {
+  auto leaf = std::make_shared<DecisionTreeNode>();
+  leaf->id = "node_" + std::to_string(++node_id);
+  leaf->type = "outcome";
+  leaf->failure = true;
+  leaf->condition = condition;
+  leaf->ns_tricks = group.max_ns_tricks;
+  int cnt = static_cast<int>(group.boards.size());
+  leaf->label = "Hand Failed (" + std::to_string(cnt) + "/" +
+                std::to_string(total) + " boards) (" + NsTricksRange(group) +
+                " tricks won by N/S)";
+  leaf->success_boards = 0;
+  leaf->failure_boards = cnt;
+  leaf->total_boards = total;
+  leaf->covered_boards = cnt;
+  leaf->boards = group.boards;
+  return leaf;
+}
+
+// Adds the failed boards that left the line after `line`'s trick as failure
+// leaves under `node`, and records what they actually played at this trick so
+// the inspector can replay them.
+void AttachFailures(const std::shared_ptr<DecisionTreeNode> &node,
+                    const ConditionalLine &line, const FailureIndex *failures,
+                    int &node_id, int total) {
+  if (!failures) return;
+  auto tricks_it = failures->tricks.find(&line);
+  if (tricks_it != failures->tricks.end()) {
+    for (const auto &[b, t] : tricks_it->second) {
+      node->board_to_trick.emplace(b, t);
+    }
+  }
+  auto leaves_it = failures->leaves.find(&line);
+  if (leaves_it == failures->leaves.end()) return;
+  for (const auto &[_key, group] : leaves_it->second) {
+    node->children.push_back(
+        MakeFailureLeaf(group, group.condition, node_id, total));
+  }
+}
+
+bool HasFailuresAt(const ConditionalLine &line, const FailureIndex *failures) {
+  return failures && failures->leaves.count(&line) > 0;
+}
+
+}  // namespace
+
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
-    const ConditionalLine &line, int &node_id, int trick_num, int root_total, int ns_tricks) {
+    const ConditionalLine &line, int &node_id, int trick_num, int root_total,
+    int ns_tricks, const FailureIndex *failures) {
   int total = line.total_boards() > 0 ? line.total_boards() : root_total;
 
   if (line.do_first().Empty()) {
     const auto &conds = line.conditions();
     if (!conds.empty()) {
       if (conds.size() == 1 && conds[0].second) {
-        return BuildTreeFromConditionalLine(*conds[0].second, node_id, trick_num, total, ns_tricks);
+        return BuildTreeFromConditionalLine(*conds[0].second, node_id,
+                                            trick_num, total, ns_tricks,
+                                            failures);
       }
       std::set<int> boards_set = line.CoveredBoardsSet();
       int success_cnt = boards_set.size();
@@ -157,7 +221,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       root_node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
       for (const auto &[cond_ptr, child_ptr] : conds) {
         if (child_ptr) {
-          auto child = BuildTreeFromConditionalLine(*child_ptr, node_id, trick_num, total, ns_tricks);
+          auto child = BuildTreeFromConditionalLine(
+              *child_ptr, node_id, trick_num, total, ns_tricks, failures);
           if (child && cond_ptr) {
             child->condition = FormatBranchCondition(cond_ptr.get(), false);
           }
@@ -211,11 +276,11 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
   std::set<int> boards_set = line.CoveredBoardsSet();
   int success_cnt = boards_set.size();
   int failure_cnt = std::max(0, total - success_cnt);
+  bool has_failures = HasFailuresAt(line, failures);
 
   const auto &conds = line.conditions();
   if (conds.size() == 1) {
     const auto &[cond_ptr, child_line_ptr] = conds[0];
-    std::string winner_str = FormatWinnerCondition(cond_ptr.get());
     int add_ns = 0;
     if (auto w = dynamic_cast<const WinnerPlayCondition*>(cond_ptr.get())) {
       if (w->who() == NORTH || w->who() == SOUTH) {
@@ -244,7 +309,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
 
     std::string label_str = "#" + std::to_string(trick_num) + ": " + cards_played;
 
-    if (is_final_trick) {
+    if (is_final_trick && !has_failures) {
       node->type = "outcome";
       node->ns_tricks = current_ns;
       if (child_line_ptr && !child_line_ptr->final_covered_boards().empty()) {
@@ -262,23 +327,54 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       }
       node->total_boards = total;
       node->label = label_str;
-      return node;
-    } else {
-      node->type = "action";
-      node->ns_tricks = current_ns;
-      node->label = label_str;
-      node->success_boards = success_cnt;
-      node->failure_boards = failure_cnt;
-      node->total_boards = total;
-      node->covered_boards = success_cnt;
-      node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
-
-      auto child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total, current_ns);
-      if (child_node) {
-        node->children.push_back(child_node);
-      }
+      AttachFailures(node, line, failures, node_id, total);
       return node;
     }
+
+    node->type = "action";
+    node->ns_tricks = current_ns;
+    node->label = label_str;
+    node->success_boards = success_cnt;
+    node->failure_boards = failure_cnt;
+    node->total_boards = total;
+    node->covered_boards = success_cnt;
+    node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
+
+    std::shared_ptr<DecisionTreeNode> child_node;
+    if (is_final_trick) {
+      // Failures also hang off this last trick, so the success outcome gets
+      // its own explicit leaf alongside them.
+      const std::set<int> &fb =
+          (child_line_ptr && !child_line_ptr->final_covered_boards().empty())
+              ? child_line_ptr->final_covered_boards()
+              : boards_set;
+      child_node = std::make_shared<DecisionTreeNode>();
+      child_node->id = "node_" + std::to_string(++node_id);
+      child_node->type = "outcome";
+      child_node->ns_tricks = current_ns;
+      child_node->label = "Hand Succeeded (" + std::to_string(fb.size()) + "/" +
+                          std::to_string(total) + " boards) (" +
+                          std::to_string(current_ns) + " tricks won by N/S)";
+      child_node->success_boards = fb.size();
+      child_node->failure_boards = 0;
+      child_node->total_boards = total;
+      child_node->covered_boards = fb.size();
+      child_node->boards = std::vector<int>(fb.begin(), fb.end());
+    } else {
+      child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id,
+                                                trick_num + 1, total,
+                                                current_ns, failures);
+    }
+    if (child_node) {
+      if (has_failures && cond_ptr) {
+        // With failure branches alongside, the success branch needs its
+        // condition spelled out too.
+        child_node->condition = FormatBranchCondition(cond_ptr.get(), false);
+      }
+      node->children.push_back(child_node);
+    }
+    AttachFailures(node, line, failures, node_id, total);
+    return node;
   } else {
     auto node = std::make_shared<DecisionTreeNode>();
     node->id = "node_" + std::to_string(++node_id);
@@ -306,7 +402,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
           }
         }
         int branch_ns = ns_tricks + branch_add_ns;
-        auto child = BuildTreeFromConditionalLine(*child_line_ptr, node_id, trick_num + 1, total, branch_ns);
+        auto child = BuildTreeFromConditionalLine(*child_line_ptr, node_id,
+                                                  trick_num + 1, total,
+                                                  branch_ns, failures);
         if (child) {
           if (cond_ptr) {
             child->condition = FormatBranchCondition(cond_ptr.get(), false);
@@ -315,251 +413,18 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         }
       }
     }
+    AttachFailures(node, line, failures, node_id, total);
     return node;
   }
 }
 
-namespace {
-
-std::shared_ptr<DecisionTreeNode> BuildFailureSingleGroupNode(
-    const std::vector<ConditionalLine::BoardPlayTrace> &traces,
-    const std::vector<int> &grp_indices, size_t step_idx, Suit trump_suit,
-    int &node_id, int root_total);
-
-std::shared_ptr<DecisionTreeNode> BuildFailureTreeNode(
-    const std::vector<ConditionalLine::BoardPlayTrace> &traces,
-    const std::vector<int> &trace_indices, size_t step_idx, Suit trump_suit,
-    int &node_id, int root_total) {
-  std::vector<int> valid_indices;
-  valid_indices.reserve(trace_indices.size());
-  for (int idx : trace_indices) {
-    if (step_idx < traces[idx].steps.size()) {
-      valid_indices.push_back(idx);
-    }
-  }
-  if (valid_indices.empty()) {
-    return nullptr;
-  }
-
-  std::map<std::pair<std::string, std::string>, std::vector<int>> decl_groups;
-  for (int idx : valid_indices) {
-    const auto &st = traces[idx].steps[step_idx];
-    decl_groups[{st.my1_card, st.my2_card}].push_back(idx);
-  }
-
-  if (decl_groups.size() == 1) {
-    return BuildFailureSingleGroupNode(
-        traces, decl_groups.begin()->second, step_idx, trump_suit, node_id,
-        root_total);
-  }
-
-  auto root_node = std::make_shared<DecisionTreeNode>();
-  root_node->id = "fail_node_" + std::to_string(++node_id);
-  root_node->type = "condition";
-  root_node->collapsed = false;
-  root_node->ns_tricks =
-      (step_idx > 0) ? traces[valid_indices[0]].steps[step_idx - 1].ns_tricks_so_far
-                     : 0;
-  int fail_cnt = static_cast<int>(valid_indices.size());
-  root_node->total_boards = root_total;
-  root_node->success_boards = 0;
-  root_node->failure_boards = fail_cnt;
-  root_node->covered_boards = fail_cnt;
-  for (int idx : valid_indices) {
-    root_node->boards.push_back(traces[idx].board_id);
-  }
-
-  for (const auto &[decl_pair, grp_indices] : decl_groups) {
-    auto child = BuildFailureSingleGroupNode(
-        traces, grp_indices, step_idx, trump_suit, node_id, root_total);
-    if (child) {
-      child->condition = child->trick;
-      root_node->children.push_back(child);
-    }
-  }
-
-  std::string common_card = "";
-  bool all_same = !root_node->children.empty();
-  for (const auto &child : root_node->children) {
-    std::string card = GetFirstCardFromNode(child);
-    if (card.empty()) {
-      all_same = false;
-      break;
-    }
-    if (common_card.empty()) {
-      common_card = card;
-    } else if (common_card != card) {
-      all_same = false;
-      break;
-    }
-  }
-
-  if (all_same && !common_card.empty()) {
-    root_node->label = common_card + " is led (" +
-                       std::to_string(root_node->children.size()) +
-                       " variants)";
-  } else {
-    root_node->label = "Failure Lines (" +
-                       std::to_string(root_node->children.size()) +
-                       " variants)";
-  }
-  return root_node;
-}
-
-std::shared_ptr<DecisionTreeNode> BuildFailureSingleGroupNode(
-    const std::vector<ConditionalLine::BoardPlayTrace> &traces,
-    const std::vector<int> &grp_indices, size_t step_idx, Suit trump_suit,
-    int &node_id, int root_total) {
-  if (grp_indices.empty()) return nullptr;
-
-  GeneralizedTrickFinder gtf(trump_suit);
-  for (int idx : grp_indices) {
-    const auto &tr = traces[idx];
-    const auto &st = tr.steps[step_idx];
-    gtf.RecordOptimalTrick(st.leader, st.trick_str, tr.board_id);
-  }
-  auto gen_tricks = gtf.GetGeneralizedTricks(500);
-  GeneralizedTrick best_gt;
-  for (const auto &gt : gen_tricks) {
-    if (gt.boards.size() == grp_indices.size()) {
-      best_gt = gt;
-      break;
-    }
-  }
-  if (best_gt.Empty() && !gen_tricks.empty()) {
-    best_gt = gen_tricks[0];
-  }
-
-  std::string cards_played =
-      best_gt.Empty() ? traces[grp_indices[0]].steps[step_idx].trick_str
-                      : best_gt.ToString(true);
-  std::string trick_full =
-      best_gt.Empty() ? cards_played : best_gt.ToString(false);
-
-  auto node = std::make_shared<DecisionTreeNode>();
-  node->id = "fail_node_" + std::to_string(++node_id);
-  node->collapsed = false;
-  node->trick = cards_played;
-  node->trick_full = trick_full;
-  int fail_cnt = static_cast<int>(grp_indices.size());
-  node->success_boards = 0;
-  node->failure_boards = fail_cnt;
-  node->total_boards = root_total;
-  node->covered_boards = fail_cnt;
-  for (int idx : grp_indices) {
-    const auto &tr = traces[idx];
-    node->boards.push_back(tr.board_id);
-    node->board_to_trick[std::to_string(tr.board_id)] =
-        tr.steps[step_idx].trick_str;
-  }
-
-  std::map<int, std::vector<int>> winner_groups;
-  std::map<int, std::set<std::string>> winner_cards;
-  for (int idx : grp_indices) {
-    const auto &st = traces[idx].steps[step_idx];
-    winner_groups[st.winner].push_back(idx);
-    if (!st.winning_card.empty()) {
-      winner_cards[st.winner].insert(st.winning_card);
-    }
-  }
-
-  auto format_ns_tricks_range = [&](const std::vector<int> &idxs,
-                                    int &out_ns) -> std::string {
-    int min_ns = traces[idxs[0]].final_ns_tricks;
-    int max_ns = min_ns;
-    for (int idx : idxs) {
-      min_ns = std::min(min_ns, traces[idx].final_ns_tricks);
-      max_ns = std::max(max_ns, traces[idx].final_ns_tricks);
-    }
-    out_ns = max_ns;
-    if (min_ns == max_ns) {
-      return std::to_string(min_ns);
-    }
-    return std::to_string(min_ns) + "-" + std::to_string(max_ns);
-  };
-
-  auto check_all_diverged = [&](const std::vector<int> &idxs) -> bool {
-    for (int idx : idxs) {
-      if (!traces[idx].steps[step_idx].diverged_after &&
-          step_idx + 1 < traces[idx].steps.size()) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  if (winner_groups.size() == 1) {
-    std::string label_str = "#" + std::to_string(step_idx + 1) + ": " + cards_played;
-    if (check_all_diverged(grp_indices)) {
-      node->type = "outcome";
-      int out_ns = 0;
-      std::string ns_str = format_ns_tricks_range(grp_indices, out_ns);
-      node->ns_tricks = out_ns;
-      node->label = label_str;
-      return node;
-    } else {
-      node->type = "action";
-      node->ns_tricks = traces[grp_indices[0]].steps[step_idx].ns_tricks_so_far;
-      node->label = label_str;
-      auto child = BuildFailureTreeNode(
-          traces, grp_indices, step_idx + 1, trump_suit, node_id, root_total);
-      if (child) {
-        node->children.push_back(child);
-      }
-      return node;
-    }
-  } else {
-    node->type = "action";
-    node->ns_tricks =
-        (step_idx > 0)
-            ? traces[grp_indices[0]].steps[step_idx - 1].ns_tricks_so_far
-            : 0;
-    node->label = "#" + std::to_string(step_idx + 1) + ": " + cards_played;
-
-    for (const auto &[w, w_indices] : winner_groups) {
-      WinnerPlayCondition w_cond(w, winner_cards[w]);
-      std::string cond_str = FormatBranchCondition(&w_cond, false);
-      if (check_all_diverged(w_indices)) {
-        auto leaf = std::make_shared<DecisionTreeNode>();
-        leaf->id = "fail_node_" + std::to_string(++node_id);
-        leaf->type = "outcome";
-        leaf->condition = cond_str;
-        int out_ns = 0;
-        std::string ns_str = format_ns_tricks_range(w_indices, out_ns);
-        leaf->ns_tricks = out_ns;
-        int w_cnt = static_cast<int>(w_indices.size());
-        leaf->label = "Hand Failed (" + std::to_string(w_cnt) + "/" +
-                      std::to_string(root_total) + " boards) (" + ns_str +
-                      " tricks won by N/S)";
-        leaf->success_boards = 0;
-        leaf->failure_boards = w_cnt;
-        leaf->total_boards = root_total;
-        leaf->covered_boards = w_cnt;
-        for (int idx : w_indices) {
-          leaf->boards.push_back(traces[idx].board_id);
-        }
-        node->children.push_back(leaf);
-      } else {
-        auto child = BuildFailureTreeNode(
-            traces, w_indices, step_idx + 1, trump_suit, node_id, root_total);
-        if (child) {
-          child->condition = cond_str;
-          node->children.push_back(child);
-        }
-      }
-    }
-    return node;
-  }
-}
-
-}  // namespace
-
-std::shared_ptr<DecisionTreeNode> BuildFailureTreeFromConditionalLine(
-    const ConditionalLine &line, const std::vector<BoardState> &boards,
-    const std::vector<int> &failed_board_ids, Suit trump_suit, int &node_id,
-    int root_total, int num_threads) {
+FailureIndex IndexFailures(const ConditionalLine &line,
+                           const std::vector<BoardState> &boards,
+                           const std::vector<int> &failed_board_ids,
+                           int num_threads) {
+  FailureIndex index;
   if (failed_board_ids.empty()) {
-    return nullptr;
+    return index;
   }
   EnsureDDSInitialized();
   int effective_threads = std::max(1, num_threads);
@@ -571,12 +436,52 @@ std::shared_ptr<DecisionTreeNode> BuildFailureTreeFromConditionalLine(
     traces[i] = line.TraceOnBoard(boards[b_idx], b_idx);
   }
 
-  std::vector<int> all_indices(traces.size());
-  for (size_t i = 0; i < traces.size(); ++i) {
-    all_indices[i] = static_cast<int>(i);
+  auto add_to_group = [](FailureIndex::Group &group, int board_id,
+                         int ns_tricks) {
+    if (group.boards.empty()) {
+      group.min_ns_tricks = ns_tricks;
+      group.max_ns_tricks = ns_tricks;
+    } else {
+      group.min_ns_tricks = std::min(group.min_ns_tricks, ns_tricks);
+      group.max_ns_tricks = std::max(group.max_ns_tricks, ns_tricks);
+    }
+    group.boards.push_back(board_id);
+  };
+
+  for (const auto &trace : traces) {
+    if (trace.steps.empty()) {
+      index.unplaced.condition = "no line applies";
+      add_to_group(index.unplaced, trace.board_id, trace.final_ns_tricks);
+      continue;
+    }
+    std::string board_key = std::to_string(trace.board_id);
+    for (const auto &step : trace.steps) {
+      if (step.node) {
+        index.tricks[step.node][board_key] = step.trick_str;
+      }
+    }
+    const auto &last = trace.steps.back();
+    std::string key;
+    std::string condition;
+    if (last.unmatched_seat >= 0) {
+      // A defender produced a card the line had no pattern for.
+      key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
+            last.unmatched_card;
+      condition = "if " + SeatLetter(last.unmatched_seat) + " plays " +
+                  last.unmatched_card;
+    } else {
+      // The trick went as expected but the line has no continuation for
+      // this winner.
+      key = "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
+      WinnerPlayCondition cond(last.winner,
+                               std::set<std::string>{last.winning_card});
+      condition = FormatBranchCondition(&cond, false);
+    }
+    FailureIndex::Group &group = index.leaves[last.node][key];
+    group.condition = condition;
+    add_to_group(group, trace.board_id, trace.final_ns_tricks);
   }
-  return BuildFailureTreeNode(
-      traces, all_indices, 0, trump_suit, node_id, root_total);
+  return index;
 }
 
 std::vector<std::string> SplitTricks(const std::string &line_str) {
@@ -820,12 +725,32 @@ void SetDefaultCollapsedState(std::shared_ptr<DecisionTreeNode> &node, bool is_r
   }
 }
 
+// Makes failure_boards mean "boards that reach this node and go on to fail",
+// i.e. the failure leaves in its subtree, rather than "all boards the subtree
+// does not cover".
+int AccumulateFailureCounts(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return 0;
+  if (node->children.empty()) {
+    if (!node->failure) {
+      node->failure_boards = 0;
+    }
+    return node->failure_boards;
+  }
+  int sum = 0;
+  for (auto &child : node->children) {
+    sum += AccumulateFailureCounts(child);
+  }
+  node->failure_boards = sum;
+  return sum;
+}
+
 void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   j = nlohmann::json{
       {"id", node.id},
       {"type", node.type},
       {"label", node.label},
       {"collapsed", node.collapsed},
+      {"failure", node.failure},
       {"ns_tricks", node.ns_tricks},
       {"success_boards", node.success_boards},
       {"failure_boards", node.failure_boards},
@@ -1271,7 +1196,16 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       response["failure_sample_hands"] = failure_sample_hands_json;
 
       if (!lines.empty()) {
-        tree_node = BuildTreeFromConditionalLine(lines[0], node_counter);
+        FailureIndex failures = IndexFailures(lines[0], boards,
+                                              failed_board_ids, num_threads);
+        tree_node = BuildTreeFromConditionalLine(lines[0], node_counter, 1,
+                                                 total_boards, 0, &failures);
+        if (tree_node && !failures.unplaced.boards.empty()) {
+          tree_node->children.push_back(MakeFailureLeaf(
+              failures.unplaced, failures.unplaced.condition, node_counter,
+              total_boards));
+        }
+        AccumulateFailureCounts(tree_node);
         success_boards = lines[0].CoveredBoards();
         failure_boards = std::max(0, total_boards - success_boards);
         covered_boards = success_boards;
@@ -1287,17 +1221,6 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         }
         if (lines[0].has_failure_summary()) {
           response["failure_distribution_summary"] = lines[0].failure_summary();
-        }
-        if (!failed_board_ids.empty()) {
-          int fail_node_counter = 0;
-          auto failure_tree_node = BuildFailureTreeFromConditionalLine(
-              lines[0], boards, failed_board_ids, trump_suit,
-              fail_node_counter, total_boards, num_threads);
-          if (failure_tree_node) {
-            CollapseRedundantNodes(failure_tree_node);
-            SetDefaultCollapsedState(failure_tree_node);
-            response["failure_tree"] = *failure_tree_node;
-          }
         }
       } else {
         success_boards = 0;

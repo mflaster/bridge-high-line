@@ -1017,6 +1017,8 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     std::string my1_str;
     std::string my2_str;
     bool diverged_during_trick = false;
+    int unmatched_seat = -1;
+    std::string unmatched_card;
     std::vector<std::vector<std::string>> cur_opt_lines;
 
     for (int pos = 0; pos < 4; ++pos) {
@@ -1079,6 +1081,10 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
+          if (!diverged_during_trick) {
+            unmatched_seat = p;
+            unmatched_card = def_card_str;
+          }
           diverged_during_trick = true;
           candidates.resize(1);
         }
@@ -1118,6 +1124,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     step.winning_card = played_cards[win_idx];
     step.ns_tricks_so_far = copy.tricks_won_even();
     step.diverged_after = (next_line == nullptr);
+    step.node = candidates[0];
+    step.unmatched_seat = unmatched_seat;
+    step.unmatched_card = unmatched_card;
     trace.steps.push_back(std::move(step));
 
     cur_line = next_line;
