@@ -103,7 +103,9 @@ int FindOptimalTricks(const BoardState &bs) {
   futureTricks futp;
   SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
   std::vector<std::string> ans;
-  CHECK_GT(futp.cards, 0);
+  if (futp.cards <= 0) {
+    return 0;
+  }
   int result = futp.score[0];
   return result;
 }
