@@ -235,9 +235,13 @@ TEST_CASE("GroupTricksFinesse2") {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  REQUIRE(grouped_tricks.size() == 2);
+  // The third group plays SK rather than SJ over a low card on board 0: a
+  // different play that happens to be feasible on an already-grouped board,
+  // so it must not be dropped as redundant.
+  REQUIRE(grouped_tricks.size() == 3);
   REQUIRE(grouped_tricks[0].size() == 4);
   REQUIRE(grouped_tricks[1].size() == 5);
+  REQUIRE(grouped_tricks[2].size() == 4);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse_2.golden", "GroupTricksFinesse2: grouping complex finesse tricks");
 }
 

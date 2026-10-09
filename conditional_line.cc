@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include <tuple>
 
 std::string WinnerPlayCondition::Describe(bool only_choice) const {
   std::string ans = only_choice ? "when " : "if ";
@@ -665,7 +666,18 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     }
   }
 
-  std::set<std::vector<uint64_t>> boards_grouped;
+  // A trick is redundant only if a trick with the same declarer cards and
+  // the same board set has already been grouped, i.e. it is merely another
+  // opponent-pattern spelling of the same play. Two different plays that
+  // happen to be feasible on the same boards (say cashing an idle trump
+  // versus taking a finesse) can still lead to different final coverage and
+  // must each get their own group.
+  using GroupKey = std::tuple<std::vector<uint64_t>, std::string, std::string>;
+  auto key_of = [&](int idx) {
+    return GroupKey(masks[idx], input[idx].demi1.my_card,
+                    input[idx].demi2.my_card);
+  };
+  std::set<GroupKey> boards_grouped;
   std::vector<int> group_indices;
   std::vector<uint64_t> group_mask(num_words, 0);
 
@@ -702,7 +714,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     }
     bool any_new_groupings = false;
     for (int idx : group_indices) {
-      if (boards_grouped.count(masks[idx]) == 0) {
+      if (boards_grouped.count(key_of(idx)) == 0) {
         any_new_groupings = true;
         break;
       }
@@ -712,7 +724,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
       std::vector<GeneralizedTrick> group;
       group.reserve(group_indices.size());
       for (int idx : group_indices) {
-        boards_grouped.insert(masks[idx]);
+        boards_grouped.insert(key_of(idx));
         group.push_back(input[idx]);
       }
       ans.push_back(std::move(group));
