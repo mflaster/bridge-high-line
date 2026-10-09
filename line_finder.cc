@@ -273,6 +273,23 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << " get_line_from_trick_calls="
             << get_line_from_trick_calls.load();
 
+  // Tied lines can be the same line of play described with different
+  // branching (say, splitting on a defender's card rather than on who won the
+  // trick). Keep only the first of each set that prescribes identical declarer
+  // plays on every covered board.
+  {
+    std::vector<ConditionalLine> distinct;
+    std::vector<std::map<int, std::string>> seen;
+    for (ConditionalLine &line : ans) {
+      std::map<int, std::string> sig = line.DeclarerPlaySignature();
+      if (std::find(seen.begin(), seen.end(), sig) == seen.end()) {
+        seen.push_back(std::move(sig));
+        distinct.push_back(std::move(line));
+      }
+    }
+    ans = std::move(distinct);
+  }
+
   auto start_invariant = std::chrono::high_resolution_clock::now();
   CrossHandDealSetSummarizer summarizer;
   for (size_t line_idx = 0; line_idx < ans.size(); ++line_idx) {
@@ -493,7 +510,10 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
 
   std::multimap<int, ConditionalLine> best_lines;
   std::unordered_map<std::string, ConditionalLine> saved_work;
-  int ONLY_ONE_BEST_LINE = 1;
+  // Below the top level only one best line is needed, so groups that can at
+  // best tie the current coverage are skipped. At the top level ties are
+  // evaluated so that equivalent alternative lines are all returned.
+  bool skip_ties = (lvl > 0);
   int most_boards_covered = 0;
   for (uint i = 0; i < groupings.size(); i++) {
     const std::vector<GeneralizedTrick> &group = groupings[i];
@@ -502,7 +522,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     VLOG(2) << "lvl " << lvl << " most_possible_boards " << most_possible_boards
             << " vs " << most_boards_covered;
     if (most_possible_boards < most_boards_covered ||
-        (ONLY_ONE_BEST_LINE && most_possible_boards == most_boards_covered)) {
+        (skip_ties && most_possible_boards == most_boards_covered)) {
       VLOG(2)<< "Skipping, it can only cover " << most_possible_boards
              << " vs " << most_boards_covered;
       continue;
@@ -674,6 +694,50 @@ bool WonEnoughTricks(int mini_max, int min_tricks, int leader,
   }
 }
 
+namespace {
+// Opponent patterns that carry no information: "__" (any card) and "R_" (any
+// discard).
+bool IsUninformativeOppPattern(const std::string &p) {
+  return p == "__" || p == "R_";
+}
+
+// Returns declarer's "null move" leads at this node: cards whose lead, on
+// every board, neither opponent ever follows suit or ruffs (so every opponent
+// pattern is "__" or "R_") and which partner does not ruff. Cashing a trump
+// when the opponents are void is the typical case. Such a trick gains no
+// information about the layout and merely postpones the real decision.
+std::set<std::string> FindNullMoveLeads(
+    const std::vector<std::vector<GeneralizedTrick>> &groupings,
+    Suit trump_suit) {
+  std::set<std::string> uninformative;
+  std::set<std::string> informative;
+  for (const auto &group : groupings) {
+    for (const GeneralizedTrick &t : group) {
+      if (t.leader % 2 != 0) {
+        continue;
+      }
+      bool partner_ruffs =
+          trump_suit != NOTRUMP &&
+          Card::ParseSuit(t.demi1.my_card[0]) != trump_suit &&
+          Card::ParseSuit(t.demi2.my_card[0]) == trump_suit;
+      if (!partner_ruffs && IsUninformativeOppPattern(t.demi1.opp_card) &&
+          IsUninformativeOppPattern(t.demi2.opp_card)) {
+        uninformative.insert(t.demi1.my_card);
+      } else {
+        informative.insert(t.demi1.my_card);
+      }
+    }
+  }
+  std::set<std::string> ans;
+  for (const std::string &lead : uninformative) {
+    if (informative.count(lead) == 0) {
+      ans.insert(lead);
+    }
+  }
+  return ans;
+}
+}  // namespace
+
 void LineFinder::TryBranchOnGoodCards(
     int min_tricks,
     SolverCache &cache_in,
@@ -682,7 +746,7 @@ void LineFinder::TryBranchOnGoodCards(
     int cards_left, int leader, int lvl,
     std::vector<ConditionalLine> &ans) {
   int best_covered = ans.empty() ? 0 : ans[0].CoveredFinalBoards();
-  if (lvl <= 0 || cards_left > 5 || leader % 2 != 0 ||
+  if (lvl <= 0 || leader % 2 != 0 ||
       best_covered >= static_cast<int>(solvable_boards.size()) ||
       solvable_boards.size() < 2 ||
       get_line_from_trick_calls.load(std::memory_order_relaxed) >= 5000) {
@@ -746,7 +810,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
     std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
     const std::set<int> &board_offsets,
     int leader, int lvl) {
-  CHECK_LT(lvl, 15);
+  CHECK_LT(lvl, 30);
   if (lvl < 3) {
     VLOG(1) << "SolveHelper lvl " << lvl << " to win " << min_tricks
             << " on boards " << board_trees.size()
@@ -804,6 +868,21 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
   }
   std::vector<std::vector<GeneralizedTrick>> groupings =
       GroupTricks(gen_tricks);
+
+  // Null-move leads are double-dummy optimal on nearly every board, so they
+  // always carry the largest upper bound and would otherwise be searched
+  // first and win every coverage tie. Searching them last keeps them as
+  // candidates (a squeeze or entry play may genuinely need them) but lets an
+  // informative trick with equal coverage be preferred.
+  std::set<std::string> null_leads = FindNullMoveLeads(groupings, trump_suit);
+  if (!null_leads.empty()) {
+    std::stable_partition(
+        groupings.begin(), groupings.end(),
+        [&null_leads](const std::vector<GeneralizedTrick> &g) {
+          return g.empty() || g[0].leader % 2 != 0 ||
+                 null_leads.count(g[0].demi1.my_card) == 0;
+        });
+  }
 
   VLOG(2) << "See groupings " << groupings.size();
 

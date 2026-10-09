@@ -229,7 +229,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
     }
   }
 
-  // Test 5b: 9-Card Hearts Deal solve (default 4 threads and explicit thread counts)
+  // Test 5b: 9-Card Hearts Deal solve (default 16 threads and explicit thread counts)
   nlohmann::json hearts9_req;
   hearts9_req["hands"]["N"] = "S 532; H T7; D T32; C 6;";
   hearts9_req["hands"]["E"] = "";
@@ -246,7 +246,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_hearts9->status == 200);
   nlohmann::json hearts9_json = nlohmann::json::parse(res_hearts9->body);
   REQUIRE(hearts9_json["success"] == true);
-  REQUIRE(hearts9_json["num_threads"] == 4);
+  REQUIRE(hearts9_json["num_threads"] == 16);
 
   for (int threads : {1, 2, 4, 8, 16}) {
     hearts9_req["num_threads"] = threads;
@@ -321,20 +321,32 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(preset_json.contains("tree"));
 
   auto &ptree = preset_json["tree"];
-  std::string p_root_label = ptree["label"].get<std::string>();
-  auto &p_trick1 = (p_root_label.find("#1:") != std::string::npos) ? ptree : ptree["children"][0];
+  // Trick nodes may be wrapped in a "variants" condition node when several
+  // generalized tricks share a branch; descend through those to the next
+  // labelled trick.
+  auto find_trick = [](nlohmann::json &start, const std::string &tag)
+      -> nlohmann::json & {
+    nlohmann::json *cur = &start;
+    while (cur->contains("label") &&
+           (*cur)["label"].get<std::string>().find(tag) == std::string::npos &&
+           cur->contains("children") && !(*cur)["children"].empty()) {
+      cur = &((*cur)["children"][0]);
+    }
+    return *cur;
+  };
+  auto &p_trick1 = find_trick(ptree, "#1:");
 
   // Depth 1: Trick 1
   REQUIRE(p_trick1["label"].get<std::string>().find("#1:") != std::string::npos);
   REQUIRE(p_trick1["children"].size() >= 1);
 
   // Depth 2: Trick 2
-  auto &p_trick2 = p_trick1["children"][0];
+  auto &p_trick2 = find_trick(p_trick1["children"][0], "#2:");
   REQUIRE(p_trick2["label"].get<std::string>().find("#2:") != std::string::npos);
   REQUIRE(p_trick2["children"].size() >= 1);
 
   // Depth 3: Trick 3
-  auto &p_trick3 = p_trick2["children"][0];
+  auto &p_trick3 = find_trick(p_trick2["children"][0], "#3:");
   REQUIRE(p_trick3["label"].get<std::string>().find("#3:") != std::string::npos);
   if (p_trick3["children"].size() > 1) {
     bool found_branch_cond = false;

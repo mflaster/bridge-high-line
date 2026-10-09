@@ -40,7 +40,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
 std::shared_ptr<DecisionTreeNode> BuildFailureTreeFromConditionalLine(
     const ConditionalLine &line, const std::vector<BoardState> &boards,
     const std::vector<int> &failed_board_ids, Suit trump_suit, int &node_id,
-    int root_total, int num_threads = 4);
+    int root_total, int num_threads = 16);
 void to_json(nlohmann::json &j, const DecisionTreeNode &node);
 
 class WebServer {
