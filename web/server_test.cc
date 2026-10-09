@@ -50,6 +50,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   nlohmann::json presets_file_json = nlohmann::json::parse(res_presets_file->body);
   REQUIRE(presets_file_json.contains("finesse"));
   REQUIRE(presets_file_json.contains("nine_card_hearts"));
+  REQUIRE(presets_file_json.contains("safety_play"));
 
   auto res_presets_api = client.Get("/api/presets");
   REQUIRE(res_presets_api);
@@ -57,6 +58,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   nlohmann::json presets_api_json = nlohmann::json::parse(res_presets_api->body);
   REQUIRE(presets_api_json.contains("endplay"));
   REQUIRE(presets_api_json.contains("nine_card_hearts"));
+  REQUIRE(presets_api_json.contains("safety_play"));
 
   // Test Health Endpoint
   auto res_health = client.Get("/api/health");
