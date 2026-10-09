@@ -1015,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const startTime = performance.now();
 
     const numThreadsSelect = document.getElementById('numThreads');
-    const parsedThreads = numThreadsSelect ? parseInt(numThreadsSelect.value, 10) : 4;
+    const parsedThreads = numThreadsSelect ? parseInt(numThreadsSelect.value, 10) : 16;
 
     const payload = {
       hands: {
@@ -1028,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
       leader: leaderSelect.value,
       min_tricks: isNaN(parseInt(targetTricks.value, 10)) ? 1 : parseInt(targetTricks.value, 10),
       num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10),
-      num_threads: isNaN(parsedThreads) ? 4 : parsedThreads
+      num_threads: isNaN(parsedThreads) ? 16 : parsedThreads
     };
 
     if (inputUnknownCards && inputUnknownCards.value.trim()) {

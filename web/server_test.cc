@@ -229,7 +229,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
     }
   }
 
-  // Test 5b: 9-Card Hearts Deal solve (default 4 threads and explicit thread counts)
+  // Test 5b: 9-Card Hearts Deal solve (default 16 threads and explicit thread counts)
   nlohmann::json hearts9_req;
   hearts9_req["hands"]["N"] = "S 532; H T7; D T32; C 6;";
   hearts9_req["hands"]["E"] = "";
@@ -246,7 +246,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(res_hearts9->status == 200);
   nlohmann::json hearts9_json = nlohmann::json::parse(res_hearts9->body);
   REQUIRE(hearts9_json["success"] == true);
-  REQUIRE(hearts9_json["num_threads"] == 4);
+  REQUIRE(hearts9_json["num_threads"] == 16);
 
   for (int threads : {1, 2, 4, 8, 16}) {
     hearts9_req["num_threads"] = threads;

@@ -1133,7 +1133,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       num_iters = req_json["num_iters"].get<int>();
     }
 
-    int num_threads = 4;
+    int num_threads = 16;
     if (req_json.contains("num_threads") &&
         req_json["num_threads"].is_number()) {
       num_threads = std::max(1, req_json["num_threads"].get<int>());
