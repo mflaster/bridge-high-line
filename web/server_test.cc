@@ -127,30 +127,26 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   // Check decision tree hierarchy down to 4 tricks
   auto &tree = endplay_json["tree"];
   std::string ep_root_label = tree["label"].get<std::string>();
-  auto &trick1_node = (ep_root_label.find("Trick 1:") != std::string::npos) ? tree : tree["children"][0];
+  auto &trick1_node = (ep_root_label.find("#1:") != std::string::npos) ? tree : tree["children"][0];
 
   // Trick 1 (collapsed by default)
-  REQUIRE(trick1_node["label"].get<std::string>().find("Trick 1:") != std::string::npos);
-  REQUIRE(trick1_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick1_node["label"].get<std::string>().find("#1:") != std::string::npos);
   REQUIRE(trick1_node["collapsed"] == true);
   REQUIRE(trick1_node["children"].size() >= 1);
 
   // Trick 2
   auto &trick2_node = trick1_node["children"][0];
-  REQUIRE(trick2_node["label"].get<std::string>().find("Trick 2:") != std::string::npos);
-  REQUIRE(trick2_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick2_node["label"].get<std::string>().find("#2:") != std::string::npos);
   REQUIRE(trick2_node["children"].size() >= 1);
 
   // Trick 3
   auto &trick3_node = trick2_node["children"][0];
-  REQUIRE(trick3_node["label"].get<std::string>().find("Trick 3:") != std::string::npos);
-  REQUIRE(trick3_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick3_node["label"].get<std::string>().find("#3:") != std::string::npos);
   REQUIRE(trick3_node["children"].size() >= 1);
 
   // Trick 4
   auto &trick4_node = trick3_node["children"][0];
-  REQUIRE(trick4_node["label"].get<std::string>().find("Trick 4:") != std::string::npos);
-  REQUIRE(trick4_node["label"].get<std::string>().find("wins") != std::string::npos);
+  REQUIRE(trick4_node["label"].get<std::string>().find("#4:") != std::string::npos);
   REQUIRE(trick4_node["type"] == "outcome");
 
   // Test 3: Invalid JSON payload handling
@@ -326,20 +322,20 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
 
   auto &ptree = preset_json["tree"];
   std::string p_root_label = ptree["label"].get<std::string>();
-  auto &p_trick1 = (p_root_label.find("Trick 1:") != std::string::npos) ? ptree : ptree["children"][0];
+  auto &p_trick1 = (p_root_label.find("#1:") != std::string::npos) ? ptree : ptree["children"][0];
 
   // Depth 1: Trick 1
-  REQUIRE(p_trick1["label"].get<std::string>().find("Trick 1:") != std::string::npos);
+  REQUIRE(p_trick1["label"].get<std::string>().find("#1:") != std::string::npos);
   REQUIRE(p_trick1["children"].size() >= 1);
 
   // Depth 2: Trick 2
   auto &p_trick2 = p_trick1["children"][0];
-  REQUIRE(p_trick2["label"].get<std::string>().find("Trick 2:") != std::string::npos);
+  REQUIRE(p_trick2["label"].get<std::string>().find("#2:") != std::string::npos);
   REQUIRE(p_trick2["children"].size() >= 1);
 
   // Depth 3: Trick 3
   auto &p_trick3 = p_trick2["children"][0];
-  REQUIRE(p_trick3["label"].get<std::string>().find("Trick 3:") != std::string::npos);
+  REQUIRE(p_trick3["label"].get<std::string>().find("#3:") != std::string::npos);
   if (p_trick3["children"].size() > 1) {
     bool found_branch_cond = false;
     for (const auto &c : p_trick3["children"]) {
@@ -364,7 +360,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE((*curr)["type"] == "outcome");
   REQUIRE((*curr)["success_boards"] > 0);
   REQUIRE((*curr).contains("ns_tricks"));
-  REQUIRE((*curr)["label"].get<std::string>().find("tricks won by N/S") != std::string::npos);
+  REQUIRE((*curr)["label"].get<std::string>().find("#") != std::string::npos);
 
   server.Stop();
 }

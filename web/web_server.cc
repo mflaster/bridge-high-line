@@ -121,7 +121,7 @@ std::string GetFirstCardFromNode(const std::shared_ptr<DecisionTreeNode> &node) 
     std::string card = ExtractFirstCard(node->trick_full);
     if (!card.empty()) return card;
   }
-  if (node->label.rfind("Trick ", 0) == 0) {
+  if (node->label.rfind("Trick ", 0) == 0 || node->label.rfind("#", 0) == 0) {
     std::string card = ExtractFirstCard(node->label);
     if (!card.empty()) return card;
   }
@@ -242,10 +242,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       node->board_to_trick[std::to_string(b)] = t;
     }
 
-    std::string label_str = "Trick " + std::to_string(trick_num) + ": " + cards_played;
-    if (!winner_str.empty()) {
-      label_str += " (" + winner_str + ")";
-    }
+    std::string label_str = "#" + std::to_string(trick_num) + ": " + cards_played;
 
     if (is_final_trick) {
       node->type = "outcome";
@@ -264,7 +261,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         node->covered_boards = success_cnt;
       }
       node->total_boards = total;
-      node->label = label_str + " (" + std::to_string(current_ns) + " tricks won by N/S)";
+      node->label = label_str;
       return node;
     } else {
       node->type = "action";
@@ -293,7 +290,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     for (const auto &[b, t] : gt.demi2.board_to_trick) {
       node->board_to_trick[std::to_string(b)] = t;
     }
-    node->label = "Trick " + std::to_string(trick_num) + ": " + cards_played;
+    node->label = "#" + std::to_string(trick_num) + ": " + cards_played;
     node->success_boards = success_cnt;
     node->failure_boards = failure_cnt;
     node->total_boards = total;
@@ -492,16 +489,13 @@ std::shared_ptr<DecisionTreeNode> BuildFailureSingleGroupNode(
   };
 
   if (winner_groups.size() == 1) {
-    int w = winner_groups.begin()->first;
-    std::string winner_str = PlayerDirectionName(w) + " wins";
-    std::string label_str = "Trick " + std::to_string(step_idx + 1) + ": " +
-                            cards_played + " (" + winner_str + ")";
+    std::string label_str = "#" + std::to_string(step_idx + 1) + ": " + cards_played;
     if (check_all_diverged(grp_indices)) {
       node->type = "outcome";
       int out_ns = 0;
       std::string ns_str = format_ns_tricks_range(grp_indices, out_ns);
       node->ns_tricks = out_ns;
-      node->label = label_str + " (" + ns_str + " tricks won by N/S)";
+      node->label = label_str;
       return node;
     } else {
       node->type = "action";
@@ -520,7 +514,7 @@ std::shared_ptr<DecisionTreeNode> BuildFailureSingleGroupNode(
         (step_idx > 0)
             ? traces[grp_indices[0]].steps[step_idx - 1].ns_tricks_so_far
             : 0;
-    node->label = "Trick " + std::to_string(step_idx + 1) + ": " + cards_played;
+    node->label = "#" + std::to_string(step_idx + 1) + ": " + cards_played;
 
     for (const auto &[w, w_indices] : winner_groups) {
       WinnerPlayCondition w_cond(w, winner_cards[w]);
@@ -675,7 +669,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
       node->total_boards = 1;
       node->covered_boards = 1;
 
-      std::string label_str = "Trick " + std::to_string(i + 1) + ": " + tricks[i] + " (" + winner_name + " wins)";
+      std::string label_str = "#" + std::to_string(i + 1) + ": " + tricks[i];
 
       if (i == tricks.size() - 1) {
         node->type = "outcome";
@@ -785,11 +779,14 @@ void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
   while (node->children.size() == 1) {
     auto child = node->children[0];
 
+    auto is_trick = [](const std::string &l) {
+      return l.rfind("Trick ", 0) == 0 || l.rfind("#", 0) == 0;
+    };
     // Don't merge two distinct Trick steps into each other
-    if (node->label.rfind("Trick ", 0) == 0 && child->label.rfind("Trick ", 0) == 0) {
+    if (is_trick(node->label) && is_trick(child->label)) {
       break;
     }
-    if (node->label.rfind("Trick ", 0) == 0) {
+    if (is_trick(node->label)) {
       break;
     }
 
