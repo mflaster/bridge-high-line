@@ -1553,6 +1553,224 @@ body.is-resizing * {
 )rawcss";
 
 inline const char* APP_JS = R"rawjs(
+/**
+ * @fileoverview Single-Page Application (SPA) decision tree explorer and deal solver interface.
+ * Controls client state machine transitions, interactive SVG decision tree rendering,
+ * deal vector visualization, and line inspection.
+ */
+
+/**
+ * @enum {string}
+ * @readonly
+ */
+const SolveStatus = Object.freeze({
+  IDLE: 'idle',
+  RUNNING: 'running',
+  SUCCESS: 'success',
+  ERROR: 'error'
+});
+
+/**
+ * @enum {string}
+ * @readonly
+ */
+const ViewMode = Object.freeze({
+  SUCCESS: 'success',
+  FAILURE: 'failure'
+});
+
+/**
+ * @enum {string}
+ * @readonly
+ */
+const CardState = Object.freeze({
+  NORMAL: 'normal',
+  PLAYED: 'played',
+  CURRENT: 'current'
+});
+
+/**
+ * @enum {string}
+ * @readonly
+ */
+const AppState = Object.freeze({
+  SETUP: 'setup',
+  SOLVING: 'solving',
+  EXPLORING: 'exploring',
+  INSPECTING: 'inspecting'
+});
+
+/**
+ * @enum {string}
+ * @readonly
+ */
+const SeatDirection = Object.freeze({
+  NORTH: 'N',
+  EAST: 'E',
+  SOUTH: 'S',
+  WEST: 'W',
+  UNKNOWN: 'U'
+});
+
+/**
+ * @enum {string}
+ * @readonly
+ */
+const TrumpSuit = Object.freeze({
+  SPADES: 'SPADES',
+  HEARTS: 'HEARTS',
+  DIAMONDS: 'DIAMONDS',
+  CLUBS: 'CLUBS',
+  NOTRUMP: 'NOTRUMP'
+});
+
+/**
+ * @typedef {Object} HandRequirementsSpec
+ * @property {number} [hcp_low] - Minimum expected High Card Points
+ * @property {number} [hcp_high] - Maximum expected High Card Points
+ * @property {number} [spades_min] - Minimum Spade suit length
+ * @property {number} [hearts_min] - Minimum Heart suit length
+ * @property {number} [diamonds_min] - Minimum Diamond suit length
+ * @property {number} [clubs_min] - Minimum Club suit length
+ */
+
+/**
+ * @typedef {Object} SolvePayload
+ * @property {Object<string, string>} hands - Map of seat compass direction ('N','E','S','W') to card strings
+ * @property {string} trump - Trump suit string ('SPADES','HEARTS','DIAMONDS','CLUBS','NOTRUMP')
+ * @property {string} leader - Opening leader direction ('NORTH','EAST','SOUTH','WEST')
+ * @property {number} min_tricks - Target minimum tricks count
+ * @property {number} num_iters - Monte Carlo iteration count
+ * @property {number} [num_threads] - OpenMP thread count
+ * @property {string} [unknown_cards] - Unknown cards pool string
+ * @property {Object<string, HandRequirementsSpec>} [requirements] - Hand requirement constraints per defender
+ */
+
+/**
+ * @typedef {Object} TreeNode
+ * @property {string} id - Unique node identifier
+ * @property {string} [type] - Node classification ('action', 'condition', 'outcome')
+ * @property {string} [label] - Human-readable display label
+ * @property {string} [trick] - Trick card string representation
+ * @property {string} [trick_full] - Full trick detail string
+ * @property {string} [condition] - Branch condition description
+ * @property {boolean} [collapsed] - Flag indicating if children are collapsed
+ * @property {number} [covered_boards] - Count of boards covered by this node
+ * @property {number} [success_boards] - Count of successful boards
+ * @property {number} [total_boards] - Total boards evaluated
+ * @property {number} [ns_tricks] - Declarer N/S tricks won in outcome
+ * @property {Array<string|number>} [boards] - Sample board ID list
+ * @property {Object<string, string>} [board_to_trick] - Map of board ID to concrete trick play
+ * @property {Array<TreeNode>} [children] - Array of child tree nodes
+ * @property {TreeNode|null} [_parent] - Private reference pointer to parent node
+ * @property {boolean} [_collapsed] - Private runtime collapsed state flag
+ * @property {number} [_x] - Computed SVG X layout coordinate
+ * @property {number} [_y] - Computed SVG Y layout coordinate
+ * @property {number} [_depth] - Tree hierarchy depth level
+ * @property {number} [_width] - Node layout width
+ * @property {SVGRectElement} [_svgRect] - SVG DOM element reference
+ */
+
+/**
+ * @typedef {Object} SuitBound
+ * @property {number} min_hand1 - Minimum length in defender Hand 1 (East)
+ * @property {number} max_hand1 - Maximum length in defender Hand 1 (East)
+ * @property {number} min_hand2 - Minimum length in defender Hand 2 (West)
+ * @property {number} max_hand2 - Maximum length in defender Hand 2 (West)
+ * @property {number} min_combined - Combined minimum suit length across defenders
+ * @property {number} max_combined - Combined maximum suit length across defenders
+ */
+
+/**
+ * @typedef {Object} HonorStat
+ * @property {number} hand1_count - Count of deals with honor in Hand 1 (East)
+ * @property {number} hand2_count - Count of deals with honor in Hand 2 (West)
+ * @property {number} both_count - Count of deals with honor in both defender hands
+ * @property {number} neither_count - Count of deals with honor in neither defender hand
+ */
+
+/**
+ * @typedef {Object} DistributionSummary
+ * @property {number} total_deals - Total boards analyzed in summarization
+ * @property {Array<string>} invariant_rules - Extracted invariant rule string descriptions
+ * @property {Object<string, SuitBound>} suit_bounds - Map of suit ('S','H','D','C') to length bounds
+ * @property {Object<string, Object<string, HonorStat>>} honor_stats - Map of suit to rank honor stats
+ */
+
+/**
+ * @typedef {Object} SolveResponse
+ * @property {boolean} success - Operation success status flag
+ * @property {string} [error] - Error message on failure
+ * @property {number} [tricks_won] - Maximum tricks won for declarer
+ * @property {string} [best_lead] - Best opening lead card
+ * @property {string} [sequence] - Winning play sequence
+ * @property {number} [covered_boards] - Count of boards covered
+ * @property {number} [success_boards] - Count of successful boards
+ * @property {number} [failure_boards] - Count of failure boards
+ * @property {number} [total_boards] - Total boards evaluated
+ * @property {number} [elapsed_ms] - Total execution time in milliseconds
+ * @property {number} [solve_ms] - Engine solve time in milliseconds
+ * @property {number} [invariant_ms] - Invariant summarization time in milliseconds
+ * @property {string} [leader] - Opening lead direction
+ * @property {TreeNode} [tree] - Root decision tree structure
+ * @property {DistributionSummary} [distribution_summary] - Success deal set summary
+ * @property {DistributionSummary} [failure_distribution_summary] - Failure deal set summary
+ */
+
+/**
+ * @typedef {Object} SolveStatusResponse
+ * @property {string} status - Current solver progress description string
+ * @property {boolean} [active] - Solve active flag
+ */
+
+/**
+ * @typedef {Object} DealPreset
+ * @property {string} name - Display name of the preset
+ * @property {string} trump - Trump suit string ('SPADES','HEARTS','DIAMONDS','CLUBS','NOTRUMP')
+ * @property {string} leader - Opening leader direction
+ * @property {number} target - Target minimum tricks
+ * @property {number} iters - Default Monte Carlo iterations
+ * @property {string} [north] - North hand card string
+ * @property {string} [east] - East hand card string
+ * @property {string} [south] - South hand card string
+ * @property {string} [west] - West hand card string
+ * @property {string} [unknown_cards] - Unknown cards pool string
+ */
+
+/**
+ * @typedef {Object} CardToken
+ * @property {string} raw - Original unparsed card token string
+ * @property {string|null} suit - Parsed suit code ('S','H','D','C') or null for unsuited
+ * @property {string} rankStr - Rank string ('A','K','Q','J','T','9'..'2','_','x')
+ * @property {number} rankVal - Numerical rank evaluation order value (2..14)
+ * @property {string} suitSym - Display suit symbol ('♠','♥','♦','♣','')
+ * @property {string} suitClass - CSS suit color class name
+ * @property {string} displayStr - Formatted display string
+ * @property {number} [seatIdx] - Player seat index (0=N, 1=E, 2=S, 3=W)
+ * @property {string} [seatName] - Compass seat direction string ('N','E','S','W')
+ * @property {boolean} [isLead] - Lead card in trick flag
+ * @property {string} [movedToken] - Wildcard token resolved from unknown cards
+ */
+
+/**
+ * @typedef {Object} TrickRow
+ * @property {number} trickNum - Trick index number (1-based)
+ * @property {string} leadSeatBadge - Formatted leader badge string, e.g. "(N)"
+ * @property {string} leadSeatName - Compass direction string of leader
+ * @property {Array<CardToken>} cards - Array of 4 card tokens played in trick
+ * @property {number} winningCardIdx - Index (0..3) of winning card in cards array
+ * @property {string} winnerSeat - Compass direction string of trick winner
+ * @property {TreeNode|null} node - Decision tree node associated with trick
+ */
+
+/**
+ * @typedef {Object} HandSuits
+ * @property {string} S - Spades cards string
+ * @property {string} H - Hearts cards string
+ * @property {string} D - Diamonds cards string
+ * @property {string} C - Clubs cards string
+ */
+
 document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements
   const trumpSelect = document.getElementById('trumpSelect');
@@ -1742,20 +1960,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Zoom & Pan State
+  /** @type {number} Zoom level scale factor applied to tree root group */
   let zoomLevel = 1.0;
+  /** @type {number} X viewport translation offset in pixels */
   let panX = 0;
+  /** @type {number} Y viewport translation offset in pixels */
   let panY = 0;
+  /** @type {boolean} Flag indicating whether mouse drag pan is active */
   let isDragging = false;
+  /** @type {number} Drag operation reference start X screen coordinate */
   let startX = 0;
+  /** @type {number} Drag operation reference start Y screen coordinate */
   let startY = 0;
+  /** @type {TreeNode|null} Active root decision tree structure */
   let currentTreeData = null;
+  /** @type {SolveResponse|null} Active full solve API response payload */
   let currentSolveData = null;
+  /** @type {TreeNode|null} Currently selected/centered decision tree node */
   let currentCenteredNode = null;
-  let activeViewMode = 'success'; // 'success' or 'failure'
+  /** @type {ViewMode} Active view mode filter ('success' or 'failure') */
+  let activeViewMode = ViewMode.SUCCESS;
 
+  /**
+   * Updates distribution summary view mode filter and re-renders summary panel.
+   * @param {string|ViewMode} mode - View mode filter ('success' or 'failure')
+   */
   function updateViewMode(mode) {
     activeViewMode = mode;
-    if (mode === 'success') {
+    if (mode === ViewMode.SUCCESS || mode === 'success') {
       if (cardStatSuccess) cardStatSuccess.classList.add('active');
       if (cardStatFailure) cardStatFailure.classList.remove('active');
       if (summaryModeBadge) {
@@ -1824,10 +2056,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Default Presets Definition
+  /** @type {Object<string, DealPreset>} Dictionary of pre-configured deal presets */
   let PRESETS = {
     finesse: {
       name: "Simple Finesse (Spades)",
-      trump: 'SPADES',
+      trump: TrumpSuit.SPADES,
       leader: 'SOUTH',
       target: 2,
       iters: 10,
@@ -1839,7 +2072,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     endplay: {
       name: "4-Card Endplay Deal",
-      trump: 'HEARTS',
+      trump: TrumpSuit.HEARTS,
       leader: 'SOUTH',
       target: 3,
       iters: 30,
@@ -1851,7 +2084,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     squeeze: {
       name: "Squeeze Deal (NT)",
-      trump: 'NOTRUMP',
+      trump: TrumpSuit.NOTRUMP,
       leader: 'NORTH',
       target: 6,
       iters: 15,
@@ -1863,7 +2096,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     nine_card_hearts: {
       name: "9-Card Hearts Deal",
-      trump: 'HEARTS',
+      trump: TrumpSuit.HEARTS,
       leader: 'NORTH',
       target: 6,
       iters: 20,
@@ -1875,6 +2108,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  /**
+   * Asynchronously fetches deal presets from /api/presets endpoint.
+   * @returns {Promise<void>}
+   */
   async function fetchPresets() {
     try {
       const res = await fetch('/api/presets');
@@ -1890,6 +2127,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /**
+   * Populates preset dropdown selection element from PRESETS map.
+   */
   function populatePresetSelect() {
     if (!presetSelect) return;
     const currentVal = presetSelect.value;
@@ -1911,17 +2151,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Suit Symbols & Formatting
+  /**
+   * Returns suit display symbol for suit string name.
+   * @param {string} suitStr - Suit name string ('SPADES','HEARTS','DIAMONDS','CLUBS')
+   * @returns {string} Suit symbol ('♠','♥','♦','♣','NT')
+   */
   function getSuitSymbol(suitStr) {
     switch (suitStr) {
+      case TrumpSuit.SPADES:
       case 'SPADES': return '♠';
+      case TrumpSuit.HEARTS:
       case 'HEARTS': return '♥';
+      case TrumpSuit.DIAMONDS:
       case 'DIAMONDS': return '♦';
+      case TrumpSuit.CLUBS:
       case 'CLUBS': return '♣';
       default: return 'NT';
     }
   }
 
   // Parse Hand String to Suit Cards
+  /**
+   * Parses card notation string into suit rank holdings.
+   * @param {string} str - Card notation string
+   * @returns {HandSuits} Parsed hand holdings object per suit
+   */
   function parseHandToSuits(str) {
     const suits = { S: '', H: '', D: '', C: '' };
     if (!str) return suits;
@@ -1951,6 +2205,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return suits;
   }
 
+  /**
+   * Counts total card count in hand string.
+   * @param {string} str - Card notation string
+   * @returns {number} Total card count
+   */
   function countHandCards(str) {
     if (!str) return 0;
     const suits = parseHandToSuits(str);
@@ -1964,6 +2223,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return cnt;
   }
 
+  /**
+   * Counts total cards in unknown cards string.
+   * @param {string} str - Unknown cards string
+   * @returns {number} Card count
+   */
   function countUnknownCardsString(str) {
     if (!str) return 0;
     let cnt = 0;
@@ -1983,6 +2247,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return cnt;
   }
 
+  /**
+   * Updates deal ending badge header text.
+   */
   function updateDealBadge() {
     const dealEndingBadge = document.getElementById('dealEndingBadge');
     if (!dealEndingBadge) return;
@@ -2009,8 +2276,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /** @type {Object<string, {played: Array<CardToken>, current: Array<CardToken>}>|null} Map of seat card play states for SVG deal highlighting */
   let activeTrickCardStates = null; // { N, E, S, W, U } -> { played: [...], current: [...] }
 
+  /**
+   * Tokenizes suit rank string into rank tokens.
+   * @param {string} cardsStr - Suit cards string
+   * @returns {Array<string>} Array of rank tokens
+   */
   function tokenizeSuitRanks(cardsStr) {
     if (!cardsStr || cardsStr === '-') return [];
     const tokens = [];
@@ -2293,12 +2566,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  /**
+   * Resets decision tree display, inspector, timing, and distribution panels.
+   */
   function clearPanels() {
     currentTreeData = null;
     currentSolveData = null;
     currentCenteredNode = null;
     activeTrickCardStates = null;
-    activeViewMode = 'success';
+    activeViewMode = ViewMode.SUCCESS;
     updateDealSvg();
 
     if (execTime) execTime.textContent = '';
@@ -2345,12 +2621,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /**
+   * Loads preset deal configuration into input controls.
+   * @param {string} key - Preset dictionary key
+   */
   function loadPreset(key) {
     const p = PRESETS[key];
     if (!p) return;
 
     clearPanels();
-    setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
+    setStatus(SolveStatus.IDLE, 'Ready to solve. Configure hands and click "Solve Deal".');
 
     trumpSelect.value = p.trump;
     leaderSelect.value = p.leader;
@@ -2398,10 +2678,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /**
+   * Parses text deal file content and populates UI inputs.
+   * @param {string} text - Deal text file content
+   */
   function parseAndApplyDealText(text) {
     if (!text) return;
     clearPanels();
-    setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
+    setStatus(SolveStatus.IDLE, 'Ready to solve. Configure hands and click "Solve Deal".');
     const lines = text.split('\n');
     let hasKeys = false;
     const keyValues = {};
@@ -2477,7 +2761,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Solve Deal Event
   solveBtn.addEventListener('click', async () => {
     clearPanels();
-    setStatus('running', 'Solving deal and analyzing optimal decision tree...');
+    setStatus(SolveStatus.RUNNING, 'Solving deal and analyzing optimal decision tree...');
     solveBtn.disabled = true;
     const startTime = performance.now();
 
@@ -2524,7 +2808,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isSolving) return;
         if (stData && stData.status) {
           const curSec = ((performance.now() - startTime) / 1000).toFixed(1);
-          setStatus('running', stData.status, `${curSec} s`);
+          setStatus(SolveStatus.RUNNING, stData.status, `${curSec} s`);
         }
       } catch (_) {
         // Ignore transient polling errors while solving
@@ -2544,7 +2828,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const elapsed = (performance.now() - startTime).toFixed(1);
 
       if (!response.ok || !data.success) {
-        setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
+        setStatus(SolveStatus.ERROR, 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
         solveBtn.disabled = false;
         return;
       }
@@ -2554,7 +2838,7 @@ document.addEventListener('DOMContentLoaded', () => {
         timeStr = `solve: ${data.solve_ms.toFixed(1)} ms, invariant: ${data.invariant_ms.toFixed(1)} ms`;
       }
 
-      setStatus('success', 'Solve complete!', timeStr);
+      setStatus(SolveStatus.SUCCESS, 'Solve complete!', timeStr);
       execTime.textContent = timeStr;
 
       currentSolveData = data;
@@ -2588,7 +2872,7 @@ document.addEventListener('DOMContentLoaded', () => {
       isSolving = false;
       clearInterval(statusPollTimer);
       console.error(err);
-      setStatus('error', 'Network or server error: ' + err.message);
+      setStatus(SolveStatus.ERROR, 'Network or server error: ' + err.message);
     } finally {
       isSolving = false;
       clearInterval(statusPollTimer);
@@ -2596,6 +2880,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  /**
+   * Sets UI status box state and message.
+   * @param {string|SolveStatus} type - Status status type ('idle', 'running', 'success', 'error')
+   * @param {string} msg - Status description message
+   * @param {string} [timeStr] - Optional timing string
+   */
   function setStatus(type, msg, timeStr = '') {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
@@ -2606,6 +2896,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const expandAllBtn = document.getElementById('expandAllBtn');
   const collapseAllBtn = document.getElementById('collapseAllBtn');
 
+  /**
+   * Recursively sets collapsed state on tree node and children.
+   * @param {TreeNode} node - Target tree node
+   * @param {boolean} isCollapsed - Collapsed flag
+   */
   function setAllCollapsed(node, isCollapsed) {
     if (isCollapsed) {
       const isContainerRoot = (node._depth === 0 && (!node.trick || node.trick === '') && node.children && node.children.length > 1);
@@ -2636,6 +2931,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /**
+   * Recursively collapses subtree rooted at node.
+   * @param {TreeNode|null} n - Target node
+   */
   function collapseSubtree(n) {
     if (!n) return;
     n._collapsed = true;
@@ -2644,6 +2943,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /**
+   * Recursively attaches parent pointers (_parent) to tree nodes.
+   * @param {TreeNode|null} node - Current node
+   * @param {TreeNode|null} [parent] - Parent node
+   */
   function attachParentPointers(node, parent = null) {
     if (!node) return;
     node._parent = parent;
@@ -2652,6 +2956,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  /**
+   * Expands node path, collapses siblings, centers node, and updates inspector.
+   * @param {TreeNode} targetNode - Focused tree node
+   * @param {TreeNode} rootNode - Root tree node
+   * @param {MouseEvent|null} [clickEvent] - Optional mouse click event for pointer position
+   */
   function expandAndInspectNode(targetNode, rootNode, clickEvent = null) {
     if (!rootNode || !targetNode) return;
     attachParentPointers(rootNode);
@@ -2702,6 +3012,11 @@ document.addEventListener('DOMContentLoaded', () => {
     showNodeInspector(leaf, targetNode);
   }
 
+  /**
+   * Centers target decision tree node in viewport SVG canvas.
+   * @param {TreeNode|null} node - Node to center
+   * @param {MouseEvent|null} [clickEvent] - Optional mouse click event
+   */
   function centerNodeInTree(node, clickEvent = null) {
     if (!node) return;
     currentCenteredNode = node;
@@ -2759,6 +3074,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTransform();
   }
 
+  /**
+   * Traverses parent pointers to find root tree node.
+   * @param {TreeNode|null} node - Node reference
+   * @returns {TreeNode|null} Root node
+   */
   function getRoot(node) {
     let curr = node;
     while (curr && curr._parent) {
@@ -2767,6 +3087,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return curr;
   }
 
+  /**
+   * Updates CSS centered-node highlight class on SVG card elements.
+   */
   function updateCenteredNodeHighlight() {
     const allCards = treeRootGroup ? treeRootGroup.querySelectorAll('.node-card') : [];
     allCards.forEach(c => c.classList.remove('centered-node'));
@@ -2776,6 +3099,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Decision Tree SVG Rendering
+  /**
+   * Renders tree links, edge badges, and node cards onto SVG group canvas.
+   * @param {TreeNode} rootNode - Root decision tree node
+   * @param {boolean} [resetView] - Flag to reset viewport pan and zoom
+   */
   function renderDecisionTree(rootNode, resetView = false) {
     treeRootGroup.innerHTML = '';
     if (resetView) {
@@ -2975,11 +3303,22 @@ document.addEventListener('DOMContentLoaded', () => {
     drawNodes(rootNode);
   }
 
+  /**
+   * Truncates text string to maximum length with ellipsis.
+   * @param {string} str - Input text
+   * @param {number} maxLen - Maximum character length
+   * @returns {string} Truncated string
+   */
   function truncateText(str, maxLen) {
     if (!str) return '';
     return str.length > maxLen ? str.substring(0, maxLen - 3) + '...' : str;
   }
 
+  /**
+   * Formats and populates line inspector panel for selected tree node.
+   * @param {TreeNode} node - Reached leaf decision tree node
+   * @param {TreeNode|null} [clickedNode] - Clicked decision tree node
+   */
   function showNodeInspector(node, clickedNode = null) {
     if (treeInspectorPanel) {
       treeInspectorPanel.classList.remove('collapsed');
@@ -3417,6 +3756,11 @@ document.addEventListener('DOMContentLoaded', () => {
     window._centerNodeInTree = centerNodeInTree;
   }
 
+  /**
+   * Maps seat string or number token to seat index (0=N, 1=E, 2=S, 3=W).
+   * @param {string|number} seatStr - Seat identifier token
+   * @returns {number} Seat index (0..3)
+   */
   function getSeatIndex(seatStr) {
     if (!seatStr) return 0;
     const s = seatStr.trim().toUpperCase();
@@ -3431,22 +3775,36 @@ document.addEventListener('DOMContentLoaded', () => {
     return 0;
   }
 
+  /**
+   * Maps seat index to compass direction seat string ('N','E','S','W').
+   * @param {number} seatIdx - Seat index (0..3)
+   * @returns {string} Compass direction string
+   */
   function getSeatName(seatIdx) {
-    const seats = ['N', 'E', 'S', 'W'];
+    const seats = [SeatDirection.NORTH, SeatDirection.EAST, SeatDirection.SOUTH, SeatDirection.WEST];
     return seats[((seatIdx % 4) + 4) % 4];
   }
 
+  /**
+   * Retrieves active trump suit code ('S','H','D','C','NT').
+   * @returns {string} Trump code string
+   */
   function getTrumpCode() {
     if (!trumpSelect) return 'S';
     const val = trumpSelect.value;
-    if (val === 'SPADES') return 'S';
-    if (val === 'HEARTS') return 'H';
-    if (val === 'DIAMONDS') return 'D';
-    if (val === 'CLUBS') return 'C';
-    if (val === 'NOTRUMP') return 'NT';
+    if (val === TrumpSuit.SPADES || val === 'SPADES') return 'S';
+    if (val === TrumpSuit.HEARTS || val === 'HEARTS') return 'H';
+    if (val === TrumpSuit.DIAMONDS || val === 'DIAMONDS') return 'D';
+    if (val === TrumpSuit.CLUBS || val === 'CLUBS') return 'C';
+    if (val === TrumpSuit.NOTRUMP || val === 'NOTRUMP') return 'NT';
     return 'S';
   }
 
+  /**
+   * Tokenizes trick card play string into array of card tokens.
+   * @param {string} trickStr - Raw trick string
+   * @returns {Array<string>} Card play tokens
+   */
   function tokenizeTrick(trickStr) {
     if (!trickStr) return [];
     const cleaned = trickStr.replace(/,/g, ' ');
@@ -3455,6 +3813,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return matches.filter(m => m.trim().length > 0);
   }
 
+  /**
+   * Parses single card play token into structured CardToken object.
+   * @param {string} token - Card token string
+   * @param {string|null} leadSuit - Suit of lead card in trick
+   * @param {string} trumpSuit - Contract trump suit
+   * @returns {CardToken} Parsed card token object
+   */
   function parseSingleCardToken(token, leadSuit, trumpSuit) {
     let cleanToken = token.replace(/[\(\)]/g, '').trim().toUpperCase();
     let suit = null;
@@ -3508,6 +3873,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  /**
+   * Extracts trick card play string from tree node label or trick field.
+   * @param {TreeNode|null} node - Target decision tree node
+   * @returns {string|null} Extracted trick string or null
+   */
   function extractTrickString(node) {
     if (!node) return null;
 
@@ -3542,6 +3912,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Pan & Zoom Implementation
+  /**
+   * Applies pan and zoom transformations to tree SVG root group element.
+   */
   function updateTransform() {
     treeRootGroup.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoomLevel})`);
   }
@@ -3572,6 +3945,10 @@ document.addEventListener('DOMContentLoaded', () => {
   zoomOutBtn.addEventListener('click', () => { zoomLevel = Math.max(0.3, zoomLevel / 1.2); updateTransform(); });
   resetZoomBtn.addEventListener('click', () => { zoomLevel = 1.0; panX = 40; panY = 40; updateTransform(); });
 
+  /**
+   * Renders cross-hand distribution rules, suit bounds, and honor statistics in summary tab.
+   * @param {DistributionSummary|null} dist - Distribution summary report object
+   */
   function renderDistributionSummary(dist) {
     if (!dist) {
       clearDistributionSummary();
@@ -3680,6 +4057,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (summaryContent) summaryContent.classList.remove('hidden');
   }
 
+  /**
+   * Clears distribution summary tab content and displays placeholder notice.
+   * @param {string} [msg] - Placeholder notice message
+   */
   function clearDistributionSummary(msg = 'No distribution summary available for this deal. Run a fuzzy solve to view distribution statistics.') {
     if (ruleCounterBadge) {
       ruleCounterBadge.textContent = '0';
