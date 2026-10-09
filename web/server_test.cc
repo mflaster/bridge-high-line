@@ -194,7 +194,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   finesse_req["trump"] = "SPADES";
   finesse_req["leader"] = "SOUTH";
   finesse_req["min_tricks"] = 2;
-  finesse_req["num_iters"] = 10;
+  finesse_req["num_iters"] = 25;
   finesse_req["unknown_cards"] = "S Kxxx";
 
   auto res_finesse = client.Post("/api/solve", finesse_req.dump(), "application/json");
@@ -203,6 +203,24 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   nlohmann::json finesse_json = nlohmann::json::parse(res_finesse->body);
   REQUIRE(finesse_json["success"] == true);
   REQUIRE(finesse_json.contains("tree"));
+  REQUIRE(finesse_json.contains("sample_hands"));
+  REQUIRE(finesse_json["sample_hands"].is_array());
+  REQUIRE(!finesse_json["sample_hands"].empty());
+  REQUIRE(finesse_json["sample_hands"].size() <= 100);
+  REQUIRE(finesse_json["sample_hands"][0].contains("N"));
+  REQUIRE(finesse_json["sample_hands"][0].contains("E"));
+  REQUIRE(finesse_json["sample_hands"][0].contains("S"));
+  REQUIRE(finesse_json["sample_hands"][0].contains("W"));
+  REQUIRE(finesse_json.contains("failure_sample_hands"));
+  REQUIRE(finesse_json["failure_sample_hands"].is_array());
+  if (finesse_json["failure_boards"].get<int>() > 0) {
+    REQUIRE(!finesse_json["failure_sample_hands"].empty());
+    REQUIRE(finesse_json.contains("failure_tree"));
+    REQUIRE(!finesse_json["failure_tree"].is_null());
+    REQUIRE(finesse_json["failure_tree"].contains("label"));
+    REQUIRE(finesse_json["failure_tree"]["failure_boards"].get<int>() ==
+            finesse_json["failure_boards"].get<int>());
+  }
   auto &finesse_tree = finesse_json["tree"];
   REQUIRE(finesse_tree.contains("label"));
   // Ensure the tree is collapsed and does not contain redundant 'Hand Succeeded' or 'after ...' single-child wrappers

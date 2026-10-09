@@ -215,6 +215,27 @@ class ConditionalLine {  // ConditionalLineBranch
   int ResultsOnHand(const BoardState &bs) const;
   int ResultsOnHand(const PairedDeal &deal) const;
 
+  struct PlayedTrickStep {
+    int leader = 0;
+    std::string trick_str;
+    std::string my1_card;
+    std::string my2_card;
+    int winner = 0;
+    std::string winning_card;
+    int ns_tricks_so_far = 0;
+    bool diverged_after = false;
+  };
+
+  struct BoardPlayTrace {
+    int board_id = 0;
+    std::vector<PlayedTrickStep> steps;
+    int final_ns_tricks = 0;
+  };
+
+  // Traces play of this ConditionalLine on a BoardState up to the trick where
+  // it diverges or terminates, computing final_ns_tricks.
+  BoardPlayTrace TraceOnBoard(const BoardState &bs, int board_id = 0) const;
+
   // Recursively counts total distinct final boards covered across all leaf subtrees.
   int CoveredFinalBoards() const;
 
