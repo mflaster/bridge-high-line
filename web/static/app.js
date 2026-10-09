@@ -1254,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (node._x === undefined || node._y === undefined) return;
 
-    const nodeWidth = 240;
+    const nodeWidth = 120;
     const nodeHeight = 78;
     const nodeCenterX = node._x + nodeWidth / 2;
     const nodeCenterY = node._y + nodeHeight / 2;
@@ -1317,15 +1317,16 @@ document.addEventListener('DOMContentLoaded', () => {
     attachParentPointers(rootNode);
 
     // Calculate layout coordinates recursively
-    const nodeWidth = 240;
+    const nodeWidth = 120;
     const nodeHeight = 78;
     const levelHeight = 140;
-    const siblingGap = 40;
+    const siblingGap = 24;
 
     let leafCounter = 0;
 
-    function layoutNode(node, depth = 0) {
+    function layoutNode(node, depth = 0, y = 0) {
       node._depth = depth;
+      node._y = y;
       if (node._collapsed === undefined) {
         if (node.collapsed !== undefined) {
           node._collapsed = node.collapsed;
@@ -1339,12 +1340,13 @@ document.addEventListener('DOMContentLoaded', () => {
         leafCounter++;
         node._width = nodeWidth;
       } else {
-        node.children.forEach(child => layoutNode(child, depth + 1));
+        const gap = (node.children.length === 1) ? 31 : 62;
+        const nextY = y + nodeHeight + gap;
+        node.children.forEach(child => layoutNode(child, depth + 1, nextY));
         const firstChild = node.children[0];
         const lastChild = node.children[node.children.length - 1];
         node._x = (firstChild._x + lastChild._x) / 2;
       }
-      node._y = depth * levelHeight;
     }
 
     layoutNode(rootNode);
@@ -1426,19 +1428,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Title Text
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      title.setAttribute('x', '12');
+      title.setAttribute('x', '8');
       title.setAttribute('y', '22');
       title.setAttribute('class', 'node-text-title');
       let rawTitle = node.label || node.trick || 'Node';
       if (rawTitle.startsWith('after ')) {
         rawTitle = rawTitle.substring(6);
       }
-      title.textContent = truncateText(rawTitle, 40);
+      title.textContent = truncateText(rawTitle, 18);
       g.appendChild(title);
 
       // Detail Text
       const detail = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      detail.setAttribute('x', '12');
+      detail.setAttribute('x', '8');
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
       let detailText = '';
@@ -1458,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 3rd Line: N/S Won on its own line for leaf/outcome nodes
       if (node.type === 'outcome' && node.ns_tricks !== undefined) {
         const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        highlight.setAttribute('x', '12');
+        highlight.setAttribute('x', '8');
         highlight.setAttribute('y', '62');
         highlight.setAttribute('class', 'node-text-highlight');
         if (activeViewMode === 'failure') {
@@ -1471,18 +1473,18 @@ document.addEventListener('DOMContentLoaded', () => {
       // Expand/Collapse Indicator if children exist
       if (node.children && node.children.length > 0) {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', nodeWidth - 16);
-        circle.setAttribute('cy', 16);
-        circle.setAttribute('r', '8');
+        circle.setAttribute('cx', nodeWidth - 12);
+        circle.setAttribute('cy', 14);
+        circle.setAttribute('r', '7');
         circle.setAttribute('fill', '#334155');
         g.appendChild(circle);
 
         const badge = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        badge.setAttribute('x', nodeWidth - 16);
-        badge.setAttribute('y', 20);
+        badge.setAttribute('x', nodeWidth - 12);
+        badge.setAttribute('y', 17.5);
         badge.setAttribute('text-anchor', 'middle');
         badge.setAttribute('fill', '#ffffff');
-        badge.setAttribute('font-size', '10');
+        badge.setAttribute('font-size', '9');
         badge.setAttribute('font-weight', 'bold');
         badge.textContent = node._collapsed ? '+' : '−';
         g.appendChild(badge);
@@ -2042,8 +2044,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function extractTrickString(node) {
     if (!node) return null;
 
-    // Check if node.label explicitly matches "Trick <N>:"
-    if (node.label && /^Trick\s+\d+:/i.test(node.label.trim())) {
+    // Check if node.label explicitly matches "Trick <N>:" or "#<N>:"
+    if (node.label && /^(?:Trick\s+\d+|#\d+):/i.test(node.label.trim())) {
       let lbl = node.label.trim();
       const colonIdx = lbl.indexOf(':');
       if (colonIdx !== -1) {
