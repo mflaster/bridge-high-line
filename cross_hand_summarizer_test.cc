@@ -486,10 +486,10 @@ TEST_CASE("FilterUninterestingInvariants_LineFiltering",
 
   CrossHandSummaryReport report_with_line =
       summarizer.Summarize(deals, "hand 1", "hand 3", &line);
-  REQUIRE(report_with_line.invariant_stats.size() == 3);
+  REQUIRE(report_with_line.invariant_stats.size() == 2);
   // "hand 1 always contains the SK" holds ~50% and succeeds 100% when it holds,
-  // so it sorts first ahead of AndInvariant (which holds ~17%) and ST (~35%
-  // success when holds).
+  // so it sorts first ahead of AndInvariant (which holds ~17%), while ST (~35%
+  // success when holds <= 50%) is dropped.
   REQUIRE(report_with_line.invariant_stats[0].rule ==
           "hand 1 always contains the SK");
   REQUIRE(report_with_line.invariant_stats[0].success_when_holds_percent() ==
@@ -500,10 +500,7 @@ TEST_CASE("FilterUninterestingInvariants_LineFiltering",
           100);
   REQUIRE(report_with_line.invariant_stats[0].holds_count >
           report_with_line.invariant_stats[1].holds_count);
-  REQUIRE(report_with_line.invariant_stats[2].rule ==
-          "hand 1 always contains the ST");
-  REQUIRE(report_with_line.invariant_stats[2].success_when_holds_percent() <
-          50);
+  REQUIRE_FALSE(report_with_line.HasRule("hand 1 always contains the ST"));
   REQUIRE(report_with_line.invariant_stats[0].holds_percent() >= 40);
   REQUIRE(report_with_line.invariant_stats[0].holds_percent() <= 60);
   REQUIRE(report_with_line.HasRule(

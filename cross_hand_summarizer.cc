@@ -559,6 +559,10 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
         }
       }
       st.success_when_holds_count = success_count;
+      if (success_count * 2 <= holds_count ||
+          st.success_when_holds_percent() <= 50) {
+        continue;
+      }
     }
 
     stats_list.push_back(std::move(st));
@@ -785,6 +789,16 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
 
       // Discard "boring" invariants that hold on >= 95% of simulated deals.
       if (holds_count * 20 >= 19 * total_sim || st.holds_percent() >= 95) {
+        continue;
+      }
+
+      // Discard invariants where success_when_holds is <= 50%.
+      int success_pct =
+          holds_count > 0
+              ? static_cast<int>(
+                    std::lround(100.0 * holds_in_deals / holds_count))
+              : 0;
+      if (holds_in_deals * 2 <= holds_count || success_pct <= 50) {
         continue;
       }
 
