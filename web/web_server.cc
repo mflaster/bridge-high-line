@@ -663,6 +663,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
       node->branch_winner = prev_winner;
       node->trick = tricks[i];
       node->trick_full = tricks[i];
+      node->boards = {0};
+      node->board_to_trick["0"] = tricks[i];
       node->success_boards = 1;
       node->failure_boards = 0;
       node->total_boards = 1;
@@ -698,6 +700,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
     auto root_node = std::make_shared<DecisionTreeNode>();
     root_node->id = "node_" + std::to_string(++node_id);
     root_node->type = "outcome";
+    root_node->boards = {0};
     root_node->label = "Contract Result: " + std::to_string(tricks_won) + " tricks won";
     return root_node;
   }
@@ -710,6 +713,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
   root_node->id = "node_" + std::to_string(++node_id);
   root_node->type = "action";
   root_node->collapsed = false;
+  root_node->boards = {0};
   root_node->success_boards = 1;
   root_node->failure_boards = 0;
   root_node->total_boards = 1;
@@ -1298,33 +1302,32 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       constexpr size_t kMaxSampleHands = 100;
       nlohmann::json sample_hands_json = nlohmann::json::array();
       nlohmann::json failure_sample_hands_json = nlohmann::json::array();
+      nlohmann::json all_hands_json = nlohmann::json::array();
       std::vector<int> failed_board_ids;
       for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
         bool is_covered = (covered_set.count(b_idx) > 0);
         if (!is_covered) {
           failed_board_ids.push_back(b_idx);
         }
+        nlohmann::json hand_entry = {
+            {"board_id", b_idx},
+            {"N", HandDebugString(boards[b_idx].GetHand(0), true)},
+            {"E", HandDebugString(boards[b_idx].GetHand(1), true)},
+            {"S", HandDebugString(boards[b_idx].GetHand(2), true)},
+            {"W", HandDebugString(boards[b_idx].GetHand(3), true)},
+            {"succeeded", is_covered},
+        };
+        all_hands_json.push_back(hand_entry);
         if (is_covered && sample_hands_json.size() < kMaxSampleHands) {
-          sample_hands_json.push_back({
-              {"board_id", b_idx},
-              {"N", HandDebugString(boards[b_idx].GetHand(0), true)},
-              {"E", HandDebugString(boards[b_idx].GetHand(1), true)},
-              {"S", HandDebugString(boards[b_idx].GetHand(2), true)},
-              {"W", HandDebugString(boards[b_idx].GetHand(3), true)},
-          });
+          sample_hands_json.push_back(hand_entry);
         } else if (!is_covered &&
                    failure_sample_hands_json.size() < kMaxSampleHands) {
-          failure_sample_hands_json.push_back({
-              {"board_id", b_idx},
-              {"N", HandDebugString(boards[b_idx].GetHand(0), true)},
-              {"E", HandDebugString(boards[b_idx].GetHand(1), true)},
-              {"S", HandDebugString(boards[b_idx].GetHand(2), true)},
-              {"W", HandDebugString(boards[b_idx].GetHand(3), true)},
-          });
+          failure_sample_hands_json.push_back(hand_entry);
         }
       }
       response["sample_hands"] = sample_hands_json;
       response["failure_sample_hands"] = failure_sample_hands_json;
+      response["all_hands"] = all_hands_json;
 
       if (!lines.empty()) {
         FailureIndex failures = IndexFailures(lines[0], boards,
@@ -1385,9 +1388,11 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           {"E", HandDebugString(hands[1], true)},
           {"S", HandDebugString(hands[2], true)},
           {"W", HandDebugString(hands[3], true)},
+          {"succeeded", true},
       });
       response["sample_hands"] = sample_hands_json;
       response["failure_sample_hands"] = nlohmann::json::array();
+      response["all_hands"] = sample_hands_json;
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
