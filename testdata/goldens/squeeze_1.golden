@@ -16,11 +16,17 @@ Invariant Rules for 6 card ending:
     when 0 wins the DA: 
       after DK (R_) D3 (__): DK (R_) D3 (__) [4,5,14,19,21,27,35,45,47,49,53] / DK HQ D3 H9  / DK HQ D3 H9  / DK H9 D3 HJ  / DK HJ D3 H9  / DK H9 D3 HJ 
         when 0 wins the DK: 
-          after DQ (__) D2 (__): DQ (__) D2 (__) [4,5,14,19,21,27,35,45,47,49,53] / DQ HJ D2 S9  / DQ HJ D2 S7  / DQ HQ D2 ST  / DQ S8 D2 HQ  / DQ HQ D2 SJ 
+          after DQ (R_) D2 (__): DQ (R_) D2 (__) [4,5,14,19,21,27,35,45,47,49,53] / DQ HJ D2 HA  / DQ HJ D2 HA  / DQ HQ D2 HA  / DQ HA D2 HQ  / DQ HQ D2 HA 
             when 0 wins the DQ: 
-              after S4 (S_) SK (S_): S4 (S_) SK (S_) [4,5,14,19,21,27,35,45,47,49,53] / S4 ST SK SQ  / S4 S9 SK ST  / S4 S7 SK S9  / S4 S7 SK SJ  / S4 S8 SK ST 
+              after S4 (S_) SK (S_): S4 (S_) SK (S_) [4,5,14,19,21,27,35,45,47,49,53] / S4 S8 SK S9  / S4 S9 SK S7  / S4 S7 SK ST  / S4 S8 SK SJ  / S4 S8 SK SJ 
                 when 2 wins the SK: 
-                  after S2 (S_) SA (__): S2 (S_) SA (__) [4,5,14,19,21,27,35,45,47,49,53] / S2 SJ SA S8  / S2 SQ SA SJ  / S2 S8 SA SQ  / S2 ST SA SQ  / S2 S9 SA S7 
-                    when 0 wins the SA: 
-                      after S3 (R_) HK (R_): S3 (R_) HK (R_) [4,5,14,19,21,27,35,45,47,49,53] / S3 HT HK HA  / S3 HT HK HA  / S3 H8 HK HA  / S3 HA HK H8  / S3 H8 HK HA 
-                        when 0 wins the S3: HAND SUCCEEDED FOR: 4, 5, 14, 19, 21, 27, 35, 45, 47, 49, 53
+                  if HK is good: 
+                    after HK (__) S3 (__): HK (__) S3 (__) [4,5,14,19,21,27,35,45,47,53] / HK SQ S3 HT  / HK ST S3 HT  / HK S9 S3 H8  / HK H8 S3 S7  / HK ST S3 H8 
+                      when 2 wins the HK: 
+                        after S2 (S_) SA (S_): S2 (S_) SA (S_) [4,5,14,19,21,27,35,45,47,53] / S2 SJ SA ST  / S2 SQ SA SJ  / S2 S8 SA SQ  / S2 ST SA SQ  / S2 S9 SA S7 
+                          when 0 wins the SA: HAND SUCCEEDED FOR: 4, 5, 14, 19, 21, 27, 35, 45, 47, 53
+                  if HK is not good: 
+                    after S2 (S_) SA (R_): S2 (S_) SA (R_) [49] / S2 S7 SA H9 
+                      when 0 wins the SA: 
+                        after S3 (R_) HK (R_): S3 (R_) HK (R_) [49] / S3 H8 HK HA 
+                          when 0 wins the S3: HAND SUCCEEDED FOR: 49

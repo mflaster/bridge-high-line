@@ -674,6 +674,71 @@ bool WonEnoughTricks(int mini_max, int min_tricks, int leader,
   }
 }
 
+void LineFinder::TryBranchOnGoodCards(
+    int min_tricks,
+    SolverCache &cache_in,
+    std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+    const std::set<int> &solvable_boards,
+    int cards_left, int leader, int lvl,
+    std::vector<ConditionalLine> &ans) {
+  int best_covered = ans.empty() ? 0 : ans[0].CoveredFinalBoards();
+  if (lvl <= 0 || cards_left > 5 || leader % 2 != 0 ||
+      best_covered >= static_cast<int>(solvable_boards.size()) ||
+      solvable_boards.size() < 2 ||
+      get_line_from_trick_calls.load(std::memory_order_relaxed) >= 5000) {
+    return;
+  }
+
+  const BoardState *first_bs =
+      board_trees.at(*solvable_boards.begin())->MyBoard();
+  uint64_t mask = ~first_bs->played_cards();
+  uint64_t decl_cards =
+      (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask;
+  for (int suit = 0; suit < 4; ++suit) {
+    uint16_t suit_bits = (decl_cards >> (suit * 16)) & 0xffff;
+    if (suit_bits == 0) continue;
+    // Check highest remaining card held by N/S in this suit.
+    int top_val = 31 - __builtin_clz(suit_bits);
+    CardType top_card =
+        Card::GetSuitedCard(static_cast<Suit>(suit), top_val);
+    IsCardGoodCondition cond_true(top_card, true);
+    std::set<int> good_boards;
+    std::set<int> not_good_boards;
+    for (int b : solvable_boards) {
+      if (cond_true.Evaluate(*board_trees.at(b)->MyBoard())) {
+        good_boards.insert(b);
+      } else {
+        not_good_boards.insert(b);
+      }
+    }
+    if (good_boards.empty() || not_good_boards.empty()) {
+      continue;
+    }
+    std::vector<ConditionalLine> good_lines =
+        SolveHelper(min_tricks, cache_in, board_trees, good_boards,
+                    leader, lvl + 1);
+    if (good_lines.empty()) continue;
+    int good_cov = good_lines[0].CoveredFinalBoards();
+    if (good_cov + static_cast<int>(not_good_boards.size()) <= best_covered) {
+      continue;
+    }
+    std::vector<ConditionalLine> not_good_lines =
+        SolveHelper(min_tricks, cache_in, board_trees, not_good_boards,
+                    leader, lvl + 1);
+    if (not_good_lines.empty()) continue;
+    int total_cov = good_cov + not_good_lines[0].CoveredFinalBoards();
+    if (total_cov > best_covered) {
+      ConditionalLine split_line;
+      split_line.AddCondition(new IsCardGoodCondition(top_card, true),
+                              good_lines[0]);
+      split_line.AddCondition(new IsCardGoodCondition(top_card, false),
+                              not_good_lines[0]);
+      best_covered = total_cov;
+      ans = {split_line};
+    }
+  }
+}
+
 std::vector<ConditionalLine> LineFinder::SolveHelper(
     int min_tricks,
     SolverCache &cache_in,
@@ -693,10 +758,12 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
   Suit trump_suit =
       board_trees.at(*board_offsets.begin())->MyBoard()->GetTrump();
   GeneralizedTrickFinder gen_trick_finder(trump_suit);
+  std::set<int> solvable_boards;
+  int cards_left = 0;
   for (int b : board_offsets) {
     const std::shared_ptr<OptimalPlayTree> &play_tree = board_trees.at(b);
     CHECK(play_tree);
-    int cards_left = play_tree->CardsLeft();
+    cards_left = play_tree->CardsLeft();
     if (cards_left == 0) {
       VLOG(2) << "Out of cards with min_tricks " << min_tricks
               << play_tree->DebugString();
@@ -716,6 +783,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
               << " vs " << min_tricks << ")";
       continue;
     }
+    solvable_boards.insert(b);
     const OptimalLines &lines = play_tree->GetLines();
     for (const OptimalLine &trick : lines) {
       VLOG(3) << "    " << trick;
@@ -739,6 +807,10 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
 
   VLOG(2) << "See groupings " << groupings.size();
 
-  return GetLinesFromGroups(groupings, min_tricks, cache_in, board_trees,
-                            board_offsets, leader, lvl);
+  std::vector<ConditionalLine> ans =
+      GetLinesFromGroups(groupings, min_tricks, cache_in, board_trees,
+                         board_offsets, leader, lvl);
+  TryBranchOnGoodCards(min_tricks, cache_in, board_trees, solvable_boards,
+                       cards_left, leader, lvl, ans);
+  return ans;
 }
