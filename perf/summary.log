@@ -24,3 +24,5 @@ ending_size=13 trial=1 time=6.8s trump= C fit= (7-2) min_tricks= 9 result=SUCCES
 ending_size=13 trial=2 time=7.5s trump= H fit= (3-5) min_tricks=12 result=SUCCESS (covered=75/100, 75.0%, lines=3)
 ending_size=13 trial=3 time=46.8s trump= S fit= (2-6) min_tricks=10 result=SUCCESS (covered=57/100, 57.0%, lines=2)
 Benchmark complete. Total wall time: 231.1s
+Perf9CardHearts100 num_deals=100 time=69.5s (solve=69481.5ms, invariant=14.2ms) result=SUCCESS (covered=76/100, 76.0%, lines=1)
+Perf9CardHearts150 num_deals=150 time=107.3s (solve=107182.2ms, invariant=44.5ms) result=SUCCESS (covered=112/150, 74.7%, lines=3)
