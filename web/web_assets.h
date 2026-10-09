@@ -27,6 +27,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="endplay">4-Card Endplay Deal</option>
           <option value="squeeze">Squeeze Deal (NT)</option>
           <option value="nine_card_hearts">9-Card Hearts Deal</option>
+          <option value="safety_play">Safety Play Deal (NT)</option>
         </select>
       </div>
     </div>
@@ -2322,6 +2323,18 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S K9; H -; D A854; C AKJ;',
       west: '',
       unknown_cards: 'S AJTQ64 D KQJ976 C T43Q98'
+    },
+    safety_play: {
+      name: "Safety Play Deal (NT)",
+      trump: 'NOTRUMP',
+      leader: 'NORTH',
+      target: 7,
+      iters: 100,
+      north: 'S A43; H A54; D 432; C -;',
+      east: '',
+      south: 'S 2; H 32; D AK8765; C -;',
+      west: '',
+      unknown_cards: 'S KQJT987 H KQJT987 D QJT9'
     }
   };
 
@@ -4652,6 +4665,18 @@ inline const char* PRESETS_JSON = R"rawjson(
     "south": "S K9; H -; D A854; C AKJ;",
     "west": "",
     "unknown_cards": "S AJTQ64 D KQJ976 C T43Q98"
+  },
+  "safety_play": {
+    "name": "Safety Play Deal (NT)",
+    "trump": "NOTRUMP",
+    "leader": "NORTH",
+    "target": 7,
+    "iters": 100,
+    "north": "S A43; H A54; D 432; C -;",
+    "east": "",
+    "south": "S 2; H 32; D AK8765; C -;",
+    "west": "",
+    "unknown_cards": "S KQJT987 H KQJT987 D QJT9"
   }
 }
 
