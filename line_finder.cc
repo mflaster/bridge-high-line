@@ -753,16 +753,16 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
     const BoardState *first_bs =
         board_trees.at(*solvable_boards.begin())->MyBoard();
     uint64_t mask = ~first_bs->played_cards();
-    uint64_t decl_honors =
-        (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask & kHonorMask64;
+    uint64_t decl_cards =
+        (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask;
     for (int suit = 0; suit < 4; ++suit) {
-      uint16_t suit_bits = (decl_honors >> (suit * 16)) & 0xffff;
+      uint16_t suit_bits = (decl_cards >> (suit * 16)) & 0xffff;
       if (suit_bits == 0) continue;
-      // Check highest honor held by N/S in this suit.
+      // Check highest remaining card held by N/S in this suit.
       int top_val = 31 - __builtin_clz(suit_bits);
-      CardType honor_card =
+      CardType top_card =
           Card::GetSuitedCard(static_cast<Suit>(suit), top_val);
-      IsCardGoodCondition cond_true(honor_card, true);
+      IsCardGoodCondition cond_true(top_card, true);
       std::set<int> good_boards;
       std::set<int> not_good_boards;
       for (int b : solvable_boards) {
@@ -790,9 +790,9 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
       int total_cov = good_cov + not_good_lines[0].CoveredFinalBoards();
       if (total_cov > best_covered) {
         ConditionalLine split_line;
-        split_line.AddCondition(new IsCardGoodCondition(honor_card, true),
+        split_line.AddCondition(new IsCardGoodCondition(top_card, true),
                                 good_lines[0]);
-        split_line.AddCondition(new IsCardGoodCondition(honor_card, false),
+        split_line.AddCondition(new IsCardGoodCondition(top_card, false),
                                 not_good_lines[0]);
         best_covered = total_cov;
         ans = {split_line};
