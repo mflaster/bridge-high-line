@@ -121,6 +121,17 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl);
 
+  // Attempts to improve board coverage when single-trick groupings do not
+  // cover all solvable boards by branching on IsCardGoodCondition for the
+  // highest remaining N/S card in each suit.
+  void TryBranchOnGoodCards(
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &solvable_boards,
+      int cards_left, int leader, int lvl,
+      std::vector<ConditionalLine> &ans);
+
   // Recursive workhorse for finding optimal play lines.
   // - Base case (cards_left == 0): returns empty vector if min_tricks > 0 (failure), or a single leaf
   //   ConditionalLine initialized with board_offsets if min_tricks <= 0 (success).
