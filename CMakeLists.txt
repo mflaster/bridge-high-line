@@ -97,6 +97,7 @@ add_library(bridge_lib STATIC
   web/web_assets.h
   unknown_cards_invariant.cc
   cross_hand_summarizer.cc
+  search_progress.cc
 )
 
 target_include_directories(bridge_lib PUBLIC
@@ -138,6 +139,7 @@ set(TEST_NAMES
   line_finder_test
   server_test
   cross_hand_summarizer_test
+  search_progress_test
 )
 
 foreach(test_name IN LISTS TEST_NAMES)

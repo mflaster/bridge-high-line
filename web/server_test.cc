@@ -66,6 +66,9 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_status->status == 200);
   nlohmann::json status_json = nlohmann::json::parse(res_status->body);
   REQUIRE(status_json["status"] == "Analyzing trick 1...");
+  // The progress estimate only exists while a play-tree search is running.
+  REQUIRE(!status_json.contains("progress"));
+  REQUIRE(LineFinder::GetSolveProgress() < 0.0);
 
   server.Stop();
 }

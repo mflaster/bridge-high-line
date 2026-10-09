@@ -226,6 +226,10 @@
         <div id="statusBox" class="status-box status-idle">
           <div class="status-indicator"></div>
           <span id="statusMessage">Ready to solve. Configure hands and click "Solve Deal".</span>
+          <div id="statusProgress" class="status-progress hidden" role="progressbar"
+               aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="statusProgressFill" class="status-progress-fill"></div>
+          </div>
           <span id="execTime" class="exec-time"></span>
         </div>
 

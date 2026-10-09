@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
+  const statusProgress = document.getElementById('statusProgress');
+  const statusProgressFill = document.getElementById('statusProgressFill');
   const execTime = document.getElementById('execTime');
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
@@ -1050,7 +1052,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isSolving) return;
         if (stData && stData.status) {
           const curSec = ((performance.now() - startTime) / 1000).toFixed(1);
-          setStatus('running', stData.status, `${curSec} s`);
+          const progress = (typeof stData.progress === 'number') ? stData.progress : null;
+          setStatus('running', stData.status, `${curSec} s`, progress);
         }
       } catch (_) {
         // Ignore transient polling errors while solving
@@ -1116,10 +1119,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  function setStatus(type, msg, timeStr = '') {
+  // `progress`, when a number in [0, 1], shows the estimated fraction of the
+  // play-tree search finished; any other value hides the bar.
+  function setStatus(type, msg, timeStr = '', progress = null) {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
     if (timeStr) execTime.textContent = timeStr;
+    if (!statusProgress || !statusProgressFill) return;
+    if (typeof progress === 'number' && progress >= 0) {
+      const pct = Math.round(Math.min(1, progress) * 100);
+      statusProgressFill.style.width = `${pct}%`;
+      statusProgress.setAttribute('aria-valuenow', String(pct));
+      statusProgress.classList.remove('hidden');
+    } else {
+      statusProgress.classList.add('hidden');
+      statusProgressFill.style.width = '0%';
+      statusProgress.setAttribute('aria-valuenow', '0');
+    }
   }
 
   // Expand / Collapse Controls

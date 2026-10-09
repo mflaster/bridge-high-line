@@ -6,6 +6,7 @@
 
 #include "conditional_line.h"
 #include "interface_dds.h"
+#include "search_progress.h"
 #include "solver.h"
 #include "hand_requirements.h"
 
@@ -90,6 +91,9 @@ class LineFinder {
 
   static std::string GetSolveStatus();
   static void SetSolveStatus(const std::string &status);
+  // Estimated fraction of the play-tree search finished, in [0, 1], or -1
+  // when no search is running.
+  static double GetSolveProgress();
 
   double solve_ms() const { return solve_ms_; }
   double invariant_ms() const { return invariant_ms_; }
@@ -104,23 +108,25 @@ class LineFinder {
   // Constructs an intermediate action ConditionalLine node for a specific GeneralizedTrick.
   // Sets a_line.do_first_ = gen_trick, plays the trick on each board tree, and adds WinnerPlayCondition
   // branches ("when 0 wins", "if 1 wins") for each trick winner pointing to recursive SolveHelper subtrees.
+  // `progress`, if set, is this trick's node in the search progress tree.
   ConditionalLine GetLineFromTrick(
       const GeneralizedTrick &gen_trick,
       int min_tricks,
       SolverCache &cache,
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
-      int leader, int lvl);
+      int leader, int lvl, SearchProgress::Node *progress = nullptr);
 
   // Evaluates groups of generalized tricks and constructs top-level or branch ConditionalLine nodes.
   // Filters and returns all ConditionalLine options that achieve the maximum board coverage count.
+  // `progress`, if set, is the node whose batches this call reports.
   std::vector<ConditionalLine> GetLinesFromGroups(
       const std::vector<std::vector<GeneralizedTrick>> &groupings,
       int min_tricks,
       SolverCache &cache,
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
-      int leader, int lvl);
+      int leader, int lvl, SearchProgress::Node *progress = nullptr);
 
   // Attempts to improve board coverage when single-trick groupings do not
   // cover all solvable boards by branching on IsCardGoodCondition for the
@@ -131,19 +137,22 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &solvable_boards,
       int cards_left, int leader, int lvl,
-      std::vector<ConditionalLine> &ans);
+      std::vector<ConditionalLine> &ans,
+      SearchProgress::Node *progress = nullptr);
 
   // Recursive workhorse for finding optimal play lines.
   // - Base case (cards_left == 0): returns empty vector if min_tricks > 0 (failure), or a single leaf
   //   ConditionalLine initialized with board_offsets if min_tricks <= 0 (success).
   // - Recursive case: extracts optimal tricks across boards, generalizes them into trick groups,
   //   and invokes GetLinesFromGroups.
+  // `progress`, if set, is this sub-search's node in the search progress
+  // tree; it is completed before returning.
   std::vector<ConditionalLine> SolveHelper(
       int min_tricks,
       SolverCache &cache,
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
-      int leader, int lvl);
+      int leader, int lvl, SearchProgress::Node *progress = nullptr);
 
  private:
   int num_iters_;
