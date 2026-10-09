@@ -376,6 +376,77 @@ TEST_CASE("ConditionalLineDescribeSortBranches") {
   REQUIRE(sorted.find("if 0 wins") < sorted.find("if 1 wins"));
 
   // Verify PlayLineGoldenSerializer delegates to Describe with sort_branches = true
-  REQUIRE(PlayLineGoldenSerializer::Serialize(root) == PlayLineGoldenSerializer::Serialize(sorted));
+  REQUIRE(PlayLineGoldenSerializer::Serialize(root) ==
+          PlayLineGoldenSerializer::Serialize(sorted));
+}
+
+TEST_CASE("IsCardGoodConditionEvaluateAndResults") {
+  CardType hk = Card::ParseStringCard("HK");
+  IsCardGoodCondition cond_good(hk, true);
+  IsCardGoodCondition cond_not_good(hk, false);
+
+  REQUIRE(cond_good.Describe(false) == "if HK is good");
+  REQUIRE(cond_good.Describe(true) == "when HK is good");
+  REQUIRE(cond_not_good.Describe(false) == "if HK is not good");
+  REQUIRE(cond_not_good.Describe(true) == "when HK is not good");
+
+  std::vector<uint64_t> hands = {
+      ParseHand("S A3"),
+      ParseHand("S J H Q"),
+      ParseHand("S 2 H K"),
+      ParseHand("S T H A"),
+  };
+  BoardState bs = MakeBoardState(hands, 2, NOTRUMP);
+  // HA is unplayed in hand 3, so HK is not good.
+  REQUIRE(!cond_good.Evaluate(bs));
+
+  // Build a ConditionalLine at 2-card ending with South (2) on lead:
+  // if HK is good -> play HK (throwing S3), then S2 to SA
+  // if HK is not good -> play S2 to SA, then S3 (throwing HK)
+  std::set<int> deals = {0};
+  GeneralizedTrick cash_hk(
+      GeneralizedDemiStruct("__", "HK", deals),
+      GeneralizedDemiStruct("__", "S3", deals), deals, 2);
+  GeneralizedTrick s2_to_sa(
+      GeneralizedDemiStruct("__", "S2", deals),
+      GeneralizedDemiStruct("__", "SA", deals), deals, 2);
+  GeneralizedTrick cash_s3(
+      GeneralizedDemiStruct("__", "S3", deals),
+      GeneralizedDemiStruct("__", "HK", deals), deals, 0);
+
+  ConditionalLine leaf_sa;
+  leaf_sa.SetAction(s2_to_sa);
+  ConditionalLine branch_good;
+  branch_good.SetAction(cash_hk);
+  branch_good.AddCondition(new WinnerPlayCondition(2), leaf_sa);
+
+  ConditionalLine leaf_s3;
+  leaf_s3.SetAction(cash_s3);
+  ConditionalLine branch_not_good;
+  branch_not_good.SetAction(s2_to_sa);
+  branch_not_good.AddCondition(new WinnerPlayCondition(0), leaf_s3);
+
+  ConditionalLine root;
+  root.AddCondition(new IsCardGoodCondition(hk, true), branch_good);
+  root.AddCondition(new IsCardGoodCondition(hk, false), branch_not_good);
+  root.set_min_tricks(2);
+  root.set_sample_board(bs);
+
+  // When HA is still held by East (hand 3) and spades are 1-1, branch_not_good
+  // plays S2 to SA (felling SJ and ST) and cashes S3 for 2 tricks.
+  REQUIRE(root.ResultsOnHand(bs) == 2);
+
+  // When HA has already been discarded by East (e.g., East holds S T9 instead
+  // of S T H A), HK is good and branch_good cashes HK then S2 to SA for 2
+  // tricks (whereas branch_not_good would only win 1 trick).
+  std::vector<uint64_t> hands_ha_gone = {
+      ParseHand("S A3"),
+      ParseHand("S J H Q"),
+      ParseHand("S 2 H K"),
+      ParseHand("S T9"),
+  };
+  BoardState bs_ha_gone = MakeBoardState(hands_ha_gone, 2, NOTRUMP);
+  REQUIRE(cond_good.Evaluate(bs_ha_gone));
+  REQUIRE(root.ResultsOnHand(bs_ha_gone) == 2);
 }
 

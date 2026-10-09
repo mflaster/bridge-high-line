@@ -296,5 +296,21 @@ class TrickPlayCondition : public PlayCondition {
   std::string trick_;
 };
 
+class IsCardGoodCondition : public PlayCondition {
+ public:
+  IsCardGoodCondition(CardType card, bool is_good)
+      : card_(card), is_good_(is_good) {}
+
+  std::string Describe(bool only_choice) const override;
+
+  CardType card() const { return card_; }
+  bool is_good() const { return is_good_; }
+  bool Evaluate(const BoardState &bs) const;
+
+ private:
+  CardType card_;
+  bool is_good_;
+};
+
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     const std::vector<GeneralizedTrick> &input);

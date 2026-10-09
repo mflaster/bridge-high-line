@@ -20,6 +20,21 @@ std::string TrickPlayCondition::Describe(bool only_choice) const {
   return ans;
 }
 
+std::string IsCardGoodCondition::Describe(bool only_choice) const {
+  std::string prefix = only_choice ? "when " : "if ";
+  return prefix + Card::PrintCard(card_) +
+         (is_good_ ? " is good" : " is not good");
+}
+
+bool IsCardGoodCondition::Evaluate(const BoardState &bs) const {
+  auto [suit, val] = Card::DecodeCard(card_);
+  uint64_t mask = ~bs.played_cards();
+  uint64_t opp_cards = (bs.GetHand(1) | bs.GetHand(3)) & mask;
+  uint16_t opp_suit = (opp_cards >> (suit * 16)) & 0xffff;
+  uint16_t higher_mask = ~((1U << (val + 1)) - 1) & 0x1fff;
+  return (opp_suit & higher_mask) == 0;
+}
+
 int ConditionalLine::CoveredFinalBoards() const {
   return CoveredFinalBoardsSet().size();
 }
@@ -765,6 +780,15 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
   if (!line->do_first().Empty()) {
     candidates.push_back(line);
   } else {
+    for (const auto &[cond, child_line] : line->conditions()) {
+      if (!child_line) continue;
+      if (auto *good_cond =
+              dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
+        if (good_cond->Evaluate(copy) == good_cond->is_good()) {
+          return ResultsOnHandHelper(child_line.get(), copy);
+        }
+      }
+    }
     for (const auto &[_cond, child_line] : line->conditions()) {
       if (child_line && !child_line->do_first().Empty()) {
         candidates.push_back(child_line.get());

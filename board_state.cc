@@ -255,16 +255,29 @@ void BoardState::PlayTrick(const std::string &trick) {
 }
 
 int BoardState::FindBestDiscard(int n, int *suit, int *rank) const {
+  uint64_t mask = ~played_cards_;
+  uint64_t h0 = hands_[0] & mask;
+  uint64_t h2 = hands_[2] & mask;
+  uint64_t my_h = hands_[CurPlayer()] & mask;
   int hand0_dist[4];
   int hand2_dist[4];
   int myhand_dist[4];
-  GetSuitDistribution(hands_[0] & (~played_cards_), hand0_dist);
-  GetSuitDistribution(hands_[2] & (~played_cards_), hand2_dist);
-  GetSuitDistribution(hands_[CurPlayer()] & (~played_cards_), myhand_dist);
+  GetSuitDistribution(h0, hand0_dist);
+  GetSuitDistribution(h2, hand2_dist);
+  GetSuitDistribution(my_h, myhand_dist);
 
   int best_rank_in_suit[4] = {0, 0, 0, 0};
   for (int i = 0; i < n; i++) {
     best_rank_in_suit[suit[i]] = std::max(best_rank_in_suit[suit[i]], rank[i]);
+  }
+
+  int decl_best_rank[4] = {0, 0, 0, 0};
+  uint64_t decl_cards = h0 | h2;
+  for (int s = 0; s < 4; ++s) {
+    uint16_t suit_bits = (decl_cards >> (s * 16)) & 0xffff;
+    if (suit_bits != 0) {
+      decl_best_rank[s] = (31 - __builtin_clz(suit_bits)) + 2;
+    }
   }
 
   int64_t best_score = 0;
@@ -272,10 +285,14 @@ int BoardState::FindBestDiscard(int n, int *suit, int *rank) const {
   for (int i = 0; i < n; i++) {
     int64_t score = 0;
     int suit_i = suit[i];
-    int suit_surplus = myhand_dist[suit_i] -
-                       std::max(hand0_dist[suit_i], hand2_dist[suit_i]);
+    int decl_max = std::max(hand0_dist[suit_i], hand2_dist[suit_i]);
+    int suit_surplus = myhand_dist[suit_i] - decl_max;
     if (suit_surplus > 0) {
       score += 1000 * suit_surplus;
+    } else if (suit_surplus == 0 && best_rank_in_suit[suit_i] >= 10 &&
+               decl_best_rank[suit_i] > best_rank_in_suit[suit_i] &&
+               hand0_dist[suit_i] + hand2_dist[suit_i] > myhand_dist[suit_i]) {
+      score -= 100 * decl_max;
     }
     score -= best_rank_in_suit[suit_i] * 20;
     score -= rank[i];
