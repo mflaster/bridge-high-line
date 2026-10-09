@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [g++-11, g++-12]
+        compiler: [g++-12]
 
     env:
       DEBIAN_FRONTEND: noninteractive
