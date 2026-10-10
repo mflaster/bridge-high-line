@@ -967,4 +967,33 @@ TEST_CASE("Summarize_IncludesInvertedOpposingInvariants",
   REQUIRE(success_report.invariant_stats[0].holds_percent() == 68);
 }
 
+TEST_CASE("Summarize_OpposingDealsDoesNotDoubleFilterWithRandomBifurcations",
+          "[cross_hand_summarizer]") {
+  // Unknown cards from the safety_play preset: S KQJT987 H KQJT987 D QJT9
+  // (18 cards, 9 per hand). On the 200 synthetic random bifurcations from
+  // rng(12345), "maximum length in D in any hand is 3" holds on 190/200 (95%),
+  // which would be discarded by the standalone random-bifurcation filter,
+  // even when the simulated deal set has 85% non-4-0 (covered) and 15% 4-0
+  // (failure) deals.
+  std::vector<PairedDeal> covered_deals;
+  for (int i = 0; i < 45; ++i) {
+    covered_deals.emplace_back("S KQJT H KQJ D QJ", "S 987 H T987 D T9");
+  }
+  for (int i = 0; i < 40; ++i) {
+    covered_deals.emplace_back("S KQJ H KQJ D QJT", "S T987 H T987 D 9");
+  }
+  std::vector<PairedDeal> failure_deals;
+  for (int i = 0; i < 8; ++i) {
+    failure_deals.emplace_back("S KQJ H KQ D QJT9", "S T987 H JT987");
+  }
+  for (int i = 0; i < 7; ++i) {
+    failure_deals.emplace_back("S T987 H JT987", "S KQJ H KQ D QJT9");
+  }
 
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(
+      covered_deals, "hand 1", "hand 3", nullptr, &failure_deals,
+      /*is_failure_mode=*/false);
+
+  REQUIRE(report.HasRule("maximum length in D in any hand is 3"));
+}
