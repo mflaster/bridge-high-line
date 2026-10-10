@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test (${{ matrix.compiler }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     strategy:
       fail-fast: false
       matrix:
@@ -40,9 +40,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: cmake-v2-${{ runner.os }}-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
+          key: cmake-v2-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
           restore-keys: |
-            cmake-v2-${{ runner.os }}-${{ matrix.compiler }}-
+            cmake-v2-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-
 
       - name: Build and Run Tests
         run: |
