@@ -1371,27 +1371,162 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         } else {
           LineFinder::SetSolveStatus("Building decision tree...");
         }
-        FailureIndex failures = IndexFailures(lines[0], boards,
-                                              failed_board_ids, num_threads);
-        LineFinder::SetSolveStatus("Building decision tree...");
-        tree_node = BuildTreeFromConditionalLine(lines[0], node_counter, 1,
-                                                 total_boards, 0, &failures);
-        if (tree_node && !failures.unplaced.boards.empty()) {
-          tree_node->children.push_back(MakeFailureLeaf(
-              failures.unplaced, failures.unplaced.condition, node_counter,
-              total_boards));
+
+        auto extract_trick_tag = [](const std::string &lbl) -> std::string {
+          size_t colon = lbl.find(':');
+          if (colon != std::string::npos && !lbl.empty() && lbl[0] == '#') {
+            return lbl.substr(0, colon);
+          }
+          return "";
+        };
+
+        auto summarize_trick1 =
+            [](const std::shared_ptr<DecisionTreeNode> &root) -> std::string {
+          if (!root) return "-";
+          if (!root->trick.empty()) return root->trick;
+          std::string joined;
+          for (const auto &child : root->children) {
+            if (!child || child->failure || child->trick.empty()) continue;
+            if (!joined.empty()) joined += " | ";
+            joined += child->trick;
+          }
+          return joined.empty() ? root->label : joined;
+        };
+
+        std::function<void(const std::shared_ptr<DecisionTreeNode> &, int,
+                           std::vector<std::string> &)>
+            collect_steps = [&](const std::shared_ptr<DecisionTreeNode> &n,
+                                int depth,
+                                std::vector<std::string> &steps_out) {
+              if (!n || n->failure) return;
+              std::string tag = extract_trick_tag(n->label);
+              if (depth > 0 && !n->trick.empty() && tag != "#1") {
+                std::string step = tag.empty() ? "" : tag;
+                if (!n->condition.empty()) {
+                  step += (step.empty() ? "[" : " [") + n->condition + "]";
+                }
+                if (!step.empty()) step += ": ";
+                step += n->trick;
+                steps_out.push_back(step);
+              }
+              for (const auto &c : n->children) {
+                collect_steps(c, depth + 1, steps_out);
+              }
+            };
+
+        std::vector<std::shared_ptr<DecisionTreeNode>> line_trees(lines.size());
+        std::vector<std::string> line_best_leads(lines.size());
+        std::vector<std::set<int>> line_covered_sets(lines.size());
+        std::vector<std::string> trick1_summaries(lines.size());
+        std::vector<std::vector<std::string>> line_steps(lines.size());
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+          line_covered_sets[i] = lines[i].CoveredBoardsSet();
+          std::vector<int> line_failed_ids;
+          line_failed_ids.reserve(boards.size());
+          for (int b_idx = 0; b_idx < static_cast<int>(boards.size());
+               ++b_idx) {
+            if (line_covered_sets[i].count(b_idx) == 0) {
+              line_failed_ids.push_back(b_idx);
+            }
+          }
+          FailureIndex line_failures = IndexFailures(
+              lines[i], boards, line_failed_ids, num_threads);
+          int line_node_counter = 0;
+          auto ltree = BuildTreeFromConditionalLine(
+              lines[i], line_node_counter, 1, total_boards, 0, &line_failures);
+          if (ltree && !line_failures.unplaced.boards.empty()) {
+            ltree->children.push_back(MakeFailureLeaf(
+                line_failures.unplaced, line_failures.unplaced.condition,
+                line_node_counter, total_boards));
+          }
+          AccumulateFailureCounts(ltree);
+          if (ltree) {
+            CollapseRedundantNodes(ltree);
+            SetDefaultCollapsedState(ltree);
+          }
+          line_trees[i] = ltree;
+          if (!lines[i].do_first().Empty()) {
+            line_best_leads[i] = lines[i].do_first().ToString(true);
+          } else if (ltree) {
+            line_best_leads[i] = GetFirstCardFromNode(ltree);
+          }
+          trick1_summaries[i] = summarize_trick1(ltree);
+          collect_steps(ltree, 0, line_steps[i]);
         }
-        AccumulateFailureCounts(tree_node);
+
+        nlohmann::json lines_json = nlohmann::json::array();
+        for (size_t i = 0; i < lines.size(); ++i) {
+          std::string desc = trick1_summaries[i];
+          std::vector<size_t> peers;
+          for (size_t j = 0; j < lines.size(); ++j) {
+            if (j != i && trick1_summaries[j] == trick1_summaries[i]) {
+              peers.push_back(j);
+            }
+          }
+          int added_steps = 0;
+          while (!peers.empty() && added_steps < 2) {
+            std::string best_step;
+            size_t best_eliminated = 0;
+            for (const std::string &cand : line_steps[i]) {
+              size_t eliminated = 0;
+              for (size_t p : peers) {
+                if (std::find(line_steps[p].begin(), line_steps[p].end(),
+                              cand) == line_steps[p].end()) {
+                  ++eliminated;
+                }
+              }
+              if (eliminated > best_eliminated) {
+                best_eliminated = eliminated;
+                best_step = cand;
+              }
+            }
+            if (best_eliminated == 0) break;
+            desc += " -> " + best_step;
+            std::vector<size_t> remaining;
+            for (size_t p : peers) {
+              if (std::find(line_steps[p].begin(), line_steps[p].end(),
+                            best_step) != line_steps[p].end()) {
+                remaining.push_back(p);
+              }
+            }
+            peers = std::move(remaining);
+            ++added_steps;
+          }
+          std::string line_label =
+              "Line " + std::to_string(i + 1) + ": " + desc;
+
+          nlohmann::json line_entry = {
+              {"index", static_cast<int>(i)},
+              {"label", line_label},
+              {"best_lead", line_best_leads[i]},
+              {"covered_boards", lines[i].CoveredBoards()},
+              {"covered_board_ids",
+               std::vector<int>(line_covered_sets[i].begin(),
+                                line_covered_sets[i].end())},
+              {"tree", line_trees[i] ? nlohmann::json(*line_trees[i])
+                                     : nlohmann::json::object()},
+          };
+          if (lines[i].has_summary()) {
+            line_entry["distribution_summary"] = lines[i].summary();
+          }
+          if (lines[i].has_failure_summary()) {
+            line_entry["failure_distribution_summary"] =
+                lines[i].failure_summary();
+          }
+          lines_json.push_back(std::move(line_entry));
+        }
+
+        tree_node = line_trees[0];
+        best_lead = line_best_leads[0];
         success_boards = lines[0].CoveredBoards();
         failure_boards = std::max(0, total_boards - success_boards);
         covered_boards = success_boards;
         tricks_won = min_tricks;
         // All returned lines cover the same number of boards; the first is
-        // shown, the rest are equally good alternatives.
+        // shown by default, and all equivalent lines are included in `lines`.
         response["num_lines"] = lines.size();
-        if (!lines[0].do_first().Empty()) {
-          best_lead = lines[0].do_first().ToString(true);
-        }
+        response["lines"] = std::move(lines_json);
         if (lines[0].has_summary()) {
           response["distribution_summary"] = lines[0].summary();
         }
@@ -1455,9 +1590,11 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["solve_ms"] = solve_ms;
     response["invariant_ms"] = invariant_ms;
     if (tree_node) {
-      LineFinder::SetSolveStatus("Formatting decision tree...");
-      CollapseRedundantNodes(tree_node);
-      SetDefaultCollapsedState(tree_node);
+      if (!is_fuzzy || !response.contains("lines")) {
+        LineFinder::SetSolveStatus("Formatting decision tree...");
+        CollapseRedundantNodes(tree_node);
+        SetDefaultCollapsedState(tree_node);
+      }
       response["tree"] = *tree_node;
     } else {
       response["tree"] = nlohmann::json::object();

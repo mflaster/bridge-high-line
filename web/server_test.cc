@@ -27,6 +27,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index->body.find("traceHandInput") != std::string::npos);
   REQUIRE(res_index->body.find("traceHandBtn") != std::string::npos);
   REQUIRE(res_index->body.find("arrow-traced") != std::string::npos);
+  REQUIRE(res_index->body.find("equivalentLinesBar") != std::string::npos);
+  REQUIRE(res_index->body.find("equivalentLineSelect") != std::string::npos);
 
   // Test CSS serving
   auto res_css = client.Get("/styles.css");
@@ -36,6 +38,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_css->body.find(".traced-branch-link") != std::string::npos);
   REQUIRE(res_css->body.find(".trick-columns-header") != std::string::npos);
   REQUIRE(res_css->body.find(".card-chip.card-lead") != std::string::npos);
+  REQUIRE(res_css->body.find(".equivalent-lines-bar") != std::string::npos);
 
   // Test JS serving
   auto res_js = client.Get("/app.js");
@@ -44,6 +47,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("const nodeDetailBanner = document.getElementById('nodeDetailBanner');") != std::string::npos);
   REQUIRE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
   REQUIRE(res_js->body.find("function traceHandByNumber") != std::string::npos);
+  REQUIRE(res_js->body.find("function selectEquivalentLine") != std::string::npos);
   REQUIRE(res_js->body.find("leadSeatIdx") != std::string::npos);
   REQUIRE(res_js->body.find("trick-columns-header") != std::string::npos);
 
@@ -384,6 +388,30 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   nlohmann::json preset_json = nlohmann::json::parse(res_preset->body);
   REQUIRE(preset_json["success"] == true);
   REQUIRE(preset_json.contains("tree"));
+  REQUIRE(preset_json.contains("num_lines"));
+  REQUIRE(preset_json["num_lines"].get<int>() >= 2);
+  REQUIRE(preset_json.contains("lines"));
+  REQUIRE(preset_json["lines"].is_array());
+  REQUIRE(static_cast<int>(preset_json["lines"].size()) ==
+          preset_json["num_lines"].get<int>());
+  std::set<std::string> seen_line_labels;
+  for (size_t i = 0; i < preset_json["lines"].size(); ++i) {
+    const auto &line_obj = preset_json["lines"][i];
+    REQUIRE(line_obj["index"].get<size_t>() == i);
+    REQUIRE(line_obj.contains("label"));
+    std::string lbl = line_obj["label"].get<std::string>();
+    REQUIRE(!lbl.empty());
+    seen_line_labels.insert(lbl);
+    REQUIRE(line_obj.contains("best_lead"));
+    REQUIRE(!line_obj["best_lead"].get<std::string>().empty());
+    REQUIRE(line_obj.contains("covered_boards"));
+    REQUIRE(line_obj["covered_boards"] == preset_json["covered_boards"]);
+    REQUIRE(line_obj.contains("covered_board_ids"));
+    REQUIRE(line_obj["covered_board_ids"].is_array());
+    REQUIRE(line_obj.contains("tree"));
+    REQUIRE(line_obj["tree"].contains("id"));
+  }
+  REQUIRE(seen_line_labels.size() == preset_json["lines"].size());
 
   auto &ptree = preset_json["tree"];
   // Trick nodes may be wrapped in a "variants" condition node when several
