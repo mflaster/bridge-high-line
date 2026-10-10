@@ -2028,24 +2028,6 @@ document.addEventListener('DOMContentLoaded', () => {
       inspectorContent.appendChild(bannerEl);
     }
 
-    // Node Summary Card
-    const summaryCard = document.createElement('div');
-    summaryCard.className = 'node-summary-card';
-
-    const dealsInfo = formatNodeDeals(node) || 'Deals: -';
-
-    const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
-    const summaryTypeLabel = (node.type === 'condition')
-      ? 'BRANCH'
-      : (node.failure ? 'FAILURE' : (node.type || 'node').toUpperCase());
-
-    summaryCard.innerHTML = `
-      <div class="node-summary-title">Node #${node.id} (${summaryTypeLabel})</div>
-      <div class="node-summary-detail">Label: "${truncateText(node.label || node.trick || 'Root', 35)}"</div>
-      <div class="node-summary-detail">${dealsInfo}${nsTricksInfo}</div>
-    `;
-    inspectorContent.appendChild(summaryCard);
-
     // Helper to update Deal SVG card states for a selected trick index
     function selectTrickInInspector(selectedIdx, rowElements, updateTreeHighlight = true) {
       if (selectedIdx === null || selectedIdx < 0 || selectedIdx >= trickRows.length) {

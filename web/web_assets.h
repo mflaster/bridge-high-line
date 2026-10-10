@@ -1308,7 +1308,8 @@ body.is-resizing * {
 
 .trick-row-meta {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  align-self: stretch;
   gap: 4px;
   flex-shrink: 0;
   min-width: 30px;
@@ -1321,12 +1322,17 @@ body.is-resizing * {
 }
 
 .trick-label.clickable {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  background-color: #1e293b;
+  background-color: #000000;
   border: 1px solid #3b82f6;
   color: #60a5fa;
-  padding: 1px 6px;
+  padding: 3px 6px;
+  line-height: 15px;
   border-radius: 4px;
+  margin-bottom: 6px;
   transition: all 0.15s ease;
   user-select: none;
 }
@@ -1361,7 +1367,7 @@ body.is-resizing * {
 .card-chips-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: center;
+  align-items: end;
   gap: 4px;
   flex: 1;
 }
@@ -1378,17 +1384,20 @@ body.is-resizing * {
   background-color: #1e293b;
   border: 1px solid #334155;
   color: #f8fafc;
+  margin-top: 6px;
+}
+
+.card-chip.card-lead {
+  align-self: start;
+  margin-top: 0;
+  margin-bottom: 6px;
+  background-color: #000000;
 }
 
 .card-chip-content {
   display: inline-flex;
   align-items: center;
   line-height: 1.1;
-  border-bottom: 2px solid transparent;
-}
-
-.card-chip.card-lead .card-chip-content {
-  border-bottom-color: #f8fafc;
 }
 
 .card-chip .suit-symbol {
@@ -3992,24 +4001,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       inspectorContent.appendChild(bannerEl);
     }
-
-    // Node Summary Card
-    const summaryCard = document.createElement('div');
-    summaryCard.className = 'node-summary-card';
-
-    const dealsInfo = formatNodeDeals(node) || 'Deals: -';
-
-    const nsTricksInfo = node.ns_tricks !== undefined ? ` | N/S Won: ${node.ns_tricks}` : '';
-    const summaryTypeLabel = (node.type === 'condition')
-      ? 'BRANCH'
-      : (node.failure ? 'FAILURE' : (node.type || 'node').toUpperCase());
-
-    summaryCard.innerHTML = `
-      <div class="node-summary-title">Node #${node.id} (${summaryTypeLabel})</div>
-      <div class="node-summary-detail">Label: "${truncateText(node.label || node.trick || 'Root', 35)}"</div>
-      <div class="node-summary-detail">${dealsInfo}${nsTricksInfo}</div>
-    `;
-    inspectorContent.appendChild(summaryCard);
 
     // Helper to update Deal SVG card states for a selected trick index
     function selectTrickInInspector(selectedIdx, rowElements, updateTreeHighlight = true) {
