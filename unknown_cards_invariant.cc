@@ -129,6 +129,10 @@ std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
     return res;
   }
   if (auto res =
+          ShortestLengthInvariant::FromString(str, hand1_label, hand2_label)) {
+    return res;
+  }
+  if (auto res =
           ExactSuitLengthInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
@@ -769,6 +773,75 @@ std::shared_ptr<UnknownCardsInvariant> MaxSuitLengthInvariant::Invert(
     return std::make_shared<OrInvariant>(inv1, inv2);
   }
   return inv1 ? inv1 : inv2;
+}
+
+// --- ShortestLengthInvariant Implementation ---
+
+std::shared_ptr<ShortestLengthInvariant>
+ShortestLengthInvariant::FromString(const std::string& str,
+                                    const std::string& /* hand1_label */,
+                                    const std::string& /* hand2_label */) {
+  try {
+    if (str.rfind("ShortestLength(", 0) != 0) return nullptr;
+    size_t close_pos = str.find(") >= ", 15);
+    Comparison cmp = Comparison::kAtLeast;
+    if (close_pos == std::string::npos) {
+      close_pos = str.find(") <= ", 15);
+      cmp = Comparison::kAtMost;
+    }
+    if (close_pos == std::string::npos) return nullptr;
+
+    std::string s_str = str.substr(15, close_pos - 15);
+    int n = std::stoi(str.substr(close_pos + 5));
+    Suit s = Card::ParseSuit(s_str);
+    return std::make_shared<ShortestLengthInvariant>(s, cmp, n);
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+std::string ShortestLengthInvariant::ToString() const {
+  return "ShortestLength(" + SuitDebugString(suit_) +
+         (cmp_ == Comparison::kAtLeast ? ") >= " : ") <= ") +
+         std::to_string(length_);
+}
+
+bool ShortestLengthInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  int shortest =
+      std::min(CardsInSuit(deal.hand1, suit_), CardsInSuit(deal.hand2, suit_));
+  return cmp_ == Comparison::kAtLeast ? (shortest >= length_)
+                                      : (shortest <= length_);
+}
+
+std::shared_ptr<UnknownCardsInvariant> ShortestLengthInvariant::Invert(
+    uint64_t unknown_cards,
+    int hand1_size,
+    const std::string& /* hand1_label */,
+    const std::string& /* hand2_label */) const {
+  if (cmp_ == Comparison::kAtLeast) {
+    if (length_ <= 0) return nullptr;
+    if (unknown_cards != 0) {
+      int min1 = 0, max1 = 0, min2 = 0, max2 = 0;
+      ComputeHandSuitBounds(unknown_cards, hand1_size,
+                            InvariantHandChoice::kHand1, suit_, &min1, &max1);
+      ComputeHandSuitBounds(unknown_cards, hand1_size,
+                            InvariantHandChoice::kHand2, suit_, &min2, &max2);
+      int min_possible_shortest = std::min(min1, min2);
+      if (length_ <= min_possible_shortest) return nullptr;
+    }
+    return std::make_shared<ShortestLengthInvariant>(
+        suit_, Comparison::kAtMost, length_ - 1);
+  } else {
+    if (unknown_cards != 0) {
+      int total_suit = CardsInSuit(unknown_cards, suit_);
+      if (length_ >= total_suit / 2) return nullptr;
+    }
+    return std::make_shared<ShortestLengthInvariant>(
+        suit_, Comparison::kAtLeast, length_ + 1);
+  }
 }
 
 // --- ExactSuitLengthInvariant Implementation ---

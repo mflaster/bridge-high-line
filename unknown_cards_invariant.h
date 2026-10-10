@@ -381,6 +381,49 @@ class MaxSuitLengthInvariant : public UnknownCardsInvariant {
   int max_len_ = 0;
 };
 
+// Describes a bound on the shorter hand's length in a suit across both hands in
+// a paired deal.
+// Example string formats:
+//   "ShortestLength(C) >= 3"
+//   "ShortestLength(C) <= 2"
+class ShortestLengthInvariant : public UnknownCardsInvariant {
+ public:
+  enum class Comparison {
+    kAtLeast,
+    kAtMost,
+  };
+
+  ShortestLengthInvariant(Suit suit, Comparison cmp, int length)
+      : suit_(suit), cmp_(cmp), length_(length) {}
+
+  std::string ToString() const override;
+
+  bool HoldsOnDeal(
+      const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  static std::shared_ptr<ShortestLengthInvariant> FromString(
+      const std::string& str,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2");
+
+  Suit suit() const { return suit_; }
+  Comparison cmp() const { return cmp_; }
+  int length() const { return length_; }
+
+ private:
+  Suit suit_ = Suit::SPADES;
+  Comparison cmp_ = Comparison::kAtLeast;
+  int length_ = 0;
+};
+
 enum class InvariantHandChoice {
   kHand1,
   kHand2

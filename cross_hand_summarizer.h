@@ -49,6 +49,7 @@ class JointSuitRuleExtractor {
  private:
   HandLabelFormatter formatter_;
   std::map<Suit, JointSuitBounds> suit_bounds_;
+  std::map<Suit, std::map<int, int>> shortest_counts_;
   int total_deals_ = 0;
 };
 

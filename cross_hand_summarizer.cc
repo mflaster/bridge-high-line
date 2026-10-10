@@ -39,6 +39,7 @@ void JointSuitRuleExtractor::ProcessDeal(const PairedDeal& deal) {
     bounds.max_hand2 = std::max(bounds.max_hand2, len2);
     bounds.min_combined = std::min(bounds.min_combined, combined);
     bounds.max_combined = std::max(bounds.max_combined, combined);
+    shortest_counts_[suit][std::min(len1, len2)]++;
   }
 }
 
@@ -95,6 +96,45 @@ JointSuitRuleExtractor::ExtractInvariants() const {
     if (max_either < bounds.max_combined) {
       invariants.push_back(
           std::make_shared<MaxSuitLengthInvariant>(suit, max_either));
+    }
+
+    int max_shortest = bounds.max_combined / 2;
+    auto sc_it = shortest_counts_.find(suit);
+    if (max_shortest >= 1 && sc_it != shortest_counts_.end()) {
+      const auto& sc = sc_it->second;
+      int best_ge = -1;
+      for (int k = max_shortest; k >= 1; --k) {
+        int count_ge = 0;
+        for (const auto& [len, cnt] : sc) {
+          if (len >= k) count_ge += cnt;
+        }
+        if (count_ge * 10 >= 9 * total_deals_) {
+          best_ge = k;
+          break;
+        }
+      }
+      if (best_ge >= 1) {
+        invariants.push_back(std::make_shared<ShortestLengthInvariant>(
+            suit, ShortestLengthInvariant::Comparison::kAtLeast, best_ge));
+      }
+      int strict_min_shortest = bounds.max_combined - max_either;
+      if (strict_min_shortest >= 1 && strict_min_shortest != best_ge) {
+        invariants.push_back(std::make_shared<ShortestLengthInvariant>(
+            suit, ShortestLengthInvariant::Comparison::kAtLeast,
+            strict_min_shortest));
+      }
+
+      for (int k = 0; k < max_shortest; ++k) {
+        int count_le = 0;
+        for (const auto& [len, cnt] : sc) {
+          if (len <= k) count_le += cnt;
+        }
+        if (count_le * 10 >= 9 * total_deals_) {
+          invariants.push_back(std::make_shared<ShortestLengthInvariant>(
+              suit, ShortestLengthInvariant::Comparison::kAtMost, k));
+          break;
+        }
+      }
     }
   }
   return invariants;
@@ -795,19 +835,25 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
           holds_in_deals++;
         }
       }
-      // Require the invariant to hold on at least 90% of the target deal set
-      // so inverted near-tautologies from opposing_deals (which hold on <= 5%
-      // of deals) are not reported as invariants of deals.
-      if (holds_in_deals * 10 < 9 * static_cast<int>(deals.size())) {
-        continue;
-      }
-
       int holds_in_opposing = 0;
       for (const auto& d : *opposing_deals) {
         if (inv->HoldsOnDeal(d, fmt_h1, fmt_h2)) {
           holds_in_opposing++;
         }
       }
+      // Require the invariant to hold on at least 90% of the target deal set,
+      // or to hold on at least 75% of the target deal set while its negation
+      // holds on at least 90% of opposing_deals.
+      bool holds_on_most_deals =
+          holds_in_deals * 10 >= 9 * static_cast<int>(deals.size());
+      bool sufficient_against_opposing =
+          !opposing_deals->empty() &&
+          holds_in_deals * 4 >= 3 * static_cast<int>(deals.size()) &&
+          holds_in_opposing * 10 <= static_cast<int>(opposing_deals->size());
+      if (!holds_on_most_deals && !sufficient_against_opposing) {
+        continue;
+      }
+
       int holds_count = holds_in_deals + holds_in_opposing;
 
       InvariantStats st;

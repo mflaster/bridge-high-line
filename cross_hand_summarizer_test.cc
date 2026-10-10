@@ -996,4 +996,53 @@ TEST_CASE("Summarize_OpposingDealsDoesNotDoubleFilterWithRandomBifurcations",
       /*is_failure_mode=*/false);
 
   REQUIRE(report.HasRule("maximum length in D in any hand is 3"));
+  REQUIRE(report.HasRule("ShortestLength(D) >= 1"));
+}
+
+TEST_CASE("ShortestLengthInvariant_RoundTripInvertAndSummarize",
+          "[cross_hand_summarizer]") {
+  auto ge_inv = UnknownCardsInvariant::FromString("ShortestLength(C) >= 3");
+  REQUIRE(ge_inv != nullptr);
+  REQUIRE(ge_inv->ToString() == "ShortestLength(C) >= 3");
+
+  auto le_inv = UnknownCardsInvariant::FromString("ShortestLength(C) <= 2");
+  REQUIRE(le_inv != nullptr);
+  REQUIRE(le_inv->ToString() == "ShortestLength(C) <= 2");
+
+  PairedDeal deal_53("S T98 H KQ9 D KQJ C AT8", "S 4 H 652 D T96 C 76432");
+  PairedDeal deal_62("S T984 H KQ9 D KQJ C AT", "H 652 D T96 C 876432");
+  REQUIRE(ge_inv->HoldsOnDeal(deal_53));
+  REQUIRE_FALSE(ge_inv->HoldsOnDeal(deal_62));
+  REQUIRE_FALSE(le_inv->HoldsOnDeal(deal_53));
+  REQUIRE(le_inv->HoldsOnDeal(deal_62));
+
+  uint64_t unk = deal_53.hand1 | deal_53.hand2;
+  auto inv_of_ge = ge_inv->Invert(unk, 12);
+  REQUIRE(inv_of_ge != nullptr);
+  REQUIRE(inv_of_ge->ToString() == "ShortestLength(C) <= 2");
+
+  auto inv_of_le = le_inv->Invert(unk, 12);
+  REQUIRE(inv_of_le != nullptr);
+  REQUIRE(inv_of_le->ToString() == "ShortestLength(C) >= 3");
+
+  // Simulate a 12-card ending where 41/46 covered deals have 4-4 or 5-3 clubs
+  // (89.1% of covered deals, 100% make rate when ShortestLength(C) >= 3 holds)
+  // and 5/46 covered deals + 4/4 failure deals have 6-2 or 7-1 clubs.
+  std::vector<PairedDeal> covered_deals;
+  for (int i = 0; i < 41; ++i) {
+    covered_deals.push_back(deal_53);
+  }
+  for (int i = 0; i < 5; ++i) {
+    covered_deals.push_back(deal_62);
+  }
+  std::vector<PairedDeal> failure_deals;
+  for (int i = 0; i < 4; ++i) {
+    failure_deals.push_back(deal_62);
+  }
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(
+      covered_deals, "hand 1", "hand 3", nullptr, &failure_deals,
+      /*is_failure_mode=*/false);
+  REQUIRE(report.HasRule("ShortestLength(C) >= 3"));
 }
