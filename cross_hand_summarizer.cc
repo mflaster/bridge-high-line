@@ -842,11 +842,12 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
         }
       }
       // Require the invariant to hold on at least 90% of the target deal set,
-      // or to hold on at least 75% of the target deal set while its negation
-      // holds on at least 90% of opposing_deals.
+      // or for ShortestLengthInvariant to hold on at least 75% of the target
+      // deal set while its negation holds on at least 90% of opposing_deals.
       bool holds_on_most_deals =
           holds_in_deals * 10 >= 9 * static_cast<int>(deals.size());
       bool sufficient_against_opposing =
+          std::dynamic_pointer_cast<ShortestLengthInvariant>(inv) != nullptr &&
           !opposing_deals->empty() &&
           holds_in_deals * 4 >= 3 * static_cast<int>(deals.size()) &&
           holds_in_opposing * 10 <= static_cast<int>(opposing_deals->size());
