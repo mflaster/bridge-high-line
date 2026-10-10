@@ -544,16 +544,52 @@ FailureIndex IndexFailures(const ConditionalLine &line,
     if (last.unmatched_seat >= 0) {
       // A defender produced a card the line had no pattern for during this
       // trick; attach as a sibling under the trick's condition node.
+      Suit suit_led = last.trick_str.empty()
+                          ? NOTRUMP
+                          : Card::ParseSuit(last.trick_str[0]);
+      Suit trump = boards[trace.board_id].GetTrump();
+      Suit card_suit = last.unmatched_card.empty()
+                           ? NOTRUMP
+                           : Card::ParseSuit(last.unmatched_card[0]);
+      bool is_discard = (last.unmatched_seat != last.leader &&
+                         suit_led != NOTRUMP && card_suit != suit_led &&
+                         card_suit != trump);
+      std::string card_key = is_discard ? "R_" : last.unmatched_card;
       std::string key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
-                        last.unmatched_card + ":w" +
-                        std::to_string(last.winner);
+                        card_key + ":w" + std::to_string(last.winner);
       FailureIndex::Group &group = index.unmatched_leaves[last.node][key];
-      group.condition = "if " + SeatLetter(last.unmatched_seat) + " plays " +
-                        last.unmatched_card;
+      group.condition = is_discard
+                            ? ("if " + SeatLetter(last.unmatched_seat) +
+                               " discards")
+                            : ("if " + SeatLetter(last.unmatched_seat) +
+                               " plays " + last.unmatched_card);
       group.leader = last.leader;
       group.winner = last.winner;
       if (group.trick_str.empty()) {
         group.trick_str = last.trick_str;
+      } else if (group.trick_str != last.trick_str) {
+        std::vector<std::string> t1 = SplitWords(group.trick_str);
+        std::vector<std::string> t2 = SplitWords(last.trick_str);
+        if (t1.size() == 4 && t2.size() == 4) {
+          int unmatched_pos = (last.unmatched_seat - last.leader + 4) % 4;
+          for (int i = 0; i < 4; ++i) {
+            if (t1[i] == t2[i]) continue;
+            if (i == unmatched_pos && is_discard) {
+              t1[i] = "(R_)";
+            } else {
+              std::string c1 = CleanCardToken(t1[i]);
+              std::string c2 = CleanCardToken(t2[i]);
+              if (!c1.empty() && !c2.empty() && c1[0] == c2[0] &&
+                  c1[0] != '_' && c1[0] != 'R') {
+                t1[i] = std::string("(") + c1[0] + "_)";
+              } else {
+                t1[i] = "(__)";
+              }
+            }
+          }
+          group.trick_str =
+              t1[0] + " " + t1[1] + " " + t1[2] + " " + t1[3];
+        }
       }
       group.board_to_trick[board_key] = last.trick_str;
       add_to_group(group, trace.board_id, trace.final_ns_tricks);
