@@ -1868,6 +1868,12 @@ document.addEventListener('DOMContentLoaded', () => {
               if (mPlay) {
                 explicitPlayedSeat = getSeatIndex(mPlay[1]);
                 explicitPlayedCard = mPlay[2].trim();
+              } else {
+                const mDiscard = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+discards/i);
+                if (mDiscard) {
+                  explicitPlayedSeat = getSeatIndex(mDiscard[1]);
+                  explicitPlayedCard = 'R_';
+                }
               }
             }
           }

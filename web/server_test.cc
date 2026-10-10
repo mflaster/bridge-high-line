@@ -544,9 +544,13 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
   // Variant 2: C6 (CA) CJ (C_) -> when E wins (board 1)
   // Failed board 2: East plays C2 (matches Cx), West plays CQ (matches C_) and
   // wins -> winner failure ("if W wins the CQ"), must attach under Variant 1.
-  // Failed board 3: East is void in clubs and plays D6 -> unmatched defender
-  // play ("if E plays D6"), must attach to "C6 is led (2 variants)" as a
+  // Failed board 3: East is void in clubs and discards D6 -> unmatched defender
+  // discard ("if E discards"), must attach to "C6 is led (2 variants)" as a
   // sibling of Variant 1, NOT as a child of Variant 1.
+  // Failed board 4: East is void in clubs and discards S7 -> consolidated into
+  // the same "if E discards" sibling failure leaf with board 3.
+  // Failed board 5: East follows suit with CK (neither Cx nor CA) -> unmatched
+  // non-discard play ("if E plays CK").
   std::set<int> b0 = {0};
   std::set<int> b1 = {1};
   ConditionalLine leaf0(b0);
@@ -565,7 +569,7 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
   var2.AddCondition(new WinnerPlayCondition(1), leaf1);
 
   ConditionalLine multi_root;
-  multi_root.set_total_boards(4);
+  multi_root.set_total_boards(6);
   multi_root.AddCondition(new TrickPlayCondition("C6 (Cx) CJ (C_)"), var1);
   multi_root.AddCondition(new TrickPlayCondition("C6 (CA) CJ (C_)"), var2);
 
@@ -583,18 +587,21 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
       make_board("C6", "C2", "CJ", "C3"),  // board 0: S wins CJ
       make_board("C6", "CA", "CJ", "C3"),  // board 1: E wins CA
       make_board("C6", "C2", "CJ", "CQ"),  // board 2: W wins CQ (matches C_)
-      make_board("C6", "D6", "CJ", "C3"),  // board 3: E plays D6 (unmatched)
+      make_board("C6", "D6", "CJ", "C3"),  // board 3: E discards D6
+      make_board("C6", "S7", "CJ", "C3"),  // board 4: E discards S7
+      make_board("C6", "CK", "CJ", "C3"),  // board 5: E plays CK (unmatched)
   };
 
-  FailureIndex failures = IndexFailures(multi_root, boards, {2, 3}, 1);
+  FailureIndex failures = IndexFailures(multi_root, boards, {2, 3, 4, 5}, 1);
   int node_id = 0;
   auto tree =
-      BuildTreeFromConditionalLine(multi_root, node_id, 1, 4, 0, &failures);
+      BuildTreeFromConditionalLine(multi_root, node_id, 1, 6, 0, &failures);
   REQUIRE(tree != nullptr);
   REQUIRE(tree->type == "condition");
   REQUIRE(tree->label == "C6 is led (2 variants)");
-  // 2 trick variants + 1 sibling failure leaf ("if E plays D6")
-  REQUIRE(tree->children.size() == 3);
+  // 2 trick variants + 2 sibling failure leaves ("if E plays CK",
+  // "if E discards")
+  REQUIRE(tree->children.size() == 4);
 
   auto var1_node = tree->children[0];
   REQUIRE(var1_node->label == "#1: C6 (Cx) CJ (C_)");
@@ -603,18 +610,29 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
   REQUIRE(var1_node->children[1]->failure == true);
   REQUIRE(var1_node->children[1]->condition == "if W wins the CQ");
 
-  auto sibling_fail = tree->children[2];
-  REQUIRE(sibling_fail->failure == true);
-  REQUIRE(sibling_fail->condition == "if E plays D6");
-  REQUIRE(sibling_fail->trick == "C6 D6 CJ C3");
-  REQUIRE(sibling_fail->leader == 0);
-  REQUIRE(sibling_fail->winner == 2);
+  auto ck_fail = tree->children[2];
+  REQUIRE(ck_fail->failure == true);
+  REQUIRE(ck_fail->condition == "if E plays CK");
+  REQUIRE(ck_fail->trick == "C6 CK CJ C3");
+  REQUIRE(ck_fail->leader == 0);
+  REQUIRE(ck_fail->winner == 1);
+  REQUIRE(ck_fail->failure_boards == 1);
+
+  auto discard_fail = tree->children[3];
+  REQUIRE(discard_fail->failure == true);
+  REQUIRE(discard_fail->condition == "if E discards");
+  REQUIRE(discard_fail->trick == "C6 (R_) CJ C3");
+  REQUIRE(discard_fail->board_to_trick.at("3") == "C6 D6 CJ C3");
+  REQUIRE(discard_fail->board_to_trick.at("4") == "C6 S7 CJ C3");
+  REQUIRE(discard_fail->leader == 0);
+  REQUIRE(discard_fail->winner == 2);
+  REQUIRE(discard_fail->failure_boards == 2);
 
   // Also verify single-variant trick node wraps in "C6 is led" when an
   // unmatched defender play occurs.
   FailureIndex single_failures = IndexFailures(var1, boards, {3}, 1);
   int single_node_id = 0;
-  auto single_tree = BuildTreeFromConditionalLine(var1, single_node_id, 1, 4, 0,
+  auto single_tree = BuildTreeFromConditionalLine(var1, single_node_id, 1, 6, 0,
                                                   &single_failures);
   REQUIRE(single_tree != nullptr);
   REQUIRE(single_tree->type == "condition");
@@ -623,7 +641,8 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
   REQUIRE(single_tree->children[0]->label == "#1: C6 (Cx) CJ (C_)");
   REQUIRE(single_tree->children[0]->condition == "C6 (Cx) CJ (C_)");
   REQUIRE(single_tree->children[1]->failure == true);
-  REQUIRE(single_tree->children[1]->condition == "if E plays D6");
+  REQUIRE(single_tree->children[1]->condition == "if E discards");
+  REQUIRE(single_tree->children[1]->trick == "C6 D6 CJ C3");
 }
 
 TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {
