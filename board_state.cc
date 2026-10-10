@@ -226,23 +226,24 @@ void BoardState::PlayTrick(const std::string &trick) {
   VLOG(2) << "PlayTrick: " << trick;
   std::vector<std::string> cards = SplitWords(trick);
   CHECK_GE(cards.size(), 4) << trick;
-  for (int i = 0; i < 4; i++) {
+  int start_pos = num_trick_cards_played_;
+  for (int i = start_pos; i < 4; i++) {
     CardType c = Card::ParseStringCard(cards[i]);
     int64_t min_distance = 0;
     CardType best_card = 0;
     std::vector<CardType> valid_cards = ValidCardsToPlay();
     CHECK(!valid_cards.empty());
-    for (uint i = 0; i < valid_cards.size(); i++) {
-      int64_t d = c > valid_cards[i] ? c - valid_cards[i] :
-                  valid_cards[i] - c;
-      VLOG(3) << "Looking at card " << i << " / " << valid_cards.size()
-              << ": " << Card::PrintCard(valid_cards[i])
+    for (uint j = 0; j < valid_cards.size(); j++) {
+      int64_t d = c > valid_cards[j] ? c - valid_cards[j] :
+                  valid_cards[j] - c;
+      VLOG(3) << "Looking at card " << j << " / " << valid_cards.size()
+              << ": " << Card::PrintCard(valid_cards[j])
               << " vs " << Card::PrintCard(c)
-              << " with distance " << d << " (" << valid_cards[i] << " - "
+              << " with distance " << d << " (" << valid_cards[j] << " - "
               << c << ")";
-      if (i == 0 || d < min_distance) {
+      if (j == 0 || d < min_distance) {
         min_distance = d;
-        best_card = valid_cards[i];
+        best_card = valid_cards[j];
         VLOG(3) << "best_card now " << Card::PrintCard(best_card);
       }
     }

@@ -178,6 +178,26 @@
           </div>
         </details>
 
+        <!-- Propose Line Controls -->
+        <div id="proposeLineBar" class="propose-line-bar hidden">
+          <div class="propose-line-header">
+            <span id="proposeLineTitle" class="propose-line-title">Propose Line</span>
+            <span id="proposeLineTurnBadge" class="propose-turn-badge"></span>
+          </div>
+          <div id="proposeLineCards" class="propose-line-cards"></div>
+          <div class="propose-line-actions">
+            <button id="computeNewLineBtn" type="button" class="btn btn-primary btn-sm" disabled>
+              Compute new line
+            </button>
+            <button id="undoProposedCardBtn" type="button" class="btn btn-secondary-sm" disabled title="Undo last proposed card">
+              Undo
+            </button>
+            <button id="resetLineBtn" type="button" class="btn btn-secondary-sm" disabled title="Reset back to original line">
+              Reset
+            </button>
+          </div>
+        </div>
+
         <!-- Solve Action Button -->
         <div class="solve-action-container">
           <button id="solveBtn" class="btn btn-primary btn-large">

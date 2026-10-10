@@ -28,8 +28,21 @@ BoardState FuzzyBoardState::Randomize(bool deal_missing_cards) {
   if (deal_missing_cards) {
     hands = DealMissingCards(known_hands_, all_hand_reqs_);
   } else {
-    auto [hand1, hand3] =
-        DealTwoRequiredHands(unknown_cards_, hand_reqs1_, hand_reqs3_);
+    int max_cards = 0;
+    for (uint64_t h : hands) {
+      max_cards = std::max(max_cards, CountCardsInHand(h));
+    }
+    int unk_cnt = CountCardsInHand(unknown_cards_);
+    int hand1_known = CountCardsInHand(hands[1]);
+    int hand3_known = CountCardsInHand(hands[3]);
+    int target_cards = max_cards;
+    if (target_cards == 0 ||
+        (hand1_known + hand3_known + unk_cnt) != 2 * target_cards) {
+      target_cards = (hand1_known + hand3_known + unk_cnt) / 2;
+    }
+    int hand1_needed = std::max(0, target_cards - hand1_known);
+    auto [hand1, hand3] = DealTwoRequiredHands(
+        unknown_cards_, hand_reqs1_, hand_reqs3_, hand1_needed);
 
     hands[1] = hands[1] | hand1;
     hands[3] = hands[3] | hand3;
@@ -989,7 +1002,8 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
     }
 
     int mini_max = play_tree->MiniMax();
-    if (!WonEnoughTricks(mini_max, min_tricks, leader, cards_left)) {
+    int cur_player = play_tree->MyBoard()->CurPlayer();
+    if (!WonEnoughTricks(mini_max, min_tricks, cur_player, cards_left)) {
       VLOG(2) << "No solution for board " << b << " (" << mini_max
               << " vs " << min_tricks << ")";
       continue;

@@ -185,6 +185,26 @@ inline const char* INDEX_HTML = R"rawhtml(
           </div>
         </details>
 
+        <!-- Propose Line Controls -->
+        <div id="proposeLineBar" class="propose-line-bar hidden">
+          <div class="propose-line-header">
+            <span id="proposeLineTitle" class="propose-line-title">Propose Line</span>
+            <span id="proposeLineTurnBadge" class="propose-turn-badge"></span>
+          </div>
+          <div id="proposeLineCards" class="propose-line-cards"></div>
+          <div class="propose-line-actions">
+            <button id="computeNewLineBtn" type="button" class="btn btn-primary btn-sm" disabled>
+              Compute new line
+            </button>
+            <button id="undoProposedCardBtn" type="button" class="btn btn-secondary-sm" disabled title="Undo last proposed card">
+              Undo
+            </button>
+            <button id="resetLineBtn" type="button" class="btn btn-secondary-sm" disabled title="Reset back to original line">
+              Reset
+            </button>
+          </div>
+        </div>
+
         <!-- Solve Action Button -->
         <div class="solve-action-container">
           <button id="solveBtn" class="btn btn-primary btn-large">
@@ -1968,6 +1988,108 @@ body.is-resizing * {
   font-weight: 700;
 }
 
+/* Propose Line Interactive Controls & SVG Card Highlighting */
+.propose-line-bar {
+  background-color: #0b192c;
+  border: 1px solid #38bdf8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.propose-line-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.propose-line-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7dd3fc;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.propose-turn-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: rgba(56, 189, 248, 0.18);
+  color: #bae6fd;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.propose-line-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.propose-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background-color: #1e293b;
+  border: 1px solid #fbbf24;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fef3c7;
+}
+
+.propose-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.propose-line-actions .btn-sm {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.card-rank-playable {
+  cursor: pointer;
+  fill: #fef08a;
+  font-weight: 800;
+  transition: fill 0.12s ease, filter 0.12s ease;
+}
+
+.card-rank-playable:hover {
+  fill: #38bdf8;
+  text-decoration: underline;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.9));
+}
+
+.hand-box.hand-box-active-turn,
+.unknown-box.hand-box-active-turn {
+  stroke: #38bdf8 !important;
+  stroke-width: 2.2px !important;
+  stroke-dasharray: none !important;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.65));
+}
+
+.node-proposed {
+  fill: #172554;
+  stroke: #38bdf8;
+}
 
 )rawcss";
 
@@ -2043,6 +2165,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const sampleHandsModeSub = document.getElementById('sampleHandsModeSub');
   const sampleHandsEmptyNotice = document.getElementById('sampleHandsEmptyNotice');
   const sampleHandsGrid = document.getElementById('sampleHandsGrid');
+
+  // Propose Line Controls
+  const proposeLineBar = document.getElementById('proposeLineBar');
+  const proposeLineTitle = document.getElementById('proposeLineTitle');
+  const proposeLineTurnBadge = document.getElementById('proposeLineTurnBadge');
+  const proposeLineCards = document.getElementById('proposeLineCards');
+  const computeNewLineBtn = document.getElementById('computeNewLineBtn');
+  const undoProposedCardBtn = document.getElementById('undoProposedCardBtn');
+  const resetLineBtn = document.getElementById('resetLineBtn');
 
   function activateTab(tabName) {
     if (tabDecisionTreeBtn) tabDecisionTreeBtn.classList.toggle('active', tabName === 'tree');
@@ -2534,6 +2665,123 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let activeTrickCardStates = null; // { N, E, S, W, U } -> { played: [...], current: [...] }
+  let originalSolveSnapshot = null; // Saved original solve data & inputs before any proposed line
+  let hasComputedProposedLine = false;
+  let activeProposalContext = null; // { trickNum, selectedIdx, leaderIdx, nsTricksBefore, playedStates, prefixTrickRows, proposedCards: [] }
+
+  function clonePlayStates(states) {
+    if (!states) return null;
+    const copy = {};
+    ['N', 'E', 'S', 'W', 'U'].forEach(k => {
+      copy[k] = {
+        played: (states[k] && Array.isArray(states[k].played)) ? states[k].played.map(c => Object.assign({}, c)) : [],
+        current: (states[k] && Array.isArray(states[k].current)) ? states[k].current.map(c => Object.assign({}, c)) : []
+      };
+    });
+    return copy;
+  }
+
+  function updateProposeLineBarUI() {
+    if (!proposeLineBar) return;
+    if (!activeProposalContext && !hasComputedProposedLine) {
+      proposeLineBar.classList.add('hidden');
+      return;
+    }
+    proposeLineBar.classList.remove('hidden');
+
+    if (activeProposalContext) {
+      const { trickNum, leaderIdx, proposedCards } = activeProposalContext;
+      if (proposeLineTitle) {
+        proposeLineTitle.textContent = `Propose Trick #${trickNum}`;
+      }
+      if (proposeLineTurnBadge) {
+        if (proposedCards.length < 4) {
+          const nextSeatIdx = (leaderIdx + proposedCards.length) % 4;
+          const nextSeatName = getSeatName(nextSeatIdx);
+          proposeLineTurnBadge.textContent = `${nextSeatName} to play (${proposedCards.length}/4)`;
+          proposeLineTurnBadge.classList.remove('hidden');
+        } else {
+          proposeLineTurnBadge.textContent = `Trick #${trickNum} complete (4/4)`;
+          proposeLineTurnBadge.classList.remove('hidden');
+        }
+      }
+      if (proposeLineCards) {
+        proposeLineCards.innerHTML = '';
+        if (proposedCards.length === 0) {
+          const hint = document.createElement('span');
+          const nextSeatName = getSeatName(leaderIdx);
+          hint.textContent = `Click a legal card for ${nextSeatName} on the diagram above to propose a line.`;
+          proposeLineCards.appendChild(hint);
+        } else {
+          proposedCards.forEach(c => {
+            const pill = document.createElement('span');
+            pill.className = 'propose-card-pill';
+            pill.innerHTML = `${c.seatName}: <span class="${c.suitClass}">${c.suitSym}</span>${c.rankStr}`;
+            proposeLineCards.appendChild(pill);
+          });
+        }
+      }
+      if (computeNewLineBtn) {
+        computeNewLineBtn.disabled = (proposedCards.length === 0);
+      }
+      if (undoProposedCardBtn) {
+        undoProposedCardBtn.disabled = (proposedCards.length === 0);
+      }
+    } else {
+      if (proposeLineTitle) {
+        proposeLineTitle.textContent = 'Proposed Line Active';
+      }
+      if (proposeLineTurnBadge) {
+        proposeLineTurnBadge.textContent = 'Select a trick to propose further';
+        proposeLineTurnBadge.classList.remove('hidden');
+      }
+      if (proposeLineCards) {
+        proposeLineCards.innerHTML = '<span>Viewing solved continuation from proposed line.</span>';
+      }
+      if (computeNewLineBtn) computeNewLineBtn.disabled = true;
+      if (undoProposedCardBtn) undoProposedCardBtn.disabled = true;
+    }
+
+    if (resetLineBtn) {
+      const hasProposedCards = Boolean(activeProposalContext && activeProposalContext.proposedCards.length > 0);
+      resetLineBtn.disabled = !(hasComputedProposedLine || hasProposedCards);
+    }
+  }
+
+  function applyProposalStateToSvg() {
+    if (!activeProposalContext) return;
+    const states = clonePlayStates(activeProposalContext.playedStates);
+    activeProposalContext.proposedCards.forEach((c, idx) => {
+      const entry = Object.assign({}, c, { isLead: idx === 0 });
+      if (c.fromUnknown) {
+        states.U.current.push(entry);
+      }
+      if (states[c.seatName]) {
+        states[c.seatName].current.push(entry);
+      }
+    });
+    activeTrickCardStates = states;
+    updateProposeLineBarUI();
+    updateDealSvg();
+  }
+
+  function handleProposeCardClick(suitKey, rankToken, fromUnknown, targetSeatIdx) {
+    if (!activeProposalContext || activeProposalContext.proposedCards.length >= 4) return;
+    const seatName = getSeatName(targetSeatIdx);
+    const normRank = (rankToken === '10') ? 'T' : (rankToken === 'x' ? 'x' : rankToken.toUpperCase());
+    const trumpCode = getTrumpCode();
+    const leadSuit = activeProposalContext.proposedCards.length > 0
+      ? activeProposalContext.proposedCards[0].suit
+      : suitKey;
+    const parsed = parseSingleCardToken(`${suitKey}${normRank}`, leadSuit, trumpCode);
+    parsed.seatIdx = targetSeatIdx;
+    parsed.seatName = seatName;
+    parsed.fromUnknown = Boolean(fromUnknown);
+    parsed.movedToken = rankToken;
+    parsed.clickedToken = rankToken;
+    activeProposalContext.proposedCards.push(parsed);
+    applyProposalStateToSvg();
+  }
 
   function tokenizeSuitRanks(cardsStr) {
     if (!cardsStr || cardsStr === '-') return [];
@@ -2683,7 +2931,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Render Hand or Unknown Cards on SVG Diagram
-  function renderSvgHand(groupId, handStr, isUnknown = false, seatKey = null) {
+  function renderSvgHand(groupId, handStr, isUnknown = false, seatKey = null, playabilityInfo = null) {
     const group = document.getElementById(groupId);
     if (!group) return;
     group.innerHTML = '';
@@ -2705,6 +2953,22 @@ document.addEventListener('DOMContentLoaded', () => {
       suitTokenLists[s.key] = tokenItems;
       if (tokenItems.length > 0) hasCards = true;
     });
+
+    // Determine which suits are legal if this box is the active turn to play
+    let legalSuits = null;
+    if (playabilityInfo && playabilityInfo.isTurn) {
+      const leadSuit = playabilityInfo.leadSuit;
+      if (!isUnknown && leadSuit) {
+        const hasUnplayedLeadSuit = (suitTokenLists[leadSuit] || []).some(it => it.state === 'normal');
+        if (hasUnplayedLeadSuit) {
+          legalSuits = new Set([leadSuit]);
+        } else {
+          legalSuits = new Set(['S', 'H', 'D', 'C']);
+        }
+      } else {
+        legalSuits = new Set(['S', 'H', 'D', 'C']);
+      }
+    }
 
     if (isUnknown && !hasCards) {
       const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -2743,6 +3007,20 @@ document.addEventListener('DOMContentLoaded', () => {
           if (item.state === 'played') cls += ' card-rank-played';
           else if (item.state === 'current') cls += ' card-rank-current';
           if (item.isLead) cls += ' card-rank-lead';
+
+          const isPlayable = Boolean(
+            legalSuits &&
+            legalSuits.has(s.key) &&
+            item.state === 'normal'
+          );
+          if (isPlayable) {
+            cls += ' card-rank-playable';
+            valSpan.addEventListener('click', (e) => {
+              e.stopPropagation();
+              handleProposeCardClick(s.key, item.token, isUnknown, playabilityInfo.targetSeatIdx);
+            });
+          }
+
           valSpan.setAttribute('class', cls);
           valSpan.textContent = item.token;
           textNode.appendChild(valSpan);
@@ -2790,15 +3068,51 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     const eStr = useTracedEW ? (activeTracedDeal.E || '') : eInput;
     const wStr = useTracedEW ? (activeTracedDeal.W || '') : wInput;
+    const uStr = (inputUnknownCards && !useTracedEW) ? inputUnknownCards.value.trim() : '';
 
-    renderSvgHand('cardsNorthGroup', inputNorth.value, false, 'N');
-    renderSvgHand('cardsEastGroup', eStr, false, 'E');
-    renderSvgHand('cardsSouthGroup', inputSouth.value, false, 'S');
-    renderSvgHand('cardsWestGroup', wStr, false, 'W');
+    const eKnown = countHandCards(eStr) > 0;
+    const wKnown = countHandCards(wStr) > 0;
+    const uHasCards = countUnknownCardsString(uStr) > 0;
+
+    let nextSeatIdx = null;
+    let leadSuit = null;
+    if (activeProposalContext && activeProposalContext.proposedCards.length < 4) {
+      nextSeatIdx = (activeProposalContext.leaderIdx + activeProposalContext.proposedCards.length) % 4;
+      if (activeProposalContext.proposedCards.length > 0) {
+        leadSuit = activeProposalContext.proposedCards[0].suit;
+      }
+    }
+
+    const nTurn = (nextSeatIdx === 0);
+    const eTurnKnown = (nextSeatIdx === 1 && eKnown);
+    const sTurn = (nextSeatIdx === 2);
+    const wTurnKnown = (nextSeatIdx === 3 && wKnown);
+    const uTurn = ((nextSeatIdx === 1 && !eKnown && uHasCards) ||
+                   (nextSeatIdx === 3 && !wKnown && uHasCards));
+
+    const boxNorth = document.getElementById('boxNorth');
+    const boxEast = document.getElementById('boxEast');
+    const boxSouth = document.getElementById('boxSouth');
+    const boxWest = document.getElementById('boxWest');
+    const boxUnknown = document.getElementById('boxUnknown');
+    if (boxNorth) boxNorth.classList.toggle('hand-box-active-turn', nTurn);
+    if (boxEast) boxEast.classList.toggle('hand-box-active-turn', eTurnKnown);
+    if (boxSouth) boxSouth.classList.toggle('hand-box-active-turn', sTurn);
+    if (boxWest) boxWest.classList.toggle('hand-box-active-turn', wTurnKnown);
+    if (boxUnknown) boxUnknown.classList.toggle('hand-box-active-turn', uTurn);
+
+    renderSvgHand('cardsNorthGroup', inputNorth.value, false, 'N',
+      nTurn ? { isTurn: true, leadSuit, targetSeatIdx: 0 } : null);
+    renderSvgHand('cardsEastGroup', eStr, false, 'E',
+      eTurnKnown ? { isTurn: true, leadSuit, targetSeatIdx: 1 } : null);
+    renderSvgHand('cardsSouthGroup', inputSouth.value, false, 'S',
+      sTurn ? { isTurn: true, leadSuit, targetSeatIdx: 2 } : null);
+    renderSvgHand('cardsWestGroup', wStr, false, 'W',
+      wTurnKnown ? { isTurn: true, leadSuit, targetSeatIdx: 3 } : null);
 
     if (inputUnknownCards) {
-      const uStr = useTracedEW ? '' : inputUnknownCards.value.trim();
-      renderSvgHand('cardsUnknownGroup', uStr, true, 'U');
+      renderSvgHand('cardsUnknownGroup', uStr, true, 'U',
+        uTurn ? { isTurn: true, leadSuit, targetSeatIdx: nextSeatIdx } : null);
     }
 
     const svgTrumpText = document.getElementById('svgTrumpText');
@@ -2826,20 +3140,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) {
       el.addEventListener('input', () => {
         activeTrickCardStates = null;
+        activeProposalContext = null;
+        updateProposeLineBarUI();
         updateDealSvg();
       });
       el.addEventListener('change', () => {
         activeTrickCardStates = null;
+        activeProposalContext = null;
+        updateProposeLineBarUI();
         updateDealSvg();
       });
     }
   });
 
-  function clearPanels() {
+  function clearPanels(keepOriginalSnapshot = false) {
     currentTreeData = null;
     currentSolveData = null;
     currentCenteredNode = null;
     activeTrickCardStates = null;
+    activeProposalContext = null;
+    if (!keepOriginalSnapshot) {
+      originalSolveSnapshot = null;
+      hasComputedProposedLine = false;
+    }
+    updateProposeLineBarUI();
     activeViewMode = 'success';
     activeTracedBoardId = null;
     activeTracedDeal = null;
@@ -3116,6 +3440,23 @@ document.addEventListener('DOMContentLoaded', () => {
       execTime.textContent = timeStr;
 
       currentSolveData = data;
+      hasComputedProposedLine = false;
+      activeProposalContext = null;
+      originalSolveSnapshot = {
+        data: JSON.parse(JSON.stringify(data)),
+        inputs: {
+          north: inputNorth.value,
+          east: inputEast.value,
+          south: inputSouth.value,
+          west: inputWest.value,
+          unknownCards: inputUnknownCards ? inputUnknownCards.value : '',
+          trump: trumpSelect.value,
+          leader: leaderSelect.value,
+          targetTricks: targetTricks.value,
+          numIters: numIters.value
+        }
+      };
+      updateProposeLineBarUI();
 
       // Show summary
       resultsSummary.classList.remove('hidden');
@@ -3150,6 +3491,449 @@ document.addEventListener('DOMContentLoaded', () => {
       solveBtn.disabled = false;
     }
   });
+
+  function formatSuitsToHandStr(suitsMap, isUnknownFormat = false) {
+    const suitKeys = ['S', 'H', 'D', 'C'];
+    if (isUnknownFormat) {
+      const parts = [];
+      suitKeys.forEach(s => {
+        const tokens = suitsMap[s] || [];
+        if (tokens.length > 0) {
+          parts.push(`${s} ${tokens.join('')}`);
+        }
+      });
+      return parts.join(' ');
+    }
+    return suitKeys.map(s => {
+      const tokens = suitsMap[s] || [];
+      return `${s} ${tokens.length > 0 ? tokens.join('') : '-'};`;
+    }).join(' ');
+  }
+
+  function evaluateTrickWinner(cards, trumpCode) {
+    if (!cards || cards.length === 0) return { winningIdx: 0, winnerCard: null };
+    const leadSuit = cards[0].suit;
+    let bestIdx = 0;
+    let bestIsTrump = (trumpCode !== 'NT' && cards[0].suit === trumpCode);
+    let bestVal = cards[0].rankVal;
+
+    for (let i = 1; i < cards.length; i++) {
+      const c = cards[i];
+      const isTrump = (trumpCode !== 'NT' && c.suit === trumpCode);
+      if (isTrump && !bestIsTrump) {
+        bestIdx = i;
+        bestIsTrump = true;
+        bestVal = c.rankVal;
+      } else if (isTrump && bestIsTrump) {
+        if (c.rankVal > bestVal) {
+          bestIdx = i;
+          bestVal = c.rankVal;
+        }
+      } else if (!isTrump && !bestIsTrump) {
+        if (c.suit === leadSuit && c.rankVal > bestVal) {
+          bestIdx = i;
+          bestVal = c.rankVal;
+        }
+      }
+    }
+    return { winningIdx: bestIdx, winnerCard: cards[bestIdx] };
+  }
+
+  function getSeatFullString(seatIdx) {
+    const names = ['NORTH', 'EAST', 'SOUTH', 'WEST'];
+    return names[((seatIdx % 4) + 4) % 4];
+  }
+
+  function getSeatDisplayName(seatIdx) {
+    const names = ['North', 'East', 'South', 'West'];
+    return names[((seatIdx % 4) + 4) % 4];
+  }
+
+  function splicePrefixTricksOntoTree(prefixTricks, continuationTree, totalBoards, successBoards, failureBoards) {
+    if (!prefixTricks || prefixTricks.length === 0) {
+      return continuationTree;
+    }
+
+    let root = null;
+    let prevNode = null;
+    const allBoards = [];
+    for (let i = 0; i < totalBoards; i++) allBoards.push(i);
+    const boardIdStr = totalBoards > 0 ? '0' : null;
+
+    prefixTricks.forEach((pt, idx) => {
+      const trickTokens = pt.cards.map(c => {
+        const r = (c.rankStr === '10') ? 'T' : c.rankStr;
+        return `${c.suit || 'S'}${r}`;
+      });
+      const trickStr = trickTokens.join(' ');
+      const winnerSeatIdx = pt.winnerSeatIdx !== undefined
+        ? pt.winnerSeatIdx
+        : (pt.cards[pt.winningCardIdx] ? pt.cards[pt.winningCardIdx].seatIdx : pt.leadSeatIdx);
+      const winnerDisplayName = getSeatDisplayName(winnerSeatIdx);
+
+      const node = {
+        id: `prefix_trick_${pt.trickNum}`,
+        type: 'action',
+        trick: trickStr,
+        trick_full: trickStr,
+        label: `#${pt.trickNum}: ${trickStr} (${winnerDisplayName} wins)`,
+        leader: pt.leadSeatIdx,
+        winner: winnerSeatIdx,
+        total_boards: totalBoards,
+        covered_boards: successBoards,
+        success_boards: successBoards,
+        failure_boards: failureBoards,
+        boards: allBoards,
+        collapsed: false,
+        proposed: true,
+        children: []
+      };
+      if (boardIdStr !== null) {
+        node.board_to_trick = { [boardIdStr]: trickStr };
+      }
+
+      if (idx > 0 && prevNode) {
+        const prevWinnerIdx = prevNode.winner;
+        node.branch_winner = prevWinnerIdx;
+        node.condition = `when ${getSeatDisplayName(prevWinnerIdx)} wins`;
+        prevNode.children.push(node);
+      } else {
+        root = node;
+      }
+      prevNode = node;
+    });
+
+    if (continuationTree && Object.keys(continuationTree).length > 0 && prevNode) {
+      const lastWinnerIdx = prevNode.winner;
+      const condStr = `when ${getSeatDisplayName(lastWinnerIdx)} wins`;
+      const isContainerRoot = (!continuationTree.trick || continuationTree.trick === '') &&
+                              Array.isArray(continuationTree.children) &&
+                              continuationTree.children.length > 0;
+      if (isContainerRoot) {
+        continuationTree.children.forEach(ch => {
+          if (!ch.condition) ch.condition = condStr;
+          if (ch.branch_winner === undefined) ch.branch_winner = lastWinnerIdx;
+          prevNode.children.push(ch);
+        });
+      } else {
+        if (!continuationTree.condition) continuationTree.condition = condStr;
+        if (continuationTree.branch_winner === undefined) continuationTree.branch_winner = lastWinnerIdx;
+        prevNode.children.push(continuationTree);
+      }
+    }
+
+    return root;
+  }
+
+  if (undoProposedCardBtn) {
+    undoProposedCardBtn.addEventListener('click', () => {
+      if (!activeProposalContext || activeProposalContext.proposedCards.length === 0) return;
+      activeProposalContext.proposedCards.pop();
+      applyProposalStateToSvg();
+    });
+  }
+
+  if (resetLineBtn) {
+    resetLineBtn.addEventListener('click', () => {
+      if (!hasComputedProposedLine && activeProposalContext && activeProposalContext.proposedCards.length > 0) {
+        activeProposalContext.proposedCards = [];
+        applyProposalStateToSvg();
+        return;
+      }
+      if (!originalSolveSnapshot) return;
+
+      const snap = originalSolveSnapshot;
+      if (snap.inputs) {
+        inputNorth.value = snap.inputs.north;
+        inputEast.value = snap.inputs.east;
+        inputSouth.value = snap.inputs.south;
+        inputWest.value = snap.inputs.west;
+        if (inputUnknownCards) inputUnknownCards.value = snap.inputs.unknownCards;
+        trumpSelect.value = snap.inputs.trump;
+        leaderSelect.value = snap.inputs.leader;
+        targetTricks.value = snap.inputs.targetTricks;
+        numIters.value = snap.inputs.numIters;
+      }
+
+      hasComputedProposedLine = false;
+      activeProposalContext = null;
+      activeTrickCardStates = null;
+      clearTracedHandStateOnly();
+      if (traceHandInput) traceHandInput.value = '';
+
+      const data = JSON.parse(JSON.stringify(snap.data));
+      currentSolveData = data;
+      updateProposeLineBarUI();
+
+      resultsSummary.classList.remove('hidden');
+      statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
+      statLead.textContent = data.best_lead || '-';
+
+      const total = data.total_boards || 1;
+      const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
+      const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
+      const successPct = Math.round((success / total) * 100);
+      const failurePct = Math.round((failure / total) * 100);
+
+      if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
+      if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+      if (traceHandInput) {
+        traceHandInput.placeholder = `1..${total}`;
+      }
+
+      setStatus('success', 'Restored original solved line.');
+      renderSolveTree();
+      updateViewMode(activeViewMode);
+    });
+  }
+
+  if (computeNewLineBtn) {
+    computeNewLineBtn.addEventListener('click', async () => {
+      if (!activeProposalContext || activeProposalContext.proposedCards.length === 0) return;
+
+      const ctx = activeProposalContext;
+      const proposedCards = ctx.proposedCards.slice();
+      const trumpCode = getTrumpCode();
+
+      // Determine remaining cards in N, E, S, W, U after tricks 1..K-1
+      const eInput = inputEast ? inputEast.value : '';
+      const wInput = inputWest ? inputWest.value : '';
+      const useTracedEW = Boolean(
+        activeTracedDeal &&
+        (activeTracedDeal.E || activeTracedDeal.W) &&
+        countHandCards(eInput) === 0 &&
+        countHandCards(wInput) === 0
+      );
+      const baseHands = {
+        N: inputNorth.value,
+        E: useTracedEW ? (activeTracedDeal.E || '') : eInput,
+        S: inputSouth.value,
+        W: useTracedEW ? (activeTracedDeal.W || '') : wInput,
+        U: (inputUnknownCards && !useTracedEW) ? inputUnknownCards.value.trim() : ''
+      };
+
+      const remainingBeforeTrickK = { N: {}, E: {}, S: {}, W: {}, U: {} };
+      ['N', 'E', 'S', 'W', 'U'].forEach(seatKey => {
+        const isUnk = (seatKey === 'U');
+        const suitsData = parseHandToSuits(baseHands[seatKey]);
+        const playState = ctx.playedStates ? ctx.playedStates[seatKey] : null;
+        ['S', 'H', 'D', 'C'].forEach(suitKey => {
+          const baseTokens = tokenizeSuitRanks(suitsData[suitKey] || '-');
+          const tokenItems = buildSeatSuitTokenList(suitKey, baseTokens, playState, isUnk);
+          remainingBeforeTrickK[seatKey][suitKey] = tokenItems
+            .filter(it => it.state === 'normal')
+            .map(it => (it.token === '10' ? 'T' : it.token));
+        });
+      });
+
+      const removeOneToken = (arr, rankTok) => {
+        if (!arr || arr.length === 0) return '2';
+        const normPat = (rankTok === '10') ? 'T' : rankTok;
+        let idx = arr.findIndex(t => ((t === '10' ? 'T' : t).toUpperCase() === normPat.toUpperCase() && t !== 'x'));
+        if (idx === -1 && normPat === 'x') {
+          idx = arr.findIndex(t => t === 'x');
+        }
+        if (idx === -1) {
+          idx = arr.findIndex(t => rankMatchesPattern(t, 'S', normPat, 'S'));
+        }
+        if (idx === -1) {
+          idx = arr.length - 1;
+        }
+        const removed = arr.splice(idx, 1)[0];
+        return (removed === '10') ? 'T' : removed;
+      };
+
+      const prefixTricksToSplice = ctx.prefixTrickRows.map(r => Object.assign({}, r));
+      let nsTricksBeforeSolve = ctx.nsTricksBefore;
+      let startTrickNumForSolve = ctx.trickNum;
+      let leaderForSolve = getSeatFullString(ctx.leaderIdx);
+      let curTrickForSolve = [];
+
+      if (proposedCards.length === 4) {
+        // Complete trick K: remove all 4 proposed cards from their hands/Unknown pool
+        const completedCards = proposedCards.map(c => {
+          let actualTok = c.clickedToken || c.rankStr;
+          if (c.fromUnknown) {
+            actualTok = removeOneToken(remainingBeforeTrickK.U[c.suit], actualTok);
+          } else {
+            actualTok = removeOneToken(remainingBeforeTrickK[c.seatName][c.suit], actualTok);
+          }
+          const resolvedRank = (actualTok === 'x') ? 'x' : actualTok.toUpperCase();
+          const cardObj = parseSingleCardToken(`${c.suit}${resolvedRank}`, proposedCards[0].suit, trumpCode);
+          cardObj.seatIdx = c.seatIdx;
+          cardObj.seatName = c.seatName;
+          return cardObj;
+        });
+
+        const { winningIdx, winnerCard } = evaluateTrickWinner(completedCards, trumpCode);
+        const winnerSeatIdx = winnerCard ? winnerCard.seatIdx : ctx.leaderIdx;
+        const winnerSeatName = getSeatName(winnerSeatIdx);
+        if (winnerSeatName === 'N' || winnerSeatName === 'S') {
+          nsTricksBeforeSolve++;
+        }
+
+        prefixTricksToSplice.push({
+          trickNum: ctx.trickNum,
+          leadSeatIdx: ctx.leaderIdx,
+          leadSeatName: getSeatName(ctx.leaderIdx),
+          cards: completedCards,
+          winningCardIdx: winningIdx,
+          winnerSeat: winnerSeatName,
+          winnerSeatIdx: winnerSeatIdx
+        });
+
+        startTrickNumForSolve = ctx.trickNum + 1;
+        leaderForSolve = getSeatFullString(winnerSeatIdx);
+        curTrickForSolve = [];
+      } else {
+        // Partial trick K (1..3 cards): cards must remain in the hands passed to /api/solve
+        // because HandleSolve plays cur_trick from the starting hands!
+        // Any card clicked from Unknown Cards must be moved from U into E or W's hand.
+        curTrickForSolve = proposedCards.map(c => {
+          let actualTok = c.clickedToken || c.rankStr;
+          if (c.fromUnknown) {
+            actualTok = removeOneToken(remainingBeforeTrickK.U[c.suit], actualTok);
+            remainingBeforeTrickK[c.seatName][c.suit].push(actualTok);
+          }
+          const r = (actualTok === '10') ? 'T' : actualTok;
+          return `${c.suit}${r}`;
+        });
+      }
+
+      const origTargetInput = (originalSolveSnapshot && originalSolveSnapshot.inputs)
+        ? parseInt(originalSolveSnapshot.inputs.targetTricks, 10)
+        : parseInt(targetTricks.value, 10);
+      const fullTargetTricks = isNaN(origTargetInput) ? 1 : origTargetInput;
+      const remainingMinTricks = Math.max(0, fullTargetTricks - nsTricksBeforeSolve);
+
+      const numThreadsSelect = document.getElementById('numThreads');
+      const parsedThreads = numThreadsSelect ? parseInt(numThreadsSelect.value, 10) : 16;
+
+      const payload = {
+        hands: {
+          N: formatSuitsToHandStr(remainingBeforeTrickK.N, false),
+          E: formatSuitsToHandStr(remainingBeforeTrickK.E, false),
+          S: formatSuitsToHandStr(remainingBeforeTrickK.S, false),
+          W: formatSuitsToHandStr(remainingBeforeTrickK.W, false)
+        },
+        trump: trumpSelect.value,
+        leader: leaderForSolve,
+        min_tricks: remainingMinTricks,
+        num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10),
+        num_threads: isNaN(parsedThreads) ? 16 : parsedThreads,
+        cur_trick: curTrickForSolve,
+        start_trick_num: startTrickNumForSolve,
+        initial_ns_tricks: nsTricksBeforeSolve
+      };
+
+      const remUnknownStr = formatSuitsToHandStr(remainingBeforeTrickK.U, true);
+      if (remUnknownStr) {
+        payload.unknown_cards = remUnknownStr;
+      }
+
+      setStatus('running', `Computing new line from Trick #${ctx.trickNum}...`);
+      computeNewLineBtn.disabled = true;
+      solveBtn.disabled = true;
+      const startTime = performance.now();
+
+      let isSolving = true;
+      const statusPollTimer = setInterval(async () => {
+        if (!isSolving) return;
+        try {
+          const stRes = await fetch('/api/solve_status');
+          if (!isSolving || !stRes.ok) return;
+          const stData = await stRes.json();
+          if (!isSolving) return;
+          if (stData && stData.status) {
+            const curSec = ((performance.now() - startTime) / 1000).toFixed(1);
+            const progress = (typeof stData.progress === 'number') ? stData.progress : null;
+            setStatus('running', stData.status, `${curSec} s`, progress);
+          }
+        } catch (_) {}
+      }, 200);
+
+      try {
+        const response = await fetch('/api/solve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        isSolving = false;
+        clearInterval(statusPollTimer);
+        const elapsed = (performance.now() - startTime).toFixed(1);
+
+        if (!response.ok || !data.success) {
+          setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
+          computeNewLineBtn.disabled = false;
+          solveBtn.disabled = false;
+          return;
+        }
+
+        let timeStr = `${elapsed} ms`;
+        if (typeof data.solve_ms === 'number' && typeof data.invariant_ms === 'number') {
+          timeStr = `solve: ${(data.solve_ms / 1000).toFixed(3)} s, invariant: ${data.invariant_ms.toFixed(1)} ms`;
+        }
+
+        const total = data.total_boards || 1;
+        const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
+        const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
+
+        if (prefixTricksToSplice.length > 0) {
+          data.tree = splicePrefixTricksOntoTree(
+            prefixTricksToSplice,
+            data.tree,
+            total,
+            success,
+            failure
+          );
+          if (originalSolveSnapshot && originalSolveSnapshot.inputs) {
+            data.leader = originalSolveSnapshot.inputs.leader;
+          }
+        }
+
+        if (typeof data.tricks_won === 'number') {
+          data.tricks_won = data.tricks_won + nsTricksBeforeSolve;
+        }
+
+        hasComputedProposedLine = true;
+        activeProposalContext = null;
+        currentSolveData = data;
+        clearTracedHandStateOnly();
+        if (traceHandInput) {
+          traceHandInput.value = '';
+          traceHandInput.placeholder = `1..${total}`;
+        }
+        updateProposeLineBarUI();
+
+        setStatus('success', `Computed new line from Trick #${ctx.trickNum}!`, timeStr);
+        execTime.textContent = timeStr;
+
+        resultsSummary.classList.remove('hidden');
+        statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
+        statLead.textContent = data.best_lead || '-';
+
+        const successPct = Math.round((success / total) * 100);
+        const failurePct = Math.round((failure / total) * 100);
+        if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
+        if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+
+        renderSolveTree();
+        updateViewMode(activeViewMode);
+      } catch (err) {
+        isSolving = false;
+        clearInterval(statusPollTimer);
+        console.error(err);
+        setStatus('error', 'Network or server error: ' + err.message);
+      } finally {
+        isSolving = false;
+        clearInterval(statusPollTimer);
+        solveBtn.disabled = false;
+        updateProposeLineBarUI();
+      }
+    });
+  }
 
   // `progress`, when a number in [0, 1], shows the estimated fraction of the
   // play-tree search finished; any other value hides the bar.
@@ -4006,6 +4790,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function selectTrickInInspector(selectedIdx, rowElements, updateTreeHighlight = true) {
       if (selectedIdx === null || selectedIdx < 0 || selectedIdx >= trickRows.length) {
         activeTrickCardStates = null;
+        activeProposalContext = null;
+        updateProposeLineBarUI();
         if (updateTreeHighlight) {
           currentCenteredNode = null;
           updateCenteredNodeHighlight();
@@ -4135,14 +4921,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       };
 
+      let nsTricksBefore = 0;
+      const prefixTrickRows = [];
       for (let i = 0; i < selectedIdx; i++) {
-        const resolvedCards = resolveActualCardsForTrick(trickRows[i]);
+        const tr = trickRows[i];
+        const resolvedCards = resolveActualCardsForTrick(tr);
         resolvedCards.forEach(c => recordCard(c, 'played', false));
+        if (tr.winnerSeat === 'N' || tr.winnerSeat === 'S') {
+          nsTricksBefore++;
+        }
+        prefixTrickRows.push({
+          trickNum: tr.trickNum,
+          leadSeatIdx: tr.leadSeatIdx,
+          leadSeatName: tr.leadSeatName,
+          cards: resolvedCards.map(c => Object.assign({}, c)),
+          winningCardIdx: tr.winningCardIdx,
+          winnerSeat: tr.winnerSeat,
+          winnerSeatIdx: (tr.cards[tr.winningCardIdx] ? tr.cards[tr.winningCardIdx].seatIdx : tr.leadSeatIdx)
+        });
       }
-      const currentResolvedCards = resolveActualCardsForTrick(trickRows[selectedIdx]);
-      currentResolvedCards.forEach((c, idx) => recordCard(c, 'current', idx === 0));
+
+      const selectedTrickRow = trickRows[selectedIdx];
+      activeProposalContext = {
+        trickNum: selectedTrickRow.trickNum,
+        selectedIdx: selectedIdx,
+        leaderIdx: selectedTrickRow.leadSeatIdx,
+        nsTricksBefore: nsTricksBefore,
+        playedStates: clonePlayStates(states),
+        prefixTrickRows: prefixTrickRows,
+        proposedCards: []
+      };
 
       activeTrickCardStates = states;
+      updateProposeLineBarUI();
       if (rowElements) {
         rowElements.forEach((el, idx) => {
           el.classList.toggle('trick-row-selected', idx === selectedIdx);
@@ -4154,6 +4965,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Reset card highlights when switching inspected node until a trick is clicked
     activeTrickCardStates = null;
+    activeProposalContext = null;
+    updateProposeLineBarUI();
     updateDealSvg();
 
     // Trick Section

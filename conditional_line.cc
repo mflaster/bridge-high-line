@@ -1002,7 +1002,36 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
   }
 
   std::vector<std::vector<std::string>> cur_opt_lines;
-  for (int pos = 0; pos < 4; ++pos) {
+  int start_pos = copy.CardsPlayedThisTrick();
+  for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
+    int pre_p = (copy.cur_trick_leader() + pre_pos) % 4;
+    CardType pre_card = copy.trick_cards_played()[pre_pos];
+    std::string pre_str = Card::PrintCard(pre_card);
+    if (pre_p % 2 == 0) {
+      if (candidates.size() > 1) {
+        std::vector<const ConditionalLine *> matching;
+        for (const ConditionalLine *cand : candidates) {
+          if (GetPatternAtPos(cand->do_first(), pre_pos) == pre_str) {
+            matching.push_back(cand);
+          }
+        }
+        if (!matching.empty()) {
+          candidates = std::move(matching);
+        }
+      }
+    } else {
+      Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
+      if (candidates.size() > 1) {
+        std::vector<const ConditionalLine *> matching =
+            FilterCandidatesByDefenderCard(
+                candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
+        if (!matching.empty()) {
+          candidates = std::move(matching);
+        }
+      }
+    }
+  }
+  for (int pos = start_pos; pos < 4; ++pos) {
     if (copy.Finished()) break;
     int p = copy.CurPlayer();
     if (p % 2 == 0) {
@@ -1038,7 +1067,13 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
       // Defender side: query DDS OptimalPlayTree when needed.
       if (cur_opt_lines.empty()) {
         auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
-        cur_opt_lines = ExtractTrickLines(tree->GetLines());
+        int pre = copy.CardsPlayedThisTrick();
+        for (const auto &line : tree->GetLines()) {
+          std::vector<std::string> words = SplitWords(line);
+          if (static_cast<int>(words.size()) > pre) {
+            cur_opt_lines.emplace_back(words.begin() + pre, words.end());
+          }
+        }
       }
       CHECK(!cur_opt_lines.empty());
       CHECK(!cur_opt_lines[0].empty());
@@ -1097,6 +1132,13 @@ int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
   hands[2] = sample_board_.GetHand(2);
   hands[3] = deal.hand2;
   bs.SetHands(hands);
+  for (int i = 0; i < sample_board_.CardsPlayedThisTrick(); ++i) {
+    CardType c = sample_board_.trick_cards_played()[i];
+    if ((bs.GetHand(bs.CurPlayer()) & c) == 0) {
+      return 0;
+    }
+    bs.PlayCard(bs.CurPlayer(), c);
+  }
   return ResultsOnHand(bs);
 }
 
@@ -1165,7 +1207,8 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
       break;
     }
 
-    int trick_leader = copy.CurPlayer();
+    int trick_leader = copy.cur_trick_leader();
+    int start_pos = copy.CardsPlayedThisTrick();
     std::vector<std::string> played_cards;
     played_cards.reserve(4);
     std::string my1_str;
@@ -1175,7 +1218,46 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     std::string unmatched_card;
     std::vector<std::vector<std::string>> cur_opt_lines;
 
-    for (int pos = 0; pos < 4; ++pos) {
+    for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
+      int pre_p = (trick_leader + pre_pos) % 4;
+      CardType pre_card = copy.trick_cards_played()[pre_pos];
+      std::string pre_str = Card::PrintCard(pre_card);
+      played_cards.push_back(pre_str);
+      if (pre_p % 2 == 0) {
+        if (pre_pos < 2) {
+          my1_str = pre_str;
+        } else {
+          my2_str = pre_str;
+        }
+        if (candidates.size() > 1) {
+          std::vector<const ConditionalLine *> matching;
+          for (const ConditionalLine *cand : candidates) {
+            if (GetPatternAtPos(cand->do_first(), pre_pos) == pre_str) {
+              matching.push_back(cand);
+            }
+          }
+          if (!matching.empty()) {
+            candidates = std::move(matching);
+          }
+        }
+      } else {
+        Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
+        std::vector<const ConditionalLine *> matching =
+            FilterCandidatesByDefenderCard(
+                candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
+        if (!matching.empty()) {
+          candidates = std::move(matching);
+        } else {
+          if (!diverged_during_trick) {
+            unmatched_seat = pre_p;
+            unmatched_card = pre_str;
+          }
+          diverged_during_trick = true;
+        }
+      }
+    }
+
+    for (int pos = start_pos; pos < 4; ++pos) {
       if (copy.Finished()) break;
       int p = copy.CurPlayer();
       if (p % 2 == 0) {
@@ -1213,7 +1295,13 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
       } else {
         if (cur_opt_lines.empty()) {
           auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
-          cur_opt_lines = ExtractTrickLines(tree->GetLines());
+          int pre = copy.CardsPlayedThisTrick();
+          for (const auto &line : tree->GetLines()) {
+            std::vector<std::string> words = SplitWords(line);
+            if (static_cast<int>(words.size()) > pre) {
+              cur_opt_lines.emplace_back(words.begin() + pre, words.end());
+            }
+          }
         }
         std::string def_card_str;
         CardType def_card = 0;

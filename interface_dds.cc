@@ -162,7 +162,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     if (defense && total_tricks - result < min_tricks) {
       return result;
     }
-    if (pair_is_me && level == 0 && result < min_tricks) {
+    if (pair_is_me && result < min_tricks) {
       return result;
     }
   }
@@ -265,8 +265,20 @@ int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
   dealPBN dl;
   PopulatePBNDeal(bs, &dl);
 
-  return DDSSolveHelper(min_tricks, bs, dl, bs.CardsPlayedThisTrick(), lines,
-                        cache);
+  int played = bs.CardsPlayedThisTrick();
+  OptimalLines raw_lines;
+  int res = DDSSolveHelper(min_tricks, bs, dl, played,
+                           played > 0 ? &raw_lines : lines, cache);
+  if (played > 0) {
+    std::string prefix;
+    for (int i = 0; i < played; ++i) {
+      prefix += Card::PrintCard(bs.trick_cards_played()[i]) + " ";
+    }
+    for (const std::string &suffix : raw_lines) {
+      lines->insert(prefix + suffix);
+    }
+  }
+  return res;
 }
 
 std::vector<std::pair<int, OptimalLines>>
@@ -420,7 +432,16 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::PlayTrick(
 std::shared_ptr<OptimalPlayTree> OptimalPlayTree::FindOptimalPlayTree(
     const BoardState &bs, int min_tricks,
     SolverCache *cache, int deepen_levels) {
-  int tricks_remaining = CardsInHand(bs.GetHand(0), bs.played_cards()).size();
+  int tricks_remaining = 0;
+  for (int i = 0; i < 4; ++i) {
+    int cnt = CardsInHand(bs.GetHand(i), bs.played_cards()).size();
+    for (int j = 0; j < bs.CardsPlayedThisTrick(); ++j) {
+      if (bs.trick_cards_played()[j] & bs.GetHand(i)) {
+        --cnt;
+      }
+    }
+    tricks_remaining = std::max(tricks_remaining, cnt);
+  }
   auto ans =
       FindOptimalPlayTreeHelper(bs, min_tricks, tricks_remaining, deepen_levels,
                                 cache);

@@ -1584,3 +1584,105 @@ body.is-resizing * {
   font-weight: 700;
 }
 
+/* Propose Line Interactive Controls & SVG Card Highlighting */
+.propose-line-bar {
+  background-color: #0b192c;
+  border: 1px solid #38bdf8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.propose-line-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.propose-line-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7dd3fc;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.propose-turn-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: rgba(56, 189, 248, 0.18);
+  color: #bae6fd;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.propose-line-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.propose-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background-color: #1e293b;
+  border: 1px solid #fbbf24;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fef3c7;
+}
+
+.propose-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.propose-line-actions .btn-sm {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.card-rank-playable {
+  cursor: pointer;
+  fill: #fef08a;
+  font-weight: 800;
+  transition: fill 0.12s ease, filter 0.12s ease;
+}
+
+.card-rank-playable:hover {
+  fill: #38bdf8;
+  text-decoration: underline;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.9));
+}
+
+.hand-box.hand-box-active-turn,
+.unknown-box.hand-box-active-turn {
+  stroke: #38bdf8 !important;
+  stroke-width: 2.2px !important;
+  stroke-dasharray: none !important;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.65));
+}
+
+.node-proposed {
+  fill: #172554;
+  stroke: #38bdf8;
+}

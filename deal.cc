@@ -40,7 +40,7 @@ std::vector<uint64_t> DealHands() {
   return hands;
 }
 
-std::pair<uint64_t, uint64_t> DealTwoHands(uint64_t cards) {
+std::pair<uint64_t, uint64_t> DealTwoHands(uint64_t cards, int hand1_count) {
   std::multiset<std::pair<double, CardType>> deck;
   for (int suit = 0; suit < 4; suit++) {
     for (int val = 0; val < 13; val++) {
@@ -52,16 +52,17 @@ std::pair<uint64_t, uint64_t> DealTwoHands(uint64_t cards) {
     }
   }
   int cards_in_deck = deck.size();
-  CHECK_GT(cards_in_deck, 1);
+  CHECK_GE(cards_in_deck, 1);
+  int target1 = (hand1_count >= 0) ? hand1_count : (cards_in_deck / 2);
   uint64_t hand1 = 0;
   uint64_t hand2 = 0;
-  uint64_t *cur_hand = &hand1;
+  uint64_t *cur_hand = (target1 > 0) ? &hand1 : &hand2;
   int cur_cards = 0;
   for (const auto &[_r, card] : deck) {
     assert(((*cur_hand) & card) == 0);
     *cur_hand = ((*cur_hand) | card);
     cur_cards++;
-    if (cur_cards >= cards_in_deck / 2) {
+    if (cur_hand == &hand1 && cur_cards >= target1) {
       cur_hand = &hand2;
       cur_cards = 0;
     }
@@ -72,9 +73,10 @@ std::pair<uint64_t, uint64_t> DealTwoHands(uint64_t cards) {
 std::pair<uint64_t, uint64_t> DealTwoRequiredHands(
     uint64_t cards,
     const std::vector<std::shared_ptr<HandRequirements>> &reqs1,
-    const std::vector<std::shared_ptr<HandRequirements>> &reqs2) {
+    const std::vector<std::shared_ptr<HandRequirements>> &reqs2,
+    int hand1_count) {
   for (int i = 0; i < 1000 * 1000; i++) {
-    auto [hand1, hand2] = DealTwoHands(cards);
+    auto [hand1, hand2] = DealTwoHands(cards, hand1_count);
     bool meets_reqs = true;
     for (const auto &req : reqs1) {
       if (!req->MeetsRequirement(hand1)) {
