@@ -410,6 +410,18 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S 2; H 32; D AK8765; C -;',
       west: '',
       unknown_cards: 'S KQJT987 H KQJT987 D QJT9'
+    },
+    twelve_card_spades: {
+      name: "12-Card Spades Deal (4S)",
+      trump: 'SPADES',
+      leader: 'NORTH',
+      target: 9,
+      iters: 50,
+      north: 'S Q73; H JT87; D 87; C J95;',
+      east: '',
+      south: 'S AKJ652; H A43; D 5; C KQ;',
+      west: '',
+      unknown_cards: 'S T984 H KQ9652 D KQJT96 C AT876432'
     }
   };
 
