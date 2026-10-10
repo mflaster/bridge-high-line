@@ -381,7 +381,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
   LOG(INFO) << "TIMING: invariant_ms=" << invariant_ms_
             << " ans.size()=" << ans.size();
 
-  SetSolveStatus("Solve complete.");
+  SetSolveStatus("Building decision tree...");
   LOG(INFO) << "Solve finished with get_line_from_trick_calls "
             << get_line_from_trick_calls.load();
   return ans;

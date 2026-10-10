@@ -3048,7 +3048,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let timeStr = `${elapsed} ms`;
       if (typeof data.solve_ms === 'number' && typeof data.invariant_ms === 'number') {
-        timeStr = `solve: ${data.solve_ms.toFixed(1)} ms, invariant: ${data.invariant_ms.toFixed(1)} ms`;
+        timeStr = `solve: ${(data.solve_ms / 1000).toFixed(3)} s, invariant: ${data.invariant_ms.toFixed(1)} ms`;
       }
 
       setStatus('success', 'Solve complete!', timeStr);

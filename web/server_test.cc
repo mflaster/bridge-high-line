@@ -712,3 +712,37 @@ TEST_CASE("WebServer Concurrent Multithreaded /api/solve Requests") {
   server.Stop();
 }
 
+TEST_CASE("WebServer Solve Status Lifecycle Test") {
+  int port = 18086;
+  WebServer server("127.0.0.1", port);
+  REQUIRE(server.Start(/*async=*/true));
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+  httplib::Client client("127.0.0.1", port);
+  client.set_keep_alive(false);
+  client.set_read_timeout(60, 0);
+
+  nlohmann::json req;
+  req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  req["hands"]["E"] = "";
+  req["hands"]["S"] = "S 87; H -; D -; C -;";
+  req["hands"]["W"] = "";
+  req["trump"] = "SPADES";
+  req["leader"] = "SOUTH";
+  req["min_tricks"] = 2;
+  req["num_iters"] = 10;
+  req["unknown_cards"] = "S Kxxx";
+
+  auto res = client.Post("/api/solve", req.dump(), "application/json");
+  REQUIRE(res);
+  REQUIRE(res->status == 200);
+
+  auto res_status = client.Get("/api/solve_status");
+  REQUIRE(res_status);
+  REQUIRE(res_status->status == 200);
+  nlohmann::json status_json = nlohmann::json::parse(res_status->body);
+  REQUIRE(status_json["status"] == "Solve complete.");
+
+  server.Stop();
+}
+

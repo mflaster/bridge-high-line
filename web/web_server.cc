@@ -1366,8 +1366,14 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       response["all_hands"] = all_hands_json;
 
       if (!lines.empty()) {
+        if (!failed_board_ids.empty()) {
+          LineFinder::SetSolveStatus("Indexing failure deals...");
+        } else {
+          LineFinder::SetSolveStatus("Building decision tree...");
+        }
         FailureIndex failures = IndexFailures(lines[0], boards,
                                               failed_board_ids, num_threads);
+        LineFinder::SetSolveStatus("Building decision tree...");
         tree_node = BuildTreeFromConditionalLine(lines[0], node_counter, 1,
                                                  total_boards, 0, &failures);
         if (tree_node && !failures.unplaced.boards.empty()) {
@@ -1405,9 +1411,11 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       bs.SetLead(leader);
       bs.MarkMissingCardsAsPlayed();
 
+      LineFinder::SetSolveStatus("Solving double-dummy tree...");
       auto solve_start = std::chrono::high_resolution_clock::now();
       tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
       best_lead = ExtractFirstCard(best_seq);
+      LineFinder::SetSolveStatus("Building decision tree...");
       tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter, bs);
       auto solve_end = std::chrono::high_resolution_clock::now();
       solve_ms = std::chrono::duration<double, std::milli>(solve_end - solve_start).count();
@@ -1447,6 +1455,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["solve_ms"] = solve_ms;
     response["invariant_ms"] = invariant_ms;
     if (tree_node) {
+      LineFinder::SetSolveStatus("Formatting decision tree...");
       CollapseRedundantNodes(tree_node);
       SetDefaultCollapsedState(tree_node);
       response["tree"] = *tree_node;
@@ -1455,8 +1464,10 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     }
     response["elapsed_ms"] = elapsed_ms;
 
+    LineFinder::SetSolveStatus("Solve complete.");
     res.set_content(response.dump(), "application/json");
   } catch (const std::exception &e) {
+    LineFinder::SetSolveStatus("Idle");
     LOG(ERROR) << "Exception in HandleSolve: " << e.what();
     response["success"] = false;
     response["error"] = e.what();
