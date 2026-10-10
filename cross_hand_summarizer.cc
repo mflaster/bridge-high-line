@@ -784,16 +784,10 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
       }
     }
 
-    // First filter out structural tautologies using random bifurcations
-    // (without evaluating the line on random bifurcations).
-    auto non_tautological = FilterUninterestingInvariants(
-        candidate_invariants, report.unknown_cards, report.cards_per_hand,
-        formatter, 200, nullptr);
-
     int total_sim =
         static_cast<int>(deals.size() + opposing_deals->size());
     std::vector<InvariantStats> sim_stats;
-    for (const auto& inv : non_tautological) {
+    for (const auto& inv : candidate_invariants) {
       if (!inv) continue;
       int holds_in_deals = 0;
       for (const auto& d : deals) {
