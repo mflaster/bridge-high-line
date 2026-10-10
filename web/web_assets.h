@@ -1385,6 +1385,7 @@ body.is-resizing * {
   align-self: start;
   margin-top: 0;
   margin-bottom: 6px;
+  background-color: #000000;
 }
 
 .card-chip-content {
