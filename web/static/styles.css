@@ -897,11 +897,37 @@ body.is-resizing * {
   opacity: 0.6;
 }
 
+.trick-columns-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 2px 8px;
+}
+
+.trick-seat-col-header {
+  text-align: center;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.trick-seat-col-header.seat-col-ns {
+  color: #38bdf8;
+}
+
+.trick-seat-col-header.seat-col-ew {
+  color: #c084fc;
+}
+
 .trick-row-meta {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  min-width: 30px;
 }
 
 .trick-label {
@@ -949,15 +975,17 @@ body.is-resizing * {
 }
 
 .card-chips-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
+  flex: 1;
 }
 
 .card-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 3px 6px;
   border-radius: 4px;
   font-family: monospace;
@@ -966,6 +994,17 @@ body.is-resizing * {
   background-color: #1e293b;
   border: 1px solid #334155;
   color: #f8fafc;
+}
+
+.card-chip-content {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.1;
+  border-bottom: 2px solid transparent;
+}
+
+.card-chip.card-lead .card-chip-content {
+  border-bottom-color: #f8fafc;
 }
 
 .card-chip .suit-symbol {
