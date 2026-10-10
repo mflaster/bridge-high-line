@@ -282,6 +282,19 @@ inline const char* INDEX_HTML = R"rawhtml(
           </div>
         </div>
 
+        <!-- Equivalent Lines Selector Bar -->
+        <div id="equivalentLinesBar" class="equivalent-lines-bar hidden">
+          <div class="equivalent-lines-info">
+            <span id="equivalentLinesBadge" class="equivalent-lines-badge">Multiple Equivalent Lines</span>
+            <span class="equivalent-lines-hint">Choose an equally optimal line of play:</span>
+          </div>
+          <div class="equivalent-lines-controls">
+            <button id="prevLineBtn" type="button" class="btn btn-secondary-sm line-nav-btn" title="Previous equivalent line">◀</button>
+            <select id="equivalentLineSelect" class="equivalent-line-select" aria-label="Select equivalent line of play"></select>
+            <button id="nextLineBtn" type="button" class="btn btn-secondary-sm line-nav-btn" title="Next equivalent line">▶</button>
+          </div>
+        </div>
+
         <!-- Tab Panel 1: Decision Tree -->
         <div id="panelDecisionTree" class="tab-panel active">
           <div class="tree-layout-wrapper">
@@ -1077,6 +1090,75 @@ body.is-resizing * {
   border-color: #f59e0b;
   background-color: #262115;
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+.equivalent-lines-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  background-color: #0f172a;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+}
+
+.equivalent-lines-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.equivalent-lines-badge {
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background-color: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+}
+
+.equivalent-lines-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.equivalent-lines-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 260px;
+  justify-content: flex-end;
+}
+
+.equivalent-line-select {
+  flex: 1 1 auto;
+  max-width: 480px;
+  min-width: 180px;
+  background-color: #1e293b;
+  color: var(--text-main);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.equivalent-line-select:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.line-nav-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .summary-mode-header {
@@ -2121,6 +2203,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardStatFailure = document.getElementById('cardStatFailure');
   const statSuccess = document.getElementById('statSuccess');
   const statFailure = document.getElementById('statFailure');
+  const equivalentLinesBar = document.getElementById('equivalentLinesBar');
+  const equivalentLinesBadge = document.getElementById('equivalentLinesBadge');
+  const equivalentLineSelect = document.getElementById('equivalentLineSelect');
+  const prevLineBtn = document.getElementById('prevLineBtn');
+  const nextLineBtn = document.getElementById('nextLineBtn');
   const summaryModeHeader = document.getElementById('summaryModeHeader');
   const summaryModeBadge = document.getElementById('summaryModeBadge');
   const summaryModeSub = document.getElementById('summaryModeSub');
@@ -2451,6 +2538,117 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter' || e.key === ' ') {
         updateViewMode('failure');
       }
+    });
+  }
+
+  function populateEquivalentLinesControls(data) {
+    if (!equivalentLinesBar || !equivalentLineSelect) return;
+    equivalentLineSelect.innerHTML = '';
+    const lines = (data && Array.isArray(data.lines)) ? data.lines : [];
+    if (lines.length > 1) {
+      lines.forEach((lineObj, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = lineObj.label || `Line ${idx + 1}`;
+        equivalentLineSelect.appendChild(opt);
+      });
+      equivalentLineSelect.value = '0';
+      if (equivalentLinesBadge) {
+        equivalentLinesBadge.textContent = `${lines.length} Equivalent Lines`;
+      }
+      equivalentLinesBar.classList.remove('hidden');
+    } else {
+      equivalentLinesBar.classList.add('hidden');
+    }
+  }
+
+  function selectEquivalentLine(rawIndex) {
+    if (!currentSolveData || !Array.isArray(currentSolveData.lines) ||
+        currentSolveData.lines.length === 0) {
+      return;
+    }
+    const count = currentSolveData.lines.length;
+    const idx = ((parseInt(rawIndex, 10) || 0) % count + count) % count;
+    const lineObj = currentSolveData.lines[idx];
+    if (!lineObj) return;
+
+    currentSolveData.active_line_index = idx;
+    currentSolveData.tree = JSON.parse(JSON.stringify(lineObj.tree || {}));
+    currentSolveData.best_lead = lineObj.best_lead || '-';
+    currentSolveData.distribution_summary = lineObj.distribution_summary || null;
+    currentSolveData.failure_distribution_summary =
+      lineObj.failure_distribution_summary || null;
+
+    const total = currentSolveData.total_boards || 1;
+    if (Array.isArray(lineObj.covered_board_ids) &&
+        Array.isArray(currentSolveData.all_hands)) {
+      const coveredSet = new Set(lineObj.covered_board_ids);
+      const sampleHands = [];
+      const failureSampleHands = [];
+      currentSolveData.all_hands.forEach(handEntry => {
+        const isCov = coveredSet.has(handEntry.board_id);
+        handEntry.succeeded = isCov;
+        if (isCov && sampleHands.length < 100) {
+          sampleHands.push(handEntry);
+        } else if (!isCov && failureSampleHands.length < 100) {
+          failureSampleHands.push(handEntry);
+        }
+      });
+      currentSolveData.sample_hands = sampleHands;
+      currentSolveData.failure_sample_hands = failureSampleHands;
+      currentSolveData.success_boards = coveredSet.size;
+      currentSolveData.covered_boards = coveredSet.size;
+      currentSolveData.failure_boards = Math.max(0, total - coveredSet.size);
+    }
+
+    if (statLead) {
+      statLead.textContent = currentSolveData.best_lead || '-';
+    }
+    const success = currentSolveData.success_boards !== undefined
+      ? currentSolveData.success_boards
+      : (currentSolveData.covered_boards || 0);
+    const failure = currentSolveData.failure_boards !== undefined
+      ? currentSolveData.failure_boards
+      : Math.max(0, total - success);
+    const successPct = Math.round((success / total) * 100);
+    const failurePct = Math.round((failure / total) * 100);
+    if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
+    if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+
+    if (equivalentLineSelect) {
+      equivalentLineSelect.value = String(idx);
+    }
+
+    if (activeTracedBoardId !== null) {
+      traceHandByNumber(activeTracedBoardId + 1);
+      updateViewMode(activeViewMode);
+    } else {
+      renderSolveTree();
+      updateViewMode(activeViewMode);
+    }
+  }
+
+  if (equivalentLineSelect) {
+    equivalentLineSelect.addEventListener('change', () => {
+      selectEquivalentLine(parseInt(equivalentLineSelect.value, 10));
+    });
+  }
+
+  if (prevLineBtn) {
+    prevLineBtn.addEventListener('click', () => {
+      const cur = (currentSolveData && typeof currentSolveData.active_line_index === 'number')
+        ? currentSolveData.active_line_index
+        : 0;
+      selectEquivalentLine(cur - 1);
+    });
+  }
+
+  if (nextLineBtn) {
+    nextLineBtn.addEventListener('click', () => {
+      const cur = (currentSolveData && typeof currentSolveData.active_line_index === 'number')
+        ? currentSolveData.active_line_index
+        : 0;
+      selectEquivalentLine(cur + 1);
     });
   }
 
@@ -3182,6 +3380,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (execTime) execTime.textContent = '';
 
     if (resultsSummary) resultsSummary.classList.add('hidden');
+    if (equivalentLinesBar) equivalentLinesBar.classList.add('hidden');
+    if (equivalentLineSelect) equivalentLineSelect.innerHTML = '';
     if (statTricks) statTricks.textContent = '-';
     if (statLead) statLead.textContent = '-';
     if (statSuccess) statSuccess.textContent = '-';
@@ -3436,10 +3636,15 @@ document.addEventListener('DOMContentLoaded', () => {
         timeStr = `solve: ${(data.solve_ms / 1000).toFixed(3)} s, invariant: ${data.invariant_ms.toFixed(1)} ms`;
       }
 
-      setStatus('success', 'Solve complete!', timeStr);
+      const numLines = Array.isArray(data.lines) ? data.lines.length : (data.num_lines || 1);
+      const completeMsg = numLines > 1
+        ? `Solve complete! (${numLines} equivalent lines found)`
+        : 'Solve complete!';
+      setStatus('success', completeMsg, timeStr);
       execTime.textContent = timeStr;
 
       currentSolveData = data;
+      currentSolveData.active_line_index = 0;
       hasComputedProposedLine = false;
       activeProposalContext = null;
       originalSolveSnapshot = {
@@ -3474,6 +3679,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (traceHandInput) {
         traceHandInput.placeholder = `1..${total}`;
       }
+
+      populateEquivalentLinesControls(data);
 
       // Render the combined decision tree, then the Distribution Summary and
       // Sample Hands panels for the active view mode (Success vs Failure).
@@ -3663,7 +3870,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = JSON.parse(JSON.stringify(snap.data));
       currentSolveData = data;
+      currentSolveData.active_line_index = 0;
       updateProposeLineBarUI();
+      populateEquivalentLinesControls(data);
 
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
@@ -3888,24 +4097,35 @@ document.addEventListener('DOMContentLoaded', () => {
             success,
             failure
           );
+          if (Array.isArray(data.lines)) {
+            data.lines.forEach(lineObj => {
+              if (lineObj && lineObj.tree) {
+                lineObj.tree = splicePrefixTricksOntoTree(
+                  prefixTricksToSplice.map(r => Object.assign({}, r)),
+                  lineObj.tree,
+                  total,
+                  success,
+                  failure
+                );
+              }
+            });
+          }
           if (originalSolveSnapshot && originalSolveSnapshot.inputs) {
             data.leader = originalSolveSnapshot.inputs.leader;
           }
         }
 
-        if (typeof data.tricks_won === 'number') {
-          data.tricks_won = data.tricks_won + nsTricksBeforeSolve;
-        }
-
         hasComputedProposedLine = true;
         activeProposalContext = null;
         currentSolveData = data;
+        currentSolveData.active_line_index = 0;
         clearTracedHandStateOnly();
         if (traceHandInput) {
           traceHandInput.value = '';
           traceHandInput.placeholder = `1..${total}`;
         }
         updateProposeLineBarUI();
+        populateEquivalentLinesControls(data);
 
         setStatus('success', `Computed new line from Trick #${ctx.trickNum}!`, timeStr);
         execTime.textContent = timeStr;
