@@ -34,6 +34,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_css->status == 200);
   REQUIRE(res_css->body.find(".traced-branch-node") != std::string::npos);
   REQUIRE(res_css->body.find(".traced-branch-link") != std::string::npos);
+  REQUIRE(res_css->body.find(".trick-columns-header") != std::string::npos);
+  REQUIRE(res_css->body.find(".card-chip.card-lead") != std::string::npos);
 
   // Test JS serving
   auto res_js = client.Get("/app.js");
@@ -42,6 +44,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("const nodeDetailBanner = document.getElementById('nodeDetailBanner');") != std::string::npos);
   REQUIRE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
   REQUIRE(res_js->body.find("function traceHandByNumber") != std::string::npos);
+  REQUIRE(res_js->body.find("leadSeatIdx") != std::string::npos);
+  REQUIRE(res_js->body.find("trick-columns-header") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");

@@ -1963,6 +1963,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       trickRows.push({
         trickNum: trickRows.length + 1,
+        leadSeatIdx: currentLeader,
         leadSeatBadge: leadSeatBadge,
         leadSeatName: leadSeatName,
         cards: parsedCards,
@@ -2202,6 +2203,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const rowElements = [];
       let selectedTrickIdx = null;
 
+      // Column headers: N, E, S, W
+      const headerRow = document.createElement('div');
+      headerRow.className = 'trick-columns-header';
+      headerRow.innerHTML = `
+        <div class="trick-row-meta"></div>
+        <div class="card-chips-row">
+          <span class="trick-seat-col-header seat-col-ns">N</span>
+          <span class="trick-seat-col-header seat-col-ew">E</span>
+          <span class="trick-seat-col-header seat-col-ns">S</span>
+          <span class="trick-seat-col-header seat-col-ew">W</span>
+        </div>
+      `;
+      listContainer.appendChild(headerRow);
+
       trickRows.forEach((tr, rowIdx) => {
         const rowEl = document.createElement('div');
         rowEl.className = 'trick-row';
@@ -2238,13 +2253,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        const isLeaderEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
-        const badgeEl = document.createElement('span');
-        badgeEl.className = `seat-badge ${isLeaderEW ? 'seat-badge-ew' : 'seat-badge-ns'}`;
-        badgeEl.textContent = tr.leadSeatBadge;
-
         metaEl.appendChild(labelEl);
-        metaEl.appendChild(badgeEl);
         rowEl.appendChild(metaEl);
 
         const chipsRow = document.createElement('div');
@@ -2253,14 +2262,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const isWinnerEW = (tr.winnerSeat === 'E' || tr.winnerSeat === 'W');
         const winnerThemeClass = isWinnerEW ? 'card-winner-ew' : 'card-winner-ns';
 
-        tr.cards.forEach((c, idx) => {
+        // Always display cards in fixed N (0), E (1), S (2), W (3) order
+        [0, 1, 2, 3].forEach((seatIdx) => {
+          const playIdx = tr.cards.findIndex(card => card.seatIdx === seatIdx);
+          if (playIdx === -1) return;
+          const c = tr.cards[playIdx];
           const chip = document.createElement('span');
-          const isWinner = (idx === tr.winningCardIdx);
-          chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
-          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
-          chip.innerHTML = c.suitSym
+          const isWinner = (playIdx === tr.winningCardIdx);
+          const isLead = (seatIdx === tr.leadSeatIdx);
+          const classes = ['card-chip', c.suitClass];
+          if (isWinner) {
+            classes.push('card-winner', winnerThemeClass);
+          }
+          if (isLead) {
+            classes.push('card-lead');
+          }
+          chip.className = classes.join(' ');
+          chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+          const innerHtml = c.suitSym
             ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`
             : `<span class="card-rank">${c.rankStr}</span>`;
+          chip.innerHTML = `<span class="card-chip-content">${innerHtml}</span>`;
           chipsRow.appendChild(chip);
         });
 

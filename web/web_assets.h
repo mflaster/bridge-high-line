@@ -1280,11 +1280,37 @@ body.is-resizing * {
   opacity: 0.6;
 }
 
+.trick-columns-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 2px 8px;
+}
+
+.trick-seat-col-header {
+  text-align: center;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  user-select: none;
+}
+
+.trick-seat-col-header.seat-col-ns {
+  color: #38bdf8;
+}
+
+.trick-seat-col-header.seat-col-ew {
+  color: #c084fc;
+}
+
 .trick-row-meta {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  min-width: 30px;
 }
 
 .trick-label {
@@ -1332,15 +1358,17 @@ body.is-resizing * {
 }
 
 .card-chips-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
+  flex: 1;
 }
 
 .card-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 3px 6px;
   border-radius: 4px;
   font-family: monospace;
@@ -1349,6 +1377,17 @@ body.is-resizing * {
   background-color: #1e293b;
   border: 1px solid #334155;
   color: #f8fafc;
+}
+
+.card-chip-content {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.1;
+  border-bottom: 2px solid transparent;
+}
+
+.card-chip.card-lead .card-chip-content {
+  border-bottom-color: #f8fafc;
 }
 
 .card-chip .suit-symbol {
@@ -3888,6 +3927,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       trickRows.push({
         trickNum: trickRows.length + 1,
+        leadSeatIdx: currentLeader,
         leadSeatBadge: leadSeatBadge,
         leadSeatName: leadSeatName,
         cards: parsedCards,
@@ -4127,6 +4167,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const rowElements = [];
       let selectedTrickIdx = null;
 
+      // Column headers: N, E, S, W
+      const headerRow = document.createElement('div');
+      headerRow.className = 'trick-columns-header';
+      headerRow.innerHTML = `
+        <div class="trick-row-meta"></div>
+        <div class="card-chips-row">
+          <span class="trick-seat-col-header seat-col-ns">N</span>
+          <span class="trick-seat-col-header seat-col-ew">E</span>
+          <span class="trick-seat-col-header seat-col-ns">S</span>
+          <span class="trick-seat-col-header seat-col-ew">W</span>
+        </div>
+      `;
+      listContainer.appendChild(headerRow);
+
       trickRows.forEach((tr, rowIdx) => {
         const rowEl = document.createElement('div');
         rowEl.className = 'trick-row';
@@ -4163,13 +4217,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        const isLeaderEW = (tr.leadSeatName === 'E' || tr.leadSeatName === 'W');
-        const badgeEl = document.createElement('span');
-        badgeEl.className = `seat-badge ${isLeaderEW ? 'seat-badge-ew' : 'seat-badge-ns'}`;
-        badgeEl.textContent = tr.leadSeatBadge;
-
         metaEl.appendChild(labelEl);
-        metaEl.appendChild(badgeEl);
         rowEl.appendChild(metaEl);
 
         const chipsRow = document.createElement('div');
@@ -4178,14 +4226,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const isWinnerEW = (tr.winnerSeat === 'E' || tr.winnerSeat === 'W');
         const winnerThemeClass = isWinnerEW ? 'card-winner-ew' : 'card-winner-ns';
 
-        tr.cards.forEach((c, idx) => {
+        // Always display cards in fixed N (0), E (1), S (2), W (3) order
+        [0, 1, 2, 3].forEach((seatIdx) => {
+          const playIdx = tr.cards.findIndex(card => card.seatIdx === seatIdx);
+          if (playIdx === -1) return;
+          const c = tr.cards[playIdx];
           const chip = document.createElement('span');
-          const isWinner = (idx === tr.winningCardIdx);
-          chip.className = `card-chip ${c.suitClass} ${isWinner ? `card-winner ${winnerThemeClass}` : ''}`;
-          chip.title = `Played by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
-          chip.innerHTML = c.suitSym
+          const isWinner = (playIdx === tr.winningCardIdx);
+          const isLead = (seatIdx === tr.leadSeatIdx);
+          const classes = ['card-chip', c.suitClass];
+          if (isWinner) {
+            classes.push('card-winner', winnerThemeClass);
+          }
+          if (isLead) {
+            classes.push('card-lead');
+          }
+          chip.className = classes.join(' ');
+          chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+          const innerHtml = c.suitSym
             ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`
             : `<span class="card-rank">${c.rankStr}</span>`;
+          chip.innerHTML = `<span class="card-chip-content">${innerHtml}</span>`;
           chipsRow.appendChild(chip);
         });
 
