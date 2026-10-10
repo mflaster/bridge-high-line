@@ -977,7 +977,7 @@ body.is-resizing * {
 .card-chips-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: center;
+  align-items: end;
   gap: 4px;
   flex: 1;
 }
@@ -994,17 +994,19 @@ body.is-resizing * {
   background-color: #1e293b;
   border: 1px solid #334155;
   color: #f8fafc;
+  margin-top: 6px;
+}
+
+.card-chip.card-lead {
+  align-self: start;
+  margin-top: 0;
+  margin-bottom: 6px;
 }
 
 .card-chip-content {
   display: inline-flex;
   align-items: center;
   line-height: 1.1;
-  border-bottom: 2px solid transparent;
-}
-
-.card-chip.card-lead .card-chip-content {
-  border-bottom-color: #f8fafc;
 }
 
 .card-chip .suit-symbol {
