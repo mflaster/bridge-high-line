@@ -25,18 +25,18 @@ Invariant Rules for 4 card ending:
               after H2 (__) HA (__): H2 (__) HA (__) [18] / H2 D4 HA SJ 
                 when 2 wins the HA: HAND SUCCEEDED FOR: 18
     if 1 wins the SJ,SK: 
-      after (D_) S7 (__) H2: (D_) S7 (__) H2 [1,2,3,5,6,7,8,9,10,11,12,15,16,17,19,21,23,24,26,28,29] / D3 S7 D4 H2  / D4 S7 D3 H2  / D4 S7 D3 H2  / D3 S7 D4 H2  / D3 S7 D4 H2 
+      after (D_) S7 (__) H2: (D_) S7 (__) H2 [0,1,2,3,5,6,7,8,9,10,11,12,15,16,17,19,20,21,23,24,26,28,29] / D4 S7 D3 H2  / D3 S7 D4 H2  / D4 S7 D3 H2  / D4 S7 D3 H2  / D3 S7 D4 H2 
         when 0 wins the H2: 
-          after SA (S_) S6 (S_): SA (S_) S6 (S_) [1,2,3,5,6,7,8,9,10,11,12,15,16,17,19,21,23,24,26,28,29] / SA S5 S6 S4  / SA S9 S6 S4  / SA S9 S6 S4  / SA S5 S6 S4  / SA S4 S6 S5 
+          after SA (S_) S6 (S_): SA (S_) S6 (S_) [0,1,2,3,5,6,7,8,9,10,11,12,15,16,17,19,20,21,23,24,26,28,29] / SA S3 S6 S9  / SA S5 S6 S4  / SA S9 S6 S4  / SA S9 S6 S4  / SA S5 S6 S4 
             when 0 wins the SA: 
-              after SQ (__) HA (S_): SQ (__) HA (S_) [1,2,3,5,6,7,8,9,10,11,12,15,16,17,19,21,23,24,26,28,29] / SQ S9 HA SJ  / SQ SK HA S5  / SQ SK HA S5  / SQ S9 HA SK  / SQ S9 HA SK 
-                when 2 wins the HA: HAND SUCCEEDED FOR: 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17, 19, 21, 23, 24, 26, 28, 29
-      after (S_) S7 (SX) SA: (S_) S7 (SX) SA [0,14,20,22] / S3 S7 SK SA  / S3 S7 SJ SA  / S3 S7 SK SA  / S3 S7 SJ SA 
+              after SQ (__) HA (S_): SQ (__) HA (S_) [0,1,2,3,5,6,7,8,9,10,11,12,15,16,17,19,20,21,23,24,26,28,29] / SQ S5 HA SK  / SQ S9 HA SJ  / SQ SK HA S5  / SQ SK HA S5  / SQ S9 HA SK 
+                when 2 wins the HA: HAND SUCCEEDED FOR: 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17, 19, 20, 21, 23, 24, 26, 28, 29
+      after (S_) S7 (SJ) SA: (S_) S7 (SJ) SA [14,22] / S3 S7 SJ SA  / S3 S7 SJ SA 
         when 0 wins the SA: 
-          after SQ (S_) S6 (__): SQ (S_) S6 (__) [0,14,20,22] / SQ S5 S6 S9  / SQ S5 S6 D3  / SQ S9 S6 S5  / SQ S4 S6 D3 
+          after SQ (S_) S6 (__): SQ (S_) S6 (__) [14,22] / SQ S5 S6 D3  / SQ S4 S6 D3 
             when 0 wins the SQ: 
-              after H2 (__) HA (__): H2 (__) HA (__) [0,14,20,22] / H2 D4 HA D3  / H2 S9 HA D4  / H2 D4 HA D3  / H2 S5 HA D4 
-                when 2 wins the HA: HAND SUCCEEDED FOR: 0, 14, 20, 22
+              after H2 (__) HA (__): H2 (__) HA (__) [14,22] / H2 S9 HA D4  / H2 S5 HA D4 
+                when 2 wins the HA: HAND SUCCEEDED FOR: 14, 22
       after (S_) S7 (S_) SQ: (S_) S7 (S_) SQ [4,13] / S4 S7 S9 SQ  / S4 S7 S5 SQ 
         when 0 wins the SQ: 
           after SA (S_) S6 (__): SA (S_) S6 (__) [4,13] / SA S5 S6 D3  / SA S9 S6 D3 

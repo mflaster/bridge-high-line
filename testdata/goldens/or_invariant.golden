@@ -75,28 +75,22 @@ Invariant Rules for 7 card ending:
             if 0 wins the SJ: 
               after ST (S_) S2 (SK): ST (S_) S2 (SK) [0,5,9] / ST S8 S2 SK  / ST S9 S2 SK  / ST S9 S2 SK 
                 when 3 wins the SK: 
-                  after (H_) HJ (HK) HA: (H_) HJ (HK) HA [0,5] / H6 HJ HK HA  / H7 HJ HK HA 
-                    when 2 wins the HA: 
-                      after H2 (H_) HT (H_): H2 (H_) HT (H_) [0,5] / H2 H9 HT H7  / H2 H9 HT H5 
-                        when 0 wins the HT: 
-                          after DA (__) D4 (__): DA (__) D4 (__) [0,5] / DA H8 D4 S9  / DA H8 D4 S8 
-                            when 0 wins the DA: HAND SUCCEEDED FOR: 0, 5
-                  after (S_) HJ (__) D4: (S_) HJ (__) D4 [9] / S7 HJ H6 D4 
+                  after (S_) HJ (__) D4: (S_) HJ (__) D4 [0,5,9] / S9 HJ H7 D4  / S8 HJ H5 D4  / S7 HJ H6 D4 
                     when 2 wins the D4: 
-                      after HA (H_) HT (H_): HA (H_) HT (H_) [9] / HA H7 HT H9 
+                      after HA (H_) HT (H_): HA (H_) HT (H_) [0,5,9] / HA H6 HT H8  / HA H7 HT H8  / HA H7 HT H9 
                         when 2 wins the HA: 
-                          after H2 (H_) DA (HK): H2 (H_) DA (HK) [9] / H2 H8 DA HK 
-                            when 0 wins the DA: HAND SUCCEEDED FOR: 9
+                          after H2 (H_) DA (HK): H2 (H_) DA (HK) [0,5,9] / H2 H9 DA HK  / H2 H9 DA HK  / H2 H8 DA HK 
+                            when 0 wins the DA: HAND SUCCEEDED FOR: 0, 5, 9
             if 1 wins the SK: 
-              after (H_) H2 (H_) HJ: (H_) H2 (H_) HJ [1,4] / H5 H2 H8 HJ  / H6 H2 H8 HJ 
+              after (H_) H2 (H_) HJ: (H_) H2 (H_) HJ [4] / H6 H2 H8 HJ 
                 when 0 wins the HJ: 
-                  after ST (__) S2 (S_): ST (__) S2 (S_) [1,4] / ST S9 S2 S7  / ST H7 S2 S7 
+                  after ST (__) S2 (S_): ST (__) S2 (S_) [4] / ST H7 S2 S7 
                     when 0 wins the ST: 
-                      after HT (H_) HA (__): HT (H_) HA (__) [1,4] / HT H6 HA H9  / HT H9 HA S8 
+                      after HT (H_) HA (__): HT (H_) HA (__) [4] / HT H9 HA S8 
                         when 2 wins the HA: 
-                          after D4 (__) DA (__): D4 (__) DA (__) [1,4] / D4 S8 DA HK  / D4 S9 DA HK 
-                            when 0 wins the DA: HAND SUCCEEDED FOR: 1, 4
-              after (S_) S2 (__) ST: (S_) S2 (__) ST [6] / S6 S2 H5 ST 
+                          after D4 (__) DA (__): D4 (__) DA (__) [4] / D4 S9 DA HK 
+                            when 0 wins the DA: HAND SUCCEEDED FOR: 4
+              after (S_) S2 (__) ST: (S_) S2 (__) ST [1,6] / S9 S2 S7 ST  / S6 S2 H5 ST 
                 when 0 wins the ST: 
                   after HJ (HK) HA (H_): HJ (HK) HA (H_) [6] / HJ HK HA H6 
                     when 2 wins the HA: 
@@ -104,6 +98,12 @@ Invariant Rules for 7 card ending:
                         when 0 wins the HT: 
                           after DA (__) D4 (__): DA (__) D4 (__) [6] / DA S8 D4 H9 
                             when 0 wins the DA: HAND SUCCEEDED FOR: 6
+                  after HJ (Hx) H2 (H_): HJ (Hx) H2 (H_) [1] / HJ H5 H2 H8 
+                    when 0 wins the HJ: 
+                      after HT (H_) HA (H_): HT (H_) HA (H_) [1] / HT H6 HA H9 
+                        when 2 wins the HA: 
+                          after D4 (__) DA (__): D4 (__) DA (__) [1] / D4 S8 DA HK 
+                            when 0 wins the DA: HAND SUCCEEDED FOR: 1
     if 3 wins the HK: 
       after (H_) HJ (H_) HA: (H_) HJ (H_) HA [2] / H4 HJ H6 HA 
         when 2 wins the HA: 

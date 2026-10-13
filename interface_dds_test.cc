@@ -309,4 +309,68 @@ TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
   }
 }
 
+TEST_CASE("DefenderSeatRules_FirstHandLeadSelection") {
+  SECTION("Prefers leading touching honors over underleading into a tenace") {
+    // West (Hand 3) is on lead in a 7-card ending (like Trick 3 of 9-Card
+    // Hearts after DK holds at Trick 2). West holds touching honors DQJ in
+    // diamonds (where South has DA5 opposite North's DT) alongside S AJ4
+    // (over South's SK9) and C Q4 (under South's CAKJ).
+    // All leads yield the same double-dummy trick count for E/W, so West
+    // should continue with a touching diamond honor (DQ or DJ) rather than
+    // shifting away from an unsupported honor into South's spade or club
+    // tenaces.
+    std::vector<uint64_t> hands = {
+        ParseHand("S 532; H T7; D T; C 6;"),
+        ParseHand("S QT6; H -; D 6; C T98;"),
+        ParseHand("S K9; H -; D A5; C AKJ;"),
+        ParseHand("S AJ4; H -; D QJ; C Q4;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(3);
+    bs.SetTrump(HEARTS);
 
+    srand48(19);
+    int saw_dj = 0;
+    int saw_dq = 0;
+    for (int trial = 0; trial < 40; ++trial) {
+      OptimalLines lines;
+      DDSFindOptimalLines(bs, 0, &lines, nullptr);
+      REQUIRE(lines.size() == 1);
+      const std::string &line = *lines.begin();
+      if (line.rfind("DJ ", 0) == 0) {
+        ++saw_dj;
+      } else if (line.rfind("DQ ", 0) == 0) {
+        ++saw_dq;
+      } else {
+        FAIL("Expected West to lead DJ or DQ, got: " << line);
+      }
+    }
+    REQUIRE(saw_dj > 5);
+    REQUIRE(saw_dq > 5);
+  }
+
+  SECTION("Prefers passive spot lead over underleading an unsupported honor") {
+    // East (Hand 1) is on lead holding S AT4 (into South's S K73) and H 87
+    // (passive suit with no N/S honor tenace). When both leads are
+    // double-dummy optimal, East must lead passively (H7) rather than
+    // underleading the Ace of Spades into declarer's King.
+    std::vector<uint64_t> hands = {
+        ParseHand("S K73; H 2;"),
+        ParseHand("S AT4; H 7;"),
+        ParseHand("S -; H -; C QJT6;"),
+        ParseHand("S 85; H 8; C 7;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(CLUBS);
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    REQUIRE(!lines.empty());
+    for (const std::string &line : lines) {
+      REQUIRE(line.rfind("H7 ", 0) == 0);
+    }
+  }
+}

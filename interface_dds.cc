@@ -183,12 +183,14 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
 
   // 2. Defender on lead (1st hand, level == 0).
   if (level == 0 || suit_led == NOTRUMP) {
-    uint64_t ns_cards =
-        (bs.GetHand(0) | bs.GetHand(2)) & ~bs.played_cards();
+    uint64_t mask = ~bs.played_cards();
+    uint64_t def_cards = bs.GetHand(bs.CurPlayer()) & mask;
+    uint64_t ns_cards = (bs.GetHand(0) | bs.GetHand(2)) & mask;
     int best_idx = 0;
     int best_rank = LowestRankInGroup(futp, 0);
-    int best_key = 1000;
+    int best_key = 10000;
     for (int i = 0; i < futp.cards; ++i) {
+      int s = futp.suit[i];
       int low_r = LowestRankInGroup(futp, i);
       int top_r = futp.rank[i];
       bool touching_honors =
@@ -200,12 +202,49 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
       }
       int play_r = touching_honors ? seq_low : low_r;
 
-      uint16_t ns_suit = (ns_cards >> (futp.suit[i] * 16)) & 0xffff;
-      bool ns_has_higher =
+      uint16_t def_suit = (def_cards >> (s * 16)) & 0xffff;
+      uint16_t ew_suit =
+          (((bs.GetHand(1) | bs.GetHand(3)) & mask) >> (s * 16)) & 0xffff;
+      uint16_t ns_suit = (ns_cards >> (s * 16)) & 0xffff;
+
+      // Check if top_r and top_r - 1 are touching honors in the group OR in
+      // the defender's hand (when partner holds the card between two DDS
+      // equivalence groups or when only one is in futp.equals).
+      bool hand_touching_honors =
+          top_r >= 10 &&
+          (((futp.equals[i] >> (top_r - 1)) & 1) != 0 ||
+           (top_r >= 3 && ((def_suit >> (top_r - 3)) & 1) != 0));
+      bool ns_has_higher_than_top =
           top_r < 14 && (ns_suit >> (top_r - 1)) != 0;
-      bool unsupported_honor =
-          low_r >= 11 && ns_has_higher && !touching_honors;
-      int key = (unsupported_honor ? 100 : 0) + low_r;
+      // Check whether N/S have a guarded honor/tenace in suit `s` that could
+      // benefit from a defender lead: either N/S hold >=2 cards with an honor
+      // and E/W still hold an honor >= J that could be finessed/trapped (e.g.
+      // N/S have AKJ missing Q, or K9 missing AQJ), as opposed to N/S holding
+      // only the boss Ace with E/W holding QJ (e.g. DA5 after DK won).
+      int ns_top_bit = ns_suit != 0 ? 31 - __builtin_clz(ns_suit) : -1;
+      int ew_top_bit = ew_suit != 0 ? 31 - __builtin_clz(ew_suit) : -1;
+      uint16_t ns_honors = ns_suit >> 9;
+      bool ns_has_tenace =
+          ns_honors != 0 && __builtin_popcount(ns_suit) >= 2 &&
+          (ew_top_bit > ns_top_bit || __builtin_popcount(ns_honors) >= 2);
+      int def_highest_bit =
+          def_suit != 0 ? 31 - __builtin_clz(def_suit) : -1;
+      int def_highest_r = def_highest_bit + 2;
+      bool unsupported_honor_into_tenace =
+          !hand_touching_honors && ns_has_tenace &&
+          (low_r >= 11 || def_highest_r >= 11);
+      bool unsupported_honor_under_ns =
+          !hand_touching_honors && low_r >= 11 && ns_has_higher_than_top &&
+          ns_has_tenace;
+      int tier = 50;
+      if (unsupported_honor_into_tenace || unsupported_honor_under_ns) {
+        tier = ns_has_higher_than_top ? 400 : 350;
+      } else if (ns_has_tenace) {
+        tier = hand_touching_honors ? 150 : 250;
+      } else if (hand_touching_honors) {
+        tier = 0;
+      }
+      int key = tier + (hand_touching_honors ? (15 - top_r) : low_r);
       if (i == 0 || key < best_key) {
         best_key = key;
         best_idx = i;
@@ -214,6 +253,13 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
     }
     return finalize(best_idx, best_rank);
   }
+
+
+
+
+
+
+
 
   // 3. Following suit in 2nd, 3rd, or 4th hand.
   auto [win_offset, win_pair] = bs.TrickWinner();
