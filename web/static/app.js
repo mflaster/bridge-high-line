@@ -2000,6 +2000,42 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.unknown_cards = remUnknownStr;
       }
 
+      // Preserve any HCP requirements and record void suits when E or W showed
+      // out (played a card of a different suit than the suit led) on a prefix
+      // trick or earlier in the current trick.
+      const reqs = {};
+      const wHcpLowEl = document.getElementById('wHcpLow');
+      const wHcpHighEl = document.getElementById('wHcpHigh');
+      const wHcpLow = wHcpLowEl ? wHcpLowEl.value : '';
+      const wHcpHigh = wHcpHighEl ? wHcpHighEl.value : '';
+      if (wHcpLow || wHcpHigh) {
+        reqs.W = {
+          hcp_low: wHcpLow ? parseInt(wHcpLow, 10) : 0,
+          hcp_high: wHcpHigh ? parseInt(wHcpHigh, 10) : 37
+        };
+      }
+      const recordVoidIfShowedOut = (trickCards) => {
+        if (!Array.isArray(trickCards) || trickCards.length < 2) return;
+        const leadSuit = trickCards[0] && trickCards[0].suit;
+        if (!leadSuit) return;
+        for (let i = 1; i < trickCards.length; i++) {
+          const c = trickCards[i];
+          if (!c || !c.suit || c.suit === leadSuit) continue;
+          if (c.seatName === 'E' || c.seatName === 'W') {
+            if (!reqs[c.seatName]) reqs[c.seatName] = {};
+            if (!reqs[c.seatName].suit_max) reqs[c.seatName].suit_max = {};
+            reqs[c.seatName].suit_max[leadSuit] = 0;
+          }
+        }
+      };
+      prefixTricksToSplice.forEach(pt => recordVoidIfShowedOut(pt.cards));
+      if (proposedCards.length > 1 && proposedCards.length < 4) {
+        recordVoidIfShowedOut(proposedCards);
+      }
+      if (Object.keys(reqs).length > 0) {
+        payload.requirements = reqs;
+      }
+
       setStatus('running', `Computing new line from Trick #${ctx.trickNum}...`);
       computeNewLineBtn.disabled = true;
       solveBtn.disabled = true;
@@ -2387,15 +2423,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Expand down from targetNode to (one) leaf, following the traced branch if active
+    // or the child branch with the highest number of deals (preferring non-failure branches).
     let leaf = targetNode;
     while (leaf.children && leaf.children.length > 0) {
       leaf._collapsed = false;
-      let chosenIdx = 0;
+      let chosenIdx = -1;
       if (activeTracedNodeSet) {
         const tracedIdx = leaf.children.findIndex(c => activeTracedNodeSet.has(c));
         if (tracedIdx !== -1) {
           chosenIdx = tracedIdx;
         }
+      }
+      if (chosenIdx === -1) {
+        let bestIdx = 0;
+        let bestIsSuccess = !leaf.children[0].failure;
+        let bestDeals = (leaf.children[0].success_boards || 0) + (leaf.children[0].failure_boards || 0) ||
+                        (Array.isArray(leaf.children[0].boards) ? leaf.children[0].boards.length : 0);
+        for (let i = 1; i < leaf.children.length; i++) {
+          const ch = leaf.children[i];
+          const isSuccess = !ch.failure;
+          const deals = (ch.success_boards || 0) + (ch.failure_boards || 0) ||
+                        (Array.isArray(ch.boards) ? ch.boards.length : 0);
+          if ((isSuccess && !bestIsSuccess) ||
+              (isSuccess === bestIsSuccess && deals > bestDeals)) {
+            bestIdx = i;
+            bestIsSuccess = isSuccess;
+            bestDeals = deals;
+          }
+        }
+        chosenIdx = bestIdx;
       }
       const chosenChild = leaf.children[chosenIdx];
       for (let i = 0; i < leaf.children.length; i++) {
