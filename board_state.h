@@ -63,6 +63,9 @@ class BoardState {
 
   void set_check_card_play(bool x) { check_card_play_ = x; }
 
+  uint32_t board_id() const { return board_id_; }
+  void set_board_id(uint32_t id) { board_id_ = id; }
+
   std::string GetPBNCards() const;
   std::string ConvertHandToPBN(uint64_t hand) const;
 
@@ -85,6 +88,7 @@ class BoardState {
   uint8_t prev_trick_leader_ = 0;
   uint8_t tricks_won_odd_ = 0;
   uint8_t tricks_won_even_ = 0;
+  uint32_t board_id_ = 0;
 };
 
 std::string StrJoin(const std::set<int> &board_offsets, const char *sep = ", ");

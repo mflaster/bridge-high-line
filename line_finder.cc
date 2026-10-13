@@ -68,6 +68,7 @@ std::vector<BoardState> LineFinder::SetupBoards(
   std::vector<BoardState> boards;
   for (int i = 0; i < num_iters_; i++) {
     BoardState b = fuzzy_state_.Randomize(deal_missing_cards);
+    b.set_board_id(static_cast<uint32_t>(i + 1));
     b.set_check_card_play(false);
     b.SetTrump(trump);
     b.SetLead(leader);
