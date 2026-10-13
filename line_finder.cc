@@ -321,16 +321,49 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << get_line_from_trick_calls.load();
 
   // Tied lines can be the same line of play described with different
-  // branching (say, splitting on a defender's card rather than on who won the
-  // trick). Keep only the first of each set that prescribes identical declarer
-  // plays on every covered board.
+  // branching (say, splitting Trick 1 on a defender's card when an unsplit or
+  // coarser Trick-1 condition covers the exact same boards with the same
+  // Trick-1 declarer cards). For each Trick-1 (board -> (my1, my2)) map, keep
+  // only the first line with the fewest Trick-1 conditions, and drop any lines
+  // that prescribe identical declarer plays on every covered board.
   {
+    using Trick1PlayMap = std::map<int, std::pair<std::string, std::string>>;
+    auto get_trick1_play = [](const ConditionalLine &line) {
+      Trick1PlayMap play;
+      for (const auto &[_cond, child] : line.conditions()) {
+        if (!child || child->do_first().Empty()) continue;
+        const GeneralizedTrick &gt = child->do_first();
+        for (int b : child->CoveredBoardsSet()) {
+          play[b] = {gt.demi1.my_card, gt.demi2.my_card};
+        }
+      }
+      return play;
+    };
+    std::map<Trick1PlayMap, size_t> min_conds_for_t1;
+    for (const ConditionalLine &line : ans) {
+      Trick1PlayMap t1 = get_trick1_play(line);
+      if (!t1.empty()) {
+        auto it = min_conds_for_t1.find(t1);
+        size_t n = line.conditions().size();
+        if (it == min_conds_for_t1.end() || n < it->second) {
+          min_conds_for_t1[std::move(t1)] = n;
+        }
+      }
+    }
     std::vector<ConditionalLine> distinct;
-    std::vector<std::map<int, std::string>> seen;
+    std::set<Trick1PlayMap> seen_t1;
+    std::vector<std::map<int, std::string>> seen_sig;
     for (ConditionalLine &line : ans) {
+      Trick1PlayMap t1 = get_trick1_play(line);
+      if (!t1.empty()) {
+        if (line.conditions().size() > min_conds_for_t1.at(t1) ||
+            !seen_t1.insert(std::move(t1)).second) {
+          continue;
+        }
+      }
       std::map<int, std::string> sig = line.DeclarerPlaySignature();
-      if (std::find(seen.begin(), seen.end(), sig) == seen.end()) {
-        seen.push_back(std::move(sig));
+      if (std::find(seen_sig.begin(), seen_sig.end(), sig) == seen_sig.end()) {
+        seen_sig.push_back(std::move(sig));
         distinct.push_back(std::move(line));
       }
     }

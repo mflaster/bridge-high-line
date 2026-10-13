@@ -819,3 +819,24 @@ TEST_CASE("LineFinder_NineCardHeartsTrick2DK") {
   REQUIRE(lines[0].CoveredBoards() > 0);
   REQUIRE(lines[0].Describe().find("(DK)") != std::string::npos);
 }
+
+TEST_CASE("LineFinder_RestrictedChoice_NoDuplicateTrick1Splits") {
+  srand48(0);
+  // Restricted Choice spade combination (AT987 opposite K654, missing QJ32).
+  // Previously, Solve returned 4 tied lines that all played SA and S6 on the
+  // exact same set of boards at Trick 1, differing only in whether Trick 1 was
+  // split on the defenders' spade cards (S_ vs Sx/SJ/SQ).
+  std::vector<uint64_t> hands = {
+      ParseHand("S AT987; H A;"),
+      0,
+      ParseHand("S K654; H QJ;"),
+      0,
+  };
+  uint64_t unknown_cards = ParseHand("S QJ32 H KT987654");
+  LineFinder lf(100);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(6, hands, unknown_cards, /*leader=*/0, SPADES,
+               {Card::ParseStringCard("SA")});
+  REQUIRE(lines.size() == 1);
+  REQUIRE(lines[0].conditions().size() == 1);
+}
