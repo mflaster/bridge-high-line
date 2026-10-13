@@ -110,6 +110,197 @@ int FindOptimalTricks(const BoardState &bs) {
   return result;
 }
 
+namespace {
+
+// Returns the lowest DDS rank (2..14) in equivalence group `i`.
+int LowestRankInGroup(const futureTricks &futp, int i) {
+  unsigned int eq = static_cast<unsigned int>(futp.equals[i]) & ~3u;
+  if (eq != 0) {
+    return __builtin_ctz(eq);
+  }
+  return futp.rank[i];
+}
+
+// Returns the lowest DDS rank (2..14) in equivalence group `i` that is
+// strictly greater than `rank_to_beat` (assuming futp.rank[i] > rank_to_beat).
+int CheapestWinningRankInGroup(const futureTricks &futp, int i,
+                               int rank_to_beat) {
+  for (int r = std::max(2, rank_to_beat + 1); r < futp.rank[i]; ++r) {
+    if ((futp.equals[i] >> r) & 1) {
+      return r;
+    }
+  }
+  return futp.rank[i];
+}
+
+// If `base_r` is the bottom of a contiguous run of touching cards in DDS
+// equivalence group `idx` and at least one card in that touching run is an
+// honor (DDS rank >= 10, i.e., T, J, Q, K, A), picks uniformly at random from
+// that touching run.
+int RandomizeTouchingHonorRank(const BoardState &bs, const futureTricks &futp,
+                               int idx, int base_r) {
+  unsigned int mask =
+      (static_cast<unsigned int>(futp.equals[idx]) & ~3u) |
+      (1u << futp.rank[idx]);
+  int top_touching = base_r;
+  while (top_touching + 1 <= 14 && ((mask >> (top_touching + 1)) & 1) != 0) {
+    ++top_touching;
+  }
+  if (top_touching > base_r && top_touching >= 10) {
+    int count = top_touching - base_r + 1;
+    if (bs.board_id() != 0) {
+      uint64_t z =
+          static_cast<uint64_t>(bs.board_id()) * 0x9e3779b97f4a7c15ULL;
+      z ^= bs.played_cards() + 0x9e3779b97f4a7c15ULL + (z << 6) + (z >> 2);
+      z ^= static_cast<uint64_t>((bs.CurPlayer() << 8) |
+                                 (futp.suit[idx] << 4) |
+                                 bs.CardsPlayedThisTrick());
+      z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+      z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+      z = z ^ (z >> 31);
+      return base_r + static_cast<int>(z % static_cast<uint64_t>(count));
+    }
+    return base_r + static_cast<int>(lrand48() % count);
+  }
+  return base_r;
+}
+
+// Chooses which DDS equivalence group index `i` (0 .. futp.cards - 1) and
+// which specific DDS rank (2..14) within that group a defender should play.
+std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
+                                       const futureTricks &futp) {
+  auto finalize = [&](int idx, int base_r) -> std::pair<int, int> {
+    return {idx, RandomizeTouchingHonorRank(bs, futp, idx, base_r)};
+  };
+
+  Suit suit_led = bs.SuitLed();
+  // 1. Not following suit (discarding or ruffing when void in suit_led).
+  if (suit_led != NOTRUMP && futp.suit[0] != suit_led) {
+    int idx = bs.FindBestDiscard(
+        futp.cards, const_cast<int *>(futp.suit), const_cast<int *>(futp.rank));
+    return finalize(idx, LowestRankInGroup(futp, idx));
+  }
+
+  // 2. Defender on lead (1st hand, level == 0).
+  if (level == 0 || suit_led == NOTRUMP) {
+    uint64_t ns_cards =
+        (bs.GetHand(0) | bs.GetHand(2)) & ~bs.played_cards();
+    int best_idx = 0;
+    int best_rank = LowestRankInGroup(futp, 0);
+    int best_key = 1000;
+    for (int i = 0; i < futp.cards; ++i) {
+      int low_r = LowestRankInGroup(futp, i);
+      int top_r = futp.rank[i];
+      bool touching_honors =
+          top_r >= 10 && ((futp.equals[i] >> (top_r - 1)) & 1) != 0;
+      int seq_low = top_r;
+      while (touching_honors && seq_low - 1 >= 2 &&
+             ((futp.equals[i] >> (seq_low - 1)) & 1) != 0) {
+        --seq_low;
+      }
+      int play_r = touching_honors ? seq_low : low_r;
+
+      uint16_t ns_suit = (ns_cards >> (futp.suit[i] * 16)) & 0xffff;
+      bool ns_has_higher =
+          top_r < 14 && (ns_suit >> (top_r - 1)) != 0;
+      bool unsupported_honor =
+          low_r >= 11 && ns_has_higher && !touching_honors;
+      int key = (unsupported_honor ? 100 : 0) + low_r;
+      if (i == 0 || key < best_key) {
+        best_key = key;
+        best_idx = i;
+        best_rank = play_r;
+      }
+    }
+    return finalize(best_idx, best_rank);
+  }
+
+  // 3. Following suit in 2nd, 3rd, or 4th hand.
+  auto [win_offset, win_pair] = bs.TrickWinner();
+  int cur_winner = (bs.cur_trick_leader() + win_offset) % 4;
+  Suit cur_win_suit = win_pair.first;
+  int cur_win_rank = win_pair.second + 2;  // Convert 0..12 to DDS rank 2..14.
+  int partner = bs.CurPlayer() ^ 2;
+  bool trick_ruffed = (bs.GetTrump() != NOTRUMP &&
+                       suit_led != bs.GetTrump() &&
+                       cur_win_suit == bs.GetTrump());
+
+  // Helper to pick the overall lowest card across all optimal groups.
+  auto pick_lowest = [&]() -> std::pair<int, int> {
+    int best_idx = 0;
+    int lowest = LowestRankInGroup(futp, 0);
+    for (int i = 1; i < futp.cards; ++i) {
+      int r = LowestRankInGroup(futp, i);
+      if (r < lowest) {
+        lowest = r;
+        best_idx = i;
+      }
+    }
+    return finalize(best_idx, lowest);
+  };
+
+  if (level == 1 || trick_ruffed) {
+    // 2nd hand low (or trick already ruffed so following suit cannot win).
+    return pick_lowest();
+  }
+
+  if (level == 2) {
+    // 3rd hand high (playing from the highest winning group), unless partner
+    // led an honor (>= J) that is currently winning and we have a lower
+    // optimal play that avoids overtaking partner.
+    if (cur_winner == partner && cur_win_rank >= 11) {
+      auto [low_idx, low_r] = pick_lowest();
+      if (low_r < cur_win_rank) {
+        return {low_idx, low_r};
+      }
+    }
+    int best_idx = -1;
+    int highest_top = -1;
+    for (int i = 0; i < futp.cards; ++i) {
+      if (futp.rank[i] > cur_win_rank && futp.rank[i] > highest_top) {
+        highest_top = futp.rank[i];
+        best_idx = i;
+      }
+    }
+    if (best_idx >= 0) {
+      int base_r = std::max(LowestRankInGroup(futp, best_idx),
+                            CheapestWinningRankInGroup(futp, best_idx,
+                                                       cur_win_rank));
+      return finalize(best_idx, base_r);
+    }
+    // Cannot beat the current winning card; play 3rd hand low.
+    return pick_lowest();
+  }
+
+  // level == 3 (4th hand):
+  // If partner is already winning the trick, do not overtake unless every
+  // optimal play in `futp` overtakes (in which case pick_lowest() chooses the
+  // cheapest overtaking card).
+  if (cur_winner == partner) {
+    return pick_lowest();
+  }
+
+  // Declarer/dummy is currently winning: win as cheaply as possible if an
+  // optimal winning play exists; otherwise duck with the lowest card.
+  int best_win_idx = -1;
+  int cheapest_win_rank = 100;
+  for (int i = 0; i < futp.cards; ++i) {
+    if (futp.rank[i] > cur_win_rank) {
+      int r = CheapestWinningRankInGroup(futp, i, cur_win_rank);
+      if (r < cheapest_win_rank) {
+        cheapest_win_rank = r;
+        best_win_idx = i;
+      }
+    }
+  }
+  if (best_win_idx >= 0) {
+    return finalize(best_win_idx, cheapest_win_rank);
+  }
+  return pick_lowest();
+}
+
+}  // namespace
+
 int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
                    int level, OptimalLines *lines,
                    SolverCache *cache,
@@ -166,23 +357,11 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
       return result;
     }
   }
-  int lowest_rank = 100;
   int card_to_play = -1;
+  int defender_rank_to_play = -1;
   if (defense) {
-    if (bs.SuitLed() != NOTRUMP && futp.suit[0] != bs.SuitLed()) {
-      // They're discarding.
-      card_to_play = bs.FindBestDiscard(futp.cards, futp.suit, futp.rank);
-    } else {
-      // Take lowest rank.
-      VLOG(2) << "Looking for lowest rank vs " << lowest_rank;
-      for (int i = 0; i < futp.cards; i++) {
-        VLOG(3) << "Rank of card " << i << " is " << futp.rank[i];
-        if (futp.rank[i] < lowest_rank) {
-          lowest_rank = futp.rank[i];
-          card_to_play = i;
-        }
-      }
-    }
+    std::tie(card_to_play, defender_rank_to_play) =
+        ChooseDefenderPlay(bs, level, futp);
     CHECK_GE(card_to_play, 0) << futp.cards;
   }
   int lowest_discard_rank[4] = {100, 100, 100, 100};
@@ -206,7 +385,8 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
         continue;
       }
     }
-    std::string c = Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i]);
+    int rank_to_play = defense ? defender_rank_to_play : futp.rank[i];
+    std::string c = Card::PrintDDSCard((Suit)futp.suit[i], rank_to_play);
     VLOG(3) << "At level " << level << " trying card " << c
             << " " << i << " / " << futp.cards
             << " with suit led " << SuitDebugString(bs.SuitLed());
@@ -217,7 +397,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
       copy.PlayCard(copy.CurPlayer(), c_val);
 
       dl.currentTrickSuit[level] = futp.suit[i];
-      dl.currentTrickRank[level] = futp.rank[i];
+      dl.currentTrickRank[level] = rank_to_play;
       strcpy(dl.remainCards, copy.GetPBNCards().c_str());
       DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, cache);
     } else {
@@ -332,14 +512,20 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
   bool use_tree_cache = (cache != nullptr && bs.CardsPlayedThisTrick() == 0);
   if (use_tree_cache) {
     uint64_t mask = ~bs.played_cards();
+    uint64_t h1 = bs.GetHand(1) & mask;
+    uint64_t h3 = bs.GetHand(3) & mask;
+    constexpr uint64_t kTouchingHonorMask = 0x0f800f800f800f80ULL;
+    bool has_touching_honors =
+        (((h1 & (h1 >> 1)) | (h3 & (h3 >> 1))) & kTouchingHonorMask) != 0;
     key = BoardCacheKey{
         bs.GetHand(0) & mask,
-        bs.GetHand(1) & mask,
+        h1,
         bs.GetHand(2) & mask,
-        bs.GetHand(3) & mask,
+        h3,
         static_cast<uint8_t>(bs.CurPlayer()),
         static_cast<uint8_t>(bs.GetTrump()),
-        static_cast<uint8_t>(std::max(0, min_tricks))};
+        static_cast<uint8_t>(std::max(0, min_tricks)),
+        has_touching_honors ? bs.board_id() : 0u};
     shard = BoardCacheKeyHash{}(key) & (SolverCache::kNumShards - 1);
     std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
     auto it = cache->tree_cache[shard].find(key);

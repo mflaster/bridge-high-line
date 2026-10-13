@@ -12,11 +12,11 @@ Total Deals: 10
 Invariant Rules for 3 card ending:
   - hand 1 always contains the SQ (holds: 50%, success when holds: 100%)
 
-  after SK (S_) S4 (S_): SK (S_) S4 (S_) [1,3,4,10,11,12,14,16,17,19] / SK S6 S4 S7  / SK S6 S4 S7  / SK S6 S4 S8  / SK S8 S4 S7  / SK S6 S4 S7 
+  after SK (S_) S4 (S_): SK (S_) S4 (S_) [1,3,4,10,11,12,14,16,17,19] / SK S6 S4 S7  / SK S6 S4 S7  / SK S6 S4 S7  / SK S8 S4 S6  / SK S6 S4 S7 
     when 0 wins the SK: 
-      after S3 (S_) SJ (S_): S3 (S_) SJ (S_) [1,3,4,10,11,12,14,16,17,19] / S3 S8 SJ ST  / S3 S8 SJ ST  / S3 S9 SJ S7  / S3 ST SJ S9  / S3 S8 SJ ST 
+      after S3 (S_) SJ (S_): S3 (S_) SJ (S_) [1,3,4,10,11,12,14,16,17,19] / S3 S8 SJ ST  / S3 S8 SJ ST  / S3 S9 SJ S8  / S3 ST SJ S7  / S3 S8 SJ S9 
         when 2 wins the SJ: 
-          after SA (S_) S2 (SQ): SA (S_) S2 (SQ) [1,3,4,10,11,12,14,16,17,19] / SA S9 S2 SQ  / SA S9 S2 SQ  / SA ST S2 SQ  / SA S6 S2 SQ  / SA S9 S2 SQ 
+          after SA (S_) S2 (SQ): SA (S_) S2 (SQ) [1,3,4,10,11,12,14,16,17,19] / SA S9 S2 SQ  / SA S9 S2 SQ  / SA ST S2 SQ  / SA S9 S2 SQ  / SA ST S2 SQ 
             when 2 wins the SA: HAND SUCCEEDED FOR: 1, 3, 4, 10, 11, 12, 14, 16, 17, 19
 
 Line 2:
@@ -26,9 +26,9 @@ Total Deals: 10
 Invariant Rules for 3 card ending:
   - hand 1 always contains the SQ (holds: 50%, success when holds: 100%)
 
-  after S3 (S_) SJ (S_): S3 (S_) SJ (S_) [1,3,4,10,11,12,14,16,17,19] / S3 S6 SJ S7  / S3 S6 SJ S7  / S3 S6 SJ S8  / S3 S8 SJ S7  / S3 S6 SJ S7 
+  after S3 (S_) SJ (S_): S3 (S_) SJ (S_) [1,3,4,10,11,12,14,16,17,19] / S3 S6 SJ S7  / S3 S6 SJ S7  / S3 S6 SJ S7  / S3 S8 SJ S6  / S3 S6 SJ S7 
     when 2 wins the SJ: 
-      after SA (S_) S2 (S_): SA (S_) S2 (S_) [1,3,4,10,11,12,14,16,17,19] / SA ST S2 S8  / SA ST S2 S8  / SA S7 S2 S9  / SA S9 S2 SQ  / SA ST S2 S8 
+      after SA (S_) S2 (S_): SA (S_) S2 (S_) [1,3,4,10,11,12,14,16,17,19] / SA S9 S2 S8  / SA ST S2 S8  / SA S8 S2 S9  / SA S7 S2 ST  / SA ST S2 S8 
         when 2 wins the SA: 
-          after S4 (S_) SK (S_): S4 (S_) SK (S_) [1,3,4,10,11,12,14,16,17,19] / S4 S9 SK SQ  / S4 S9 SK SQ  / S4 ST SK SQ  / S4 S6 SK ST  / S4 S9 SK SQ 
+          after S4 (S_) SK (SQ): S4 (S_) SK (SQ) [1,3,4,10,11,12,14,16,17,19] / S4 ST SK SQ  / S4 S9 SK SQ  / S4 ST SK SQ  / S4 S9 SK SQ  / S4 S9 SK SQ 
             when 0 wins the SK: HAND SUCCEEDED FOR: 1, 3, 4, 10, 11, 12, 14, 16, 17, 19

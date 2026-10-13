@@ -12,21 +12,21 @@ Invariant Rules for 6 card ending:
   - the hand with the HA also has at least 4 S (holds: 18%, success when holds: 100%)
   - the hand with the HA also has at most 2 H (holds: 18%, success when holds: 100%)
 
-  after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19,21,27,35,45,47,49,53] / DA H8 D4 S7  / DA H8 D4 S8  / DA HT D4 SJ  / DA S9 D4 HT  / DA HT D4 SQ 
+  after DA (__) D4 (__): DA (__) D4 (__) [4,5,14,19,21,27,35,45,47,49,53] / DA H8 D4 S7  / DA H8 D4 S7  / DA HT D4 S8  / DA S7 D4 H9  / DA H8 D4 SJ 
     when 0 wins the DA: 
-      after DK (__) D3 (__): DK (__) D3 (__) [4,5,14,19,21,27,35,45,47,49,53] / DK HQ D3 H9  / DK HQ D3 H9  / DK H9 D3 HJ  / DK HJ D3 H9  / DK H9 D3 HJ 
+      after DK (__) D3 (__): DK (__) D3 (__) [4,5,14,19,21,27,35,45,47,49,53] / DK HQ D3 H9  / DK HT D3 H9  / DK H8 D3 HJ  / DK HJ D3 H8  / DK HT D3 HJ 
         when 0 wins the DK: 
-          after DQ (__) D2 (__): DQ (__) D2 (__) [4,5,14,19,21,27,35,45,47,49,53] / DQ HJ D2 HA  / DQ HJ D2 HA  / DQ HQ D2 HA  / DQ HA D2 HQ  / DQ HQ D2 HA 
+          after DQ (__) D2 (__): DQ (__) D2 (__) [4,5,14,19,21,27,35,45,47,49,53] / DQ HT D2 HA  / DQ HJ D2 HA  / DQ H9 D2 HA  / DQ HA D2 HT  / DQ H9 D2 HA 
             when 0 wins the DQ: 
-              after S4 (S_) SK (S_): S4 (S_) SK (S_) [4,5,14,19,21,27,35,45,47,49,53] / S4 S8 SK S9  / S4 S9 SK S7  / S4 S7 SK ST  / S4 S8 SK SJ  / S4 S8 SK SJ 
+              after S4 (S_) SK (S_): S4 (S_) SK (S_) [4,5,14,19,21,27,35,45,47,49,53] / S4 S8 SK S9  / S4 S9 SK S8  / S4 S7 SK ST  / S4 S8 SK ST  / S4 S7 SK S9 
                 when 2 wins the SK: 
                   if HK is good: 
-                    after HK (__) S3 (__): HK (__) S3 (__) [4,5,14,19,21,27,35,45,47,53] / HK SQ S3 HT  / HK ST S3 HT  / HK S9 S3 H8  / HK H8 S3 S7  / HK ST S3 H8 
+                    after HK (__) S3 (__): HK (__) S3 (__) [4,5,14,19,21,27,35,45,47,53] / HK SQ S3 HJ  / HK ST S3 HQ  / HK S9 S3 HQ  / HK HQ S3 S9  / HK ST S3 HQ 
                       when 2 wins the HK: 
-                        after S2 (S_) SA (S_): S2 (S_) SA (S_) [4,5,14,19,21,27,35,45,47,53] / S2 SJ SA ST  / S2 SQ SA SJ  / S2 S8 SA SQ  / S2 ST SA SQ  / S2 S9 SA S7 
+                        after S2 (S_) SA (S_): S2 (S_) SA (S_) [4,5,14,19,21,27,35,45,47,53] / S2 SJ SA ST  / S2 SQ SA SJ  / S2 SJ SA SQ  / S2 SJ SA SQ  / S2 SQ SA S8 
                           when 0 wins the SA: HAND SUCCEEDED FOR: 4, 5, 14, 19, 21, 27, 35, 45, 47, 53
                   if HK is not good: 
-                    after S2 (S_) SA (__): S2 (S_) SA (__) [49] / S2 S7 SA H9 
+                    after S2 (S_) SA (__): S2 (S_) SA (__) [49] / S2 S9 SA HQ 
                       when 0 wins the SA: 
-                        after S3 (__) HK (__): S3 (__) HK (__) [49] / S3 H8 HK HA 
+                        after S3 (__) HK (__): S3 (__) HK (__) [49] / S3 HJ HK HA 
                           when 0 wins the S3: HAND SUCCEEDED FOR: 49

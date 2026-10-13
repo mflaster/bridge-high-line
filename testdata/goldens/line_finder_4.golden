@@ -12,11 +12,11 @@ Total Deals: 10
 Invariant Rules for 4 card ending:
   (None)
 
-  after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA ST SQ S9 
+  after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST  / SA DT SQ S9  / SA DJ SQ S9  / SA DT SQ ST  / SA ST SQ S9 
     when 0 wins the SA: 
-      after SK (__) SJ (__): SK (__) SJ (__) [0,1,2,3,4,5,6,7,8,9] / SK DJ SJ DT  / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9  / SK DQ SJ DT 
+      after SK (__) SJ (__): SK (__) SJ (__) [0,1,2,3,4,5,6,7,8,9] / SK DJ SJ DT  / SK DK SJ ST  / SK DT SJ ST  / SK DJ SJ S9  / SK DQ SJ DT 
         when 0 wins the SK: 
-          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,4,5,6,7,8,9] / HA HT HQ DK  / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT  / HA HT HQ DA 
+          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,4,5,6,7,8,9] / HA HT HQ DK  / HA HT HQ DJ  / HA DQ HQ HT  / HA DQ HQ HT  / HA HT HQ DA 
             when 0 wins the HA: 
               after HK (__) HJ (__): HK (__) HJ (__) [0,1,2,3,4,5,6,7,8,9] / HK DA HJ DQ  / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK  / HK DJ HJ DK 
                 when 0 wins the HK: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
@@ -28,22 +28,22 @@ Total Deals: 10
 Invariant Rules for 4 card ending:
   (None)
 
-  after SA (S_) SQ (Sx): SA (S_) SQ (Sx) [4,6,9] / SA ST SQ S9  / SA ST SQ S9  / SA ST SQ S9 
+  after SA (R_) SQ (S_): SA (R_) SQ (S_) [1,2,3,5] / SA DT SQ S9  / SA DJ SQ S9  / SA DT SQ ST  / SA DT SQ ST 
     when 0 wins the SA: 
-      after HA (__) HQ (__): HA (__) HQ (__) [4,6,9] / HA HT HQ DT  / HA DJ HQ HT  / HA DT HQ HT 
-        when 0 wins the HA: 
-          after SK (__) SJ (__): SK (__) SJ (__) [4,6,9] / SK DQ SJ DA  / SK DT SJ DQ  / SK DK SJ DJ 
-            when 0 wins the SK: 
-              after HK (__) HJ (__): HK (__) HJ (__) [4,6,9] / HK DJ HJ DK  / HK DK HJ DA  / HK DQ HJ DA 
-                when 0 wins the HK: HAND SUCCEEDED FOR: 4, 6, 9
-  after SA (__) SQ (ST): SA (__) SQ (ST) [0,1,2,3,5,7,8] / SA S9 SQ ST  / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA DJ SQ ST 
-    when 0 wins the SA: 
-      after SK (__) SJ (__): SK (__) SJ (__) [0,1,2,3,5,7,8] / SK DJ SJ DT  / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9  / SK DT SJ S9 
+      after SK (__) SJ (S_): SK (__) SJ (S_) [1,2,3,5] / SK DK SJ ST  / SK DT SJ ST  / SK DJ SJ S9  / SK DJ SJ S9 
         when 0 wins the SK: 
-          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,5,7,8] / HA HT HQ DK  / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT  / HA HT HQ DQ 
+          after HA (__) HQ (__): HA (__) HQ (__) [1,2,3,5] / HA HT HQ DJ  / HA DQ HQ HT  / HA DQ HQ HT  / HA HT HQ DQ 
             when 0 wins the HA: 
-              after HK (__) HJ (__): HK (__) HJ (__) [0,1,2,3,5,7,8] / HK DA HJ DQ  / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK  / HK DK HJ DA 
-                when 0 wins the HK: HAND SUCCEEDED FOR: 0, 1, 2, 3, 5, 7, 8
+              after HK (__) HJ (__): HK (__) HJ (__) [1,2,3,5] / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK  / HK DK HJ DA 
+                when 0 wins the HK: HAND SUCCEEDED FOR: 1, 2, 3, 5
+  after SA (S_) SQ (S_): SA (S_) SQ (S_) [0,4,6,7,8,9] / SA S9 SQ ST  / SA ST SQ S9  / SA ST SQ S9  / SA S9 SQ ST  / SA S9 SQ ST 
+    when 0 wins the SA: 
+      after HA (__) HQ (__): HA (__) HQ (__) [0,4,6,7,8,9] / HA HT HQ DT  / HA HT HQ DT  / HA DJ HQ HT  / HA HT HQ DT  / HA HT HQ DT 
+        when 0 wins the HA: 
+          after SK (__) SJ (__): SK (__) SJ (__) [0,4,6,7,8,9] / SK DJ SJ DK  / SK DJ SJ DK  / SK DT SJ DQ  / SK DJ SJ DQ  / SK DJ SJ DQ 
+            when 0 wins the SK: 
+              after HK (__) HJ (__): HK (__) HJ (__) [0,4,6,7,8,9] / HK DA HJ DQ  / HK DQ HJ DA  / HK DK HJ DA  / HK DK HJ DA  / HK DK HJ DA 
+                when 0 wins the HK: HAND SUCCEEDED FOR: 0, 4, 6, 7, 8, 9
 
 Line 3:
 Covers 10/10 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -52,19 +52,27 @@ Total Deals: 10
 Invariant Rules for 4 card ending:
   (None)
 
-  after SA (R_) SQ (ST): SA (R_) SQ (ST) [1,2,3,5] / SA DT SQ ST  / SA DQ SQ ST  / SA DQ SQ ST  / SA DJ SQ ST 
+  after SA (R_) SQ (Sx): SA (R_) SQ (Sx) [1,2] / SA DT SQ S9  / SA DJ SQ S9 
     when 0 wins the SA: 
-      after SK (__) SJ (S_): SK (__) SJ (S_) [1,2,3,5] / SK DK SJ S9  / SK DJ SJ S9  / SK DJ SJ S9  / SK DT SJ S9 
+      after SK (__) SJ (ST): SK (__) SJ (ST) [1,2] / SK DK SJ ST  / SK DT SJ ST 
         when 0 wins the SK: 
-          after HA (__) HQ (__): HA (__) HQ (__) [1,2,3,5] / HA HT HQ DJ  / HA DT HQ HT  / HA DT HQ HT  / HA HT HQ DQ 
+          after HA (__) HQ (__): HA (__) HQ (__) [1,2] / HA HT HQ DJ  / HA DQ HQ HT 
             when 0 wins the HA: 
-              after HK (__) HJ (__): HK (__) HJ (__) [1,2,3,5] / HK DQ HJ DA  / HK DA HJ DK  / HK DA HJ DK  / HK DK HJ DA 
-                when 0 wins the HK: HAND SUCCEEDED FOR: 1, 2, 3, 5
-  after SA (S_) SQ (S_): SA (S_) SQ (S_) [0,4,6,7,8,9] / SA S9 SQ ST  / SA ST SQ S9  / SA ST SQ S9  / SA S9 SQ ST  / SA S9 SQ ST 
+              after HK (__) HJ (__): HK (__) HJ (__) [1,2] / HK DQ HJ DA  / HK DA HJ DK 
+                when 0 wins the HK: HAND SUCCEEDED FOR: 1, 2
+  after SA (S_) SQ (Sx): SA (S_) SQ (Sx) [4,6,9] / SA ST SQ S9  / SA ST SQ S9  / SA ST SQ S9 
     when 0 wins the SA: 
-      after HA (__) HQ (__): HA (__) HQ (__) [0,4,6,7,8,9] / HA HT HQ DT  / HA HT HQ DT  / HA DJ HQ HT  / HA HT HQ DT  / HA HT HQ DT 
+      after HA (__) HQ (__): HA (__) HQ (__) [4,6,9] / HA HT HQ DT  / HA DJ HQ HT  / HA DT HQ HT 
         when 0 wins the HA: 
-          after SK (__) SJ (__): SK (__) SJ (__) [0,4,6,7,8,9] / SK DJ SJ DK  / SK DQ SJ DA  / SK DT SJ DQ  / SK DJ SJ DQ  / SK DJ SJ DQ 
+          after SK (__) SJ (__): SK (__) SJ (__) [4,6,9] / SK DJ SJ DK  / SK DT SJ DQ  / SK DK SJ DJ 
             when 0 wins the SK: 
-              after HK (__) HJ (__): HK (__) HJ (__) [0,4,6,7,8,9] / HK DA HJ DQ  / HK DJ HJ DK  / HK DK HJ DA  / HK DK HJ DA  / HK DK HJ DA 
-                when 0 wins the HK: HAND SUCCEEDED FOR: 0, 4, 6, 7, 8, 9
+              after HK (__) HJ (__): HK (__) HJ (__) [4,6,9] / HK DQ HJ DA  / HK DK HJ DA  / HK DQ HJ DA 
+                when 0 wins the HK: HAND SUCCEEDED FOR: 4, 6, 9
+  after SA (__) SQ (ST): SA (__) SQ (ST) [0,3,5,7,8] / SA S9 SQ ST  / SA DT SQ ST  / SA DT SQ ST  / SA S9 SQ ST  / SA S9 SQ ST 
+    when 0 wins the SA: 
+      after SK (__) SJ (__): SK (__) SJ (__) [0,3,5,7,8] / SK DJ SJ DT  / SK DJ SJ S9  / SK DJ SJ S9  / SK DJ SJ DT  / SK DJ SJ DT 
+        when 0 wins the SK: 
+          after HA (__) HQ (__): HA (__) HQ (__) [0,3,5,7,8] / HA HT HQ DK  / HA DQ HQ HT  / HA HT HQ DQ  / HA HT HQ DQ  / HA HT HQ DQ 
+            when 0 wins the HA: 
+              after HK (__) HJ (__): HK (__) HJ (__) [0,3,5,7,8] / HK DA HJ DQ  / HK DA HJ DK  / HK DK HJ DA  / HK DK HJ DA  / HK DK HJ DA 
+                when 0 wins the HK: HAND SUCCEEDED FOR: 0, 3, 5, 7, 8
