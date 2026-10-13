@@ -322,27 +322,36 @@ std::vector<ConditionalLine> LineFinder::Solve(
 
   // Tied lines can be the same line of play described with different
   // branching (say, splitting Trick 1 on a defender's card when an unsplit or
-  // coarser Trick-1 condition covers the exact same boards with the same
-  // Trick-1 declarer cards). For each Trick-1 (board -> (my1, my2)) map, keep
-  // only the first line with the fewest Trick-1 conditions, and drop any lines
-  // that prescribe identical declarer plays on every covered board.
+  // coarser Trick-1 condition covers the exact same boards, or varying
+  // declarer's card only on a minor defender-card sub-branch). Group lines by
+  // their dominant Trick-1 declarer play (my1, my2), keep only the first line
+  // with the fewest Trick-1 conditions for each dominant Trick-1 play, and drop
+  // any lines that prescribe identical declarer plays on every covered board.
   {
-    using Trick1PlayMap = std::map<int, std::pair<std::string, std::string>>;
-    auto get_trick1_play = [](const ConditionalLine &line) {
-      Trick1PlayMap play;
+    using Trick1CardPair = std::pair<std::string, std::string>;
+    auto get_primary_trick1_play =
+        [](const ConditionalLine &line) -> Trick1CardPair {
+      std::map<Trick1CardPair, size_t> counts;
       for (const auto &[_cond, child] : line.conditions()) {
         if (!child || child->do_first().Empty()) continue;
         const GeneralizedTrick &gt = child->do_first();
-        for (int b : child->CoveredBoardsSet()) {
-          play[b] = {gt.demi1.my_card, gt.demi2.my_card};
+        Trick1CardPair pair{gt.demi1.my_card, gt.demi2.my_card};
+        counts[pair] += child->CoveredBoardsSet().size();
+      }
+      Trick1CardPair best{"", ""};
+      size_t best_count = 0;
+      for (const auto &[pair, count] : counts) {
+        if (count > best_count) {
+          best_count = count;
+          best = pair;
         }
       }
-      return play;
+      return best;
     };
-    std::map<Trick1PlayMap, size_t> min_conds_for_t1;
+    std::map<Trick1CardPair, size_t> min_conds_for_t1;
     for (const ConditionalLine &line : ans) {
-      Trick1PlayMap t1 = get_trick1_play(line);
-      if (!t1.empty()) {
+      Trick1CardPair t1 = get_primary_trick1_play(line);
+      if (!t1.first.empty() || !t1.second.empty()) {
         auto it = min_conds_for_t1.find(t1);
         size_t n = line.conditions().size();
         if (it == min_conds_for_t1.end() || n < it->second) {
@@ -351,11 +360,11 @@ std::vector<ConditionalLine> LineFinder::Solve(
       }
     }
     std::vector<ConditionalLine> distinct;
-    std::set<Trick1PlayMap> seen_t1;
+    std::set<Trick1CardPair> seen_t1;
     std::vector<std::map<int, std::string>> seen_sig;
     for (ConditionalLine &line : ans) {
-      Trick1PlayMap t1 = get_trick1_play(line);
-      if (!t1.empty()) {
+      Trick1CardPair t1 = get_primary_trick1_play(line);
+      if (!t1.first.empty() || !t1.second.empty()) {
         if (line.conditions().size() > min_conds_for_t1.at(t1) ||
             !seen_t1.insert(std::move(t1)).second) {
           continue;
