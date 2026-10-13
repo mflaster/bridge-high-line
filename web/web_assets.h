@@ -5721,8 +5721,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rules.forEach(r => {
           const li = document.createElement('li');
           let formattedRule = r.replace(/\bhand 1\b/gi, 'Hand 1 (East)')
-                               .replace(/\bhand 3\b/gi, 'Hand 2 (West)')
-                               .replace(/\bhand 2\b/gi, 'Hand 2 (West)');
+                               .replace(/\bhand [23]\b/gi, 'Hand 2 (West)');
           li.textContent = formattedRule;
           summaryRulesList.appendChild(li);
         });
