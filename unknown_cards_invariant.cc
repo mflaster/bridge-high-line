@@ -124,6 +124,10 @@ std::shared_ptr<UnknownCardsInvariant> UnknownCardsInvariant::FromString(
           HonorPossessionInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
   }
+  if (auto res = SuitHonorVariableInvariant::FromString(
+          str, hand1_label, hand2_label)) {
+    return res;
+  }
   if (auto res =
           MaxSuitLengthInvariant::FromString(str, hand1_label, hand2_label)) {
     return res;
@@ -641,6 +645,177 @@ std::shared_ptr<UnknownCardsInvariant> HonorPossessionInvariant::Invert(
   }
   return std::make_shared<HonorPossessionInvariant>(
       inv_target, card_, inv_label);
+}
+
+// --- SuitHonorVariableInvariant Implementation ---
+
+static std::string SingularSuitName(Suit s) {
+  switch (s) {
+    case SPADES: return "Spade";
+    case HEARTS: return "Heart";
+    case DIAMONDS: return "Diamond";
+    case CLUBS: return "Club";
+    default: return "Suit";
+  }
+}
+
+static std::optional<Suit> TryParseSuit(const std::string& s) {
+  std::string lower;
+  for (char c : s) {
+    if (c != ' ' && c != '\t') lower += static_cast<char>(tolower(c));
+  }
+  if (lower == "spade" || lower == "spades" || lower == "s") return SPADES;
+  if (lower == "heart" || lower == "hearts" || lower == "h") return HEARTS;
+  if (lower == "diamond" || lower == "diamonds" || lower == "d") return DIAMONDS;
+  if (lower == "club" || lower == "clubs" || lower == "c") return CLUBS;
+  return std::nullopt;
+}
+
+std::shared_ptr<SuitHonorVariableInvariant>
+SuitHonorVariableInvariant::FromString(const std::string& str,
+                                       const std::string& hand1_label,
+                                       const std::string& hand2_label) {
+  try {
+    // Pattern 1: "<SuitName> $honor is always in <hand_label>"
+    size_t pos1 = str.find(" $honor is always in ");
+    if (pos1 != std::string::npos) {
+      std::string suit_str = str.substr(0, pos1);
+      std::string label_str = str.substr(pos1 + 21);
+      auto suit_opt = TryParseSuit(suit_str);
+      if (!suit_opt) return nullptr;
+      HonorPossessionTargetHand target = HonorPossessionTargetHand::kHand1;
+      if (label_str == "both hands") {
+        target = HonorPossessionTargetHand::kBoth;
+      } else if (auto choice =
+                     ResolveHandChoice(label_str, hand1_label, hand2_label)) {
+        target = (*choice == InvariantHandChoice::kHand1)
+                     ? HonorPossessionTargetHand::kHand1
+                     : HonorPossessionTargetHand::kHand2;
+      } else {
+        return nullptr;
+      }
+      return std::make_shared<SuitHonorVariableInvariant>(
+          target, *suit_opt, label_str);
+    }
+
+    // Pattern 2: "<hand_label> has <SuitName> $honor"
+    size_t pos_has = str.find(" has ");
+    size_t pos_honor = str.rfind(" $honor");
+    if (pos_has != std::string::npos && pos_honor != std::string::npos &&
+        pos_honor == str.length() - 7 && pos_has < pos_honor) {
+      std::string label_str = str.substr(0, pos_has);
+      std::string suit_str =
+          str.substr(pos_has + 5, pos_honor - (pos_has + 5));
+      auto suit_opt = TryParseSuit(suit_str);
+      if (!suit_opt) return nullptr;
+      HonorPossessionTargetHand target = HonorPossessionTargetHand::kHand1;
+      if (label_str == "both hands") {
+        target = HonorPossessionTargetHand::kBoth;
+      } else if (auto choice =
+                     ResolveHandChoice(label_str, hand1_label, hand2_label)) {
+        target = (*choice == InvariantHandChoice::kHand1)
+                     ? HonorPossessionTargetHand::kHand1
+                     : HonorPossessionTargetHand::kHand2;
+      } else {
+        return nullptr;
+      }
+      return std::make_shared<SuitHonorVariableInvariant>(
+          target, *suit_opt, label_str);
+    }
+
+    // Pattern 3: "both hands always contain <SuitName> $honor"
+    size_t pos3 = str.find("both hands always contain ");
+    if (pos3 == 0) {
+      size_t pos_honor3 = str.rfind(" $honor");
+      if (pos_honor3 != std::string::npos && pos_honor3 == str.length() - 7) {
+        std::string suit_str = str.substr(26, pos_honor3 - 26);
+        auto suit_opt = TryParseSuit(suit_str);
+        if (!suit_opt) return nullptr;
+        return std::make_shared<SuitHonorVariableInvariant>(
+            HonorPossessionTargetHand::kBoth, *suit_opt, "both hands");
+      }
+    }
+
+    return nullptr;
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+std::string SuitHonorVariableInvariant::ToString() const {
+  std::string lbl = label_;
+  if (lbl.empty()) {
+    if (target_hand_ == HonorPossessionTargetHand::kHand1) {
+      lbl = "hand 1";
+    } else if (target_hand_ == HonorPossessionTargetHand::kHand2) {
+      lbl = "hand 2";
+    } else if (target_hand_ == HonorPossessionTargetHand::kBoth) {
+      lbl = "both hands";
+    }
+  }
+  if (lbl == "E" || lbl == "W" || lbl == "N" || lbl == "S") {
+    return lbl + " has " + SingularSuitName(suit_) + " $honor";
+  }
+  if (target_hand_ == HonorPossessionTargetHand::kBoth || lbl == "both hands") {
+    return "both hands always contain " + SingularSuitName(suit_) + " $honor";
+  }
+  return SingularSuitName(suit_) + " $honor is always in " + lbl;
+}
+
+bool SuitHonorVariableInvariant::HoldsOnDeal(
+    const PairedDeal& deal,
+    const std::string& /*hand1_label*/,
+    const std::string& /*hand2_label*/) const {
+  uint64_t suit_honor_mask = 0x1F00ULL << (static_cast<int>(suit_) * 16);
+  bool h1_has = (deal.hand1 & suit_honor_mask) != 0;
+  bool h2_has = (deal.hand2 & suit_honor_mask) != 0;
+
+  if (target_hand_ == HonorPossessionTargetHand::kBoth ||
+      label_ == "both hands") {
+    return h1_has && h2_has;
+  }
+  if (target_hand_ == HonorPossessionTargetHand::kHand1) {
+    return h1_has;
+  }
+  if (target_hand_ == HonorPossessionTargetHand::kHand2) {
+    return h2_has;
+  }
+  return false;
+}
+
+std::shared_ptr<UnknownCardsInvariant> SuitHonorVariableInvariant::Invert(
+    uint64_t unknown_cards,
+    int /*hand1_size*/,
+    const std::string& hand1_label,
+    const std::string& hand2_label) const {
+  if (target_hand_ == HonorPossessionTargetHand::kBoth ||
+      label_ == "both hands") {
+    return nullptr;
+  }
+  uint64_t suit_honor_mask = 0x1F00ULL << (static_cast<int>(suit_) * 16);
+  if (unknown_cards != 0 && (unknown_cards & suit_honor_mask) == 0) {
+    return nullptr;
+  }
+  HonorPossessionTargetHand inv_target =
+      (target_hand_ == HonorPossessionTargetHand::kHand1)
+          ? HonorPossessionTargetHand::kHand2
+          : HonorPossessionTargetHand::kHand1;
+  std::string inv_label;
+  if (label_ == "E") {
+    inv_label = "W";
+  } else if (label_ == "W") {
+    inv_label = "E";
+  } else if (label_ == "N") {
+    inv_label = "S";
+  } else if (label_ == "S") {
+    inv_label = "N";
+  } else {
+    inv_label = (inv_target == HonorPossessionTargetHand::kHand1)
+                    ? hand1_label
+                    : hand2_label;
+  }
+  return std::make_shared<SuitHonorVariableInvariant>(
+      inv_target, suit_, inv_label);
 }
 
 static void ComputeHandSuitBounds(uint64_t unknown_cards,

@@ -347,6 +347,47 @@ class HonorPossessionInvariant : public UnknownCardsInvariant {
   std::string label_;
 };
 
+// Describes generic suit honor possession invariant across paired hands: a specific
+// hand or both hands always contain at least one honor card (A, K, Q, J, 10) in a suit.
+// Example string formats:
+//   "Spade $honor is always in hand 1"
+//   "E has Spade $honor"
+//   "both hands always contain Spade $honor"
+class SuitHonorVariableInvariant : public UnknownCardsInvariant {
+ public:
+  SuitHonorVariableInvariant(HonorPossessionTargetHand target_hand,
+                             Suit suit,
+                             std::string label = "")
+      : target_hand_(target_hand), suit_(suit), label_(std::move(label)) {}
+
+  std::string ToString() const override;
+
+  bool HoldsOnDeal(
+      const PairedDeal& deal,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  std::shared_ptr<UnknownCardsInvariant> Invert(
+      uint64_t unknown_cards,
+      int hand1_size = 0,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2") const override;
+
+  static std::shared_ptr<SuitHonorVariableInvariant> FromString(
+      const std::string& str,
+      const std::string& hand1_label = "hand 1",
+      const std::string& hand2_label = "hand 2");
+
+  HonorPossessionTargetHand target_hand() const { return target_hand_; }
+  Suit suit() const { return suit_; }
+  const std::string& label() const { return label_; }
+
+ private:
+  HonorPossessionTargetHand target_hand_ = HonorPossessionTargetHand::kHand1;
+  Suit suit_ = Suit::SPADES;
+  std::string label_;
+};
+
 // Describes suit length upper bounds invariant across either hand in a paired
 // deal.
 // Example string format: "maximum length in S in any hand is 4"

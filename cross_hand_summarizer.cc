@@ -171,6 +171,21 @@ void HonorPossessionClassifier::ProcessDeal(const PairedDeal& deal) {
         stats.neither_count++;
       }
     }
+
+    uint64_t suit_honor_mask = 0x1F00ULL << (s * 16);
+    bool h1_has_honor = (deal.hand1 & suit_honor_mask) != 0;
+    bool h2_has_honor = (deal.hand2 & suit_honor_mask) != 0;
+
+    auto& suit_stats = suit_honor_stats_[suit];
+    if (h1_has_honor && h2_has_honor) {
+      suit_stats.both_count++;
+    } else if (h1_has_honor) {
+      suit_stats.hand1_count++;
+    } else if (h2_has_honor) {
+      suit_stats.hand2_count++;
+    } else {
+      suit_stats.neither_count++;
+    }
   }
 }
 
@@ -196,6 +211,9 @@ HonorPossessionClassifier::ExtractInvariants() const {
     auto suit_it = honor_stats_.find(suit);
     if (suit_it == honor_stats_.end()) continue;
 
+    bool h1_has_specific_honor_rule = false;
+    bool h2_has_specific_honor_rule = false;
+
     for (int r = 8; r <= 12; ++r) {
       auto r_it = suit_it->second.find(r);
       if (r_it == suit_it->second.end()) continue;
@@ -208,14 +226,18 @@ HonorPossessionClassifier::ExtractInvariants() const {
             HonorPossessionTargetHand::kHand1, card, l1_single));
         all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand1, card, l1_composite));
+        h1_has_specific_honor_rule = true;
       } else if (HoldsOnNearAllDeals(stats.hand2_count, total_deals_)) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand2, card, l2_single));
         all_candidates.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand2, card, l2_composite));
+        h2_has_specific_honor_rule = true;
       } else if (HoldsOnNearAllDeals(stats.both_count, total_deals_)) {
         invariants.push_back(std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kBoth, card, "both hands"));
+        h1_has_specific_honor_rule = true;
+        h2_has_specific_honor_rule = true;
       } else if (stats.hand1_count + stats.hand2_count + stats.both_count > 0) {
         auto inv1 = std::make_shared<HonorPossessionInvariant>(
             HonorPossessionTargetHand::kHand1, card, l1_composite);
@@ -225,6 +247,32 @@ HonorPossessionClassifier::ExtractInvariants() const {
         non_100_candidates.push_back(inv2);
         all_candidates.push_back(inv1);
         all_candidates.push_back(inv2);
+      }
+    }
+
+    auto suit_stats_it = suit_honor_stats_.find(suit);
+    if (suit_stats_it != suit_honor_stats_.end()) {
+      const auto& stats = suit_stats_it->second;
+      int h1_total = stats.hand1_count + stats.both_count;
+      int h2_total = stats.hand2_count + stats.both_count;
+      bool h1_holds = HoldsOnNearAllDeals(h1_total, total_deals_);
+      bool h2_holds = HoldsOnNearAllDeals(h2_total, total_deals_);
+      bool both_holds = HoldsOnNearAllDeals(stats.both_count, total_deals_);
+
+      if (both_holds) {
+        if (!h1_has_specific_honor_rule || !h2_has_specific_honor_rule) {
+          invariants.push_back(std::make_shared<SuitHonorVariableInvariant>(
+              HonorPossessionTargetHand::kBoth, suit, "both hands"));
+        }
+      } else {
+        if (h1_holds && !h1_has_specific_honor_rule) {
+          invariants.push_back(std::make_shared<SuitHonorVariableInvariant>(
+              HonorPossessionTargetHand::kHand1, suit, l1_single));
+        }
+        if (h2_holds && !h2_has_specific_honor_rule) {
+          invariants.push_back(std::make_shared<SuitHonorVariableInvariant>(
+              HonorPossessionTargetHand::kHand2, suit, l2_single));
+        }
       }
     }
   }
@@ -540,6 +588,31 @@ static std::vector<PairedDeal> GenerateRandomBifurcations(
   return bifurcations;
 }
 
+static void SuppressRedundantSuitHonorVariableInvariants(
+    std::vector<InvariantStats>& stats_list) {
+  std::set<std::pair<Suit, HonorPossessionTargetHand>> covered_suits;
+  for (const auto& st : stats_list) {
+    if (auto hp = std::dynamic_pointer_cast<HonorPossessionInvariant>(st.invariant)) {
+      Suit s = Card::DecodeCard(hp->card()).first;
+      covered_suits.insert({s, hp->target_hand()});
+    }
+  }
+  if (!covered_suits.empty()) {
+    std::vector<InvariantStats> pruned;
+    pruned.reserve(stats_list.size());
+    for (auto& st : stats_list) {
+      if (auto shv = std::dynamic_pointer_cast<SuitHonorVariableInvariant>(st.invariant)) {
+        if (covered_suits.count({shv->suit(), shv->target_hand()}) > 0 ||
+            covered_suits.count({shv->suit(), HonorPossessionTargetHand::kBoth}) > 0) {
+          continue;
+        }
+      }
+      pruned.push_back(std::move(st));
+    }
+    stats_list = std::move(pruned);
+  }
+}
+
 static std::vector<InvariantStats> DeduplicateEquivalentInvariants(
     std::vector<InvariantStats> stats_list,
     const std::vector<PairedDeal>& eval_deals,
@@ -690,6 +763,8 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
                        return false;
                      });
   }
+
+  SuppressRedundantSuitHonorVariableInvariants(stats_list);
 
   return DeduplicateEquivalentInvariants(
       std::move(stats_list), bifurcations, hand1_label, hand2_label);
@@ -972,6 +1047,7 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
     eval_deals.insert(eval_deals.end(), opposing_deals->begin(),
                       opposing_deals->end());
 
+    SuppressRedundantSuitHonorVariableInvariants(sim_stats);
     report.invariant_stats = DeduplicateEquivalentInvariants(
         std::move(sim_stats), eval_deals, fmt_h1, fmt_h2);
   } else {

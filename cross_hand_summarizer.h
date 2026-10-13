@@ -68,6 +68,9 @@ class HonorPossessionClassifier {
       const {
     return honor_stats_;
   }
+  const std::map<Suit, HonorPossessionStats>& GetSuitHonorStats() const {
+    return suit_honor_stats_;
+  }
   std::vector<std::shared_ptr<UnknownCardsInvariant>> ExtractInvariants() const;
   std::vector<std::string> ExtractRules() const;
 
@@ -84,6 +87,8 @@ class HonorPossessionClassifier {
   HandLabelFormatter formatter_;
   // Map of Suit -> (honor rank 8..12 -> HonorPossessionStats)
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats_;
+  // Map of Suit -> HonorPossessionStats for suit-level honor holding
+  std::map<Suit, HonorPossessionStats> suit_honor_stats_;
   int total_deals_ = 0;
   std::vector<PairedDeal> deals_;
 };
