@@ -30,6 +30,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="safety_play">Safety Play Deal (NT)</option>
           <option value="twelve_card_spades">12-Card Spades Deal (4S)</option>
           <option value="restricted_choice">Restricted Choice (7S)</option>
+          <option value="mollo_6s">Mollo 6S</option>
         </select>
       </div>
     </div>
@@ -2852,6 +2853,19 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S K654; H QJT; D JT9; C JT9;',
       west: '',
       unknown_cards: 'S QJ32 H 98765432 D 8765432 C 8765432'
+    },
+    mollo_6s: {
+      name: "Mollo 6S",
+      trump: 'SPADES',
+      leader: 'EAST',
+      cur_trick: ['DQ'],
+      target: 12,
+      iters: 50,
+      north: 'S AKJT83; H AKQ; D -; C A652;',
+      east: 'D Q;',
+      south: 'S Q52; H JT984; D K2; C 874;',
+      west: 'D A;',
+      unknown_cards: 'S 9764 H 76532 D JT9876543 C KQJT93'
     }
   };
 
@@ -2990,10 +3004,63 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let activeTrickCardStates = null; // { N, E, S, W, U } -> { played: [...], current: [...] }
+  let presetCurTrick = []; // Optional initial partial trick cards from preset (e.g. ['DQ'])
   let originalSolveSnapshot = null; // Saved original solve data & inputs before any proposed line
   let proposedAltLines = []; // Saved alternative proposed lines: [{ label, data }]
   let hasComputedProposedLine = false;
   let activeProposalContext = null; // { trickNum, selectedIdx, leaderIdx, nsTricksBefore, playedStates, prefixTrickRows, proposedCards: [] }
+
+  function getActiveInitialCurTrick() {
+    if (!Array.isArray(presetCurTrick) || presetCurTrick.length === 0) return [];
+    const leaderIdx = getSeatIndex(leaderSelect ? leaderSelect.value : 'NORTH');
+    const seatInputs = [
+      inputNorth ? inputNorth.value : '',
+      inputEast ? inputEast.value : '',
+      inputSouth ? inputSouth.value : '',
+      inputWest ? inputWest.value : ''
+    ];
+    const valid = [];
+    for (let i = 0; i < presetCurTrick.length; i++) {
+      const cStr = String(presetCurTrick[i] || '').trim().toUpperCase();
+      if (cStr.length < 2) return [];
+      const suit = cStr[0];
+      const rank = cStr.slice(1) === '10' ? 'T' : cStr.slice(1);
+      const seatIdx = (leaderIdx + i) % 4;
+      const suits = parseHandToSuits(seatInputs[seatIdx]);
+      const toks = tokenizeSuitRanks(suits[suit] || '-').map(t => (t === '10' ? 'T' : t.toUpperCase()));
+      if (!toks.includes(rank)) return [];
+      valid.push(`${suit}${rank}`);
+    }
+    return valid;
+  }
+
+  function buildInitialCurTrickCardStates() {
+    const initCur = getActiveInitialCurTrick();
+    if (initCur.length === 0) return null;
+    const states = {
+      N: { played: [], current: [] },
+      E: { played: [], current: [] },
+      S: { played: [], current: [] },
+      W: { played: [], current: [] },
+      U: { played: [], current: [] }
+    };
+    const leaderIdx = getSeatIndex(leaderSelect ? leaderSelect.value : 'NORTH');
+    const trumpCode = getTrumpCode();
+    let leadSuit = null;
+    initCur.forEach((cStr, idx) => {
+      const seatIdx = (leaderIdx + idx) % 4;
+      const seatName = getSeatName(seatIdx);
+      const parsed = parseSingleCardToken(cStr, leadSuit, trumpCode);
+      if (idx === 0) leadSuit = parsed.suit;
+      parsed.seatIdx = seatIdx;
+      parsed.seatName = seatName;
+      parsed.isLead = (idx === 0);
+      if (states[seatName]) {
+        states[seatName].current.push(parsed);
+      }
+    });
+    return states;
+  }
 
   function clonePlayStates(states) {
     if (!states) return null;
@@ -3278,7 +3345,9 @@ document.addEventListener('DOMContentLoaded', () => {
       { key: 'C', symbol: '♣', class: 'card-suit-c' }
     ];
 
-    const seatPlayState = (activeTrickCardStates && seatKey) ? activeTrickCardStates[seatKey] : null;
+    const effectiveStates = activeTrickCardStates ||
+      ((!currentSolveData && !activeProposalContext) ? buildInitialCurTrickCardStates() : null);
+    const seatPlayState = (effectiveStates && seatKey) ? effectiveStates[seatKey] : null;
     const suitTokenLists = {};
     let hasCards = false;
     suitOrder.forEach(s => {
@@ -3292,7 +3361,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let legalSuits = null;
     if (playabilityInfo && playabilityInfo.isTurn) {
       const leadSuit = playabilityInfo.leadSuit;
-      if (!isUnknown && leadSuit) {
+      if (playabilityInfo.forceLeadSuit && leadSuit) {
+        legalSuits = new Set([leadSuit]);
+      } else if (!isUnknown && leadSuit) {
         const hasUnplayedLeadSuit = (suitTokenLists[leadSuit] || []).some(it => it.state === 'normal');
         if (hasUnplayedLeadSuit) {
           legalSuits = new Set([leadSuit]);
@@ -3417,12 +3488,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    const seatHasUnplayedSuit = (handStr, seatKey, suitKey) => {
+      if (!suitKey) return false;
+      const suits = parseHandToSuits(handStr);
+      const baseTokens = tokenizeSuitRanks(suits[suitKey] || '-');
+      const st = activeTrickCardStates ? activeTrickCardStates[seatKey] : null;
+      const items = buildSeatSuitTokenList(suitKey, baseTokens, st, false);
+      return items.some(it => it.state === 'normal');
+    };
+
+    const eHasKnownLeadSuit = (nextSeatIdx === 1 && eKnown && leadSuit && seatHasUnplayedSuit(eStr, 'E', leadSuit));
+    const wHasKnownLeadSuit = (nextSeatIdx === 3 && wKnown && leadSuit && seatHasUnplayedSuit(wStr, 'W', leadSuit));
+
     const nTurn = (nextSeatIdx === 0);
     const eTurnKnown = (nextSeatIdx === 1 && eKnown);
     const sTurn = (nextSeatIdx === 2);
     const wTurnKnown = (nextSeatIdx === 3 && wKnown);
-    const uTurn = ((nextSeatIdx === 1 && !eKnown && uHasCards) ||
-                   (nextSeatIdx === 3 && !wKnown && uHasCards));
+    const uTurn = ((nextSeatIdx === 1 || nextSeatIdx === 3) && !useTracedEW && uHasCards);
+    const forceUnknownLeadSuit = Boolean(eHasKnownLeadSuit || wHasKnownLeadSuit);
 
     const boxNorth = document.getElementById('boxNorth');
     const boxEast = document.getElementById('boxEast');
@@ -3446,7 +3529,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (inputUnknownCards) {
       renderSvgHand('cardsUnknownGroup', uStr, true, 'U',
-        uTurn ? { isTurn: true, leadSuit, targetSeatIdx: nextSeatIdx } : null);
+        uTurn ? { isTurn: true, leadSuit, forceLeadSuit: forceUnknownLeadSuit, targetSeatIdx: nextSeatIdx } : null);
     }
 
     const svgTrumpText = document.getElementById('svgTrumpText');
@@ -3567,6 +3650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const p = PRESETS[key];
     if (!p) return;
 
+    presetCurTrick = Array.isArray(p.cur_trick) ? p.cur_trick.slice() : [];
     clearPanels();
     setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
 
@@ -3618,6 +3702,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function parseAndApplyDealText(text) {
     if (!text) return;
+    presetCurTrick = [];
     clearPanels();
     setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
     const lines = text.split('\n');
@@ -3682,6 +3767,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const it = parseInt(keyValues.iters || keyValues.num_iters || keyValues.iterations, 10);
         if (!isNaN(it)) numIters.value = it;
       }
+
+      if (keyValues.cur_trick) {
+        presetCurTrick = keyValues.cur_trick.split(/[\s,]+/).filter(Boolean);
+      }
     } else if (plainLines.length >= 4) {
       inputNorth.value = plainLines[0];
       inputEast.value = plainLines[1];
@@ -3715,6 +3804,11 @@ document.addEventListener('DOMContentLoaded', () => {
       num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10),
       num_threads: isNaN(parsedThreads) ? 16 : parsedThreads
     };
+
+    const initCurTrick = getActiveInitialCurTrick();
+    if (initCurTrick.length > 0) {
+      payload.cur_trick = initCurTrick;
+    }
 
     if (inputUnknownCards && inputUnknownCards.value.trim()) {
       payload.unknown_cards = inputUnknownCards.value.trim();
@@ -3796,7 +3890,8 @@ document.addEventListener('DOMContentLoaded', () => {
           trump: trumpSelect.value,
           leader: leaderSelect.value,
           targetTricks: targetTricks.value,
-          numIters: numIters.value
+          numIters: numIters.value,
+          curTrick: initCurTrick
         }
       };
       updateProposeLineBarUI();
@@ -3998,6 +4093,7 @@ document.addEventListener('DOMContentLoaded', () => {
         leaderSelect.value = snap.inputs.leader;
         targetTricks.value = snap.inputs.targetTricks;
         numIters.value = snap.inputs.numIters;
+        presetCurTrick = Array.isArray(snap.inputs.curTrick) ? snap.inputs.curTrick.slice() : [];
       }
 
       hasComputedProposedLine = false;
@@ -5255,8 +5351,32 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       const hasTracedEW = Boolean(isTracingBoard && activeTracedDeal && (activeTracedDeal.E || activeTracedDeal.W));
-      const eHasCards = hasTracedEW || countHandCards(inputEast ? inputEast.value : '') > 0;
-      const wHasCards = hasTracedEW || countHandCards(inputWest ? inputWest.value : '') > 0;
+      const eKnownSuits = parseHandToSuits(hasTracedEW ? (activeTracedDeal.E || '') : (inputEast ? inputEast.value : ''));
+      const wKnownSuits = parseHandToSuits(hasTracedEW ? (activeTracedDeal.W || '') : (inputWest ? inputWest.value : ''));
+      const eSuitTokens = {
+        S: tokenizeSuitRanks(eKnownSuits.S || '-'),
+        H: tokenizeSuitRanks(eKnownSuits.H || '-'),
+        D: tokenizeSuitRanks(eKnownSuits.D || '-'),
+        C: tokenizeSuitRanks(eKnownSuits.C || '-')
+      };
+      const eUsedMasks = {
+        S: new Array(eSuitTokens.S.length).fill(false),
+        H: new Array(eSuitTokens.H.length).fill(false),
+        D: new Array(eSuitTokens.D.length).fill(false),
+        C: new Array(eSuitTokens.C.length).fill(false)
+      };
+      const wSuitTokens = {
+        S: tokenizeSuitRanks(wKnownSuits.S || '-'),
+        H: tokenizeSuitRanks(wKnownSuits.H || '-'),
+        D: tokenizeSuitRanks(wKnownSuits.D || '-'),
+        C: tokenizeSuitRanks(wKnownSuits.C || '-')
+      };
+      const wUsedMasks = {
+        S: new Array(wSuitTokens.S.length).fill(false),
+        H: new Array(wSuitTokens.H.length).fill(false),
+        D: new Array(wSuitTokens.D.length).fill(false),
+        C: new Array(wSuitTokens.C.length).fill(false)
+      };
       const uStr = inputUnknownCards ? inputUnknownCards.value.trim() : '';
       const uHasCards = !hasTracedEW && countUnknownCardsString(uStr) > 0;
       const uSuits = parseHandToSuits(uStr);
@@ -5326,31 +5446,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cardObj) return;
         const seat = cardObj.seatName;
         const entry = Object.assign({}, cardObj, { isLead });
-        if ((seat === 'E' && !eHasCards && uHasCards) ||
-            (seat === 'W' && !wHasCards && uHasCards)) {
-          let sKey = entry.suit;
-          // Fallback if suit is still null (e.g. '__' without board_to_trick): pick first suit in Unknown Cards with remaining cards
-          if (!sKey) {
-            for (const candidateSuit of ['S', 'H', 'D', 'C']) {
-              const remIdx = uSuitTokens[candidateSuit].findIndex((_, idx) => !uUsedMasks[candidateSuit][idx]);
-              if (remIdx !== -1) {
-                sKey = candidateSuit;
-                entry.suit = candidateSuit;
-                break;
+        if ((seat === 'E' || seat === 'W') && uHasCards) {
+          const knownTokens = (seat === 'E') ? eSuitTokens : wSuitTokens;
+          const knownMasks = (seat === 'E') ? eUsedMasks : wUsedMasks;
+          let matchedKnown = false;
+          if (entry.suit && knownTokens[entry.suit]) {
+            const kIdx = matchCardIndexInTokens(entry.suit, knownTokens[entry.suit], knownMasks[entry.suit], entry);
+            if (kIdx !== -1) {
+              knownMasks[entry.suit][kIdx] = true;
+              matchedKnown = true;
+            }
+          }
+          if (!matchedKnown) {
+            let sKey = entry.suit;
+            // Fallback if suit is still null (e.g. '__' without board_to_trick): pick first suit in Unknown Cards with remaining cards
+            if (!sKey) {
+              for (const candidateSuit of ['S', 'H', 'D', 'C']) {
+                const remIdx = uSuitTokens[candidateSuit].findIndex((_, idx) => !uUsedMasks[candidateSuit][idx]);
+                if (remIdx !== -1) {
+                  sKey = candidateSuit;
+                  entry.suit = candidateSuit;
+                  break;
+                }
               }
             }
-          }
-          if (sKey && uSuitTokens[sKey]) {
-            const uIdx = matchCardIndexInTokens(sKey, uSuitTokens[sKey], uUsedMasks[sKey], entry);
-            if (uIdx !== -1) {
-              uUsedMasks[sKey][uIdx] = true;
-              const matchedTok = uSuitTokens[sKey][uIdx];
-              const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' ||
-                                 entry.rankStr === '_' || entry.rankStr === '__');
-              entry.movedToken = isPatWild ? matchedTok : entry.rankStr;
+            if (sKey && uSuitTokens[sKey]) {
+              const uIdx = matchCardIndexInTokens(sKey, uSuitTokens[sKey], uUsedMasks[sKey], entry);
+              if (uIdx !== -1) {
+                uUsedMasks[sKey][uIdx] = true;
+                const matchedTok = uSuitTokens[sKey][uIdx];
+                const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' ||
+                                   entry.rankStr === '_' || entry.rankStr === '__');
+                entry.movedToken = isPatWild ? matchedTok : entry.rankStr;
+              }
             }
+            states.U[bucket].push(entry);
           }
-          states.U[bucket].push(entry);
         }
         if (seat && states[seat] && entry.suit) {
           states[seat][bucket].push(entry);
@@ -6020,6 +6151,19 @@ inline const char* PRESETS_JSON = R"rawjson(
     "south": "S K654; H QJT; D JT9; C JT9;",
     "west": "",
     "unknown_cards": "S QJ32 H 98765432 D 8765432 C 8765432"
+  },
+  "mollo_6s": {
+    "name": "Mollo 6S",
+    "trump": "SPADES",
+    "leader": "EAST",
+    "cur_trick": ["DQ"],
+    "target": 12,
+    "iters": 50,
+    "north": "S AKJT83; H AKQ; D -; C A652;",
+    "east": "D Q;",
+    "south": "S Q52; H JT984; D K2; C 874;",
+    "west": "D A;",
+    "unknown_cards": "S 9764 H 76532 D JT9876543 C KQJT93"
   }
 }
 

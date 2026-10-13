@@ -82,5 +82,18 @@
     "south": "S K654; H QJT; D JT9; C JT9;",
     "west": "",
     "unknown_cards": "S QJ32 H 98765432 D 8765432 C 8765432"
+  },
+  "mollo_6s": {
+    "name": "Mollo 6S",
+    "trump": "SPADES",
+    "leader": "EAST",
+    "cur_trick": ["DQ"],
+    "target": 12,
+    "iters": 50,
+    "north": "S AKJT83; H AKQ; D -; C A652;",
+    "east": "D Q;",
+    "south": "S Q52; H JT984; D K2; C 874;",
+    "west": "D A;",
+    "unknown_cards": "S 9764 H 76532 D JT9876543 C KQJT93"
   }
 }
