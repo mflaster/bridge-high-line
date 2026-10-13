@@ -51,6 +51,10 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
   REQUIRE(res_js->body.find("function traceHandByNumber") != std::string::npos);
   REQUIRE(res_js->body.find("function selectEquivalentLine") != std::string::npos);
+  REQUIRE(res_js->body.find("function buildSelectableLinesList") != std::string::npos);
+  REQUIRE(res_js->body.find("function formatProposedCardsDescriptor") != std::string::npos);
+  REQUIRE(res_js->body.find("Original line") != std::string::npos);
+  REQUIRE(res_js->body.find("Alt line") != std::string::npos);
   REQUIRE(res_js->body.find("leadSeatIdx") != std::string::npos);
   REQUIRE(res_js->body.find("trick-columns-header") != std::string::npos);
   REQUIRE(res_js->body.find("function handleProposeCardClick") != std::string::npos);

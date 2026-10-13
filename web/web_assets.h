@@ -282,16 +282,16 @@ inline const char* INDEX_HTML = R"rawhtml(
           </div>
         </div>
 
-        <!-- Equivalent Lines Selector Bar -->
+        <!-- Equivalent / Alternative Lines Selector Bar -->
         <div id="equivalentLinesBar" class="equivalent-lines-bar hidden">
           <div class="equivalent-lines-info">
             <span id="equivalentLinesBadge" class="equivalent-lines-badge">Multiple Equivalent Lines</span>
-            <span class="equivalent-lines-hint">Choose an equally optimal line of play:</span>
+            <span id="equivalentLinesHint" class="equivalent-lines-hint">Choose an equally optimal line of play:</span>
           </div>
           <div class="equivalent-lines-controls">
-            <button id="prevLineBtn" type="button" class="btn btn-secondary-sm line-nav-btn" title="Previous equivalent line">◀</button>
-            <select id="equivalentLineSelect" class="equivalent-line-select" aria-label="Select equivalent line of play"></select>
-            <button id="nextLineBtn" type="button" class="btn btn-secondary-sm line-nav-btn" title="Next equivalent line">▶</button>
+            <button id="prevLineBtn" type="button" class="btn btn-secondary-sm line-nav-btn" title="Previous line">◀</button>
+            <select id="equivalentLineSelect" class="equivalent-line-select" aria-label="Select line of play"></select>
+            <button id="nextLineBtn" type="button" class="btn btn-secondary-sm line-nav-btn" title="Next line">▶</button>
           </div>
         </div>
 
@@ -2205,6 +2205,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const statFailure = document.getElementById('statFailure');
   const equivalentLinesBar = document.getElementById('equivalentLinesBar');
   const equivalentLinesBadge = document.getElementById('equivalentLinesBadge');
+  const equivalentLinesHint = document.getElementById('equivalentLinesHint');
   const equivalentLineSelect = document.getElementById('equivalentLineSelect');
   const prevLineBtn = document.getElementById('prevLineBtn');
   const nextLineBtn = document.getElementById('nextLineBtn');
@@ -2541,20 +2542,87 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function populateEquivalentLinesControls(data) {
+  function buildSelectableLinesList() {
+    const entries = [];
+    const baseData = (originalSolveSnapshot && originalSolveSnapshot.data)
+      ? originalSolveSnapshot.data
+      : currentSolveData;
+    const hasAlts = Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
+
+    if (baseData) {
+      const origLines = Array.isArray(baseData.lines) ? baseData.lines : [];
+      if (origLines.length > 1) {
+        origLines.forEach((lineObj, idx) => {
+          let label = lineObj.label || `Line ${idx + 1}`;
+          if (hasAlts) {
+            label = label.replace(/^Line\s+(\d+):/i, 'Original line $1:');
+          }
+          entries.push({
+            kind: 'original',
+            label: label,
+            lineObj: lineObj,
+            baseData: baseData
+          });
+        });
+      } else {
+        const singleLineObj = origLines.length === 1 ? origLines[0] : {
+          tree: baseData.tree,
+          best_lead: baseData.best_lead,
+          covered_boards: baseData.covered_boards,
+          distribution_summary: baseData.distribution_summary,
+          failure_distribution_summary: baseData.failure_distribution_summary
+        };
+        entries.push({
+          kind: 'original',
+          label: 'Original line',
+          lineObj: singleLineObj,
+          baseData: baseData
+        });
+      }
+    }
+
+    if (hasAlts) {
+      proposedAltLines.forEach((altEntry) => {
+        entries.push({
+          kind: 'alt',
+          label: altEntry.label,
+          altData: altEntry.data
+        });
+      });
+    }
+
+    return entries;
+  }
+
+  function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
     if (!equivalentLinesBar || !equivalentLineSelect) return;
     equivalentLineSelect.innerHTML = '';
-    const lines = (data && Array.isArray(data.lines)) ? data.lines : [];
-    if (lines.length > 1) {
-      lines.forEach((lineObj, idx) => {
+    const entries = buildSelectableLinesList();
+    const hasAlts = Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
+
+    if (entries.length > 1) {
+      entries.forEach((entry, idx) => {
         const opt = document.createElement('option');
         opt.value = String(idx);
-        opt.textContent = lineObj.label || `Line ${idx + 1}`;
+        opt.textContent = entry.label;
         equivalentLineSelect.appendChild(opt);
       });
-      equivalentLineSelect.value = '0';
+      const activeIdx = (selectedEntryIndex !== null && selectedEntryIndex >= 0 && selectedEntryIndex < entries.length)
+        ? selectedEntryIndex
+        : 0;
+      equivalentLineSelect.value = String(activeIdx);
+      if (currentSolveData) {
+        currentSolveData.active_line_index = activeIdx;
+      }
       if (equivalentLinesBadge) {
-        equivalentLinesBadge.textContent = `${lines.length} Equivalent Lines`;
+        equivalentLinesBadge.textContent = hasAlts
+          ? `${entries.length} Lines (Original + ${proposedAltLines.length} Alt)`
+          : `${entries.length} Equivalent Lines`;
+      }
+      if (equivalentLinesHint) {
+        equivalentLinesHint.textContent = hasAlts
+          ? 'Switch between original and proposed lines:'
+          : 'Choose an equally optimal line of play:';
       }
       equivalentLinesBar.classList.remove('hidden');
     } else {
@@ -2563,47 +2631,68 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function selectEquivalentLine(rawIndex) {
-    if (!currentSolveData || !Array.isArray(currentSolveData.lines) ||
-        currentSolveData.lines.length === 0) {
-      return;
-    }
-    const count = currentSolveData.lines.length;
+    const entries = buildSelectableLinesList();
+    if (entries.length === 0) return;
+
+    const count = entries.length;
     const idx = ((parseInt(rawIndex, 10) || 0) % count + count) % count;
-    const lineObj = currentSolveData.lines[idx];
-    if (!lineObj) return;
+    const entry = entries[idx];
+    if (!entry) return;
 
-    currentSolveData.active_line_index = idx;
-    currentSolveData.tree = JSON.parse(JSON.stringify(lineObj.tree || {}));
-    currentSolveData.best_lead = lineObj.best_lead || '-';
-    currentSolveData.distribution_summary = lineObj.distribution_summary || null;
-    currentSolveData.failure_distribution_summary =
-      lineObj.failure_distribution_summary || null;
+    if (entry.kind === 'alt' && entry.altData) {
+      currentSolveData = JSON.parse(JSON.stringify(entry.altData));
+      currentSolveData.active_line_index = idx;
+      hasComputedProposedLine = true;
+    } else if (entry.kind === 'original' && entry.baseData) {
+      const baseCopy = JSON.parse(JSON.stringify(entry.baseData));
+      const lineObj = entry.lineObj;
+      if (lineObj) {
+        baseCopy.tree = JSON.parse(JSON.stringify(lineObj.tree || {}));
+        baseCopy.best_lead = lineObj.best_lead || baseCopy.best_lead || '-';
+        baseCopy.distribution_summary = lineObj.distribution_summary || null;
+        baseCopy.failure_distribution_summary =
+          lineObj.failure_distribution_summary || null;
 
-    const total = currentSolveData.total_boards || 1;
-    if (Array.isArray(lineObj.covered_board_ids) &&
-        Array.isArray(currentSolveData.all_hands)) {
-      const coveredSet = new Set(lineObj.covered_board_ids);
-      const sampleHands = [];
-      const failureSampleHands = [];
-      currentSolveData.all_hands.forEach(handEntry => {
-        const isCov = coveredSet.has(handEntry.board_id);
-        handEntry.succeeded = isCov;
-        if (isCov && sampleHands.length < 100) {
-          sampleHands.push(handEntry);
-        } else if (!isCov && failureSampleHands.length < 100) {
-          failureSampleHands.push(handEntry);
+        const total = baseCopy.total_boards || 1;
+        if (Array.isArray(lineObj.covered_board_ids) &&
+            Array.isArray(baseCopy.all_hands)) {
+          const coveredSet = new Set(lineObj.covered_board_ids);
+          const sampleHands = [];
+          const failureSampleHands = [];
+          baseCopy.all_hands.forEach(handEntry => {
+            const isCov = coveredSet.has(handEntry.board_id);
+            handEntry.succeeded = isCov;
+            if (isCov && sampleHands.length < 100) {
+              sampleHands.push(handEntry);
+            } else if (!isCov && failureSampleHands.length < 100) {
+              failureSampleHands.push(handEntry);
+            }
+          });
+          baseCopy.sample_hands = sampleHands;
+          baseCopy.failure_sample_hands = failureSampleHands;
+          baseCopy.success_boards = coveredSet.size;
+          baseCopy.covered_boards = coveredSet.size;
+          baseCopy.failure_boards = Math.max(0, total - coveredSet.size);
         }
-      });
-      currentSolveData.sample_hands = sampleHands;
-      currentSolveData.failure_sample_hands = failureSampleHands;
-      currentSolveData.success_boards = coveredSet.size;
-      currentSolveData.covered_boards = coveredSet.size;
-      currentSolveData.failure_boards = Math.max(0, total - coveredSet.size);
+      }
+      currentSolveData = baseCopy;
+      currentSolveData.active_line_index = idx;
+      hasComputedProposedLine = (Array.isArray(proposedAltLines) && proposedAltLines.length > 0);
     }
 
+    activeProposalContext = null;
+    activeTrickCardStates = null;
+    updateProposeLineBarUI();
+
+    if (statTricks) {
+      statTricks.textContent = currentSolveData.tricks_won !== undefined
+        ? currentSolveData.tricks_won
+        : '-';
+    }
     if (statLead) {
       statLead.textContent = currentSolveData.best_lead || '-';
     }
+    const total = currentSolveData.total_boards || 1;
     const success = currentSolveData.success_boards !== undefined
       ? currentSolveData.success_boards
       : (currentSolveData.covered_boards || 0);
@@ -2864,6 +2953,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let activeTrickCardStates = null; // { N, E, S, W, U } -> { played: [...], current: [...] }
   let originalSolveSnapshot = null; // Saved original solve data & inputs before any proposed line
+  let proposedAltLines = []; // Saved alternative proposed lines: [{ label, data }]
   let hasComputedProposedLine = false;
   let activeProposalContext = null; // { trickNum, selectedIdx, leaderIdx, nsTricksBefore, playedStates, prefixTrickRows, proposedCards: [] }
 
@@ -3359,6 +3449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeProposalContext = null;
     if (!keepOriginalSnapshot) {
       originalSolveSnapshot = null;
+      proposedAltLines = [];
       hasComputedProposedLine = false;
     }
     updateProposeLineBarUI();
@@ -3646,6 +3737,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentSolveData = data;
       currentSolveData.active_line_index = 0;
       hasComputedProposedLine = false;
+      proposedAltLines = [];
       activeProposalContext = null;
       originalSolveSnapshot = {
         data: JSON.parse(JSON.stringify(data)),
@@ -3680,7 +3772,7 @@ document.addEventListener('DOMContentLoaded', () => {
         traceHandInput.placeholder = `1..${total}`;
       }
 
-      populateEquivalentLinesControls(data);
+      populateEquivalentLinesControls(data, 0);
 
       // Render the combined decision tree, then the Distribution Summary and
       // Sample Hands panels for the active view mode (Success vs Failure).
@@ -3842,7 +3934,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (resetLineBtn) {
     resetLineBtn.addEventListener('click', () => {
-      if (!hasComputedProposedLine && activeProposalContext && activeProposalContext.proposedCards.length > 0) {
+      if (activeProposalContext && activeProposalContext.proposedCards.length > 0) {
         activeProposalContext.proposedCards = [];
         applyProposalStateToSvg();
         return;
@@ -3863,6 +3955,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       hasComputedProposedLine = false;
+      proposedAltLines = [];
       activeProposalContext = null;
       activeTrickCardStates = null;
       clearTracedHandStateOnly();
@@ -3872,7 +3965,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentSolveData = data;
       currentSolveData.active_line_index = 0;
       updateProposeLineBarUI();
-      populateEquivalentLinesControls(data);
+      populateEquivalentLinesControls(data, 0);
 
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
@@ -3894,6 +3987,18 @@ document.addEventListener('DOMContentLoaded', () => {
       renderSolveTree();
       updateViewMode(activeViewMode);
     });
+  }
+
+  function formatProposedCardsDescriptor(cards, trickNum) {
+    if (!cards || cards.length === 0) return `Trick #${trickNum}`;
+    const tokens = cards.map(c => {
+      const rawTok = c.clickedToken || c.rankStr || 'x';
+      const r = (rawTok === '10') ? 'T' : rawTok;
+      const cardToken = `${c.suit || 'S'}${r}`;
+      return c.fromUnknown ? `(${cardToken})` : cardToken;
+    });
+    const joined = tokens.join(' ');
+    return trickNum > 1 ? `#${trickNum}: ${joined}` : joined;
   }
 
   if (computeNewLineBtn) {
@@ -4115,19 +4220,28 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
+        const altNumber = proposedAltLines.length + 1;
+        const altDescriptor = formatProposedCardsDescriptor(proposedCards, ctx.trickNum);
+        const altLabel = `Alt line ${altNumber}: ${altDescriptor}`;
+        proposedAltLines.push({
+          label: altLabel,
+          data: JSON.parse(JSON.stringify(data))
+        });
+
         hasComputedProposedLine = true;
         activeProposalContext = null;
         currentSolveData = data;
-        currentSolveData.active_line_index = 0;
         clearTracedHandStateOnly();
         if (traceHandInput) {
           traceHandInput.value = '';
           traceHandInput.placeholder = `1..${total}`;
         }
         updateProposeLineBarUI();
-        populateEquivalentLinesControls(data);
+        const allEntries = buildSelectableLinesList();
+        const newEntryIdx = Math.max(0, allEntries.length - 1);
+        populateEquivalentLinesControls(data, newEntryIdx);
 
-        setStatus('success', `Computed new line from Trick #${ctx.trickNum}!`, timeStr);
+        setStatus('success', `Computed ${altLabel}!`, timeStr);
         execTime.textContent = timeStr;
 
         resultsSummary.classList.remove('hidden');
