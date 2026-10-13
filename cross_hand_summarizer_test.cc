@@ -92,6 +92,19 @@ TEST_CASE("JointSuitRuleExtractor_SuitBoundsAndTautologySuppression", "[cross_ha
       PairedDeal("S AK H 3", "S Q H 24")
   };
 
+  JointSuitRuleExtractor extractor("hand 1", "hand 3");
+  for (const auto& d : deals) {
+    extractor.ProcessDeal(d);
+  }
+  auto raw_rules = extractor.ExtractRules();
+  auto has_raw_rule = [&](const std::string& r) {
+    return std::find(raw_rules.begin(), raw_rules.end(), r) != raw_rules.end();
+  };
+  REQUIRE(has_raw_rule("hand 1 length in S is always 2"));
+  REQUIRE(has_raw_rule("hand 3 length in S is always 1"));
+  REQUIRE(has_raw_rule("hand 1 length in H is always 1"));
+  REQUIRE(has_raw_rule("hand 3 length in H is always 2"));
+
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals, "hand 1", "hand 3");
 
@@ -101,10 +114,12 @@ TEST_CASE("JointSuitRuleExtractor_SuitBoundsAndTautologySuppression", "[cross_ha
   REQUIRE(report.suit_bounds[SPADES].min_hand2 == 1);
   REQUIRE(report.suit_bounds[SPADES].max_hand2 == 1);
 
-  REQUIRE(report.HasRule("hand 1 length in S is always 2"));
-  REQUIRE(report.HasRule("hand 3 length in S is always 1"));
+  // Across 3v3 deals of S AKQ H 234, all 4 exact suit-length rules are
+  // equivalent and deduplicate to a single canonical rule.
   REQUIRE(report.HasRule("hand 1 length in H is always 1"));
-  REQUIRE(report.HasRule("hand 3 length in H is always 2"));
+  REQUIRE_FALSE(report.HasRule("hand 1 length in S is always 2"));
+  REQUIRE_FALSE(report.HasRule("hand 3 length in S is always 1"));
+  REQUIRE_FALSE(report.HasRule("hand 3 length in H is always 2"));
 
   // Verify tautologies are suppressed
   REQUIRE_FALSE(report.HasRule("combined length in S is always 3"));
@@ -139,12 +154,24 @@ TEST_CASE("MaximumSuitLength_AcrossBifurcations", "[cross_hand_summarizer]") {
       PairedDeal("S 2 H 32", "S 43 H 4")
   };
 
+  JointSuitRuleExtractor extractor;
+  for (const auto& d : deals) {
+    extractor.ProcessDeal(d);
+  }
+  auto raw_rules = extractor.ExtractRules();
+  REQUIRE(std::find(raw_rules.begin(), raw_rules.end(),
+                    "maximum length in S in any hand is 2") != raw_rules.end());
+  REQUIRE(std::find(raw_rules.begin(), raw_rules.end(),
+                    "maximum length in H in any hand is 2") != raw_rules.end());
+
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 
   REQUIRE(report.total_deals == 3);
-  REQUIRE(report.HasRule("maximum length in S in any hand is 2"));
-  REQUIRE(report.HasRule("maximum length in H in any hand is 2"));
+  // Deduplication collapses equivalent 2-1/1-2 rules to ShortestLength(H) >= 1.
+  REQUIRE(report.HasRule("ShortestLength(H) >= 1"));
+  REQUIRE_FALSE(report.HasRule("maximum length in S in any hand is 2"));
+  REQUIRE_FALSE(report.HasRule("maximum length in H in any hand is 2"));
 
   // Overall cards: S 5432, H 5432 (8 cards total, 4 per hand).
   // Max length 3 in S (i.e. not 4-0) holds on 68/70 = 97.1% >= 95% of deals,
@@ -157,6 +184,8 @@ TEST_CASE("MaximumSuitLength_AcrossBifurcations", "[cross_hand_summarizer]") {
   CrossHandSummaryReport boring_report = summarizer.Summarize(boring_deals);
   REQUIRE_FALSE(boring_report.HasRule("maximum length in S in any hand is 3"));
   REQUIRE_FALSE(boring_report.HasRule("maximum length in H in any hand is 3"));
+  REQUIRE_FALSE(boring_report.HasRule("ShortestLength(S) >= 1"));
+  REQUIRE_FALSE(boring_report.HasRule("ShortestLength(H) >= 1"));
 }
 
 TEST_CASE("Validation_InvalidDealSetThrows", "[cross_hand_summarizer]") {
@@ -208,12 +237,23 @@ TEST_CASE("CrossSuitConditionalRuleExtractor_CoPossessionOfCards", "[cross_hand_
       PairedDeal("S K43 H 2", "S AT H 5")
   };
 
+  CrossSuitConditionalRuleExtractor extractor;
+  for (const auto& d : deals) {
+    extractor.ProcessDeal(d);
+  }
+  auto raw_rules = extractor.ExtractRules();
+  REQUIRE(std::find(raw_rules.begin(), raw_rules.end(),
+                    "the hand with the SA also has the ST") != raw_rules.end());
+  REQUIRE(std::find(raw_rules.begin(), raw_rules.end(),
+                    "the hand with the ST also has the SA") != raw_rules.end());
+
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 
   REQUIRE(report.total_deals == 2);
+  // Symmetric co-possession rules are equivalent and deduplicated to one rule.
   REQUIRE(report.HasRule("the hand with the SA also has the ST"));
-  REQUIRE(report.HasRule("the hand with the ST also has the SA"));
+  REQUIRE_FALSE(report.HasRule("the hand with the ST also has the SA"));
 }
 
 TEST_CASE("RandomBifurcation_TautologyElimination", "[cross_hand_summarizer]") {
@@ -995,8 +1035,13 @@ TEST_CASE("Summarize_OpposingDealsDoesNotDoubleFilterWithRandomBifurcations",
       covered_deals, "hand 1", "hand 3", nullptr, &failure_deals,
       /*is_failure_mode=*/false);
 
-  REQUIRE(report.HasRule("maximum length in D in any hand is 3"));
   REQUIRE(report.HasRule("ShortestLength(D) >= 1"));
+  REQUIRE_FALSE(report.HasRule("maximum length in D in any hand is 3"));
+  REQUIRE_FALSE(report.HasRule("hand 1 length in D is between 1 and 3"));
+  REQUIRE_FALSE(report.HasRule("hand 3 length in D is between 1 and 3"));
+  REQUIRE_FALSE(report.HasRule("the hand with the DT also has at most 3 D"));
+  REQUIRE_FALSE(report.HasRule("the hand with the DJ also has at most 3 D"));
+  REQUIRE_FALSE(report.HasRule("the hand with the DQ also has at most 3 D"));
 }
 
 TEST_CASE("ShortestLengthInvariant_RoundTripInvertAndSummarize",

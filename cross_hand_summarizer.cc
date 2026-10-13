@@ -499,6 +499,92 @@ bool EvaluateRuleOnDeal(const std::string& rule,
       rule, deal, formatter.FormatHand1(), formatter.FormatHand2());
 }
 
+static std::vector<PairedDeal> GenerateRandomBifurcations(
+    uint64_t unknown_cards, int hand1_size, int num_bifurcations) {
+  std::vector<PairedDeal> bifurcations;
+  if (unknown_cards == 0 || hand1_size <= 0 || num_bifurcations <= 0) {
+    return bifurcations;
+  }
+
+  std::vector<CardType> card_list;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    for (int r = 0; r < 13; ++r) {
+      CardType card = Card::GetSuitedCard(suit, r);
+      if ((unknown_cards & card) != 0) {
+        card_list.push_back(card);
+      }
+    }
+  }
+
+  if (static_cast<size_t>(hand1_size) >= card_list.size()) {
+    return bifurcations;
+  }
+
+  bifurcations.reserve(num_bifurcations);
+  std::mt19937 rng(12345);
+  std::vector<CardType> cards = card_list;
+
+  for (int k = 0; k < num_bifurcations; ++k) {
+    std::shuffle(cards.begin(), cards.end(), rng);
+    uint64_t h1 = 0;
+    uint64_t h2 = 0;
+    for (int i = 0; i < hand1_size; ++i) {
+      h1 |= cards[i];
+    }
+    for (size_t i = hand1_size; i < cards.size(); ++i) {
+      h2 |= cards[i];
+    }
+    bifurcations.emplace_back(h1, h2);
+  }
+  return bifurcations;
+}
+
+static std::vector<InvariantStats> DeduplicateEquivalentInvariants(
+    std::vector<InvariantStats> stats_list,
+    const std::vector<PairedDeal>& eval_deals,
+    const std::string& hand1_label,
+    const std::string& hand2_label) {
+  if (stats_list.size() <= 1 || eval_deals.empty()) {
+    return stats_list;
+  }
+
+  auto is_better_rep = [](const InvariantStats& candidate,
+                          const InvariantStats& current) {
+    if (candidate.rule.size() != current.rule.size()) {
+      return candidate.rule.size() < current.rule.size();
+    }
+    return candidate.rule < current.rule;
+  };
+
+  std::vector<std::vector<bool>> signatures;
+  std::vector<InvariantStats> deduped;
+  signatures.reserve(stats_list.size());
+  deduped.reserve(stats_list.size());
+
+  for (auto& st : stats_list) {
+    if (!st.invariant) continue;
+    std::vector<bool> sig(eval_deals.size(), false);
+    for (size_t i = 0; i < eval_deals.size(); ++i) {
+      sig[i] =
+          st.invariant->HoldsOnDeal(eval_deals[i], hand1_label, hand2_label);
+    }
+
+    auto it = std::find(signatures.begin(), signatures.end(), sig);
+    if (it == signatures.end()) {
+      signatures.push_back(std::move(sig));
+      deduped.push_back(std::move(st));
+    } else {
+      size_t idx = static_cast<size_t>(std::distance(signatures.begin(), it));
+      if (is_better_rep(st, deduped[idx])) {
+        deduped[idx] = std::move(st);
+      }
+    }
+  }
+
+  return deduped;
+}
+
 std::vector<InvariantStats> EvaluateCandidateInvariants(
     std::vector<std::shared_ptr<UnknownCardsInvariant>> candidate_invariants,
     uint64_t unknown_cards,
@@ -521,19 +607,9 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
     return stats_list;
   }
 
-  std::vector<CardType> card_list;
-  for (int s = 0; s < 4; ++s) {
-    Suit suit = static_cast<Suit>(s);
-    for (int r = 0; r < 13; ++r) {
-      CardType card = Card::GetSuitedCard(suit, r);
-      if ((unknown_cards & card) != 0) {
-        card_list.push_back(card);
-      }
-    }
-  }
-
-  if (hand1_size <= 0 || static_cast<size_t>(hand1_size) >= card_list.size() ||
-      num_bifurcations <= 0) {
+  std::vector<PairedDeal> bifurcations =
+      GenerateRandomBifurcations(unknown_cards, hand1_size, num_bifurcations);
+  if (bifurcations.empty()) {
     for (const auto& inv : candidate_invariants) {
       if (!inv) continue;
       InvariantStats st;
@@ -543,24 +619,6 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
       stats_list.push_back(std::move(st));
     }
     return stats_list;
-  }
-
-  std::vector<PairedDeal> bifurcations;
-  bifurcations.reserve(num_bifurcations);
-  std::mt19937 rng(12345);
-  std::vector<CardType> cards = card_list;
-
-  for (int k = 0; k < num_bifurcations; ++k) {
-    std::shuffle(cards.begin(), cards.end(), rng);
-    uint64_t h1 = 0;
-    uint64_t h2 = 0;
-    for (int i = 0; i < hand1_size; ++i) {
-      h1 |= cards[i];
-    }
-    for (size_t i = hand1_size; i < cards.size(); ++i) {
-      h2 |= cards[i];
-    }
-    bifurcations.emplace_back(h1, h2);
   }
 
   bool can_eval_line = (line != nullptr && line->has_sample_board());
@@ -633,7 +691,8 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
                      });
   }
 
-  return stats_list;
+  return DeduplicateEquivalentInvariants(
+      std::move(stats_list), bifurcations, hand1_label, hand2_label);
 }
 
 std::vector<InvariantStats> EvaluateCandidateInvariants(
@@ -907,7 +966,14 @@ CrossHandSummaryReport CrossHandDealSetSummarizer::Summarize(
                        return false;
                      });
 
-    report.invariant_stats = std::move(sim_stats);
+    std::vector<PairedDeal> eval_deals = GenerateRandomBifurcations(
+        report.unknown_cards, report.cards_per_hand, 200);
+    eval_deals.insert(eval_deals.end(), deals.begin(), deals.end());
+    eval_deals.insert(eval_deals.end(), opposing_deals->begin(),
+                      opposing_deals->end());
+
+    report.invariant_stats = DeduplicateEquivalentInvariants(
+        std::move(sim_stats), eval_deals, fmt_h1, fmt_h2);
   } else {
     report.invariant_stats = EvaluateCandidateInvariants(
         candidate_invariants, report.unknown_cards, report.cards_per_hand,
