@@ -1149,6 +1149,25 @@ TEST_CASE("HonorPossessionClassifier_VariableSuitHonorExtraction",
       PairedDeal("H KQ8 D 8", "H 75 D 7")
   };
 
+  HonorPossessionClassifier classifier("hand 1", "hand 2");
+  for (const auto& d : deals) {
+    classifier.ProcessDeal(d);
+  }
+  auto direct_invs = classifier.ExtractInvariants();
+  bool found_shv = false;
+  bool found_or = false;
+  for (const auto& inv : direct_invs) {
+    if (inv->ToString() == "hand 1 always contains Heart $honor") {
+      found_shv = true;
+    } else if (inv->ToString() ==
+               "OrInvariant(hand 1 always contains the HK, "
+               "hand 1 always contains the HQ)") {
+      found_or = true;
+    }
+  }
+  REQUIRE(found_shv);
+  REQUIRE_FALSE(found_or);
+
   CrossHandDealSetSummarizer summarizer;
   CrossHandSummaryReport report = summarizer.Summarize(deals);
 

@@ -286,6 +286,14 @@ void HonorPossessionClassifier::AddOrInvariants(
     const std::vector<std::shared_ptr<HonorPossessionInvariant>>&
         non_100_candidates,
     std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const {
+  std::set<std::pair<Suit, HonorPossessionTargetHand>> covered_by_shv;
+  for (const auto& inv : invariants) {
+    if (auto shv =
+            std::dynamic_pointer_cast<SuitHonorVariableInvariant>(inv)) {
+      covered_by_shv.insert({shv->suit(), shv->target_hand()});
+    }
+  }
+
   std::set<std::string> emitted_or_rules;
   size_t num_non_100 = non_100_candidates.size();
   for (size_t i = 0; i < num_non_100; ++i) {
@@ -294,6 +302,16 @@ void HonorPossessionClassifier::AddOrInvariants(
       auto b = non_100_candidates[j];
       if (a->ToString() == b->ToString()) {
         continue;
+      }
+      Suit s1 = Card::DecodeCard(a->card()).first;
+      Suit s2 = Card::DecodeCard(b->card()).first;
+      if (s1 == s2 && a->target_hand() == b->target_hand()) {
+        Suit s = s1;
+        HonorPossessionTargetHand target = a->target_hand();
+        if (covered_by_shv.count({s, target}) > 0 ||
+            covered_by_shv.count({s, HonorPossessionTargetHand::kBoth}) > 0) {
+          continue;
+        }
       }
       if (a->ToString() > b->ToString()) {
         std::swap(a, b);
