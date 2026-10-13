@@ -1354,6 +1354,17 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
               reqs[i].push_back(std::make_shared<SuitAtLeast>(
                   SPADES, p_req["spades_min"].get<int>()));
             }
+            if (p_req.contains("suit_max") && p_req["suit_max"].is_object()) {
+              for (auto &[s_key, max_val] : p_req["suit_max"].items()) {
+                if (max_val.is_number_integer()) {
+                  Suit s = ParseSuitName(s_key);
+                  if (s != NOTRUMP) {
+                    reqs[i].push_back(std::make_shared<SuitLength>(
+                        s, 0, std::max(0, max_val.get<int>())));
+                  }
+                }
+              }
+            }
           }
         }
         lf.SetRequirements(reqs);

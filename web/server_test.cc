@@ -817,5 +817,29 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   }
   REQUIRE(root_lbl.find("#2:") != std::string::npos);
 
+  // Test suit_max requirement (e.g. East showed out of Diamonds on a prior
+  // trick, so East must have 0 Diamonds in all simulated hands).
+  nlohmann::json void_req;
+  void_req["hands"]["N"] = "S A; D A;";
+  void_req["hands"]["E"] = "";
+  void_req["hands"]["S"] = "S K; D K;";
+  void_req["hands"]["W"] = "";
+  void_req["trump"] = "NOTRUMP";
+  void_req["leader"] = "NORTH";
+  void_req["min_tricks"] = 2;
+  void_req["num_iters"] = 20;
+  void_req["unknown_cards"] = "S QJ D QJ";
+  void_req["requirements"]["E"]["suit_max"]["D"] = 0;
+
+  auto res_void = client.Post("/api/solve", void_req.dump(), "application/json");
+  REQUIRE(res_void);
+  REQUIRE(res_void->status == 200);
+  nlohmann::json void_json = nlohmann::json::parse(res_void->body);
+  REQUIRE(void_json["success"] == true);
+  for (const auto &h : void_json["all_hands"]) {
+    std::string e_hand = h["E"].get<std::string>();
+    REQUIRE(e_hand.find("D ") == std::string::npos);
+  }
+
   server.Stop();
 }
