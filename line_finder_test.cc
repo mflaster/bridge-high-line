@@ -729,3 +729,69 @@ TEST_CASE("LineFinder_AndInvariant") {
   });
 }
 
+TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
+  srand48(0);
+  // 2-card Spades finesse deal: N has SAQ, S has S87, E/W share SK543.
+  // Case 1: South leads S8 (1 card in cur_trick).
+  {
+    std::vector<uint64_t> hands = {
+      ParseHand("S AQ"),
+      0,
+      ParseHand("S 87"),
+      0,
+    };
+    uint64_t unknown_cards = ParseHand("S K543");
+    std::vector<CardType> cur_trick = {Card::ParseStringCard("S8")};
+    LineFinder lf(20);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(2, hands, unknown_cards, /*leader=*/2, SPADES, cur_trick);
+    REQUIRE(!lines.empty());
+    REQUIRE(lines[0].CoveredBoards() > 0);
+    REQUIRE(lines[0].Describe().find("S8") != std::string::npos);
+  }
+
+  // Case 2: South leads S8, West plays S3 from Unknown Cards (assigned to W).
+  // Now West has 1 known card (S3) and 1 unknown card, while East has 2 unknown
+  // cards from {SK, S5, S4}.
+  {
+    std::vector<uint64_t> hands = {
+      ParseHand("S AQ"),
+      0,
+      ParseHand("S 87"),
+      ParseHand("S 3"),
+    };
+    uint64_t unknown_cards = ParseHand("S K54");
+    std::vector<CardType> cur_trick = {
+      Card::ParseStringCard("S8"),
+      Card::ParseStringCard("S3"),
+    };
+    LineFinder lf(20);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(2, hands, unknown_cards, /*leader=*/2, SPADES, cur_trick);
+    REQUIRE(!lines.empty());
+    REQUIRE(lines[0].CoveredBoards() > 0);
+    REQUIRE(lines[0].Describe().find("S8") != std::string::npos);
+  }
+
+  // Case 3: 3 cards in cur_trick (S8, S3, SQ played; East to play 4th card).
+  {
+    std::vector<uint64_t> hands = {
+      ParseHand("S AQ"),
+      0,
+      ParseHand("S 87"),
+      ParseHand("S 3"),
+    };
+    uint64_t unknown_cards = ParseHand("S K54");
+    std::vector<CardType> cur_trick = {
+      Card::ParseStringCard("S8"),
+      Card::ParseStringCard("S3"),
+      Card::ParseStringCard("SQ"),
+    };
+    LineFinder lf(20);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(2, hands, unknown_cards, /*leader=*/2, SPADES, cur_trick);
+    REQUIRE(!lines.empty());
+    REQUIRE(lines[0].CoveredBoards() > 0);
+    REQUIRE(lines[0].Describe().find("SQ") != std::string::npos);
+  }
+}

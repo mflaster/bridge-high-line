@@ -661,7 +661,9 @@ std::vector<std::string> SplitTricks(const std::string &line_str) {
 }
 
 std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
-    const OptimalLines &lines, int tricks_won, int &node_id, const BoardState &initial_bs) {
+    const OptimalLines &lines, int tricks_won, int &node_id,
+    const BoardState &initial_bs, int start_trick_num = 1,
+    int initial_ns_tricks = 0) {
   if (lines.empty()) {
     auto root_node = std::make_shared<DecisionTreeNode>();
     root_node->id = "node_" + std::to_string(++node_id);
@@ -684,12 +686,15 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
     std::shared_ptr<DecisionTreeNode> first_trick_node = nullptr;
     std::shared_ptr<DecisionTreeNode> current_node = nullptr;
     int prev_winner = -1;
+    int running_ns = initial_ns_tricks;
 
     for (size_t i = 0; i < tricks.size(); ++i) {
-      int leader = sim_bs.CurPlayer();
+      int leader = sim_bs.cur_trick_leader();
       sim_bs.PlayTrick(tricks[i]);
       int winner = sim_bs.CurPlayer();
-      std::string winner_name = PlayerDirectionName(winner);
+      if (winner == NORTH || winner == SOUTH) {
+        running_ns++;
+      }
 
       auto node = std::make_shared<DecisionTreeNode>();
       node->id = "node_" + std::to_string(++node_id);
@@ -697,6 +702,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
       node->leader = leader;
       node->winner = winner;
       node->branch_winner = prev_winner;
+      node->ns_tricks = running_ns;
       node->trick = tricks[i];
       node->trick_full = tricks[i];
       node->boards = {0};
@@ -706,12 +712,14 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
       node->total_boards = 1;
       node->covered_boards = 1;
 
-      std::string label_str = "#" + std::to_string(i + 1) + ": " + tricks[i];
+      std::string label_str =
+          "#" + std::to_string(start_trick_num + static_cast<int>(i)) + ": " +
+          tricks[i];
 
       if (i == tricks.size() - 1) {
         node->type = "outcome";
         node->label = label_str;
-        node->description = std::to_string(tricks_won) + " tricks won";
+        node->description = std::to_string(running_ns) + " tricks won";
       } else {
         node->type = "action";
         node->label = label_str;
@@ -737,7 +745,10 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
     root_node->id = "node_" + std::to_string(++node_id);
     root_node->type = "outcome";
     root_node->boards = {0};
-    root_node->label = "Contract Result: " + std::to_string(tricks_won) + " tricks won";
+    root_node->ns_tricks = initial_ns_tricks + tricks_won;
+    root_node->label = "Contract Result: " +
+                       std::to_string(initial_ns_tricks + tricks_won) +
+                       " tricks won";
     return root_node;
   }
 
@@ -1285,6 +1296,31 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       min_tricks = req_json["min_tricks"].get<int>();
     }
 
+    int start_trick_num = 1;
+    if (req_json.contains("start_trick_num") &&
+        req_json["start_trick_num"].is_number()) {
+      start_trick_num = std::max(1, req_json["start_trick_num"].get<int>());
+    }
+
+    int initial_ns_tricks = 0;
+    if (req_json.contains("initial_ns_tricks") &&
+        req_json["initial_ns_tricks"].is_number()) {
+      initial_ns_tricks = std::max(0, req_json["initial_ns_tricks"].get<int>());
+    }
+
+    std::vector<CardType> cur_trick;
+    if (req_json.contains("cur_trick") && req_json["cur_trick"].is_array()) {
+      for (const auto &c_json : req_json["cur_trick"]) {
+        if (c_json.is_string()) {
+          std::string c_str = c_json.get<std::string>();
+          if (!c_str.empty()) {
+            CardType ct = Card::ParseStringCard(c_str);
+            cur_trick.push_back(ct);
+          }
+        }
+      }
+    }
+
     std::string best_seq;
     OptimalLines optimal_lines;
     int tricks_won = 0;
@@ -1324,8 +1360,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       }
 
       std::vector<ConditionalLine> lines =
-          lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit, {},
-                   num_threads);
+          lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
+                   cur_trick, num_threads);
       solve_ms = lf.solve_ms();
       invariant_ms = lf.invariant_ms();
 
@@ -1371,7 +1407,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         } else {
           LineFinder::SetSolveStatus("Building decision tree...");
         }
-
+        std::string start_tag = "#" + std::to_string(start_trick_num);
         auto extract_trick_tag = [](const std::string &lbl) -> std::string {
           size_t colon = lbl.find(':');
           if (colon != std::string::npos && !lbl.empty() && lbl[0] == '#') {
@@ -1400,7 +1436,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
                                 std::vector<std::string> &steps_out) {
               if (!n || n->failure) return;
               std::string tag = extract_trick_tag(n->label);
-              if (depth > 0 && !n->trick.empty() && tag != "#1") {
+              if (depth > 0 && !n->trick.empty() && tag != start_tag) {
                 std::string step = tag.empty() ? "" : tag;
                 if (!n->condition.empty()) {
                   step += (step.empty() ? "[" : " [") + n->condition + "]";
@@ -1432,9 +1468,25 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           }
           FailureIndex line_failures = IndexFailures(
               lines[i], boards, line_failed_ids, num_threads);
+          if (initial_ns_tricks > 0) {
+            auto offset_group = [&](FailureIndex::Group &grp) {
+              if (!grp.boards.empty()) {
+                grp.min_ns_tricks += initial_ns_tricks;
+                grp.max_ns_tricks += initial_ns_tricks;
+              }
+            };
+            offset_group(line_failures.unplaced);
+            for (auto &[_node, grp_map] : line_failures.leaves) {
+              for (auto &[_k, grp] : grp_map) offset_group(grp);
+            }
+            for (auto &[_node, grp_map] : line_failures.unmatched_leaves) {
+              for (auto &[_k, grp] : grp_map) offset_group(grp);
+            }
+          }
           int line_node_counter = 0;
           auto ltree = BuildTreeFromConditionalLine(
-              lines[i], line_node_counter, 1, total_boards, 0, &line_failures);
+              lines[i], line_node_counter, start_trick_num, total_boards,
+              initial_ns_tricks, &line_failures);
           if (ltree && !line_failures.unplaced.boards.empty()) {
             ltree->children.push_back(MakeFailureLeaf(
                 line_failures.unplaced, line_failures.unplaced.condition,
@@ -1447,7 +1499,10 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           }
           line_trees[i] = ltree;
           if (!lines[i].do_first().Empty()) {
-            line_best_leads[i] = lines[i].do_first().ToString(true);
+            line_best_leads[i] =
+                ExtractFirstCard(lines[i].do_first().ToString(true));
+          } else if (!cur_trick.empty()) {
+            line_best_leads[i] = Card::PrintCard(cur_trick[0]);
           } else if (ltree) {
             line_best_leads[i] = GetFirstCardFromNode(ltree);
           }
@@ -1522,7 +1577,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         success_boards = lines[0].CoveredBoards();
         failure_boards = std::max(0, total_boards - success_boards);
         covered_boards = success_boards;
-        tricks_won = min_tricks;
+        tricks_won = initial_ns_tricks + min_tricks;
         // All returned lines cover the same number of boards; the first is
         // shown by default, and all equivalent lines are included in `lines`.
         response["num_lines"] = lines.size();
@@ -1537,7 +1592,9 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         success_boards = 0;
         failure_boards = total_boards;
         covered_boards = 0;
-        tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter, BoardState());
+        tree_node = BuildTreeFromOptimalLines(
+            optimal_lines, tricks_won, node_counter, BoardState(),
+            start_trick_num, initial_ns_tricks);
       }
     } else {
       BoardState bs;
@@ -1545,21 +1602,28 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       bs.SetTrump(trump_suit);
       bs.SetLead(leader);
       bs.MarkMissingCardsAsPlayed();
+      for (CardType ct : cur_trick) {
+        bs.PlayCard(bs.CurPlayer(), ct);
+      }
 
       LineFinder::SetSolveStatus("Solving double-dummy tree...");
       auto solve_start = std::chrono::high_resolution_clock::now();
-      tricks_won = MostTricksCanBeWon(bs, leader % 2, &best_seq, &optimal_lines);
+      int pair_tricks =
+          MostTricksCanBeWon(bs, 0, &best_seq, &optimal_lines);
+      tricks_won = initial_ns_tricks + pair_tricks;
       best_lead = ExtractFirstCard(best_seq);
       LineFinder::SetSolveStatus("Building decision tree...");
-      tree_node = BuildTreeFromOptimalLines(optimal_lines, tricks_won, node_counter, bs);
+      tree_node = BuildTreeFromOptimalLines(
+          optimal_lines, pair_tricks, node_counter, bs, start_trick_num,
+          initial_ns_tricks);
       auto solve_end = std::chrono::high_resolution_clock::now();
       solve_ms = std::chrono::duration<double, std::milli>(solve_end - solve_start).count();
       invariant_ms = 0.0;
 
       total_boards = 1;
-      success_boards = 1;
-      failure_boards = 0;
-      covered_boards = 1;
+      success_boards = (tricks_won >= initial_ns_tricks + min_tricks) ? 1 : 0;
+      failure_boards = 1 - success_boards;
+      covered_boards = success_boards;
       nlohmann::json sample_hands_json = nlohmann::json::array();
       sample_hands_json.push_back({
           {"board_id", 0},
@@ -1567,7 +1631,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
           {"E", HandDebugString(hands[1], true)},
           {"S", HandDebugString(hands[2], true)},
           {"W", HandDebugString(hands[3], true)},
-          {"succeeded", true},
+          {"succeeded", success_boards > 0},
       });
       response["sample_hands"] = sample_hands_json;
       response["failure_sample_hands"] = nlohmann::json::array();

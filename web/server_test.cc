@@ -27,6 +27,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index->body.find("traceHandInput") != std::string::npos);
   REQUIRE(res_index->body.find("traceHandBtn") != std::string::npos);
   REQUIRE(res_index->body.find("arrow-traced") != std::string::npos);
+  REQUIRE(res_index->body.find("computeNewLineBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("resetLineBtn") != std::string::npos);
   REQUIRE(res_index->body.find("equivalentLinesBar") != std::string::npos);
   REQUIRE(res_index->body.find("equivalentLineSelect") != std::string::npos);
 
@@ -38,6 +40,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_css->body.find(".traced-branch-link") != std::string::npos);
   REQUIRE(res_css->body.find(".trick-columns-header") != std::string::npos);
   REQUIRE(res_css->body.find(".card-chip.card-lead") != std::string::npos);
+  REQUIRE(res_css->body.find(".card-rank-playable") != std::string::npos);
   REQUIRE(res_css->body.find(".equivalent-lines-bar") != std::string::npos);
 
   // Test JS serving
@@ -48,8 +51,14 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
   REQUIRE(res_js->body.find("function traceHandByNumber") != std::string::npos);
   REQUIRE(res_js->body.find("function selectEquivalentLine") != std::string::npos);
+  REQUIRE(res_js->body.find("function formatLineSuccessPctPrefix") != std::string::npos);
+  REQUIRE(res_js->body.find("function buildSelectableLinesList") != std::string::npos);
+  REQUIRE(res_js->body.find("function formatProposedCardsDescriptor") != std::string::npos);
+  REQUIRE(res_js->body.find("Original line") != std::string::npos);
+  REQUIRE(res_js->body.find("Alt line") != std::string::npos);
   REQUIRE(res_js->body.find("leadSeatIdx") != std::string::npos);
   REQUIRE(res_js->body.find("trick-columns-header") != std::string::npos);
+  REQUIRE(res_js->body.find("function handleProposeCardClick") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");
@@ -777,6 +786,36 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   nlohmann::json status_json = nlohmann::json::parse(res_status->body);
   REQUIRE(status_json["status"] == "Solve complete.");
 
+  // Test mid-trick solve with cur_trick, start_trick_num, and initial_ns_tricks
+  nlohmann::json mid_req;
+  mid_req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  mid_req["hands"]["E"] = "";
+  mid_req["hands"]["S"] = "S 87; H -; D -; C -;";
+  mid_req["hands"]["W"] = "S 4; H -; D -; C -;";
+  mid_req["trump"] = "SPADES";
+  mid_req["leader"] = "SOUTH";
+  mid_req["min_tricks"] = 1;
+  mid_req["num_iters"] = 15;
+  mid_req["unknown_cards"] = "S Kxx";
+  mid_req["cur_trick"] = nlohmann::json::array({"S8", "S4"});
+  mid_req["start_trick_num"] = 2;
+  mid_req["initial_ns_tricks"] = 1;
+
+  auto res_mid = client.Post("/api/solve", mid_req.dump(), "application/json");
+  REQUIRE(res_mid);
+  REQUIRE(res_mid->status == 200);
+  nlohmann::json mid_json = nlohmann::json::parse(res_mid->body);
+  REQUIRE(mid_json["success"] == true);
+  REQUIRE(mid_json["best_lead"] == "S8");
+  REQUIRE(mid_json["tricks_won"] == 2);
+  REQUIRE(mid_json.contains("tree"));
+  std::string root_lbl = mid_json["tree"].value("label", "");
+  if (root_lbl.find("#") == std::string::npos &&
+      mid_json["tree"].contains("children") &&
+      !mid_json["tree"]["children"].empty()) {
+    root_lbl = mid_json["tree"]["children"][0].value("label", "");
+  }
+  REQUIRE(root_lbl.find("#2:") != std::string::npos);
+
   server.Stop();
 }
-

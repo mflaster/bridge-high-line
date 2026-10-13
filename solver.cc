@@ -462,12 +462,38 @@ int MostTricksCanBeWon(const BoardState &bs, int pair, std::string *sequence,
     cache = &cache_storage;
   }
   num_solver_iters_ = 0;
-  int tricks_remaining = CardsInHand(bs.GetHand(0), bs.played_cards()).size();
+  int tricks_remaining = 0;
+  for (int i = 0; i < 4; ++i) {
+    int cnt = CardsInHand(bs.GetHand(i), bs.played_cards()).size();
+    for (int j = 0; j < bs.CardsPlayedThisTrick(); ++j) {
+      if (bs.trick_cards_played()[j] & bs.GetHand(i)) {
+        --cnt;
+      }
+    }
+    tricks_remaining = std::max(tricks_remaining, cnt);
+  }
   VLOG(1) << "MostTricksCanBeWon with tricks_remaining " << tricks_remaining;
+  int played = bs.CardsPlayedThisTrick();
+  OptimalLines raw_lines;
   int ans = MostTricksCanBeWonHelper(
-      bs, pair, sequence, bs.SuitLed(), 0,
+      bs, pair, sequence, bs.SuitLed(), played,
       tricks_remaining, 0, tricks_remaining, cache,
-      optimal_lines);
+      optimal_lines ? (played > 0 ? &raw_lines : optimal_lines) : nullptr);
+  if (played > 0) {
+    std::string prefix;
+    for (int i = 0; i < played; ++i) {
+      prefix += Card::PrintCard(bs.trick_cards_played()[i]) + " ";
+    }
+    if (sequence && !sequence->empty()) {
+      *sequence = "/ " + prefix + *sequence;
+    }
+    if (optimal_lines) {
+      optimal_lines->clear();
+      for (const std::string &suffix : raw_lines) {
+        optimal_lines->insert(prefix + suffix);
+      }
+    }
+  }
   int cache_size = 0;
   for (int i = 0; i < 4; i++) {
     cache_size += cache->saved_results[i].size();
