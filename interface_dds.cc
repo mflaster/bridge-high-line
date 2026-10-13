@@ -507,43 +507,6 @@ int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
   return res;
 }
 
-std::vector<std::pair<int, OptimalLines>>
-    DDSParallelSolve(const std::vector<BoardState> &boards_to_run) {
-#if 0
-  int target = -1;  // Find optimal solution for side to play
-  int solutions = 2; // Return all optimum cards and their scores.
-  // int mode = 1;  // automatic reuse of state / always search
-  int mode = 2;  // force reuse of state
-
-  boardsPBN all_boards;
-  all_boards.noOfBoards = 0;
-  for (const BoardState &bs : boards_to_run) {
-    int bn = all_boards.noOfBoards++;
-    dealPBN &dl = all_boards.deals[bn];
-    PopulatePBNDeal(bs, &dl);
-    all_boards.target[bn] = target;
-    all_boards.solutions[bn] = solutions;
-    all_boards.mode[bn] = mode;
-  }
-  solvedBoards solved_boards;
-  SolveAllChunksPBN(&all_boards, &solved_boards, /*chunkSize=*/1);
-  CHECK_EQ(solved_boards.noOfBoards, all_boards.noOfBoards);
-#endif
-  std::vector<std::pair<int, OptimalLines>> ans;
-  for (uint i = 0; i < boards_to_run.size(); i++) {
-    OptimalLines lines;
-
-  dealPBN dl;
-  PopulatePBNDeal(boards_to_run[i], &dl);
-
-  int mini_max = DDSSolveHelper(0, boards_to_run[i], dl,// all_boards.deals[i],
-                                0, &lines,
-                                nullptr); // &solved_boards.solvedBoard[i]);
-    ans.push_back(std::make_pair(mini_max, lines));
-  }
-  return ans;
-}
-
 std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
     const BoardState &bs, int min_tricks, int tricks_remaining,
     int deepen_levels,

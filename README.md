@@ -147,9 +147,6 @@ For complete details on web application usage, configuration, and REST JSON API 
 - **`line_finder_test`**: Line-finding searches across simulated deals.
 - **`server_test`**: Catch2 unit and integration tests for `bridge_server` routes and static web assets.
 
-### Utility Executables
-- **`test_play`**: Executable for testing interactive play lines.
-
 ### Performance Benchmark
 - **`line_finder_perf`**: Standalone performance test binary evaluating `LineFinder::Solve` scaling across deal ending sizes (6 to 13 cards per hand) and recording execution benchmarks in `perf/summary.log` and `perf/details.log`. Detailed module specifications are in the [Performance Utilities Layer](docs/architecture.md#35-performance-utilities-layer).
 

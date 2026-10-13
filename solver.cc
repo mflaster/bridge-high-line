@@ -40,17 +40,6 @@ void ScrambleCards(CardType *cards_to_try, int num_cards_to_try) {
   }
 }
 
-bool WinsTrick(Suit trump_suit, Suit played_suit, int played_val,
-               Suit cur_winning_suit, int cur_winning_val) {
-  if (played_suit == cur_winning_suit) {
-    return played_val > cur_winning_val;
-  } else if (played_suit == trump_suit) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
 void GetCardsToTry(const BoardState &bs, Suit suit_led,
                    CardType *cards_to_try, int &num_cards_to_try,
                    int *is_equivalent) {
@@ -118,29 +107,6 @@ void GetCardsToTry(const BoardState &bs, Suit suit_led,
 static CacheKey GetCacheKey(const BoardState &bs) {
   // return bs.played_cards();
   return bs.RemainingHandsKey();
-}
-
-OptimalLine GetFinishedTrick(const BoardState &bs) {
-  if (bs.CardsPlayedThisTrick() != 0) {
-    return "";
-  }
-  // Need to look at previous trick.
-  int winner = bs.cur_trick_leader();
-  int prev_leader = bs.prev_trick_leader();
-  std::string trick;
-  for (int i = 0; i < 4; i++) {
-    int player = (prev_leader + i) % 4;
-    if (1 || player % 2 == 0) {
-      trick += Card::PrintCard(bs.PreviousTrick()[i]);
-    } else {
-      trick += 'x';
-    }
-    if (player == winner) {
-      // trick += '*';
-    }
-    trick += ' ';
-  }
-  return trick; //  + "/ ";
 }
 
 std::string GetNDots(int n) {

@@ -25,7 +25,7 @@ flowchart TB
 
     subgraph SolversLayer["Solvers & Strategy Layer"]
         OPT["OptimalPlayTree<br/><code>interface_dds.h</code>"]
-        IDDS["DDS C++ Wrapper<br/>(DDSFindOptimalLines, DDSParallelSolve)<br/><code>interface_dds.h</code>"]
+        IDDS["DDS C++ Wrapper<br/>(DDSFindOptimalLines)<br/><code>interface_dds.h</code>"]
         MTCW["Solver Engine<br/>(MostTricksCanBeWon)<br/><code>solver.h</code>"]
         SC["SolverCache<br/><code>solver.h</code>"]
         EXTDDS["External Double Dummy Solver C Library<br/>(SolveBoardPBN)<br/><code>dll.h</code>"]
@@ -210,7 +210,7 @@ The system modules are categorized below by their primary architectural layer, h
 | Module Name | Header File | Architectural Responsibility | Key Public Interface Routines |
 | :--- | :--- | :--- | :--- |
 | **OptimalPlayTree** | `interface_dds.h` | Recursive game tree representation of optimal double-dummy card plays and trick continuations. | - `FindOptimalPlayTree()`: Factory method to construct play tree.<br/>- `Deepen()`: Expands tree depth.<br/>- `PlayTrick()`: Advances tree state. |
-| **DDS C++ Interface** | `interface_dds.h` | Higher-level bridge solver interface wrapping low-level C-DDS calls, parallel solving, and PBN conversion. | - `DDSFindOptimalLines()`: Finds winning lines for target tricks.<br/>- `DDSParallelSolve()`: Batch solves multiple board states.<br/>- `PopulatePBNDeal()`: Converts board state to PBN deal. |
+| **DDS C++ Interface** | `interface_dds.h` | Higher-level bridge solver interface wrapping low-level C-DDS calls and PBN conversion. | - `DDSFindOptimalLines()`: Finds winning lines for target tricks.<br/>- `PopulatePBNDeal()`: Converts board state to PBN deal. |
 | **Solver** | `solver.h` | Native search solver routines for determining maximum trick yield and optimal line sequences. | - `MostTricksCanBeWon()`: Calculates max tricks for a board state.<br/>- `PrintLine()` / `PrintLines()`: Formats optimal plays. |
 | **SolverCache** | `solver.h` | Hash-map based memoization cache for solver outcomes, optimal play sets, and DDS lookups. | - `saved_results`: Cached trick counts.<br/>- `saved_optimal_plays`: Cached play lines.<br/>- `dds_size()`: Returns total cached entries. |
 
