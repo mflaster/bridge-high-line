@@ -69,6 +69,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(presets_file_json.contains("nine_card_hearts"));
   REQUIRE(presets_file_json.contains("safety_play"));
   REQUIRE(presets_file_json.contains("twelve_card_spades"));
+  REQUIRE(presets_file_json.contains("restricted_choice"));
 
   auto res_presets_api = client.Get("/api/presets");
   REQUIRE(res_presets_api);
@@ -78,6 +79,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(presets_api_json.contains("nine_card_hearts"));
   REQUIRE(presets_api_json.contains("safety_play"));
   REQUIRE(presets_api_json.contains("twelve_card_spades"));
+  REQUIRE(presets_api_json.contains("restricted_choice"));
 
   // Test Health Endpoint
   auto res_health = client.Get("/api/health");
