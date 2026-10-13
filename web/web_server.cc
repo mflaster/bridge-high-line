@@ -17,6 +17,7 @@
 #include "hand_requirements.h"
 #include "line_finder.h"
 #include "solver.h"
+#include "string_util.h"
 #include "web_assets.h"
 
 namespace {
@@ -615,19 +616,16 @@ std::vector<std::string> SplitTricks(const std::string &line_str) {
   size_t end = line_str.find('/');
   while (end != std::string::npos) {
     std::string seg = line_str.substr(start, end - start);
-    size_t f = seg.find_first_not_of(" \t");
-    size_t l = seg.find_last_not_of(" \t");
-    if (f != std::string::npos && l != std::string::npos) {
-      raw_segments.push_back(seg.substr(f, l - f + 1));
+    std::string trimmed = Trim(seg);
+    if (!trimmed.empty()) {
+      raw_segments.push_back(trimmed);
     }
     start = end + 1;
     end = line_str.find('/', start);
   }
-  std::string last_seg = line_str.substr(start);
-  size_t f = last_seg.find_first_not_of(" \t");
-  size_t l = last_seg.find_last_not_of(" \t");
-  if (f != std::string::npos && l != std::string::npos) {
-    raw_segments.push_back(last_seg.substr(f, l - f + 1));
+  std::string trimmed_last = Trim(line_str.substr(start));
+  if (!trimmed_last.empty()) {
+    raw_segments.push_back(trimmed_last);
   }
 
   if (raw_segments.size() > 1) {

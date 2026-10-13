@@ -96,6 +96,7 @@ add_custom_command(
 
 # Core bridge solver library
 add_library(bridge_lib STATIC
+  string_util.cc
   card.cc
   hand.cc
   board_state.cc
@@ -153,6 +154,7 @@ set(TEST_NAMES
   server_test
   cross_hand_summarizer_test
   search_progress_test
+  string_util_test
 )
 
 foreach(test_name IN LISTS TEST_NAMES)

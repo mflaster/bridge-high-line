@@ -4,16 +4,10 @@
 #include <sstream>
 #include <vector>
 #include "card.h"
+#include "string_util.h"
 #include "glog/logging.h"
 
 namespace {
-
-std::string Trim(const std::string &s) {
-  size_t start = s.find_first_not_of(" \t\r\n");
-  if (start == std::string::npos) return "";
-  size_t end = s.find_last_not_of(" \t\r\n");
-  return s.substr(start, end - start + 1);
-}
 
 std::string SuitToString(Suit s) {
   switch (s) {
@@ -171,8 +165,7 @@ std::shared_ptr<HandRequirements> HandRequirements::FromString(
     args_str = "";
   }
 
-  std::string class_lower;
-  for (char c : class_name) class_lower += tolower(c);
+  std::string class_lower = ToLower(class_name);
 
   if (class_lower == "suitatleast") {
     auto args = SplitTopLevelArgs(args_str);
