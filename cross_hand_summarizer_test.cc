@@ -1091,3 +1091,141 @@ TEST_CASE("ShortestLengthInvariant_RoundTripInvertAndSummarize",
       /*is_failure_mode=*/false);
   REQUIRE(report.HasRule("ShortestLength(C) >= 3"));
 }
+
+TEST_CASE("SuitHonorVariableInvariant_DirectMethods",
+          "[cross_hand_summarizer]") {
+  // Test FromString and ToString
+  auto inv1 =
+      UnknownCardsInvariant::FromString("hand 1 always contains Spade $honor");
+  REQUIRE(inv1 != nullptr);
+  REQUIRE(inv1->ToString() == "hand 1 always contains Spade $honor");
+
+  auto inv_legacy =
+      UnknownCardsInvariant::FromString("Spade $honor is always in hand 1");
+  REQUIRE(inv_legacy != nullptr);
+  REQUIRE(inv_legacy->ToString() == "hand 1 always contains Spade $honor");
+
+  auto inv2 = UnknownCardsInvariant::FromString("E has Heart $honor");
+  REQUIRE(inv2 != nullptr);
+  REQUIRE(inv2->ToString() == "E has Heart $honor");
+
+  auto inv3 = UnknownCardsInvariant::FromString(
+      "both hands always contain Diamond $honor");
+  REQUIRE(inv3 != nullptr);
+  REQUIRE(inv3->ToString() == "both hands always contain Diamond $honor");
+
+  // Test HoldsOnDeal
+  // Hand 1 has Spade Ace, Hand 2 has Heart Ace
+  PairedDeal deal1("S A3 H 2", "S 42 H A");
+  REQUIRE(inv1->HoldsOnDeal(deal1));
+  REQUIRE_FALSE(inv3->HoldsOnDeal(deal1));
+
+  // Both hands have Spade and Heart honors
+  PairedDeal deal2("S K H K", "S Q H Q");
+  auto inv_both_spades = UnknownCardsInvariant::FromString(
+      "both hands always contain Spade $honor");
+  REQUIRE(inv_both_spades->HoldsOnDeal(deal2));
+
+  // Test Invert with single unknown honor in suit
+  uint64_t unknown_single = ParseHand("S A42 H QJ32");
+  auto inv1_inv_single = inv1->Invert(unknown_single, 4, "hand 1", "hand 2");
+  REQUIRE(inv1_inv_single != nullptr);
+  REQUIRE(inv1_inv_single->ToString() == "hand 2 always contains the SA");
+
+  // Test Invert with multiple unknown honors in suit
+  uint64_t unknown_multi = ParseHand("S AK42 H QJ32");
+  auto inv1_inv_multi = inv1->Invert(unknown_multi, 4, "hand 1", "hand 2");
+  REQUIRE(inv1_inv_multi != nullptr);
+  REQUIRE(inv1_inv_multi->ToString() ==
+          "AndInvariant(hand 2 always contains the SK, "
+          "hand 2 always contains the SA)");
+}
+
+TEST_CASE("HonorPossessionClassifier_VariableSuitHonorExtraction",
+          "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("H K85 D 8", "H Q7 D 7"),
+      PairedDeal("H Q85 D 8", "H K7 D 7"),
+      PairedDeal("H KQ8 D 8", "H 75 D 7")
+  };
+
+  HonorPossessionClassifier classifier("hand 1", "hand 2");
+  for (const auto& d : deals) {
+    classifier.ProcessDeal(d);
+  }
+  auto direct_invs = classifier.ExtractInvariants();
+  bool found_shv = false;
+  bool found_or = false;
+  for (const auto& inv : direct_invs) {
+    if (inv->ToString() == "hand 1 always contains Heart $honor") {
+      found_shv = true;
+    } else if (inv->ToString() ==
+               "OrInvariant(hand 1 always contains the HK, "
+               "hand 1 always contains the HQ)") {
+      found_or = true;
+    }
+  }
+  REQUIRE(found_shv);
+  REQUIRE_FALSE(found_or);
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 3);
+  REQUIRE_FALSE(report.HasRule("hand 1 always contains the HK"));
+  REQUIRE_FALSE(report.HasRule("hand 1 always contains the HQ"));
+  REQUIRE(report.HasRule("hand 1 always contains Heart $honor"));
+  // 2-honor OrInvariant is suppressed as redundant with suit honor rule
+  REQUIRE_FALSE(report.HasRule(
+      "hand 1 always contains the HK or hand 1 always contains the HQ"));
+}
+
+TEST_CASE("HonorPossessionClassifier_SpecificHonorSuppression",
+          "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("H K85 D 8", "H Q7 D 7"),
+      PairedDeal("H K85 D 8", "H Q7 D 7")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("hand 1 always contains the HK"));
+  REQUIRE(report.HasRule("hand 2 always contains the HQ"));
+  REQUIRE_FALSE(report.HasRule("hand 1 always contains Heart $honor"));
+  REQUIRE_FALSE(report.HasRule("hand 2 always contains Heart $honor"));
+  REQUIRE_FALSE(report.HasRule("both hands always contain Heart $honor"));
+}
+
+TEST_CASE("HonorPossessionClassifier_AsymmetricSpecificHonorSuppression",
+          "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("H KJ85 D 8", "H Q7 D 7"),
+      PairedDeal("H KQ85 D 8", "H J7 D 7")
+  };
+
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals);
+
+  REQUIRE(report.total_deals == 2);
+  REQUIRE(report.HasRule("hand 1 always contains the HK"));
+  REQUIRE_FALSE(report.HasRule("both hands always contain Heart $honor"));
+  REQUIRE(report.HasRule("hand 2 always contains Heart $honor"));
+}
+
+TEST_CASE("HonorPossessionClassifier_CompassDirectionFormatting",
+          "[cross_hand_summarizer]") {
+  std::vector<PairedDeal> deals = {
+      PairedDeal("H K85 D 8", "H Q7 D 7"),
+      PairedDeal("H Q85 D 8", "H K7 D 7"),
+      PairedDeal("H KQ8 D 8", "H 75 D 7")
+  };
+
+  HandLabelFormatter formatter("1", "3", HandLabelMode::kCompass);
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report = summarizer.Summarize(deals, formatter);
+
+  REQUIRE(report.total_deals == 3);
+  REQUIRE(report.HasRule("E has Heart $honor"));
+}
