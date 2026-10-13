@@ -22,9 +22,6 @@ std::vector<std::string> FindBestCardsToPlay(
 
 int FindOptimalTricks(const BoardState &bs);
 
-std::vector<std::pair<int, OptimalLines>>
-    DDSParallelSolve(const std::vector<BoardState> &boards_to_run);
-
 class OptimalPlayTree {
  public:
   OptimalPlayTree() = default;
