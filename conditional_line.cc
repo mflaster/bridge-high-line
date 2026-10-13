@@ -934,21 +934,40 @@ std::vector<const ConditionalLine *> FilterCandidatesByDefenderCard(
     const std::vector<const ConditionalLine *> &candidates,
     const std::string &def_card_str, int pos, Suit suit_led, Suit trump) {
   std::vector<const ConditionalLine *> matching;
-  int best_spec = -1;
   for (const ConditionalLine *cand : candidates) {
     std::string pattern = GetPatternAtPos(cand->do_first(), pos);
     if (GeneralizesTo(def_card_str, pattern, suit_led, trump)) {
-      int spec = PatternSpecificity(pattern);
-      if (spec > best_spec) {
-        best_spec = spec;
-        matching.clear();
-        matching.push_back(cand);
-      } else if (spec == best_spec) {
-        matching.push_back(cand);
-      }
+      matching.push_back(cand);
     }
   }
   return matching;
+}
+
+const ConditionalLine *SelectMostSpecificCandidate(
+    const std::vector<const ConditionalLine *> &candidates, int up_to_pos) {
+  CHECK(!candidates.empty());
+  const ConditionalLine *best = candidates[0];
+  auto score_of = [up_to_pos](const ConditionalLine *cand) {
+    const GeneralizedTrick &gt = cand->do_first();
+    int d1_pos = (gt.leader % 2 == 0) ? 1 : 0;
+    int d2_pos = (gt.leader % 2 == 0) ? 3 : 2;
+    int spec1 = (d1_pos < up_to_pos)
+                    ? PatternSpecificity(GetPatternAtPos(gt, d1_pos))
+                    : 0;
+    int spec2 = (d2_pos < up_to_pos)
+                    ? PatternSpecificity(GetPatternAtPos(gt, d2_pos))
+                    : 0;
+    return std::make_tuple(std::max(spec1, spec2), spec1 + spec2, spec2, spec1);
+  };
+  auto best_score = score_of(best);
+  for (size_t i = 1; i < candidates.size(); ++i) {
+    auto s = score_of(candidates[i]);
+    if (s > best_score) {
+      best_score = s;
+      best = candidates[i];
+    }
+  }
+  return best;
 }
 
 std::vector<std::vector<std::string>> ExtractTrickLines(
@@ -1027,6 +1046,8 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
                 candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
         if (!matching.empty()) {
           candidates = std::move(matching);
+        } else {
+          candidates = {SelectMostSpecificCandidate(candidates, pre_pos)};
         }
       }
     }
@@ -1035,9 +1056,11 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
     if (copy.Finished()) break;
     int p = copy.CurPlayer();
     if (p % 2 == 0) {
-      // Declarer side: play the card required by the ConditionalLine.
-      std::string decl_card_str =
-          GetPatternAtPos(candidates[0]->do_first(), pos);
+      // Declarer side: play the card required by the most specific matching
+      // candidate given the defender cards seen so far.
+      const ConditionalLine *best_cand =
+          SelectMostSpecificCandidate(candidates, pos);
+      std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
       CardType chosen_card = ChooseValidCard(copy, decl_card_str);
       std::string chosen_str = Card::PrintCard(chosen_card);
       copy.PlayCard(p, chosen_card);
@@ -1097,12 +1120,15 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
                 candidates, def_card_str, pos, suit_led, copy.GetTrump());
         if (!matching.empty()) {
           candidates = std::move(matching);
+        } else {
+          candidates = {SelectMostSpecificCandidate(candidates, pos)};
         }
       }
     }
   }
 
-  const ConditionalLine *chosen_node = candidates[0];
+  const ConditionalLine *chosen_node =
+      SelectMostSpecificCandidate(candidates, 4);
   int winner = copy.CurPlayer();
   for (const auto &[cond, child_line] : chosen_node->conditions()) {
     if (!child_line) continue;
@@ -1253,6 +1279,7 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
             unmatched_card = pre_str;
           }
           diverged_during_trick = true;
+          candidates = {SelectMostSpecificCandidate(candidates, pre_pos)};
         }
       }
     }
@@ -1261,8 +1288,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
       if (copy.Finished()) break;
       int p = copy.CurPlayer();
       if (p % 2 == 0) {
-        std::string decl_card_str =
-            GetPatternAtPos(candidates[0]->do_first(), pos);
+        const ConditionalLine *best_cand =
+            SelectMostSpecificCandidate(candidates, pos);
+        std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
         CardType chosen_card = ChooseValidCard(copy, decl_card_str);
         std::string chosen_str = Card::PrintCard(chosen_card);
         copy.PlayCard(p, chosen_card);
@@ -1336,7 +1364,7 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
             unmatched_card = def_card_str;
           }
           diverged_during_trick = true;
-          candidates.resize(1);
+          candidates = {SelectMostSpecificCandidate(candidates, pos)};
         }
       }
     }
@@ -1347,9 +1375,11 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
 
     int winner = copy.CurPlayer();
     int win_idx = (winner - trick_leader + 4) % 4;
+    const ConditionalLine *chosen_node =
+        diverged_during_trick ? nullptr
+                              : SelectMostSpecificCandidate(candidates, 4);
     const ConditionalLine *next_line = nullptr;
-    if (!diverged_during_trick) {
-      const ConditionalLine *chosen_node = candidates[0];
+    if (chosen_node) {
       for (const auto &[cond, child_line] : chosen_node->conditions()) {
         if (!child_line) continue;
         auto *winner_cond =
@@ -1374,7 +1404,7 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     step.winning_card = played_cards[win_idx];
     step.ns_tricks_so_far = copy.tricks_won_even();
     step.diverged_after = (next_line == nullptr);
-    step.node = diverged_during_trick ? cur_line : candidates[0];
+    step.node = diverged_during_trick ? cur_line : chosen_node;
     step.unmatched_seat = unmatched_seat;
     step.unmatched_card = unmatched_card;
     trace.steps.push_back(std::move(step));

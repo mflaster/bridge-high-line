@@ -519,3 +519,118 @@ TEST_CASE("GeneralizedTrickFinderDefenderLeadConsolidation") {
   }
   REQUIRE(found_consolidated_group);
 }
+
+TEST_CASE("SecondSeatGeneralPatternNotPrunedBeforeFourthSeat") {
+  // Models the Restricted Choice Trick 1 multi-variant split:
+  //   Variant 0: SA (S_) S6 (Sx) -> Trick 2: ST (SX) SK (S_) -> Trick 3: S5 S9
+  //   Variant 1: SA (Sx) S6 (SJ) -> Trick 2: ST (Sx) S5 (__) -> Trick 3: S9 SK
+  //   Variant 2: SA (Sx) S6 (SQ) -> Trick 2: ST (Sx) S5 (__) -> Trick 3: S9 SK
+  // When East plays a low spade (S3) on SA, Variant 0's (S_) at seat 1 is less
+  // specific than Variants 1 & 2's (Sx), but all three play S6 from dummy at
+  // seat 2. Variant 0 must not be pruned at seat 1 before West's card at
+  // seat 3 is seen.
+  std::set<int> deals = {0};
+
+  GeneralizedTrick t3_from_south(
+      GeneralizedDemiStruct("__", "S5", deals),
+      GeneralizedDemiStruct("__", "S9", deals), deals, 2);
+  ConditionalLine leaf_t3_south;
+  leaf_t3_south.SetAction(t3_from_south);
+
+  GeneralizedTrick t3_from_north(
+      GeneralizedDemiStruct("__", "S9", deals),
+      GeneralizedDemiStruct("__", "SK", deals), deals, 0);
+  ConditionalLine leaf_t3_north;
+  leaf_t3_north.SetAction(t3_from_north);
+
+  // Trick 2 under Variant 0: ST (SX) SK (S_)
+  GeneralizedTrick t2_drop(
+      GeneralizedDemiStruct("SX", "ST", deals),
+      GeneralizedDemiStruct("S_", "SK", deals), deals, 0);
+  ConditionalLine node_t2_drop;
+  node_t2_drop.SetAction(t2_drop);
+  node_t2_drop.AddCondition(new WinnerPlayCondition(2), leaf_t3_south);
+
+  // Trick 2 under Variants 1 & 2: ST (Sx) S5 (__)
+  GeneralizedTrick t2_finesse(
+      GeneralizedDemiStruct("Sx", "ST", deals),
+      GeneralizedDemiStruct("__", "S5", deals), deals, 0);
+  ConditionalLine node_t2_finesse;
+  node_t2_finesse.SetAction(t2_finesse);
+  node_t2_finesse.AddCondition(new WinnerPlayCondition(0), leaf_t3_north);
+
+  // Trick 1 variants
+  GeneralizedTrick t1_west_low(
+      GeneralizedDemiStruct("S_", "SA", deals),
+      GeneralizedDemiStruct("Sx", "S6", deals), deals, 0);
+  ConditionalLine var_west_low;
+  var_west_low.SetAction(t1_west_low);
+  var_west_low.AddCondition(new WinnerPlayCondition(0), node_t2_drop);
+
+  GeneralizedTrick t1_west_sj(
+      GeneralizedDemiStruct("Sx", "SA", deals),
+      GeneralizedDemiStruct("SJ", "S6", deals), deals, 0);
+  ConditionalLine var_west_sj;
+  var_west_sj.SetAction(t1_west_sj);
+  var_west_sj.AddCondition(new WinnerPlayCondition(0), node_t2_finesse);
+
+  GeneralizedTrick t1_west_sq(
+      GeneralizedDemiStruct("Sx", "SA", deals),
+      GeneralizedDemiStruct("SQ", "S6", deals), deals, 0);
+  ConditionalLine var_west_sq;
+  var_west_sq.SetAction(t1_west_sq);
+  var_west_sq.AddCondition(new WinnerPlayCondition(0), node_t2_finesse);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("SA (S_) S6 (Sx)"), var_west_low);
+  root.AddCondition(new TrickPlayCondition("SA (Sx) S6 (SJ)"), var_west_sj);
+  root.AddCondition(new TrickPlayCondition("SA (Sx) S6 (SQ)"), var_west_sq);
+  root.set_min_tricks(3);
+
+  // Case 1: Making 2-2 deal where East has J3 and West has Q2.
+  // East plays S3 and West plays S2 on Trick 1; must match SA (S_) S6 (Sx)
+  // and rise with SK on Trick 2 to win all 3 tricks.
+  BoardState bs_2_2 = MakeBoardState(
+      {ParseHand("S AT9"), ParseHand("S J3 C 2"),
+       ParseHand("S K65"), ParseHand("S Q2 C 3")},
+      0, SPADES);
+  root.set_sample_board(bs_2_2);
+  REQUIRE(root.ResultsOnHand(bs_2_2) == 3);
+  auto trace_2_2 = root.TraceOnBoard(bs_2_2, 0);
+  REQUIRE(trace_2_2.final_ns_tricks == 3);
+  REQUIRE(trace_2_2.steps.size() == 3);
+  REQUIRE(trace_2_2.steps[0].unmatched_seat == -1);
+  REQUIRE(trace_2_2.steps[0].node->do_first().ToString(true) ==
+          "SA (S_) S6 (Sx)");
+
+  // Case 2: Failed 3-1 deal where East has QJ3 and West has singleton S2.
+  // East plays S3 and West plays S2 on Trick 1. Trick 1 must still match
+  // SA (S_) S6 (Sx) rather than reporting West's S2 as an unmatched play on
+  // Trick 1; the failure instead occurs on Trick 2 when West discards.
+  BoardState bs_3_1_fail = MakeBoardState(
+      {ParseHand("S AT9"), ParseHand("S QJ3"),
+       ParseHand("S K65"), ParseHand("S 2 C 32")},
+      0, SPADES);
+  auto trace_fail = root.TraceOnBoard(bs_3_1_fail, 1);
+  REQUIRE(trace_fail.final_ns_tricks == 2);
+  REQUIRE(trace_fail.steps.size() == 2);
+  REQUIRE(trace_fail.steps[0].unmatched_seat == -1);
+  REQUIRE(trace_fail.steps[0].node->do_first().ToString(true) ==
+          "SA (S_) S6 (Sx)");
+  REQUIRE(trace_fail.steps[1].unmatched_seat == 3);
+
+  // Case 3: Making 3-1 deal where East has Q32 and West has singleton SJ.
+  // East plays S2 and West drops SJ on Trick 1; matches SA (Sx) S6 (SJ) and
+  // finesses ST on Trick 2 to win all 3 tricks.
+  BoardState bs_3_1_make = MakeBoardState(
+      {ParseHand("S AT9"), ParseHand("S Q32"),
+       ParseHand("S K65"), ParseHand("S J C 32")},
+      0, SPADES);
+  REQUIRE(root.ResultsOnHand(bs_3_1_make) == 3);
+  auto trace_make = root.TraceOnBoard(bs_3_1_make, 2);
+  REQUIRE(trace_make.final_ns_tricks == 3);
+  REQUIRE(trace_make.steps.size() == 3);
+  REQUIRE(trace_make.steps[0].unmatched_seat == -1);
+  REQUIRE(trace_make.steps[0].node->do_first().ToString(true) ==
+          "SA (Sx) S6 (SJ)");
+}
