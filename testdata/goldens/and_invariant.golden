@@ -13,19 +13,19 @@ Invariant Rules for 5 card ending:
   - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
   - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
 
-  after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,3,4,6] / S3 S5 SQ S6  / S3 S7 SQ S6  / S3 S7 SQ S5  / S3 S6 SQ S5 
+  after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,3,4,6] / S3 S4 SQ S6  / S3 S7 SQ S4  / S3 S6 SQ S4  / S3 S6 SQ S4 
     when 2 wins the SQ: 
-      after SA (__) S2 (SK): SA (__) S2 (SK) [1,3,4,6] / SA H7 S2 SK  / SA S5 S2 SK  / SA S4 S2 SK  / SA S7 S2 SK 
+      after SA (__) S2 (S_): SA (__) S2 (S_) [1,3,4,6] / SA H4 S2 S5  / SA S5 S2 SK  / SA S5 S2 S7  / SA S5 S2 SK 
         when 2 wins the SA: 
-          after D4 (__) DA (__): D4 (__) DA (__) [1,3,4,6] / D4 H6 DA S7  / D4 S4 DA H6  / D4 H4 DA S6  / D4 S4 DA H5 
+          after D4 (__) DA (__): D4 (__) DA (__) [1,3,4,6] / D4 H5 DA S7  / D4 S6 DA H5  / D4 H4 DA SK  / D4 S7 DA H5 
             when 0 wins the DA: 
-              after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H5 
+              after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H6 
                 when 2 wins the HA: 
-                  after HQ (H_) H2 (__): HQ (H_) H2 (__) [1] / HQ H4 H2 S4 
+                  after HQ (H_) H2 (__): HQ (H_) H2 (__) [1] / HQ H7 H2 SK 
                     when 2 wins the HQ: HAND SUCCEEDED FOR: 1
-              after H3 (Hx) HQ (H_): H3 (Hx) HQ (H_) [3,4,6] / H3 H5 HQ H4  / H3 H5 HQ H7  / H3 H7 HQ H6 
+              after H3 (Hx) HQ (H_): H3 (Hx) HQ (H_) [3,4,6] / H3 H6 HQ H4  / H3 H5 HQ H6  / H3 H7 HQ H4 
                 when 2 wins the HQ: 
-                  after HA (H_) H2 (HK): HA (H_) H2 (HK) [3,4,6] / HA H7 H2 HK  / HA H6 H2 HK  / HA H4 H2 HK 
+                  after HA (H_) H2 (HK): HA (H_) H2 (HK) [3,4,6] / HA H7 H2 HK  / HA H7 H2 HK  / HA H6 H2 HK 
                     when 2 wins the HA: HAND SUCCEEDED FOR: 3, 4, 6
 
 Line 2:
@@ -36,23 +36,23 @@ Invariant Rules for 5 card ending:
   - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
   - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
 
-  after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H7 
+  after H3 (HK) HA (H_): H3 (HK) HA (H_) [1] / H3 HK HA H4 
     when 2 wins the HA: 
-      after HQ (H_) H2 (__): HQ (H_) H2 (__) [1] / HQ H6 H2 S5 
+      after HQ (H_) H2 (__): HQ (H_) H2 (__) [1] / HQ H5 H2 S4 
         when 2 wins the HQ: 
-          after D4 (__) DA (__): D4 (__) DA (__) [1] / D4 H5 DA S4 
+          after D4 (__) DA (__): D4 (__) DA (__) [1] / D4 H6 DA S5 
             when 0 wins the DA: 
               after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1] / S3 S7 SQ S6 
                 when 2 wins the SQ: 
-                  after SA (__) S2 (SK): SA (__) S2 (SK) [1] / SA H4 S2 SK 
+                  after SA (__) S2 (SK): SA (__) S2 (SK) [1] / SA H7 S2 SK 
                     when 2 wins the SA: HAND SUCCEEDED FOR: 1
-  after H3 (Hx) HQ (H_): H3 (Hx) HQ (H_) [3,4,6] / H3 H6 HQ H4  / H3 H5 HQ H4  / H3 H5 HQ H4 
+  after H3 (Hx) HQ (H_): H3 (Hx) HQ (H_) [3,4,6] / H3 H5 HQ H4  / H3 H5 HQ H4  / H3 H5 HQ H4 
     when 2 wins the HQ: 
-      after HA (H_) H2 (H_): HA (H_) H2 (H_) [3,4,6] / HA H7 H2 H5  / HA H7 H2 HK  / HA H6 H2 HK 
+      after HA (H_) H2 (H_): HA (H_) H2 (H_) [3,4,6] / HA H7 H2 H6  / HA H6 H2 HK  / HA H6 H2 H7 
         when 2 wins the HA: 
-          after D4 (__) DA (__): D4 (__) DA (__) [3,4,6] / D4 S6 DA HK  / D4 H6 DA S7  / D4 S5 DA H7 
+          after D4 (__) DA (__): D4 (__) DA (__) [3,4,6] / D4 S4 DA HK  / D4 H7 DA S6  / D4 S4 DA HK 
             when 0 wins the DA: 
-              after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [3,4,6] / S3 S7 SQ S5  / S3 S6 SQ S5  / S3 S6 SQ S4 
+              after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [3,4,6] / S3 S7 SQ S5  / S3 S7 SQ S4  / S3 S6 SQ S5 
                 when 2 wins the SQ: 
-                  after SA (S_) S2 (SK): SA (S_) S2 (SK) [3,4,6] / SA S4 S2 SK  / SA S4 S2 SK  / SA S7 S2 SK 
+                  after SA (S_) S2 (SK): SA (S_) S2 (SK) [3,4,6] / SA S6 S2 SK  / SA S5 S2 SK  / SA S7 S2 SK 
                     when 2 wins the SA: HAND SUCCEEDED FOR: 3, 4, 6
