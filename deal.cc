@@ -2,6 +2,7 @@
 
 #include "card.h"
 #include "hand.h"
+#include "string_util.h"
 #include "glog/logging.h"
 #include <algorithm>
 #include <cctype>
@@ -237,35 +238,12 @@ std::vector<uint64_t> DealMissingCards(
   LOG(FATAL) << "Couldn't meet requirements";
 }
 
-static std::string TrimString(const std::string &s) {
-  size_t start = 0;
-  while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
-    start++;
-  }
-  if (start == s.size()) {
-    return "";
-  }
-  size_t end = s.size();
-  while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1]))) {
-    end--;
-  }
-  return s.substr(start, end - start);
-}
-
-static std::string ToLowerString(const std::string &s) {
-  std::string res = s;
-  for (char &c : res) {
-    c = std::tolower(static_cast<unsigned char>(c));
-  }
-  return res;
-}
-
 static Suit ParseSuitName(const std::string &val_str) {
   return Card::ParseSuit(val_str);
 }
 
 static PlayerDirection ParseDirectionName(const std::string &val_str) {
-  std::string s = ToLowerString(TrimString(val_str));
+  std::string s = ToLower(Trim(val_str));
   if (s == "north" || s == "n") return NORTH;
   if (s == "east" || s == "e") return EAST;
   if (s == "south" || s == "s") return SOUTH;
@@ -294,7 +272,7 @@ BoardState LoadDealFromKeyValueString(const std::string &content) {
     if (slash_pos != std::string::npos) {
       line_content = line_content.substr(0, slash_pos);
     }
-    std::string trimmed = TrimString(line_content);
+    std::string trimmed = Trim(line_content);
     if (trimmed.empty()) {
       continue;
     }
@@ -305,8 +283,8 @@ BoardState LoadDealFromKeyValueString(const std::string &content) {
       throw std::runtime_error("Missing '=' delimiter in deal line: " + line);
     }
 
-    std::string key = ToLowerString(TrimString(trimmed.substr(0, eq_pos)));
-    std::string val = TrimString(trimmed.substr(eq_pos + 1));
+    std::string key = ToLower(Trim(trimmed.substr(0, eq_pos)));
+    std::string val = Trim(trimmed.substr(eq_pos + 1));
 
     if (key == "north" || key == "n") {
       if (val.empty()) {

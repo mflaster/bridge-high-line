@@ -4,6 +4,7 @@
 
 #include "assert.h"
 #include "glog/logging.h"
+#include "string_util.h"
 
 
 uint64_t Card::saved_suited_cards[64];
@@ -46,17 +47,11 @@ Suit Card::ParseSuit(char c) {
 
 /* static */
 Suit Card::ParseSuit(const std::string &s) {
-  size_t start = s.find_first_not_of(" \t\r\n");
-  if (start == std::string::npos) {
+  std::string lower = ToLower(Trim(s));
+  if (lower.empty()) {
     LOG(FATAL) << "Empty suit string";
     return NOTRUMP;
   }
-  size_t end = s.find_last_not_of(" \t\r\n");
-  std::string trimmed = s.substr(start, end - start + 1);
-
-  std::string lower;
-  lower.reserve(trimmed.size());
-  for (char c : trimmed) lower += static_cast<char>(tolower(c));
 
   if (lower == "spades" || lower == "s") return SPADES;
   if (lower == "hearts" || lower == "h") return HEARTS;

@@ -8,6 +8,8 @@
 #include <iostream>
 #include <sstream>
 
+#include "string_util.h"
+
 std::string PlayLineGoldenSerializer::SerializeConditionalLineHelper(
     const ConditionalLine &line, int lvl) {
   return line.Describe(lvl, /*sort_branches=*/true);
@@ -77,13 +79,6 @@ std::string PlayLineGoldenSerializer::Serialize(const OptimalLines &lines) {
     res += l + "\n";
   }
   return res;
-}
-
-static std::string TrimRight(std::string s) {
-  while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) {
-    s.pop_back();
-  }
-  return s;
 }
 
 std::string PlayLineGoldenSerializer::FormatHands(uint64_t hand, uint64_t unknown_cards) {
