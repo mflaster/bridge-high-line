@@ -792,6 +792,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateProposeLineBarUI() {
+    const hasProposedCards = Boolean(
+      activeProposalContext && activeProposalContext.proposedCards.length > 0
+    );
+    if (solveBtn) {
+      solveBtn.disabled = hasProposedCards;
+      solveBtn.title = hasProposedCards
+        ? 'Use "Compute new line" to analyze the proposed card(s), or "Reset" / "Undo" to clear them'
+        : '';
+    }
     if (!proposeLineBar) return;
     if (!activeProposalContext && !hasComputedProposedLine) {
       proposeLineBar.classList.add('hidden');
@@ -853,7 +862,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (resetLineBtn) {
-      const hasProposedCards = Boolean(activeProposalContext && activeProposalContext.proposedCards.length > 0);
       resetLineBtn.disabled = !(hasComputedProposedLine || hasProposedCards);
     }
   }
