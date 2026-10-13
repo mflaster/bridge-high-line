@@ -613,21 +613,41 @@ static void SuppressRedundantSuitHonorVariableInvariants(
         Suit s = shv->suit();
         HonorPossessionTargetHand target = shv->target_hand();
         if (target == HonorPossessionTargetHand::kHand1) {
-          if (covered_suits.count({s, HonorPossessionTargetHand::kHand1}) > 0 ||
-              covered_suits.count({s, HonorPossessionTargetHand::kBoth}) > 0) {
+          if (covered_suits.count(
+                  {s, HonorPossessionTargetHand::kHand1}) > 0 ||
+              covered_suits.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0 ||
+              covered_by_shv.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0) {
             continue;
           }
         } else if (target == HonorPossessionTargetHand::kHand2) {
-          if (covered_suits.count({s, HonorPossessionTargetHand::kHand2}) > 0 ||
-              covered_suits.count({s, HonorPossessionTargetHand::kBoth}) > 0) {
+          if (covered_suits.count(
+                  {s, HonorPossessionTargetHand::kHand2}) > 0 ||
+              covered_suits.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0 ||
+              covered_by_shv.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0) {
             continue;
           }
         } else if (target == HonorPossessionTargetHand::kBoth) {
-          if (covered_suits.count({s, HonorPossessionTargetHand::kBoth}) > 0 ||
-              (covered_suits.count(
-                   {s, HonorPossessionTargetHand::kHand1}) > 0 &&
-               covered_suits.count(
-                   {s, HonorPossessionTargetHand::kHand2}) > 0)) {
+          bool h1_cov =
+              covered_suits.count(
+                  {s, HonorPossessionTargetHand::kHand1}) > 0 ||
+              covered_suits.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0 ||
+              covered_by_shv.count(
+                  {s, HonorPossessionTargetHand::kHand1}) > 0;
+          bool h2_cov =
+              covered_suits.count(
+                  {s, HonorPossessionTargetHand::kHand2}) > 0 ||
+              covered_suits.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0 ||
+              covered_by_shv.count(
+                  {s, HonorPossessionTargetHand::kHand2}) > 0;
+          if (covered_suits.count(
+                  {s, HonorPossessionTargetHand::kBoth}) > 0 ||
+              (h1_cov && h2_cov)) {
             continue;
           }
         }

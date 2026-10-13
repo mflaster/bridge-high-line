@@ -1173,7 +1173,10 @@ TEST_CASE("HonorPossessionClassifier_SpecificHonorSuppression",
 
   REQUIRE(report.total_deals == 2);
   REQUIRE(report.HasRule("hand 1 always contains the HK"));
+  REQUIRE(report.HasRule("hand 2 always contains the HQ"));
   REQUIRE_FALSE(report.HasRule("hand 1 always contains Heart $honor"));
+  REQUIRE_FALSE(report.HasRule("hand 2 always contains Heart $honor"));
+  REQUIRE_FALSE(report.HasRule("both hands always contain Heart $honor"));
 }
 
 TEST_CASE("HonorPossessionClassifier_AsymmetricSpecificHonorSuppression",
