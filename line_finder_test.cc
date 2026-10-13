@@ -839,4 +839,24 @@ TEST_CASE("LineFinder_RestrictedChoice_NoDuplicateTrick1Splits") {
                {Card::ParseStringCard("SA")});
   REQUIRE(lines.size() == 1);
   REQUIRE(lines[0].conditions().size() == 1);
+
+  // Reduced Mollo 6S ending (East leads DQ, West holds DA, North void in D):
+  // Verify that Solve does not return near-duplicate lines that share the same
+  // dominant Trick-1 declarer play (D2 + HA) while varying North's 4th-hand
+  // play only on minor defender-card sub-branches like (DT) or (DJ).
+  std::vector<uint64_t> mollo_hands = {
+      ParseHand("S AKJ3; H AKQ; D -; C A;"),
+      ParseHand("D Q;"),
+      ParseHand("S Q2; H JT98; D K2; C -;"),
+      ParseHand("D A;"),
+  };
+  uint64_t mollo_unknown = ParseHand("S 976 H 765 D JT987 C KQJ");
+  LineFinder mollo_lf(60);
+  std::vector<ConditionalLine> mollo_lines =
+      mollo_lf.Solve(7, mollo_hands, mollo_unknown, /*leader=*/1, SPADES,
+                     {Card::ParseStringCard("DQ")});
+  REQUIRE(!mollo_lines.empty());
+  for (const ConditionalLine &line : mollo_lines) {
+    REQUIRE(line.conditions().size() == 1);
+  }
 }
