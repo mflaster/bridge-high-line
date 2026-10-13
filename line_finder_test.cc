@@ -795,3 +795,27 @@ TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
     REQUIRE(lines[0].Describe().find("SQ") != std::string::npos);
   }
 }
+
+TEST_CASE("LineFinder_NineCardHeartsTrick2DK") {
+  srand48(0);
+  // 9-Card Hearts deal at Trick 2 after #1: D2 D7 D8 D9 (West won D9) and West
+  // leads DK at Trick 2 (with East known to have followed to Diamonds on
+  // Trick 1, or general unknown cards with DK assigned to West).
+  // Verify that ducking DK does not artificially succeed on ~99% of boards
+  // when East follows in Diamonds, and that continuing DJ at Trick 3 when East
+  // is void in Diamonds yields a consistent success rate.
+  std::vector<uint64_t> hands = {
+      ParseHand("S 532; H T7; D T3; C 6;"),
+      0,
+      ParseHand("S K9; H -; D A54; C AKJ;"),
+      ParseHand("D K"),
+  };
+  uint64_t unknown_cards = ParseHand("S AJTQ64 D QJ6 C T43Q98");
+  std::vector<CardType> cur_trick = {Card::ParseStringCard("DK")};
+  LineFinder lf(40);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(6, hands, unknown_cards, /*leader=*/3, HEARTS, cur_trick);
+  REQUIRE(!lines.empty());
+  REQUIRE(lines[0].CoveredBoards() > 0);
+  REQUIRE(lines[0].Describe().find("(DK)") != std::string::npos);
+}
