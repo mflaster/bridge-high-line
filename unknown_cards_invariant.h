@@ -347,10 +347,11 @@ class HonorPossessionInvariant : public UnknownCardsInvariant {
   std::string label_;
 };
 
-// Describes generic suit honor possession invariant across paired hands: a specific
-// hand or both hands always contain at least one honor card (A, K, Q, J, 10) in a suit.
+// Describes generic suit honor possession invariant across paired hands: a
+// specific hand or both hands always contain at least one honor card
+// (A, K, Q, J, 10) in a suit.
 // Example string formats:
-//   "Spade $honor is always in hand 1"
+//   "hand 1 always contains Spade $honor"
 //   "E has Spade $honor"
 //   "both hands always contain Spade $honor"
 class SuitHonorVariableInvariant : public UnknownCardsInvariant {

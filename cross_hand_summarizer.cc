@@ -259,11 +259,10 @@ HonorPossessionClassifier::ExtractInvariants() const {
       bool h2_holds = HoldsOnNearAllDeals(h2_total, total_deals_);
       bool both_holds = HoldsOnNearAllDeals(stats.both_count, total_deals_);
 
-      if (both_holds) {
-        if (!h1_has_specific_honor_rule || !h2_has_specific_honor_rule) {
-          invariants.push_back(std::make_shared<SuitHonorVariableInvariant>(
-              HonorPossessionTargetHand::kBoth, suit, "both hands"));
-        }
+      if (both_holds && !h1_has_specific_honor_rule &&
+          !h2_has_specific_honor_rule) {
+        invariants.push_back(std::make_shared<SuitHonorVariableInvariant>(
+            HonorPossessionTargetHand::kBoth, suit, "both hands"));
       } else {
         if (h1_holds && !h1_has_specific_honor_rule) {
           invariants.push_back(std::make_shared<SuitHonorVariableInvariant>(
@@ -591,20 +590,65 @@ static std::vector<PairedDeal> GenerateRandomBifurcations(
 static void SuppressRedundantSuitHonorVariableInvariants(
     std::vector<InvariantStats>& stats_list) {
   std::set<std::pair<Suit, HonorPossessionTargetHand>> covered_suits;
+  std::set<std::pair<Suit, HonorPossessionTargetHand>> covered_by_shv;
+
   for (const auto& st : stats_list) {
-    if (auto hp = std::dynamic_pointer_cast<HonorPossessionInvariant>(st.invariant)) {
+    if (auto hp = std::dynamic_pointer_cast<HonorPossessionInvariant>(
+            st.invariant)) {
       Suit s = Card::DecodeCard(hp->card()).first;
       covered_suits.insert({s, hp->target_hand()});
+    } else if (auto shv =
+                   std::dynamic_pointer_cast<SuitHonorVariableInvariant>(
+                       st.invariant)) {
+      covered_by_shv.insert({shv->suit(), shv->target_hand()});
     }
   }
-  if (!covered_suits.empty()) {
+
+  if (!covered_suits.empty() || !covered_by_shv.empty()) {
     std::vector<InvariantStats> pruned;
     pruned.reserve(stats_list.size());
     for (auto& st : stats_list) {
-      if (auto shv = std::dynamic_pointer_cast<SuitHonorVariableInvariant>(st.invariant)) {
-        if (covered_suits.count({shv->suit(), shv->target_hand()}) > 0 ||
-            covered_suits.count({shv->suit(), HonorPossessionTargetHand::kBoth}) > 0) {
-          continue;
+      if (auto shv = std::dynamic_pointer_cast<SuitHonorVariableInvariant>(
+              st.invariant)) {
+        Suit s = shv->suit();
+        HonorPossessionTargetHand target = shv->target_hand();
+        if (target == HonorPossessionTargetHand::kHand1) {
+          if (covered_suits.count({s, HonorPossessionTargetHand::kHand1}) > 0 ||
+              covered_suits.count({s, HonorPossessionTargetHand::kBoth}) > 0) {
+            continue;
+          }
+        } else if (target == HonorPossessionTargetHand::kHand2) {
+          if (covered_suits.count({s, HonorPossessionTargetHand::kHand2}) > 0 ||
+              covered_suits.count({s, HonorPossessionTargetHand::kBoth}) > 0) {
+            continue;
+          }
+        } else if (target == HonorPossessionTargetHand::kBoth) {
+          if (covered_suits.count({s, HonorPossessionTargetHand::kBoth}) > 0 ||
+              (covered_suits.count(
+                   {s, HonorPossessionTargetHand::kHand1}) > 0 &&
+               covered_suits.count(
+                   {s, HonorPossessionTargetHand::kHand2}) > 0)) {
+            continue;
+          }
+        }
+      } else if (auto or_inv = std::dynamic_pointer_cast<OrInvariant>(
+                     st.invariant)) {
+        auto hp1 = std::dynamic_pointer_cast<HonorPossessionInvariant>(
+            or_inv->left());
+        auto hp2 = std::dynamic_pointer_cast<HonorPossessionInvariant>(
+            or_inv->right());
+        if (hp1 && hp2) {
+          Suit s1 = Card::DecodeCard(hp1->card()).first;
+          Suit s2 = Card::DecodeCard(hp2->card()).first;
+          if (s1 == s2 && hp1->target_hand() == hp2->target_hand()) {
+            Suit s = s1;
+            HonorPossessionTargetHand target = hp1->target_hand();
+            if (covered_by_shv.count({s, target}) > 0 ||
+                covered_by_shv.count(
+                    {s, HonorPossessionTargetHand::kBoth}) > 0) {
+              continue;
+            }
+          }
         }
       }
       pruned.push_back(std::move(st));
@@ -677,6 +721,7 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
       st.is_failure_mode = is_failure_mode;
       stats_list.push_back(std::move(st));
     }
+    SuppressRedundantSuitHonorVariableInvariants(stats_list);
     return stats_list;
   }
 
@@ -691,6 +736,7 @@ std::vector<InvariantStats> EvaluateCandidateInvariants(
       st.is_failure_mode = is_failure_mode;
       stats_list.push_back(std::move(st));
     }
+    SuppressRedundantSuitHonorVariableInvariants(stats_list);
     return stats_list;
   }
 
