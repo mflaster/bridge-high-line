@@ -3296,7 +3296,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const chip = document.createElement('span');
           const isWinner = (playIdx === tr.winningCardIdx);
           const isLead = (seatIdx === tr.leadSeatIdx);
-          const classes = ['card-chip', c.suitClass];
+          const classes = ['card-chip', `card-chip-col-${seatIdx}`, c.suitClass];
           if (isWinner) {
             classes.push('card-winner', winnerThemeClass);
           }
@@ -3304,6 +3304,7 @@ document.addEventListener('DOMContentLoaded', () => {
             classes.push('card-lead');
           }
           chip.className = classes.join(' ');
+          chip.style.gridColumn = seatIdx + 1;
           chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
           const innerHtml = c.suitSym
             ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`

@@ -1489,6 +1489,11 @@ body.is-resizing * {
   margin-top: 6px;
 }
 
+.card-chip-col-0 { grid-column: 1; }
+.card-chip-col-1 { grid-column: 2; }
+.card-chip-col-2 { grid-column: 3; }
+.card-chip-col-3 { grid-column: 4; }
+
 .card-chip.card-lead {
   align-self: start;
   margin-top: 0;
@@ -5474,7 +5479,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const chip = document.createElement('span');
           const isWinner = (playIdx === tr.winningCardIdx);
           const isLead = (seatIdx === tr.leadSeatIdx);
-          const classes = ['card-chip', c.suitClass];
+          const classes = ['card-chip', `card-chip-col-${seatIdx}`, c.suitClass];
           if (isWinner) {
             classes.push('card-winner', winnerThemeClass);
           }
@@ -5482,6 +5487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             classes.push('card-lead');
           }
           chip.className = classes.join(' ');
+          chip.style.gridColumn = seatIdx + 1;
           chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
           const innerHtml = c.suitSym
             ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`

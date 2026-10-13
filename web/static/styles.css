@@ -1072,6 +1072,11 @@ body.is-resizing * {
   margin-top: 6px;
 }
 
+.card-chip-col-0 { grid-column: 1; }
+.card-chip-col-1 { grid-column: 2; }
+.card-chip-col-2 { grid-column: 3; }
+.card-chip-col-3 { grid-column: 4; }
+
 .card-chip.card-lead {
   align-self: start;
   margin-top: 0;
