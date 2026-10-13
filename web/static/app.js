@@ -364,6 +364,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function formatLineSuccessPctPrefix(coveredOrSuccess, totalBoards) {
+    const total = (typeof totalBoards === 'number' && totalBoards > 0) ? totalBoards : 1;
+    const succ = (typeof coveredOrSuccess === 'number' && coveredOrSuccess >= 0) ? coveredOrSuccess : 0;
+    const pct = Math.round((succ / total) * 100);
+    return `${pct}% `;
+  }
+
   function buildSelectableLinesList() {
     const entries = [];
     const baseData = (originalSolveSnapshot && originalSolveSnapshot.data)
@@ -372,6 +379,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasAlts = Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
 
     if (baseData) {
+      const baseTotal = baseData.total_boards || 1;
+      const baseSuccess = baseData.success_boards !== undefined
+        ? baseData.success_boards
+        : (baseData.covered_boards || 0);
       const origLines = Array.isArray(baseData.lines) ? baseData.lines : [];
       if (origLines.length > 1) {
         origLines.forEach((lineObj, idx) => {
@@ -379,9 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
           if (hasAlts) {
             label = label.replace(/^Line\s+(\d+):/i, 'Original line $1:');
           }
+          const lineSucc = (lineObj && lineObj.covered_boards !== undefined)
+            ? lineObj.covered_boards
+            : baseSuccess;
+          const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
           entries.push({
             kind: 'original',
-            label: label,
+            label: `${pctPrefix}${label}`,
             lineObj: lineObj,
             baseData: baseData
           });
@@ -394,9 +409,13 @@ document.addEventListener('DOMContentLoaded', () => {
           distribution_summary: baseData.distribution_summary,
           failure_distribution_summary: baseData.failure_distribution_summary
         };
+        const lineSucc = (singleLineObj && singleLineObj.covered_boards !== undefined)
+          ? singleLineObj.covered_boards
+          : baseSuccess;
+        const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
         entries.push({
           kind: 'original',
-          label: 'Original line',
+          label: `${pctPrefix}Original line`,
           lineObj: singleLineObj,
           baseData: baseData
         });
@@ -405,9 +424,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (hasAlts) {
       proposedAltLines.forEach((altEntry) => {
+        const altData = altEntry.data || {};
+        const altTotal = altData.total_boards || 1;
+        const altSuccess = altData.success_boards !== undefined
+          ? altData.success_boards
+          : (altData.covered_boards || 0);
+        const pctPrefix = formatLineSuccessPctPrefix(altSuccess, altTotal);
         entries.push({
           kind: 'alt',
-          label: altEntry.label,
+          label: `${pctPrefix}${altEntry.label}`,
           altData: altEntry.data
         });
       });
