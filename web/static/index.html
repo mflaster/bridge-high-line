@@ -230,6 +230,7 @@
             <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>
             <button id="tabSummaryBtn" class="tab-btn" type="button">Distribution Summary <span id="ruleCounterBadge" class="badge-counter hidden">0</span></button>
             <button id="tabSampleHandsBtn" class="tab-btn" type="button">Sample Hands <span id="sampleHandsCounterBadge" class="badge-counter hidden">0</span></button>
+            <button id="tabCompareLinesBtn" class="tab-btn" type="button">Compare Lines <span id="compareLinesCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
             <div class="tree-legend" title="Blue: a trick to play. Green: the contract is made. Red: the defense beats this line.">
@@ -398,6 +399,23 @@
             No sample hands available for this deal. Click "Solve Deal" to view sample hands.
           </div>
           <div id="sampleHandsGrid" class="sample-hands-grid hidden"></div>
+        </div>
+
+        <!-- Tab Panel 4: Compare Lines -->
+        <div id="panelCompareLines" class="tab-panel hidden">
+          <div id="compareLinesEmptyNotice" class="summary-empty">
+            No lines computed yet. Click "Solve Deal" (and optionally compute alternate lines) to compare lines of play.
+          </div>
+          <div id="compareLinesContent" class="compare-lines-content hidden">
+            <div class="summary-section">
+              <div class="compare-lines-header-row">
+                <h4>Computed Lines (select 2 or more to compare)</h4>
+                <span id="compareLinesHint" class="compare-lines-hint"></span>
+              </div>
+              <div id="compareLinesList" class="compare-lines-list"></div>
+            </div>
+            <div id="compareLinesResults" class="compare-lines-results"></div>
+          </div>
         </div>
       </section>
     </div>

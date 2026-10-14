@@ -237,6 +237,7 @@ inline const char* INDEX_HTML = R"rawhtml(
             <button id="tabDecisionTreeBtn" class="tab-btn active" type="button">Decision Tree</button>
             <button id="tabSummaryBtn" class="tab-btn" type="button">Distribution Summary <span id="ruleCounterBadge" class="badge-counter hidden">0</span></button>
             <button id="tabSampleHandsBtn" class="tab-btn" type="button">Sample Hands <span id="sampleHandsCounterBadge" class="badge-counter hidden">0</span></button>
+            <button id="tabCompareLinesBtn" class="tab-btn" type="button">Compare Lines <span id="compareLinesCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
             <div class="tree-legend" title="Blue: a trick to play. Green: the contract is made. Red: the defense beats this line.">
@@ -405,6 +406,23 @@ inline const char* INDEX_HTML = R"rawhtml(
             No sample hands available for this deal. Click "Solve Deal" to view sample hands.
           </div>
           <div id="sampleHandsGrid" class="sample-hands-grid hidden"></div>
+        </div>
+
+        <!-- Tab Panel 4: Compare Lines -->
+        <div id="panelCompareLines" class="tab-panel hidden">
+          <div id="compareLinesEmptyNotice" class="summary-empty">
+            No lines computed yet. Click "Solve Deal" (and optionally compute alternate lines) to compare lines of play.
+          </div>
+          <div id="compareLinesContent" class="compare-lines-content hidden">
+            <div class="summary-section">
+              <div class="compare-lines-header-row">
+                <h4>Computed Lines (select 2 or more to compare)</h4>
+                <span id="compareLinesHint" class="compare-lines-hint"></span>
+              </div>
+              <div id="compareLinesList" class="compare-lines-list"></div>
+            </div>
+            <div id="compareLinesResults" class="compare-lines-results"></div>
+          </div>
         </div>
       </section>
     </div>
@@ -2175,6 +2193,270 @@ body.is-resizing * {
   stroke: #38bdf8;
 }
 
+/* Compare Lines Tab Styles */
+.compare-lines-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.compare-lines-content.hidden {
+  display: none !important;
+}
+
+.compare-lines-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.compare-lines-header-row h4 {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.compare-lines-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.compare-lines-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compare-line-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background-color: #152238;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.compare-line-row:hover {
+  border-color: #60a5fa;
+  background-color: #1a2b47;
+}
+
+.compare-line-row.selected {
+  border-color: var(--primary);
+  background-color: rgba(59, 130, 246, 0.12);
+}
+
+.compare-line-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.compare-line-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.compare-line-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-line-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.compare-line-pct-badge {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.compare-lines-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compare-pair-card {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.compare-pair-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.compare-pair-vs {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.compare-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compare-stacked-bar {
+  display: flex;
+  width: 100%;
+  height: 24px;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #1e293b;
+  border: 1px solid var(--panel-border);
+}
+
+.compare-bar-seg {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: width 0.2s ease;
+}
+
+.compare-bar-both-pass { background-color: #059669; }
+.compare-bar-only-a { background-color: #2563eb; }
+.compare-bar-only-b { background-color: #d97706; }
+.compare-bar-both-fail { background-color: #475569; }
+
+.compare-chart-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  font-size: 12px;
+}
+
+.compare-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #152238;
+  border: 1px solid #293548;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.compare-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.compare-legend-label {
+  color: var(--text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-legend-value {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.compare-diff-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.compare-diff-section {
+  background-color: #131c2e;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compare-diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.compare-diff-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #93c5fd;
+}
+
+.compare-diff-section.diff-dir-b .compare-diff-title {
+  color: #fcd34d;
+}
+
+.compare-diff-count {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+
+.compare-diff-hands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 8px;
+}
+
+
 )rawcss";
 
 inline const char* APP_JS = R"rawjs(
@@ -2240,11 +2522,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabDecisionTreeBtn = document.getElementById('tabDecisionTreeBtn');
   const tabSummaryBtn = document.getElementById('tabSummaryBtn');
   const tabSampleHandsBtn = document.getElementById('tabSampleHandsBtn');
+  const tabCompareLinesBtn = document.getElementById('tabCompareLinesBtn');
   const panelDecisionTree = document.getElementById('panelDecisionTree');
   const panelDistributionSummary = document.getElementById('panelDistributionSummary');
   const panelSampleHands = document.getElementById('panelSampleHands');
+  const panelCompareLines = document.getElementById('panelCompareLines');
   const ruleCounterBadge = document.getElementById('ruleCounterBadge');
   const sampleHandsCounterBadge = document.getElementById('sampleHandsCounterBadge');
+  const compareLinesCounterBadge = document.getElementById('compareLinesCounterBadge');
   const summaryEmptyNotice = document.getElementById('summaryEmptyNotice');
   const summaryContent = document.getElementById('summaryContent');
   const summaryRulesList = document.getElementById('summaryRulesList');
@@ -2256,6 +2541,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const sampleHandsModeSub = document.getElementById('sampleHandsModeSub');
   const sampleHandsEmptyNotice = document.getElementById('sampleHandsEmptyNotice');
   const sampleHandsGrid = document.getElementById('sampleHandsGrid');
+
+  const compareLinesEmptyNotice = document.getElementById('compareLinesEmptyNotice');
+  const compareLinesContent = document.getElementById('compareLinesContent');
+  const compareLinesHint = document.getElementById('compareLinesHint');
+  const compareLinesList = document.getElementById('compareLinesList');
+  const compareLinesResults = document.getElementById('compareLinesResults');
 
   // Propose Line Controls
   const proposeLineBar = document.getElementById('proposeLineBar');
@@ -2270,10 +2561,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabDecisionTreeBtn) tabDecisionTreeBtn.classList.toggle('active', tabName === 'tree');
     if (tabSummaryBtn) tabSummaryBtn.classList.toggle('active', tabName === 'summary');
     if (tabSampleHandsBtn) tabSampleHandsBtn.classList.toggle('active', tabName === 'sample_hands');
+    if (tabCompareLinesBtn) tabCompareLinesBtn.classList.toggle('active', tabName === 'compare_lines');
 
     if (panelDecisionTree) panelDecisionTree.classList.toggle('hidden', tabName !== 'tree');
     if (panelDistributionSummary) panelDistributionSummary.classList.toggle('hidden', tabName !== 'summary');
     if (panelSampleHands) panelSampleHands.classList.toggle('hidden', tabName !== 'sample_hands');
+    if (panelCompareLines) panelCompareLines.classList.toggle('hidden', tabName !== 'compare_lines');
   }
 
   // Tab Switching Event Listeners
@@ -2285,6 +2578,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (tabSampleHandsBtn) {
     tabSampleHandsBtn.addEventListener('click', () => activateTab('sample_hands'));
+  }
+  if (tabCompareLinesBtn) {
+    tabCompareLinesBtn.addEventListener('click', () => activateTab('compare_lines'));
   }
 
   // Inspector Side Panel Toggle Listeners
@@ -2458,7 +2754,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sampleHandsModeBadge.textContent = 'Covered Deals';
       }
       if (currentSolveData) {
-        const pct = Math.round((success / total) * 100);
+        const pct = ((success / total) * 100).toFixed(1);
         if (summaryModeSub) {
           summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
         }
@@ -2495,7 +2791,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sampleHandsModeBadge.textContent = 'Non-Covered (Failed) Deals';
       }
       if (currentSolveData) {
-        const pct = Math.round((failure / total) * 100);
+        const pct = ((failure / total) * 100).toFixed(1);
         if (summaryModeSub) {
           summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
         }
@@ -2545,11 +2841,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  let selectedCompareLineIndices = new Set();
+
   function formatLineSuccessPctPrefix(coveredOrSuccess, totalBoards) {
     const total = (typeof totalBoards === 'number' && totalBoards > 0) ? totalBoards : 1;
     const succ = (typeof coveredOrSuccess === 'number' && coveredOrSuccess >= 0) ? coveredOrSuccess : 0;
-    const pct = Math.round((succ / total) * 100);
+    const pct = ((succ / total) * 100).toFixed(1);
     return `${pct}% `;
+  }
+
+  function extractCoveredBoardIdsFromTree(node, outSet = new Set()) {
+    if (!node) return outSet;
+    if (!node.failure && (!node.children || node.children.length === 0) && Array.isArray(node.boards)) {
+      node.boards.forEach(b => outSet.add(b));
+    }
+    if (Array.isArray(node.children)) {
+      node.children.forEach(ch => extractCoveredBoardIdsFromTree(ch, outSet));
+    }
+    return outSet;
   }
 
   function buildSelectableLinesList() {
@@ -2575,9 +2884,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ? lineObj.covered_boards
             : baseSuccess;
           const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
+          let covIds = Array.isArray(lineObj && lineObj.covered_board_ids)
+            ? lineObj.covered_board_ids
+            : null;
+          if (!covIds && lineObj && lineObj.tree) {
+            covIds = Array.from(extractCoveredBoardIdsFromTree(lineObj.tree));
+          }
           entries.push({
             kind: 'original',
+            rawTitle: label,
             label: `${pctPrefix}${label}`,
+            coveredBoards: lineSucc,
+            totalBoards: baseTotal,
+            coveredBoardIds: covIds || [],
             lineObj: lineObj,
             baseData: baseData
           });
@@ -2587,6 +2906,7 @@ document.addEventListener('DOMContentLoaded', () => {
           tree: baseData.tree,
           best_lead: baseData.best_lead,
           covered_boards: baseData.covered_boards,
+          covered_board_ids: baseData.covered_board_ids,
           distribution_summary: baseData.distribution_summary,
           failure_distribution_summary: baseData.failure_distribution_summary
         };
@@ -2594,9 +2914,22 @@ document.addEventListener('DOMContentLoaded', () => {
           ? singleLineObj.covered_boards
           : baseSuccess;
         const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
+        let rawTitle = (singleLineObj && singleLineObj.label)
+          ? singleLineObj.label.replace(/^Line\s+1:/i, 'Original line:')
+          : 'Original line';
+        let covIds = Array.isArray(singleLineObj && singleLineObj.covered_board_ids)
+          ? singleLineObj.covered_board_ids
+          : (Array.isArray(baseData.covered_board_ids) ? baseData.covered_board_ids : null);
+        if (!covIds && singleLineObj && singleLineObj.tree) {
+          covIds = Array.from(extractCoveredBoardIdsFromTree(singleLineObj.tree));
+        }
         entries.push({
           kind: 'original',
+          rawTitle: rawTitle,
           label: `${pctPrefix}Original line`,
+          coveredBoards: lineSucc,
+          totalBoards: baseTotal,
+          coveredBoardIds: covIds || [],
           lineObj: singleLineObj,
           baseData: baseData
         });
@@ -2611,15 +2944,367 @@ document.addEventListener('DOMContentLoaded', () => {
           ? altData.success_boards
           : (altData.covered_boards || 0);
         const pctPrefix = formatLineSuccessPctPrefix(altSuccess, altTotal);
+        const altOrigLines = Array.isArray(altData.lines) ? altData.lines : [];
+        let covIds = Array.isArray(altData.covered_board_ids)
+          ? altData.covered_board_ids
+          : (altOrigLines.length > 0 && Array.isArray(altOrigLines[0].covered_board_ids)
+              ? altOrigLines[0].covered_board_ids
+              : null);
+        if (!covIds && altData.tree) {
+          covIds = Array.from(extractCoveredBoardIdsFromTree(altData.tree));
+        }
         entries.push({
           kind: 'alt',
+          rawTitle: altEntry.label,
           label: `${pctPrefix}${altEntry.label}`,
+          coveredBoards: altSuccess,
+          totalBoards: altTotal,
+          coveredBoardIds: covIds || [],
           altData: altEntry.data
         });
       });
     }
 
     return entries;
+  }
+
+  function clearCompareLines(msg = 'No lines computed yet. Click "Solve Deal" (and optionally compute alternate lines) to compare lines of play.') {
+    selectedCompareLineIndices.clear();
+    if (compareLinesCounterBadge) {
+      compareLinesCounterBadge.textContent = '0';
+      compareLinesCounterBadge.classList.add('hidden');
+    }
+    if (compareLinesContent) {
+      compareLinesContent.classList.add('hidden');
+    }
+    if (compareLinesList) {
+      compareLinesList.innerHTML = '';
+    }
+    if (compareLinesResults) {
+      compareLinesResults.innerHTML = '';
+    }
+    if (compareLinesEmptyNotice) {
+      compareLinesEmptyNotice.textContent = msg;
+      compareLinesEmptyNotice.classList.remove('hidden');
+    }
+  }
+
+  function findDealForCompare(boardId, entries) {
+    for (const entry of entries) {
+      const src = entry.baseData || entry.altData;
+      if (src && Array.isArray(src.all_hands)) {
+        const found = src.all_hands.find(d => d && d.board_id === boardId);
+        if (found) return found;
+      }
+    }
+    return findDealByBoardId(boardId);
+  }
+
+  function createCompareDealCard(deal, boardId, targetLineIdx) {
+    const card = document.createElement('div');
+    const boardNum = boardId + 1;
+    card.className = `sample-deal-card${activeTracedBoardId === boardId ? ' traced-deal-card' : ''}`;
+    card.dataset.boardId = String(boardId);
+    card.title = `Click to load Hand #${boardNum} in the Decision Tree`;
+    card.addEventListener('click', () => {
+      if (typeof targetLineIdx === 'number' &&
+          (!currentSolveData || currentSolveData.active_line_index !== targetLineIdx)) {
+        selectEquivalentLine(targetLineIdx);
+      }
+      traceHandByNumber(boardNum);
+    });
+
+    const idBadge = document.createElement('span');
+    idBadge.className = 'sample-deal-id';
+    idBadge.textContent = `#${boardNum}`;
+    card.appendChild(idBadge);
+
+    const rowNorth = document.createElement('div');
+    rowNorth.className = 'sample-deal-row-center';
+    rowNorth.appendChild(createSampleHandBox('NORTH', deal ? deal.N : ''));
+    card.appendChild(rowNorth);
+
+    const rowWE = document.createElement('div');
+    rowWE.className = 'sample-deal-row-we';
+    rowWE.appendChild(createSampleHandBox('WEST', deal ? deal.W : ''));
+    rowWE.appendChild(createSampleHandBox('EAST', deal ? deal.E : ''));
+    card.appendChild(rowWE);
+
+    const rowSouth = document.createElement('div');
+    rowSouth.className = 'sample-deal-row-center';
+    rowSouth.appendChild(createSampleHandBox('SOUTH', deal ? deal.S : ''));
+    card.appendChild(rowSouth);
+
+    return card;
+  }
+
+  function renderComparePairSection(entryA, idxA, entryB, idxB, allEntries) {
+    const total = Math.max(1, entryA.totalBoards || entryB.totalBoards || 1);
+    const setA = new Set(entryA.coveredBoardIds || []);
+    const setB = new Set(entryB.coveredBoardIds || []);
+
+    const bothPass = [];
+    const onlyA = []; // Succeeds in A, fails in B
+    const onlyB = []; // Fails in A, succeeds in B
+    const bothFail = [];
+
+    for (let b = 0; b < total; b++) {
+      const inA = setA.has(b);
+      const inB = setB.has(b);
+      if (inA && inB) bothPass.push(b);
+      else if (inA && !inB) onlyA.push(b);
+      else if (!inA && inB) onlyB.push(b);
+      else bothFail.push(b);
+    }
+
+    const pairCard = document.createElement('div');
+    pairCard.className = 'compare-pair-card';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'compare-pair-title';
+    const spanA = document.createElement('span');
+    spanA.textContent = entryA.rawTitle || entryA.label;
+    const vsSpan = document.createElement('span');
+    vsSpan.className = 'compare-pair-vs';
+    vsSpan.textContent = 'vs';
+    const spanB = document.createElement('span');
+    spanB.textContent = entryB.rawTitle || entryB.label;
+    titleEl.appendChild(spanA);
+    titleEl.appendChild(vsSpan);
+    titleEl.appendChild(spanB);
+    pairCard.appendChild(titleEl);
+
+    // Visual stacked bar chart + legend
+    const chartContainer = document.createElement('div');
+    chartContainer.className = 'compare-chart-container';
+
+    const barEl = document.createElement('div');
+    barEl.className = 'compare-stacked-bar';
+
+    const segments = [
+      { cls: 'compare-bar-both-pass', count: bothPass.length, label: 'Succeed in Both', color: '#059669' },
+      { cls: 'compare-bar-only-a', count: onlyA.length, label: `Succeed in #${idxA + 1}, Fail in #${idxB + 1}`, color: '#2563eb' },
+      { cls: 'compare-bar-only-b', count: onlyB.length, label: `Fail in #${idxA + 1}, Succeed in #${idxB + 1}`, color: '#d97706' },
+      { cls: 'compare-bar-both-fail', count: bothFail.length, label: 'Fail in Both', color: '#475569' }
+    ];
+
+    segments.forEach(seg => {
+      if (seg.count <= 0) return;
+      const pct = (seg.count / total) * 100;
+      const segEl = document.createElement('div');
+      segEl.className = `compare-bar-seg ${seg.cls}`;
+      segEl.style.width = `${pct.toFixed(2)}%`;
+      const pctRound = pct.toFixed(1);
+      segEl.title = `${seg.label}: ${seg.count}/${total} (${pctRound}%)`;
+      if (pct >= 8) {
+        segEl.textContent = `${seg.count} (${pctRound}%)`;
+      }
+      barEl.appendChild(segEl);
+    });
+    chartContainer.appendChild(barEl);
+
+    const legendEl = document.createElement('div');
+    legendEl.className = 'compare-chart-legend';
+    segments.forEach(seg => {
+      const pctRound = ((seg.count / total) * 100).toFixed(1);
+      const item = document.createElement('div');
+      item.className = 'compare-legend-item';
+      item.innerHTML = `
+        <span class="compare-legend-swatch" style="background-color: ${seg.color};"></span>
+        <span class="compare-legend-label" title="${seg.label}">${seg.label}</span>
+        <span class="compare-legend-value">${seg.count}/${total} (${pctRound}%)</span>
+      `;
+      legendEl.appendChild(item);
+    });
+    chartContainer.appendChild(legendEl);
+    pairCard.appendChild(chartContainer);
+
+    // Directional discrepancy hands (up to 10 hands per direction)
+    const maxSampleDiffHands = 10;
+    const diffCols = document.createElement('div');
+    diffCols.className = 'compare-diff-columns';
+
+    const buildDirectionSection = (boardIds, dirTitle, dirClass, targetLineIdx) => {
+      const sec = document.createElement('div');
+      sec.className = `compare-diff-section ${dirClass}`;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'compare-diff-header';
+
+      const tSpan = document.createElement('span');
+      tSpan.className = 'compare-diff-title';
+      tSpan.textContent = dirTitle;
+
+      const cSpan = document.createElement('span');
+      cSpan.className = 'compare-diff-count';
+      const shownCount = Math.min(boardIds.length, maxSampleDiffHands);
+      cSpan.textContent = boardIds.length > maxSampleDiffHands
+        ? `Showing ${shownCount} of ${boardIds.length} deals`
+        : `${boardIds.length} deal${boardIds.length === 1 ? '' : 's'}`;
+
+      hdr.appendChild(tSpan);
+      hdr.appendChild(cSpan);
+      sec.appendChild(hdr);
+
+      if (boardIds.length === 0) {
+        const emptyEl = document.createElement('div');
+        emptyEl.className = 'summary-empty';
+        emptyEl.style.padding = '14px';
+        emptyEl.textContent = 'No hands in this category.';
+        sec.appendChild(emptyEl);
+      } else {
+        const grid = document.createElement('div');
+        grid.className = 'compare-diff-hands-grid';
+        boardIds.slice(0, maxSampleDiffHands).forEach(bId => {
+          const deal = findDealForCompare(bId, allEntries);
+          grid.appendChild(createCompareDealCard(deal, bId, targetLineIdx));
+        });
+        sec.appendChild(grid);
+      }
+      return sec;
+    };
+
+    const nameA = entryA.rawTitle || `Line #${idxA + 1}`;
+    const nameB = entryB.rawTitle || `Line #${idxB + 1}`;
+    diffCols.appendChild(buildDirectionSection(
+      onlyA,
+      `Succeeds in ${nameA}, Fails in ${nameB}`,
+      'diff-dir-a',
+      idxA
+    ));
+    diffCols.appendChild(buildDirectionSection(
+      onlyB,
+      `Fails in ${nameA}, Succeeds in ${nameB}`,
+      'diff-dir-b',
+      idxB
+    ));
+    pairCard.appendChild(diffCols);
+
+    return pairCard;
+  }
+
+  function renderCompareLinesTab() {
+    const entries = buildSelectableLinesList();
+    if (!entries || entries.length === 0) {
+      clearCompareLines();
+      return;
+    }
+
+    if (compareLinesCounterBadge) {
+      compareLinesCounterBadge.textContent = String(entries.length);
+      compareLinesCounterBadge.classList.remove('hidden');
+    }
+    if (compareLinesEmptyNotice) {
+      compareLinesEmptyNotice.classList.add('hidden');
+    }
+    if (compareLinesContent) {
+      compareLinesContent.classList.remove('hidden');
+    }
+
+    // Prune out-of-range selected indices and auto-select the first 2 lines if <2 are selected
+    Array.from(selectedCompareLineIndices).forEach(idx => {
+      if (idx < 0 || idx >= entries.length) {
+        selectedCompareLineIndices.delete(idx);
+      }
+    });
+    if (selectedCompareLineIndices.size === 0 && entries.length >= 2) {
+      selectedCompareLineIndices.add(0);
+      selectedCompareLineIndices.add(entries.length - 1);
+    } else if (selectedCompareLineIndices.size === 0 && entries.length === 1) {
+      selectedCompareLineIndices.add(0);
+    } else if (selectedCompareLineIndices.size === 1 && entries.length === 2) {
+      // When a second line (e.g. an Alt line) is computed, auto-select both for immediate comparison
+      selectedCompareLineIndices.add(0);
+      selectedCompareLineIndices.add(1);
+    }
+
+    if (compareLinesHint) {
+      compareLinesHint.textContent = entries.length < 2
+        ? 'Only 1 line computed so far — propose a card on the deal diagram and click "Compute new line" to compare!'
+        : `${selectedCompareLineIndices.size} of ${entries.length} selected`;
+    }
+
+    if (compareLinesList) {
+      compareLinesList.innerHTML = '';
+      entries.forEach((entry, idx) => {
+        const isSelected = selectedCompareLineIndices.has(idx);
+        const row = document.createElement('div');
+        row.className = `compare-line-row${isSelected ? ' selected' : ''}`;
+        row.dataset.lineIndex = String(idx);
+
+        const left = document.createElement('div');
+        left.className = 'compare-line-left';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'compare-line-checkbox';
+        cb.checked = isSelected;
+        cb.setAttribute('aria-label', `Select ${entry.rawTitle || entry.label}`);
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'compare-line-title';
+        titleSpan.textContent = entry.rawTitle || entry.label;
+        titleSpan.title = entry.rawTitle || entry.label;
+
+        left.appendChild(cb);
+        left.appendChild(titleSpan);
+
+        const right = document.createElement('div');
+        right.className = 'compare-line-right';
+
+        const total = entry.totalBoards || 1;
+        const succ = entry.coveredBoards !== undefined ? entry.coveredBoards : 0;
+        const pct = ((succ / total) * 100).toFixed(1);
+        const pctBadge = document.createElement('span');
+        pctBadge.className = 'compare-line-pct-badge';
+        pctBadge.textContent = `${succ}/${total} (${pct}%)`;
+        right.appendChild(pctBadge);
+
+        const toggleSelection = () => {
+          if (selectedCompareLineIndices.has(idx)) {
+            selectedCompareLineIndices.delete(idx);
+          } else {
+            selectedCompareLineIndices.add(idx);
+          }
+          renderCompareLinesTab();
+        };
+
+        cb.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleSelection();
+        });
+        row.addEventListener('click', () => {
+          toggleSelection();
+        });
+
+        row.appendChild(left);
+        row.appendChild(right);
+        compareLinesList.appendChild(row);
+      });
+    }
+
+    if (compareLinesResults) {
+      compareLinesResults.innerHTML = '';
+      const sortedSelected = Array.from(selectedCompareLineIndices).sort((a, b) => a - b);
+      if (sortedSelected.length < 2) {
+        const promptEl = document.createElement('div');
+        promptEl.className = 'summary-empty';
+        promptEl.textContent = entries.length < 2
+          ? 'Compute at least 2 lines to compare their succeeding and failing deals.'
+          : 'Select at least 2 lines above to view the comparison chart and differing deals.';
+        compareLinesResults.appendChild(promptEl);
+      } else {
+        for (let i = 0; i < sortedSelected.length; i++) {
+          for (let j = i + 1; j < sortedSelected.length; j++) {
+            const idxA = sortedSelected[i];
+            const idxB = sortedSelected[j];
+            compareLinesResults.appendChild(
+              renderComparePairSection(entries[idxA], idxA, entries[idxB], idxB, entries)
+            );
+          }
+        }
+      }
+    }
   }
 
   function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
@@ -2656,6 +3341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       equivalentLinesBar.classList.add('hidden');
     }
+    renderCompareLinesTab();
   }
 
   function selectEquivalentLine(rawIndex) {
@@ -2725,8 +3411,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const failure = currentSolveData.failure_boards !== undefined
       ? currentSolveData.failure_boards
       : Math.max(0, total - success);
-    const successPct = Math.round((success / total) * 100);
-    const failurePct = Math.round((failure / total) * 100);
+    const successPct = ((success / total) * 100).toFixed(1);
+    const failurePct = ((failure / total) * 100).toFixed(1);
     if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
     if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
@@ -3655,6 +4341,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (sampleHandsModeSub) sampleHandsModeSub.textContent = '';
 
+    clearCompareLines();
+
     activateTab('tree');
   }
 
@@ -3917,8 +4605,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
       const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
-      const successPct = Math.round((success / total) * 100);
-      const failurePct = Math.round((failure / total) * 100);
+      const successPct = ((success / total) * 100).toFixed(1);
+      const failurePct = ((failure / total) * 100).toFixed(1);
 
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
@@ -4131,8 +4819,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
       const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
-      const successPct = Math.round((success / total) * 100);
-      const failurePct = Math.round((failure / total) * 100);
+      const successPct = ((success / total) * 100).toFixed(1);
+      const failurePct = ((failure / total) * 100).toFixed(1);
 
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
@@ -4280,6 +4968,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const numThreadsSelect = document.getElementById('numThreads');
       const parsedThreads = numThreadsSelect ? parseInt(numThreadsSelect.value, 10) : 16;
 
+      const replayTricksPayload = prefixTricksToSplice.map(pt =>
+        (pt.cards || []).map(c => {
+          const r = (c.rankStr === '10') ? 'T' : (c.rankStr || 'x');
+          return `${c.suit || 'S'}${r}`;
+        })
+      );
+
       const payload = {
         hands: {
           N: formatSuitsToHandStr(remainingBeforeTrickK.N, false),
@@ -4294,7 +4989,9 @@ document.addEventListener('DOMContentLoaded', () => {
         num_threads: isNaN(parsedThreads) ? 16 : parsedThreads,
         cur_trick: curTrickForSolve,
         start_trick_num: startTrickNumForSolve,
-        initial_ns_tricks: nsTricksBeforeSolve
+        initial_ns_tricks: nsTricksBeforeSolve,
+        reuse_deals: true,
+        replay_tricks: replayTricksPayload
       };
 
       const remUnknownStr = formatSuitsToHandStr(remainingBeforeTrickK.U, true);
@@ -4452,8 +5149,8 @@ document.addEventListener('DOMContentLoaded', () => {
         statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
         updateLeadStat(data);
 
-        const successPct = Math.round((success / total) * 100);
-        const failurePct = Math.round((failure / total) * 100);
+        const successPct = ((success / total) * 100).toFixed(1);
+        const failurePct = ((failure / total) * 100).toFixed(1);
         if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
         if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
@@ -4554,11 +5251,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSampleHandCardsSelection() {
-    if (!sampleHandsGrid) return;
-    const cards = sampleHandsGrid.querySelectorAll('.sample-deal-card');
-    cards.forEach(card => {
-      const bId = card.dataset.boardId !== undefined ? parseInt(card.dataset.boardId, 10) : -1;
-      card.classList.toggle('traced-deal-card', activeTracedBoardId !== null && bId === activeTracedBoardId);
+    [sampleHandsGrid, compareLinesResults].forEach(container => {
+      if (!container) return;
+      const cards = container.querySelectorAll('.sample-deal-card');
+      cards.forEach(card => {
+        const bId = card.dataset.boardId !== undefined ? parseInt(card.dataset.boardId, 10) : -1;
+        card.classList.toggle('traced-deal-card', activeTracedBoardId !== null && bId === activeTracedBoardId);
+      });
     });
   }
 
@@ -5079,7 +5778,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function formatNodeCardDealLines(node) {
     const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
-    const withPct = (n) => total ? `${n} (${Math.round((n / total) * 100)}%)` : `${n}`;
+    const withPct = (n) => total ? `${n} (${((n / total) * 100).toFixed(1)}%)` : `${n}`;
     if (node.failure) {
       const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
       return { primary: `Fails: ${withPct(fails)}`, secondary: '' };

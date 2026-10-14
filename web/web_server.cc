@@ -1406,6 +1406,23 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     double solve_ms = 0.0;
     double invariant_ms = 0.0;
 
+    bool reuse_deals = req_json.value("reuse_deals", false);
+    std::vector<std::vector<std::string>> replay_tricks;
+    if (req_json.contains("replay_tricks") &&
+        req_json["replay_tricks"].is_array()) {
+      for (const auto &t_json : req_json["replay_tricks"]) {
+        if (t_json.is_array()) {
+          std::vector<std::string> cards;
+          for (const auto &c_json : t_json) {
+            if (c_json.is_string()) {
+              cards.push_back(c_json.get<std::string>());
+            }
+          }
+          replay_tricks.push_back(std::move(cards));
+        }
+      }
+    }
+
     if (is_fuzzy) {
       total_boards = num_iters;
       nlohmann::json reqs_json =
@@ -1413,8 +1430,20 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
                                             : nlohmann::json();
       bool reused_lf = false;
       std::unique_ptr<LineFinder> lf = CheckoutLineFinder(
-          num_iters, hands, unknown_cards, trump_suit, leader, cur_trick,
+          num_iters, hands, unknown_cards, trump_suit, leader,
+          replay_tricks.empty() ? cur_trick : std::vector<CardType>{},
           reqs_json, &reused_lf);
+      if (reused_lf) {
+        lf->SetPredealtBoards({}, {});
+      } else if (reuse_deals) {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
+        if (static_cast<int>(last_initial_boards_.size()) == num_iters) {
+          lf->SetPredealtBoards(last_initial_boards_, replay_tricks);
+          if (last_solver_cache_) {
+            lf->SetSharedCache(last_solver_cache_);
+          }
+        }
+      }
 
       std::vector<ConditionalLine> lines =
           lf->Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
@@ -1423,7 +1452,15 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       invariant_ms = lf->invariant_ms();
 
       std::vector<BoardState> boards = lf->boards();
-      if (reused_lf || cur_trick.empty()) {
+      std::vector<BoardState> display_boards =
+          !lf->initial_boards().empty() ? lf->initial_boards() : boards;
+      if (!reuse_deals && !reused_lf && !lf->initial_boards().empty()) {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
+        last_initial_boards_ = lf->initial_boards();
+        last_solver_cache_ = lf->shared_cache();
+      }
+      if (reused_lf ||
+          (!reuse_deals && cur_trick.empty() && replay_tricks.empty())) {
         CheckinLineFinder(std::move(lf), num_iters, hands, unknown_cards,
                           trump_suit, leader, std::move(reqs_json));
       }
@@ -1431,6 +1468,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       if (!lines.empty()) {
         covered_set = lines[0].CoveredBoardsSet();
       }
+      response["covered_board_ids"] =
+          std::vector<int>(covered_set.begin(), covered_set.end());
 
       constexpr size_t kMaxSampleHands = 100;
       nlohmann::json sample_hands_json = nlohmann::json::array();
@@ -1442,12 +1481,16 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         if (!is_covered) {
           failed_board_ids.push_back(b_idx);
         }
+        const BoardState &disp_b =
+            b_idx < static_cast<int>(display_boards.size())
+                ? display_boards[b_idx]
+                : boards[b_idx];
         nlohmann::json hand_entry = {
             {"board_id", b_idx},
-            {"N", HandDebugString(boards[b_idx].GetHand(0), true)},
-            {"E", HandDebugString(boards[b_idx].GetHand(1), true)},
-            {"S", HandDebugString(boards[b_idx].GetHand(2), true)},
-            {"W", HandDebugString(boards[b_idx].GetHand(3), true)},
+            {"N", HandDebugString(disp_b.GetHand(0), true)},
+            {"E", HandDebugString(disp_b.GetHand(1), true)},
+            {"S", HandDebugString(disp_b.GetHand(2), true)},
+            {"W", HandDebugString(disp_b.GetHand(3), true)},
             {"succeeded", is_covered},
         };
         all_hands_json.push_back(hand_entry);

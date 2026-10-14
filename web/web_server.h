@@ -11,6 +11,7 @@
 
 #include "conditional_line.h"
 #include "line_finder.h"
+#include "solver.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
 
@@ -127,4 +128,6 @@ class WebServer {
   Suit cached_trump_ = NOTRUMP;
   int cached_leader_ = -1;
   nlohmann::json cached_reqs_json_;
+  std::vector<BoardState> last_initial_boards_;
+  std::shared_ptr<SolverCache> last_solver_cache_;
 };
