@@ -22,6 +22,8 @@ std::vector<std::string> FindBestCardsToPlay(
 
 int FindOptimalTricks(const BoardState &bs);
 
+std::string FindBestDefenderCard(const BoardState &bs);
+
 class OptimalPlayTree {
  public:
   OptimalPlayTree() = default;
@@ -45,7 +47,11 @@ class OptimalPlayTree {
   bool IsDeepened(const OptimalLine &trick) const {
     std::lock_guard<std::mutex> lock(mu_);
     auto it = all_plays.find(trick);
-    return it != all_plays.end() && it->second != nullptr;
+    if (it != all_plays.end() && it->second != nullptr) {
+      return true;
+    }
+    auto wit = cached_plays_.find(trick);
+    return wit != cached_plays_.end() && !wit->second.expired();
   }
 
   void Deepen(int num_levels, SolverCache *cache);
@@ -89,6 +95,7 @@ class OptimalPlayTree {
  private:
   mutable std::mutex mu_;
   std::unordered_map<OptimalLine, std::shared_ptr<OptimalPlayTree>> all_plays;
+  std::unordered_map<OptimalLine, std::weak_ptr<OptimalPlayTree>> cached_plays_;
   OptimalLines lines_;
   BoardState my_bs;
   int tricks_remaining = 0;

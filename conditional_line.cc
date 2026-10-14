@@ -571,6 +571,11 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     }
     ans.emplace_back(d1, d2, d2.boards, leader_);
   }
+  for (GeneralizedTrick &gt : ans) {
+    gt.demi1.boards.clear();
+    gt.demi1.board_to_trick.clear();
+    gt.demi2.boards.clear();
+  }
   return ans;
 }
 
@@ -1020,7 +1025,6 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
     }
   }
 
-  std::vector<std::vector<std::string>> cur_opt_lines;
   int start_pos = copy.CardsPlayedThisTrick();
   for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
     int pre_p = (copy.cur_trick_leader() + pre_pos) % 4;
@@ -1062,18 +1066,7 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
           SelectMostSpecificCandidate(candidates, pos);
       std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
       CardType chosen_card = ChooseValidCard(copy, decl_card_str);
-      std::string chosen_str = Card::PrintCard(chosen_card);
       copy.PlayCard(p, chosen_card);
-
-      // Keep walking down the optimal play tree if chosen_str matches;
-      // otherwise clear cur_opt_lines so FindOptimalPlayTree is called next.
-      std::vector<std::vector<std::string>> next_opt_lines;
-      for (const auto &seq : cur_opt_lines) {
-        if (!seq.empty() && seq[0] == chosen_str) {
-          next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
-        }
-      }
-      cur_opt_lines = std::move(next_opt_lines);
 
       if (candidates.size() > 1) {
         std::vector<const ConditionalLine *> matching;
@@ -1087,32 +1080,13 @@ int ResultsOnHandHelper(const ConditionalLine *line, BoardState copy) {
         }
       }
     } else {
-      // Defender side: query DDS OptimalPlayTree when needed.
-      if (cur_opt_lines.empty()) {
-        auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
-        int pre = copy.CardsPlayedThisTrick();
-        for (const auto &line : tree->GetLines()) {
-          std::vector<std::string> words = SplitWords(line);
-          if (static_cast<int>(words.size()) > pre) {
-            cur_opt_lines.emplace_back(words.begin() + pre, words.end());
-          }
-        }
-      }
-      CHECK(!cur_opt_lines.empty());
-      CHECK(!cur_opt_lines[0].empty());
-      std::string def_card_str = cur_opt_lines[0][0];
+      // Defender side: query DDS directly for this defender's card.
+      std::string def_card_str = FindBestDefenderCard(copy);
+      CHECK(!def_card_str.empty());
       CardType def_card = Card::ParseStringCard(def_card_str);
       Suit suit_led =
           (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
       copy.PlayCard(p, def_card);
-
-      std::vector<std::vector<std::string>> next_opt_lines;
-      for (const auto &seq : cur_opt_lines) {
-        if (!seq.empty() && seq[0] == def_card_str) {
-          next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
-        }
-      }
-      cur_opt_lines = std::move(next_opt_lines);
 
       if (candidates.size() > 1) {
         std::vector<const ConditionalLine *> matching =
@@ -1242,7 +1216,6 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
     bool diverged_during_trick = false;
     int unmatched_seat = -1;
     std::string unmatched_card;
-    std::vector<std::vector<std::string>> cur_opt_lines;
 
     for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
       int pre_p = (trick_leader + pre_pos) % 4;
@@ -1301,14 +1274,6 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
           my2_str = chosen_str;
         }
 
-        std::vector<std::vector<std::string>> next_opt_lines;
-        for (const auto &seq : cur_opt_lines) {
-          if (!seq.empty() && seq[0] == chosen_str) {
-            next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
-          }
-        }
-        cur_opt_lines = std::move(next_opt_lines);
-
         if (candidates.size() > 1) {
           std::vector<const ConditionalLine *> matching;
           for (const ConditionalLine *cand : candidates) {
@@ -1321,20 +1286,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
           }
         }
       } else {
-        if (cur_opt_lines.empty()) {
-          auto tree = OptimalPlayTree::FindOptimalPlayTree(copy, 0);
-          int pre = copy.CardsPlayedThisTrick();
-          for (const auto &line : tree->GetLines()) {
-            std::vector<std::string> words = SplitWords(line);
-            if (static_cast<int>(words.size()) > pre) {
-              cur_opt_lines.emplace_back(words.begin() + pre, words.end());
-            }
-          }
-        }
-        std::string def_card_str;
+        std::string def_card_str = FindBestDefenderCard(copy);
         CardType def_card = 0;
-        if (!cur_opt_lines.empty() && !cur_opt_lines[0].empty()) {
-          def_card_str = cur_opt_lines[0][0];
+        if (!def_card_str.empty()) {
           def_card = Card::ParseStringCard(def_card_str);
         } else {
           def_card = copy.ValidCardsToPlay()[0];
@@ -1344,14 +1298,6 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
             (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
         copy.PlayCard(p, def_card);
         played_cards.push_back(def_card_str);
-
-        std::vector<std::vector<std::string>> next_opt_lines;
-        for (const auto &seq : cur_opt_lines) {
-          if (!seq.empty() && seq[0] == def_card_str) {
-            next_opt_lines.emplace_back(seq.begin() + 1, seq.end());
-          }
-        }
-        cur_opt_lines = std::move(next_opt_lines);
 
         std::vector<const ConditionalLine *> matching =
             FilterCandidatesByDefenderCard(

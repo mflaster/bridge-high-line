@@ -347,6 +347,30 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
 
 }  // namespace
 
+std::string FindBestDefenderCard(const BoardState &bs) {
+  DoInit();
+  std::vector<CardType> valid = bs.ValidCardsToPlay();
+  if (valid.size() == 1) {
+    return Card::PrintCard(valid[0]);
+  }
+  dealPBN dl;
+  PopulatePBNDeal(bs, &dl);
+  futureTricks futp;
+  int target = -1;
+  int solutions = 2;
+  int mode = 1;
+  int threadindex = omp_get_thread_num();
+  SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  if (futp.cards <= 0) {
+    return valid.empty() ? "" : Card::PrintCard(valid[0]);
+  }
+  int level = bs.CardsPlayedThisTrick();
+  auto [card_to_play, defender_rank_to_play] =
+      ChooseDefenderPlay(bs, level, futp);
+  return Card::PrintDDSCard(static_cast<Suit>(futp.suit[card_to_play]),
+                            defender_rank_to_play);
+}
+
 int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
                    int level, OptimalLines *lines,
                    SolverCache *cache,
@@ -557,11 +581,21 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
   }
   if (use_tree_cache) {
     std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);
-    auto [it, inserted] = cache->tree_cache[shard].emplace(key, ans);
-    if (!inserted) {
+    auto existing = cache->tree_cache[shard].find(key);
+    if (existing != cache->tree_cache[shard].end()) {
       cache->tree_hits.fetch_add(1, std::memory_order_relaxed);
-      ans = it->second;
+      ans = existing->second;
     } else {
+      if (cache->tree_ring[shard].size() <
+          SolverCache::kMaxTreeCachePerShard) {
+        cache->tree_ring[shard].push_back(key);
+      } else {
+        size_t &cur = cache->tree_cursor[shard];
+        cache->tree_cache[shard].erase(cache->tree_ring[shard][cur]);
+        cache->tree_ring[shard][cur] = key;
+        cur = (cur + 1) % SolverCache::kMaxTreeCachePerShard;
+      }
+      cache->tree_cache[shard].emplace(key, ans);
       cache->tree_misses.fetch_add(1, std::memory_order_relaxed);
     }
   }
@@ -602,6 +636,12 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::Deepen(
     if (it->second) {
       return it->second;
     }
+    auto wit = cached_plays_.find(line);
+    if (wit != cached_plays_.end()) {
+      if (auto sp = wit->second.lock()) {
+        return sp;
+      }
+    }
   }
   BoardState copy(my_bs);
   copy.PlayTrick(line);
@@ -611,6 +651,10 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::Deepen(
                                 std::max(0, min_tricks - ns_wins_trick),
                                 tricks_remaining - 1, 0, cache);
   std::lock_guard<std::mutex> lock(mu_);
+  if (cache != nullptr) {
+    cached_plays_[line] = rest;
+    return rest;
+  }
   auto it = all_plays.find(line);
   if (!it->second) {
     it->second = rest;
