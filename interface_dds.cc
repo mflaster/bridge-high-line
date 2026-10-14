@@ -651,7 +651,7 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::Deepen(
                                 std::max(0, min_tricks - ns_wins_trick),
                                 tricks_remaining - 1, 0, cache);
   std::lock_guard<std::mutex> lock(mu_);
-  if (cache != nullptr) {
+  if (cache != nullptr && tricks_remaining > 1) {
     cached_plays_[line] = rest;
     return rest;
   }
