@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sampleHandsModeBadge.textContent = 'Covered Deals';
       }
       if (currentSolveData) {
-        const pct = Math.round((success / total) * 100);
+        const pct = ((success / total) * 100).toFixed(1);
         if (summaryModeSub) {
           summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
         }
@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sampleHandsModeBadge.textContent = 'Non-Covered (Failed) Deals';
       }
       if (currentSolveData) {
-        const pct = Math.round((failure / total) * 100);
+        const pct = ((failure / total) * 100).toFixed(1);
         if (summaryModeSub) {
           summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
         }
@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatLineSuccessPctPrefix(coveredOrSuccess, totalBoards) {
     const total = (typeof totalBoards === 'number' && totalBoards > 0) ? totalBoards : 1;
     const succ = (typeof coveredOrSuccess === 'number' && coveredOrSuccess >= 0) ? coveredOrSuccess : 0;
-    const pct = Math.round((succ / total) * 100);
+    const pct = ((succ / total) * 100).toFixed(1);
     return `${pct}% `;
   }
 
@@ -632,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const segEl = document.createElement('div');
       segEl.className = `compare-bar-seg ${seg.cls}`;
       segEl.style.width = `${pct.toFixed(2)}%`;
-      const pctRound = Math.round(pct);
+      const pctRound = pct.toFixed(1);
       segEl.title = `${seg.label}: ${seg.count}/${total} (${pctRound}%)`;
       if (pct >= 8) {
         segEl.textContent = `${seg.count} (${pctRound}%)`;
@@ -644,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const legendEl = document.createElement('div');
     legendEl.className = 'compare-chart-legend';
     segments.forEach(seg => {
-      const pctRound = Math.round((seg.count / total) * 100);
+      const pctRound = ((seg.count / total) * 100).toFixed(1);
       const item = document.createElement('div');
       item.className = 'compare-legend-item';
       item.innerHTML = `
@@ -792,7 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const total = entry.totalBoards || 1;
         const succ = entry.coveredBoards !== undefined ? entry.coveredBoards : 0;
-        const pct = Math.round((succ / total) * 100);
+        const pct = ((succ / total) * 100).toFixed(1);
         const pctBadge = document.createElement('span');
         pctBadge.className = 'compare-line-pct-badge';
         pctBadge.textContent = `${succ}/${total} (${pct}%)`;
@@ -949,8 +949,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const failure = currentSolveData.failure_boards !== undefined
       ? currentSolveData.failure_boards
       : Math.max(0, total - success);
-    const successPct = Math.round((success / total) * 100);
-    const failurePct = Math.round((failure / total) * 100);
+    const successPct = ((success / total) * 100).toFixed(1);
+    const failurePct = ((failure / total) * 100).toFixed(1);
     if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
     if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
@@ -2143,8 +2143,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
       const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
-      const successPct = Math.round((success / total) * 100);
-      const failurePct = Math.round((failure / total) * 100);
+      const successPct = ((success / total) * 100).toFixed(1);
+      const failurePct = ((failure / total) * 100).toFixed(1);
 
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
@@ -2357,8 +2357,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
       const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
-      const successPct = Math.round((success / total) * 100);
-      const failurePct = Math.round((failure / total) * 100);
+      const successPct = ((success / total) * 100).toFixed(1);
+      const failurePct = ((failure / total) * 100).toFixed(1);
 
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
@@ -2687,8 +2687,8 @@ document.addEventListener('DOMContentLoaded', () => {
         statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
         updateLeadStat(data);
 
-        const successPct = Math.round((success / total) * 100);
-        const failurePct = Math.round((failure / total) * 100);
+        const successPct = ((success / total) * 100).toFixed(1);
+        const failurePct = ((failure / total) * 100).toFixed(1);
         if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
         if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
@@ -3316,7 +3316,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function formatNodeCardDealLines(node) {
     const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
-    const withPct = (n) => total ? `${n} (${Math.round((n / total) * 100)}%)` : `${n}`;
+    const withPct = (n) => total ? `${n} (${((n / total) * 100).toFixed(1)}%)` : `${n}`;
     if (node.failure) {
       const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
       return { primary: `Fails: ${withPct(fails)}`, secondary: '' };
