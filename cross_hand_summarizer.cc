@@ -12,16 +12,6 @@
 #include "glog/logging.h"
 #include "unknown_cards_invariant.h"
 
-static int CardsInSuit(uint64_t hand, Suit s) {
-  uint16_t suit_bits = (hand >> (static_cast<int>(s) * 16)) & 0xffff;
-  int count = 0;
-  while (suit_bits) {
-    count += (suit_bits & 1);
-    suit_bits >>= 1;
-  }
-  return count;
-}
-
 // --- Extractors Implementation ---
 
 void JointSuitRuleExtractor::ProcessDeal(const PairedDeal& deal) {
