@@ -134,6 +134,9 @@ class LineFinder {
   // Estimated fraction of the play-tree search finished, in [0, 1], or -1
   // when no search is running.
   static double GetSolveProgress();
+  static void RequestStop();
+  static void ClearStop();
+  static bool IsStopRequested();
 
   double solve_ms() const { return solve_ms_; }
   double invariant_ms() const { return invariant_ms_; }

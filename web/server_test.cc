@@ -907,5 +907,28 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
     REQUIRE(alt_json["all_hands"][i]["W"] == base_json["all_hands"][i]["W"]);
   }
 
+  // Test /api/stop_solve endpoint and subsequent solve recovery
+  auto res_stop = client.Post("/api/stop_solve", "", "application/json");
+  REQUIRE(res_stop);
+  REQUIRE(res_stop->status == 200);
+  nlohmann::json stop_json = nlohmann::json::parse(res_stop->body);
+  REQUIRE(stop_json["status"] == "stopping");
+  REQUIRE(LineFinder::IsStopRequested());
+
+  // Next /api/solve clears the stop flag automatically and succeeds
+  auto res_after_stop =
+      client.Post("/api/solve", base_req.dump(), "application/json");
+  REQUIRE(res_after_stop);
+  REQUIRE(res_after_stop->status == 200);
+  nlohmann::json after_stop_json = nlohmann::json::parse(res_after_stop->body);
+  REQUIRE(after_stop_json["success"] == true);
+  REQUIRE(!LineFinder::IsStopRequested());
+
+  auto res_index = client.Get("/");
+  REQUIRE(res_index);
+  REQUIRE(res_index->body.find("stopSolveBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("stopSolveActionBtn") != std::string::npos);
+
   server.Stop();
 }
+

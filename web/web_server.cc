@@ -1186,6 +1186,10 @@ void WebServer::RegisterRoutes() {
   svr_.Get("/api/solve_status", [this](const httplib::Request &req, httplib::Response &res) {
     HandleSolveStatus(req, res);
   });
+
+  svr_.Post("/api/stop_solve", [this](const httplib::Request &req, httplib::Response &res) {
+    HandleStopSolve(req, res);
+  });
 }
 
 void WebServer::HandleHealth(const httplib::Request &, httplib::Response &res) {
@@ -1203,6 +1207,15 @@ void WebServer::HandleSolveStatus(const httplib::Request &,
   if (progress >= 0.0) {
     response["progress"] = progress;
   }
+  res.set_content(response.dump(), "application/json");
+}
+
+void WebServer::HandleStopSolve(const httplib::Request &,
+                                httplib::Response &res) {
+  LineFinder::RequestStop();
+  LineFinder::SetSolveStatus("Stopping solve...");
+  nlohmann::json response;
+  response["status"] = "stopping";
   res.set_content(response.dump(), "application/json");
 }
 
@@ -1282,6 +1295,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
   nlohmann::json response;
   try {
     auto start_time = std::chrono::high_resolution_clock::now();
+    LineFinder::ClearStop();
     LineFinder::SetSolveStatus("Starting solve...");
 
     nlohmann::json req_json = nlohmann::json::parse(req.body);
@@ -1448,6 +1462,18 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       std::vector<ConditionalLine> lines =
           lf->Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
                     cur_trick, num_threads);
+      if (LineFinder::IsStopRequested()) {
+        if (reused_lf) {
+          CheckinLineFinder(std::move(lf), num_iters, hands, unknown_cards,
+                            trump_suit, leader, std::move(reqs_json));
+        }
+        LineFinder::SetSolveStatus("Solve stopped.");
+        response["success"] = false;
+        response["stopped"] = true;
+        response["error"] = "Solve stopped by user.";
+        res.set_content(response.dump(), "application/json");
+        return;
+      }
       solve_ms = lf->solve_ms();
       invariant_ms = lf->invariant_ms();
 

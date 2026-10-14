@@ -206,6 +206,9 @@
           <button id="solveBtn" class="btn btn-primary btn-large">
             <span class="btn-icon">⚡</span> Solve Deal
           </button>
+          <button id="stopSolveActionBtn" type="button" class="btn btn-stop btn-large hidden" title="Stop current solve">
+            <span class="btn-icon">■</span> Stop
+          </button>
           <div class="threads-selector" title="Number of solver threads">
             <label for="numThreads">Threads:</label>
             <select id="numThreads" class="select-input">
@@ -257,6 +260,7 @@
             <div id="statusProgressFill" class="status-progress-fill"></div>
           </div>
           <span id="execTime" class="exec-time"></span>
+          <button id="stopSolveBtn" type="button" class="btn btn-stop-sm hidden" title="Stop current solve">■ Stop</button>
         </div>
 
         <!-- Result Stats Cards -->

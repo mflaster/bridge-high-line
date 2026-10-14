@@ -1,4 +1,6 @@
+#include <chrono>
 #include <iostream>
+#include <thread>
 #include <catch2/catch_all.hpp>
 
 #include "golden_serializer.h"
@@ -903,3 +905,41 @@ TEST_CASE("LineFinder_ReuseCachedDealsForForcedLead") {
   REQUIRE(!cold_s5.empty());
   REQUIRE(warm_s5[0].CoveredFinalBoards() == cold_s5[0].CoveredFinalBoards());
 }
+
+TEST_CASE("LineFinder_StopSolve") {
+  srand48(0);
+  std::vector<uint64_t> hands(4, 0);
+  hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+  hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+  uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+
+  LineFinder::SetSolveStatus("Idle");
+  std::thread stopper([]() {
+    while (true) {
+      std::string st = LineFinder::GetSolveStatus();
+      if (st.find("Solving") != std::string::npos ||
+          st.find("Searching") != std::string::npos) {
+        LineFinder::RequestStop();
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+
+  LineFinder lf(100);
+  std::vector<ConditionalLine> stopped_lines =
+      lf.Solve(6, hands, unknown, 0, HEARTS, {}, /*num_threads=*/2);
+  stopper.join();
+  REQUIRE(LineFinder::IsStopRequested());
+  REQUIRE(stopped_lines.empty());
+  REQUIRE(LineFinder::GetSolveStatus() == "Solve stopped.");
+
+  // A subsequent Solve() automatically clears the stop flag and succeeds.
+  LineFinder lf2(15);
+  std::vector<ConditionalLine> resumed_lines =
+      lf2.Solve(6, hands, unknown, 0, HEARTS, {});
+  REQUIRE(!LineFinder::IsStopRequested());
+  REQUIRE(!resumed_lines.empty());
+  REQUIRE(resumed_lines[0].CoveredFinalBoards() > 0);
+}
+

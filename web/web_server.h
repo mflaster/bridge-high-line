@@ -105,6 +105,7 @@ class WebServer {
   void HandleHealth(const httplib::Request &req, httplib::Response &res);
   void HandleSolve(const httplib::Request &req, httplib::Response &res);
   void HandleSolveStatus(const httplib::Request &req, httplib::Response &res);
+  void HandleStopSolve(const httplib::Request &req, httplib::Response &res);
   std::unique_ptr<LineFinder> CheckoutLineFinder(
       int num_iters, const std::vector<uint64_t> &hands,
       uint64_t unknown_cards, Suit trump_suit, int leader,
