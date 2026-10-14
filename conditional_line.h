@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <memory>
 #include <map>
@@ -15,6 +16,7 @@ struct GeneralizedDemiStruct {
   std::string opp_card;
   std::string my_card;
   std::set<int> boards;
+  std::vector<int> boards_vec;
   std::map<int, std::string> board_to_trick;
 
   GeneralizedDemiStruct(const std::string &opp,
@@ -44,16 +46,18 @@ class GeneralizedDemiPlay {
                          const std::string *trick = nullptr);
 
   GeneralizedPlaysVector GetGeneralizedPlays(
-      int leader, Suit suit_led, unsigned int top = 10);
+      int leader, Suit suit_led, unsigned int top = 10,
+      bool populate_boards_set = true);
 
   static std::string PrintGeneralizedPlays(const GeneralizedPlaysVector &plays);
 
  private:
   std::map<std::string,
-     std::map<std::string, std::set<int>>> opp_to_card_to_boards_;
+      std::map<std::string, std::vector<int>>> opp_to_card_to_boards_;
 
-  std::map<std::string,
-      std::map<std::string, std::map<int, std::string>>> saved_tricks_;
+  std::map<std::string, std::map<std::string, std::vector<int>>>
+      opp_to_card_to_boards_by_suit_[4];
+  bool has_by_suit_ = false;
   Suit trump_suit_;
 };
 
@@ -95,7 +99,16 @@ class GeneralizedTrickFinder {
       const GeneralizedTricksVector &plays);
 
  private:
-  std::vector<std::pair<std::vector<std::string>, int>> tricks_;
+  struct RecordedTrick {
+    std::array<std::string, 4> cards;
+    int board = 0;
+  };
+  GeneralizedTrick BuildGeneralizedTrick(
+      const GeneralizedDemiStruct &d1,
+      const GeneralizedDemiStruct &d2,
+      const std::vector<uint> *d1_trick_indices) const;
+
+  std::vector<RecordedTrick> tricks_;
   std::vector<std::string> raw_tricks_;
   int leader_ = -1;
   Suit trump_suit_ = NOTRUMP;
@@ -159,16 +172,24 @@ class ConditionalLine {  // ConditionalLineBranch
 
   // Explicit constructor for terminal leaf node initialized with succeeded board IDs.
   explicit ConditionalLine(const std::set<int> &boards)
-      : final_covered_boards_(boards) {}
+      : final_covered_boards_(boards),
+        covered_count_(static_cast<int>(boards.size())) {}
 
   // Adds a conditional branch linking a PlayCondition (e.g. WinnerPlayCondition or TrickPlayCondition)
   // to a child ConditionalLine continuation node.
   void AddCondition(PlayCondition *c,
                     const ConditionalLine &continue_with) {
+    AddCondition(c, std::make_shared<ConditionalLine>(continue_with));
+  }
+
+  void AddCondition(PlayCondition *c,
+                    std::shared_ptr<ConditionalLine> continue_with) {
     assert(final_covered_boards_.empty());
+    if (continue_with) {
+      covered_count_ += continue_with->CoveredFinalBoards();
+    }
     conditions_.emplace_back(std::shared_ptr<PlayCondition>(c),
-                             std::shared_ptr<ConditionalLine>(
-                                 new ConditionalLine(continue_with)));
+                             std::move(continue_with));
   }
 
   // Sets the next trick action (GeneralizedTrick) to be played at this node in the decision tree.
@@ -242,8 +263,8 @@ class ConditionalLine {  // ConditionalLineBranch
   // it diverges or terminates, computing final_ns_tricks.
   BoardPlayTrace TraceOnBoard(const BoardState &bs, int board_id = 0) const;
 
-  // Recursively counts total distinct final boards covered across all leaf subtrees.
-  int CoveredFinalBoards() const;
+  // Returns total distinct final boards covered across all leaf subtrees.
+  int CoveredFinalBoards() const { return covered_count_; }
 
   // Recursively gathers set of distinct final boards covered across all leaf subtrees, avoiding cycles.
   std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
@@ -283,6 +304,9 @@ class ConditionalLine {  // ConditionalLineBranch
 
   // Non-empty only on terminal leaf nodes: set of board IDs where min_tricks target was reached.
   std::set<int> final_covered_boards_;
+
+  // Cached count of covered boards across this node and its subtrees.
+  int covered_count_ = 0;
 
   // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;
@@ -347,3 +371,5 @@ class IsCardGoodCondition : public PlayCondition {
 
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     const std::vector<GeneralizedTrick> &input);
+std::vector<std::vector<GeneralizedTrick>> GroupTricks(
+    std::vector<GeneralizedTrick> &&input);

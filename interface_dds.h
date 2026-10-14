@@ -44,14 +44,31 @@ class OptimalPlayTree {
     lines_.insert(line);
   }
 
+  void AddLineWithChild(const OptimalLine &line,
+                        std::shared_ptr<OptimalPlayTree> child) {
+    all_plays[line] = nullptr;
+    lines_.insert(line);
+    if (child) {
+      cached_plays_[line] = std::move(child);
+    }
+  }
+
   bool IsDeepened(const OptimalLine &trick) const {
+    return TryGetDeepened(trick) != nullptr;
+  }
+
+  std::shared_ptr<OptimalPlayTree> TryGetDeepened(
+      const OptimalLine &trick) const {
     std::lock_guard<std::mutex> lock(mu_);
     auto it = all_plays.find(trick);
     if (it != all_plays.end() && it->second != nullptr) {
-      return true;
+      return it->second;
     }
     auto wit = cached_plays_.find(trick);
-    return wit != cached_plays_.end() && !wit->second.expired();
+    if (wit != cached_plays_.end()) {
+      return wit->second.lock();
+    }
+    return nullptr;
   }
 
   void Deepen(int num_levels, SolverCache *cache);

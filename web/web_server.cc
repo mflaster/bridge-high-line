@@ -1206,6 +1206,78 @@ void WebServer::HandleSolveStatus(const httplib::Request &,
   res.set_content(response.dump(), "application/json");
 }
 
+namespace {
+
+std::vector<std::vector<std::shared_ptr<HandRequirements>>>
+ParseHandRequirements(const nlohmann::json &reqs_json) {
+  std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
+  for (int i = 0; i < 4; ++i) {
+    std::string p_key = (i == 0 ? "N" : (i == 1 ? "E" : (i == 2 ? "S" : "W")));
+    if (!reqs_json.contains(p_key)) continue;
+    const auto &p_req = reqs_json[p_key];
+    if (p_req.contains("hcp_low") && p_req.contains("hcp_high")) {
+      reqs[i].push_back(std::make_shared<HighCardRange>(
+          p_req["hcp_low"].get<int>(), p_req["hcp_high"].get<int>()));
+    }
+    if (p_req.contains("spades_min")) {
+      reqs[i].push_back(std::make_shared<SuitAtLeast>(
+          SPADES, p_req["spades_min"].get<int>()));
+    }
+    if (p_req.contains("suit_max") && p_req["suit_max"].is_object()) {
+      for (const auto &[s_key, max_val] : p_req["suit_max"].items()) {
+        if (max_val.is_number_integer()) {
+          Suit s = ParseSuitName(s_key);
+          if (s != NOTRUMP) {
+            reqs[i].push_back(std::make_shared<SuitLength>(
+                s, 0, std::max(0, max_val.get<int>())));
+          }
+        }
+      }
+    }
+  }
+  return reqs;
+}
+
+}  // namespace
+
+std::unique_ptr<LineFinder> WebServer::CheckoutLineFinder(
+    int num_iters, const std::vector<uint64_t> &hands,
+    uint64_t unknown_cards, Suit trump_suit, int leader,
+    const std::vector<CardType> &cur_trick,
+    const nlohmann::json &reqs_json, bool *reused_lf) {
+  *reused_lf = false;
+  {
+    std::lock_guard<std::mutex> lock(cached_lf_mu_);
+    if (cached_lf_ && !cur_trick.empty() &&
+        cached_num_iters_ == num_iters && cached_hands_ == hands &&
+        cached_unknown_cards_ == unknown_cards &&
+        cached_trump_ == trump_suit && cached_leader_ == leader &&
+        cached_reqs_json_ == reqs_json) {
+      *reused_lf = true;
+      return std::move(cached_lf_);
+    }
+  }
+  auto lf = std::make_unique<LineFinder>(num_iters);
+  if (!reqs_json.is_null() && !reqs_json.empty()) {
+    lf->SetRequirements(ParseHandRequirements(reqs_json));
+  }
+  return lf;
+}
+
+void WebServer::CheckinLineFinder(
+    std::unique_ptr<LineFinder> lf, int num_iters,
+    const std::vector<uint64_t> &hands, uint64_t unknown_cards,
+    Suit trump_suit, int leader, nlohmann::json reqs_json) {
+  std::lock_guard<std::mutex> lock(cached_lf_mu_);
+  cached_lf_ = std::move(lf);
+  cached_num_iters_ = num_iters;
+  cached_hands_ = hands;
+  cached_unknown_cards_ = unknown_cards;
+  cached_trump_ = trump_suit;
+  cached_leader_ = leader;
+  cached_reqs_json_ = std::move(reqs_json);
+}
+
 void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res) {
   nlohmann::json response;
   try {
@@ -1353,62 +1425,45 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
     if (is_fuzzy) {
       total_boards = num_iters;
-      LineFinder lf(num_iters);
-      if (reuse_deals) {
-        std::lock_guard<std::mutex> lock(last_solve_mu_);
+      nlohmann::json reqs_json =
+          req_json.contains("requirements") ? req_json["requirements"]
+                                            : nlohmann::json();
+      bool reused_lf = false;
+      std::unique_ptr<LineFinder> lf = CheckoutLineFinder(
+          num_iters, hands, unknown_cards, trump_suit, leader,
+          replay_tricks.empty() ? cur_trick : std::vector<CardType>{},
+          reqs_json, &reused_lf);
+      if (reused_lf) {
+        lf->SetPredealtBoards({}, {});
+      } else if (reuse_deals) {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
         if (static_cast<int>(last_initial_boards_.size()) == num_iters) {
-          lf.SetPredealtBoards(last_initial_boards_, replay_tricks);
+          lf->SetPredealtBoards(last_initial_boards_, replay_tricks);
           if (last_solver_cache_) {
-            lf.SetSharedCache(last_solver_cache_);
+            lf->SetSharedCache(last_solver_cache_);
           }
         }
-      }
-      if (req_json.contains("requirements")) {
-        auto &reqs_json = req_json["requirements"];
-        std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
-        for (int i = 0; i < 4; ++i) {
-          std::string p_key = (i == 0 ? "N" : (i == 1 ? "E" : (i == 2 ? "S" : "W")));
-          if (reqs_json.contains(p_key)) {
-            auto &p_req = reqs_json[p_key];
-            if (p_req.contains("hcp_low") && p_req.contains("hcp_high")) {
-              reqs[i].push_back(std::make_shared<HighCardRange>(
-                  p_req["hcp_low"].get<int>(), p_req["hcp_high"].get<int>()));
-            }
-            if (p_req.contains("spades_min")) {
-              reqs[i].push_back(std::make_shared<SuitAtLeast>(
-                  SPADES, p_req["spades_min"].get<int>()));
-            }
-            if (p_req.contains("suit_max") && p_req["suit_max"].is_object()) {
-              for (auto &[s_key, max_val] : p_req["suit_max"].items()) {
-                if (max_val.is_number_integer()) {
-                  Suit s = ParseSuitName(s_key);
-                  if (s != NOTRUMP) {
-                    reqs[i].push_back(std::make_shared<SuitLength>(
-                        s, 0, std::max(0, max_val.get<int>())));
-                  }
-                }
-              }
-            }
-          }
-        }
-        lf.SetRequirements(reqs);
       }
 
       std::vector<ConditionalLine> lines =
-          lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
-                   cur_trick, num_threads);
-      solve_ms = lf.solve_ms();
-      invariant_ms = lf.invariant_ms();
+          lf->Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
+                    cur_trick, num_threads);
+      solve_ms = lf->solve_ms();
+      invariant_ms = lf->invariant_ms();
 
-      if (!reuse_deals && !lf.initial_boards().empty()) {
-        std::lock_guard<std::mutex> lock(last_solve_mu_);
-        last_initial_boards_ = lf.initial_boards();
-        last_solver_cache_ = lf.shared_cache();
+      std::vector<BoardState> boards = lf->boards();
+      std::vector<BoardState> display_boards =
+          !lf->initial_boards().empty() ? lf->initial_boards() : boards;
+      if (!reuse_deals && !reused_lf && !lf->initial_boards().empty()) {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
+        last_initial_boards_ = lf->initial_boards();
+        last_solver_cache_ = lf->shared_cache();
       }
-
-      const auto &boards = lf.boards();
-      const auto &display_boards =
-          !lf.initial_boards().empty() ? lf.initial_boards() : boards;
+      if (reused_lf ||
+          (!reuse_deals && cur_trick.empty() && replay_tricks.empty())) {
+        CheckinLineFinder(std::move(lf), num_iters, hands, unknown_cards,
+                          trump_suit, leader, std::move(reqs_json));
+      }
       std::set<int> covered_set;
       if (!lines.empty()) {
         covered_set = lines[0].CoveredBoardsSet();

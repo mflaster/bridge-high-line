@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "conditional_line.h"
+#include "line_finder.h"
 #include "solver.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
@@ -104,13 +105,29 @@ class WebServer {
   void HandleHealth(const httplib::Request &req, httplib::Response &res);
   void HandleSolve(const httplib::Request &req, httplib::Response &res);
   void HandleSolveStatus(const httplib::Request &req, httplib::Response &res);
+  std::unique_ptr<LineFinder> CheckoutLineFinder(
+      int num_iters, const std::vector<uint64_t> &hands,
+      uint64_t unknown_cards, Suit trump_suit, int leader,
+      const std::vector<CardType> &cur_trick,
+      const nlohmann::json &reqs_json, bool *reused_lf);
+  void CheckinLineFinder(
+      std::unique_ptr<LineFinder> lf, int num_iters,
+      const std::vector<uint64_t> &hands, uint64_t unknown_cards,
+      Suit trump_suit, int leader, nlohmann::json reqs_json);
 
   std::string host_;
   int port_;
   httplib::Server svr_;
   std::unique_ptr<std::thread> server_thread_;
   std::atomic<bool> running_{false};
-  std::mutex last_solve_mu_;
+  std::mutex cached_lf_mu_;
+  std::unique_ptr<LineFinder> cached_lf_;
+  int cached_num_iters_ = 0;
+  std::vector<uint64_t> cached_hands_;
+  uint64_t cached_unknown_cards_ = 0;
+  Suit cached_trump_ = NOTRUMP;
+  int cached_leader_ = -1;
+  nlohmann::json cached_reqs_json_;
   std::vector<BoardState> last_initial_boards_;
   std::shared_ptr<SolverCache> last_solver_cache_;
 };

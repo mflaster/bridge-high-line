@@ -93,10 +93,72 @@ int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
 
   bool append_9_card_hearts_only = false;
+  int custom_9h_deals = 0;
+  int custom_9h_threads = 16;
+  bool custom_9h_warm = false;
+  std::string custom_9h_lead;
   for (int i = 1; i < argc; ++i) {
-    if (std::string(argv[i]) == "--append-9-card-hearts") {
+    std::string arg = argv[i];
+    if (arg == "--append-9-card-hearts") {
       append_9_card_hearts_only = true;
+    } else if (arg.rfind("--9h-deals=", 0) == 0) {
+      custom_9h_deals = std::stoi(arg.substr(11));
+    } else if (arg.rfind("--9h-threads=", 0) == 0) {
+      custom_9h_threads = std::stoi(arg.substr(13));
+    } else if (arg.rfind("--9h-lead=", 0) == 0) {
+      custom_9h_lead = arg.substr(10);
+    } else if (arg == "--9h-warm") {
+      custom_9h_warm = true;
     }
+  }
+
+  if (custom_9h_deals > 0) {
+    srand48(0);
+    std::vector<uint64_t> hands(4, 0);
+    hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+    hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+    uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+    LineFinder lf(custom_9h_deals);
+    auto run_solve = [&](const std::string& lead_str) {
+      if (!custom_9h_warm) {
+        srand48(0);
+      }
+      std::vector<CardType> cur_trick;
+      if (!lead_str.empty()) {
+        for (const std::string& tok : SplitWords(lead_str)) {
+          cur_trick.push_back(Card::ParseStringCard(tok));
+        }
+      }
+      auto start = std::chrono::high_resolution_clock::now();
+      std::vector<ConditionalLine> lines =
+          lf.Solve(6, hands, unknown, 0, HEARTS, cur_trick, custom_9h_threads);
+      auto end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> elapsed = end - start;
+      int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
+      std::cout << "9H bench deals=" << custom_9h_deals
+                << " threads=" << custom_9h_threads
+                << " warm=" << (custom_9h_warm ? 1 : 0)
+                << " lead=\"" << lead_str << "\""
+                << " time=" << std::fixed << std::setprecision(3)
+                << elapsed.count() << "s"
+                << " (solve=" << lf.solve_ms() << "ms, invariant="
+                << lf.invariant_ms() << "ms)"
+                << " covered=" << covered << "/" << custom_9h_deals
+                << " lines=" << lines.size() << std::endl;
+    };
+    if (custom_9h_warm) {
+      run_solve("");
+    }
+    if (custom_9h_lead.empty()) {
+      if (!custom_9h_warm) run_solve("");
+    } else {
+      std::stringstream ss(custom_9h_lead);
+      std::string item;
+      while (std::getline(ss, item, ',')) {
+        run_solve(item);
+      }
+    }
+    return 0;
   }
 
   std::ios_base::openmode mode =
