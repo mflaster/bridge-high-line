@@ -929,6 +929,56 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   REQUIRE(res_index->body.find("stopSolveBtn") != std::string::npos);
   REQUIRE(res_index->body.find("stopSolveActionBtn") != std::string::npos);
 
+  // Test partial-trick proposal with wildcard 'x' moved from Unknown Cards
+  // into West's hand (e.g. Simple Finesse preset: S7, Sx, SA).
+  auto res_fin_base = client.Post("/api/solve", req.dump(), "application/json");
+  REQUIRE(res_fin_base);
+  REQUIRE(res_fin_base->status == 200);
+  nlohmann::json fin_base_json = nlohmann::json::parse(res_fin_base->body);
+  REQUIRE(fin_base_json["success"] == true);
+
+  nlohmann::json fin_partial_req;
+  fin_partial_req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  fin_partial_req["hands"]["E"] = "";
+  fin_partial_req["hands"]["S"] = "S 87; H -; D -; C -;";
+  fin_partial_req["hands"]["W"] = "S x; H -; D -; C -;";
+  fin_partial_req["trump"] = "SPADES";
+  fin_partial_req["leader"] = "SOUTH";
+  fin_partial_req["min_tricks"] = 2;
+  fin_partial_req["num_iters"] = 10;
+  fin_partial_req["unknown_cards"] = "S Kxx";
+  fin_partial_req["cur_trick"] = nlohmann::json::array({"S7", "Sx", "SA"});
+  fin_partial_req["start_trick_num"] = 1;
+  fin_partial_req["initial_ns_tricks"] = 0;
+  fin_partial_req["reuse_deals"] = true;
+  fin_partial_req["replay_tricks"] = nlohmann::json::array();
+
+  auto res_fin_partial =
+      client.Post("/api/solve", fin_partial_req.dump(), "application/json");
+  REQUIRE(res_fin_partial);
+  REQUIRE(res_fin_partial->status == 200);
+  nlohmann::json fin_partial_json =
+      nlohmann::json::parse(res_fin_partial->body);
+  REQUIRE(fin_partial_json["success"] == true);
+  REQUIRE(fin_partial_json["total_boards"] == 10);
+  REQUIRE(fin_partial_json["success_boards"] == 0);
+  REQUIRE(fin_partial_json["failure_boards"] == 10);
+  REQUIRE(fin_partial_json.contains("tree"));
+  REQUIRE(fin_partial_json["tree"]["label"].get<std::string>().find(
+              "#1: S7 (S") != std::string::npos);
+  REQUIRE(fin_partial_json["tree"]["label"].get<std::string>().find(
+              ") SA (S") != std::string::npos);
+  REQUIRE(fin_partial_json["tree"].contains("children"));
+  REQUIRE(!fin_partial_json["tree"]["children"].empty());
+  REQUIRE(fin_partial_json["tree"]["children"][0]["failure"] == true);
+  for (int i = 0; i < 10; ++i) {
+    REQUIRE(fin_partial_json["all_hands"][i]["E"] ==
+            fin_base_json["all_hands"][i]["E"]);
+    REQUIRE(fin_partial_json["all_hands"][i]["W"] ==
+            fin_base_json["all_hands"][i]["W"]);
+  }
+
   server.Stop();
 }
+
 
