@@ -168,6 +168,7 @@ class LineFinder {
 
  private:
   static constexpr size_t kMemoShards = 64;
+  static constexpr size_t kMaxMemoPerShard = 16;
   struct SolveMemo {
     std::mutex mu[kMemoShards];
     std::unordered_map<std::string, std::vector<ConditionalLine>>

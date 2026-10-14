@@ -7,6 +7,9 @@
 #include <chrono>
 #include <cmath>
 #include <mutex>
+#if defined(__linux__) && defined(__GLIBC__)
+#include <malloc.h>
+#endif
 #include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "glog/logging.h"
@@ -319,6 +322,16 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << " total_solve_ms=" << solve_ms_
             << " get_line_from_trick_calls="
             << get_line_from_trick_calls.load();
+
+  board_trees.clear();
+  init_trees.clear();
+  solve_memo_.reset();
+  for (size_t s = 0; s < SolverCache::kNumShards; ++s) {
+    cache.tree_cache[s].clear();
+  }
+#if defined(__linux__) && defined(__GLIBC__)
+  malloc_trim(0);
+#endif
 
   // Tied lines can be the same line of play described with different
   // branching (say, splitting Trick 1 on a defender's card when an unsplit or
@@ -814,12 +827,25 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       a_line.AddCondition(new TrickPlayCondition(trick_str),
                           saved_work.at(trick_str));
     }
+    if (saved_work.size() > 1000) {
+      for (auto it = saved_work.begin();
+           it != saved_work.end() && saved_work.size() > 500;) {
+        if (batch_seen.count(it->first) == 0) {
+          it = saved_work.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
     int covered_boards = a_line.CoveredFinalBoards();
     if (covered_boards >= most_boards_covered) {
       bool improved = covered_boards > most_boards_covered;
       most_boards_covered = covered_boards;
       if (lvl == 0) {
         g_best_covered = most_boards_covered;
+      }
+      if (improved) {
+        best_lines.clear();
       }
       best_lines.insert(std::make_pair(covered_boards, a_line));
       VLOG(2) << "Found new best line at lvl "
@@ -1000,6 +1026,11 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
       min_tricks, cache_in, board_trees, board_offsets, leader, lvl, progress);
   {
     std::lock_guard<std::mutex> lock(solve_memo_->mu[shard]);
+    if (solve_memo_->shards[shard].size() >= kMaxMemoPerShard &&
+        solve_memo_->shards[shard].find(key) ==
+            solve_memo_->shards[shard].end()) {
+      solve_memo_->shards[shard].erase(solve_memo_->shards[shard].begin());
+    }
     solve_memo_->shards[shard].emplace(std::move(key), res);
   }
   return res;

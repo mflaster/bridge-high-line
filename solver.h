@@ -76,6 +76,7 @@ using CacheKey = std::pair<uint64_t, uint64_t>;
 
 struct SolverCache {
   static constexpr size_t kNumShards = 64;
+  static constexpr size_t kMaxTreeCachePerShard = 256;
   mutable std::mutex shard_mu[kNumShards];
   std::unordered_map<BoardCacheKey, std::shared_ptr<OptimalPlayTree>,
                      BoardCacheKeyHash> tree_cache[kNumShards];
