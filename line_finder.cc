@@ -334,6 +334,7 @@ std::string g_solve_status = "Idle";
 std::shared_ptr<SearchProgress> g_active_progress;
 std::atomic<int> g_best_covered{0};
 std::atomic<int> g_total_boards{0};
+std::atomic<bool> g_stop_requested{false};
 }  // namespace
 
 static std::atomic<uint64_t> get_line_from_trick_calls{0};
@@ -341,6 +342,18 @@ static std::atomic<uint64_t> g_play_trick_calls{0};
 static std::atomic<uint64_t> g_memo_hits{0};
 static std::atomic<uint64_t> g_memo_misses{0};
 static std::atomic<uint64_t> g_memo_evictions{0};
+
+void LineFinder::RequestStop() {
+  g_stop_requested.store(true, std::memory_order_relaxed);
+}
+
+void LineFinder::ClearStop() {
+  g_stop_requested.store(false, std::memory_order_relaxed);
+}
+
+bool LineFinder::IsStopRequested() {
+  return g_stop_requested.load(std::memory_order_relaxed);
+}
 
 std::string LineFinder::GetSolveStatus() {
   std::shared_ptr<SearchProgress> progress;
@@ -481,6 +494,7 @@ void PopulateDealSummaries(const std::vector<BoardState> &boards,
                            std::vector<ConditionalLine> *lines) {
   CrossHandDealSetSummarizer summarizer;
   for (size_t line_idx = 0; line_idx < lines->size(); ++line_idx) {
+    if (LineFinder::IsStopRequested()) break;
     auto &line = (*lines)[line_idx];
     line.set_total_boards(num_iters);
     line.set_min_tricks(min_tricks);
@@ -505,7 +519,7 @@ void PopulateDealSummaries(const std::vector<BoardState> &boards,
       }
     }
 
-    if (!covered_deals.empty()) {
+    if (!covered_deals.empty() && !LineFinder::IsStopRequested()) {
       LineFinder::SetSolveStatus("Summarizing deal invariants (line " +
                                  std::to_string(line_idx + 1) + "/" +
                                  std::to_string(lines->size()) + ")...");
@@ -517,7 +531,7 @@ void PopulateDealSummaries(const std::vector<BoardState> &boards,
       }
     }
 
-    if (!failure_deals.empty()) {
+    if (!failure_deals.empty() && !LineFinder::IsStopRequested()) {
       LineFinder::SetSolveStatus("Summarizing failure invariants (line " +
                                  std::to_string(line_idx + 1) + "/" +
                                  std::to_string(lines->size()) + ")...");
@@ -563,6 +577,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
     int num_threads) {
   auto start_solve = std::chrono::high_resolution_clock::now();
   CHECK_EQ(4, hands.size());
+  ClearStop();
   int max_dds_threads = EnsureDDSInitialized();
   int effective_threads = std::clamp(num_threads, 1, max_dds_threads);
   get_line_from_trick_calls = 0;
@@ -636,7 +651,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
   #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
       if (effective_threads > 1)
   for (size_t i = 0; i < boards.size(); i++) {
-    if (board_offsets.count(static_cast<int>(i)) == 0) {
+    if (IsStopRequested() || board_offsets.count(static_cast<int>(i)) == 0) {
       ++init_done;
       continue;
     }
@@ -649,11 +664,17 @@ std::vector<ConditionalLine> LineFinder::Solve(
           boards[i], min_tricks, &cache);
     }
     int done = ++init_done;
-    SetSolveStatus("Solving initial double-dummy trees (" +
-                   std::to_string(done) + "/" +
-                   std::to_string(boards.size()) + " deals)...");
+    if (!IsStopRequested()) {
+      SetSolveStatus("Solving initial double-dummy trees (" +
+                     std::to_string(done) + "/" +
+                     std::to_string(boards.size()) + " deals)...");
+    }
     VLOG(1) << "Finished computing tree for board " << i
             << " with mini_max " << init_trees[i]->MiniMax();
+  }
+  if (IsStopRequested()) {
+    SetSolveStatus("Solve stopped.");
+    return {};
   }
   if (cur_trick.empty() && replay_tricks_.empty() && predealt_boards_.empty()) {
     base_boards_ = boards;
@@ -692,6 +713,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
                       board_offsets, leader, 0, progress->root());
   }
   SetActiveProgress(nullptr);
+  if (IsStopRequested()) {
+    SetSolveStatus("Solve stopped.");
+    return {};
+  }
   auto end_solve = std::chrono::high_resolution_clock::now();
   double search_trees_ms = std::chrono::duration<double, std::milli>(
       end_solve - end_init_trees).count();
@@ -742,7 +767,8 @@ ConditionalLine LineFinder::GetLineFromTrick(
     int leader, int lvl, SearchProgress::Node *progress,
     int min_covered) {
   SearchProgress::Completer progress_completer(progress);
-  if (min_covered > static_cast<int>(gen_trick.boards.size())) {
+  if (IsStopRequested() ||
+      min_covered > static_cast<int>(gen_trick.boards.size())) {
     return ConditionalLine();
   }
   ++get_line_from_trick_calls;
@@ -756,6 +782,7 @@ ConditionalLine LineFinder::GetLineFromTrick(
   std::vector<std::shared_ptr<OptimalPlayTree>> played_trees(boards_vec.size());
   if (omp_in_parallel() && boards_vec.size() > 1) {
     for (size_t idx = 0; idx < boards_vec.size(); ++idx) {
+      if (IsStopRequested()) break;
       int b = boards_vec[idx];
       const std::shared_ptr<OptimalPlayTree> &board_tree = board_trees.at(b);
       CHECK(board_tree);
@@ -768,21 +795,27 @@ ConditionalLine LineFinder::GetLineFromTrick(
         #pragma omp task firstprivate(idx, t_str) \
             shared(boards_vec, board_trees, played_trees, cache)
         {
-          int board_id = boards_vec[idx];
-          played_trees[idx] =
-              board_trees.at(board_id)->PlayTrick(t_str, &cache);
+          if (!IsStopRequested()) {
+            int board_id = boards_vec[idx];
+            played_trees[idx] =
+                board_trees.at(board_id)->PlayTrick(t_str, &cache);
+          }
         }
       }
     }
     #pragma omp taskwait
   } else {
     for (size_t idx = 0; idx < boards_vec.size(); ++idx) {
+      if (IsStopRequested()) break;
       int b = boards_vec[idx];
       const std::shared_ptr<OptimalPlayTree> &board_tree = board_trees.at(b);
       CHECK(board_tree);
       played_trees[idx] =
           board_tree->PlayTrick(gen_trick.GetTrickForBoard(b), &cache);
     }
+  }
+  if (IsStopRequested()) {
+    return ConditionalLine();
   }
 
   for (size_t idx = 0; idx < boards_vec.size(); ++idx) {
@@ -846,6 +879,13 @@ ConditionalLine LineFinder::GetLineFromTrick(
     int rem_losses = max_losses;
     bool failed_low = false;
     for (size_t idx = 0; idx < entries.size(); ++idx) {
+      if (IsStopRequested()) {
+        failed_low = true;
+        for (size_t rem = idx; rem < entries.size(); ++rem) {
+          SearchProgress::Complete(branch_progress[rem]);
+        }
+        break;
+      }
       int next_leader = entries[idx].first;
       int trick_won = (next_leader % 2 == 0) ? 1 : 0;
       int branch_size = static_cast<int>(entries[idx].second.size());
@@ -873,6 +913,9 @@ ConditionalLine LineFinder::GetLineFromTrick(
     if (failed_low) {
       return ConditionalLine();
     }
+  }
+  if (IsStopRequested()) {
+    return ConditionalLine();
   }
   for (size_t idx = 0; idx < entries.size(); ++idx) {
     int next_leader = entries[idx].first;
@@ -1108,6 +1151,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     std::vector<std::shared_ptr<ConditionalLine>> batch_results(batch.size());
     std::vector<int> batch_covered(batch.size(), 0);
     auto evaluate = [&](size_t b_idx) {
+      if (IsStopRequested()) {
+        SearchProgress::Complete(trick_progress[b_idx]);
+        batch_results[b_idx] = nullptr;
+        batch_covered[b_idx] = 0;
+        return;
+      }
       int req_cov = batch_req_cov[b_idx];
       ConditionalLine line = GetLineFromTrick(
           *batch[b_idx].second, min_tricks, cache, board_trees,
@@ -1175,6 +1224,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   };
 
   for (uint i = 0; i < groupings.size(); i++) {
+    if (IsStopRequested()) {
+      break;
+    }
     const std::vector<GeneralizedTrick> &group = groupings[i];
     VLOG(2) << "Trying group " << i << " with tricks " << group.size();
     int most_possible_boards = group_possible_boards[i];
@@ -1249,6 +1301,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     }
     if (has_uncomputed) {
       run_batch(i, batch, batch_seen);
+    }
+    if (IsStopRequested()) {
+      break;
     }
 
     int sum_covered = 0;
@@ -1330,7 +1385,7 @@ void LineFinder::TryBranchOnGoodCards(
     int min_covered) {
   int best_covered = ans.empty() ? 0 : ans[0].CoveredFinalBoards();
   int target_cov = std::max(best_covered + 1, min_covered);
-  if (lvl <= 0 || leader % 2 != 0 ||
+  if (IsStopRequested() || lvl <= 0 || leader % 2 != 0 ||
       static_cast<int>(solvable_boards.size()) < target_cov ||
       solvable_boards.size() < 2 ||
       get_line_from_trick_calls.load(std::memory_order_relaxed) >= 5000) {
@@ -1351,6 +1406,9 @@ void LineFinder::TryBranchOnGoodCards(
   uint64_t decl_cards =
       (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask;
   for (int suit = 0; suit < 4; ++suit) {
+    if (IsStopRequested()) {
+      break;
+    }
     uint16_t suit_bits = (decl_cards >> (suit * 16)) & 0xffff;
     if (suit_bits == 0) continue;
     // Check highest remaining card held by N/S in this suit.
@@ -1475,7 +1533,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
     const std::set<int> &board_offsets,
     int leader, int lvl, SearchProgress::Node *progress,
     int min_covered) {
-  if (board_offsets.empty() ||
+  if (IsStopRequested() || board_offsets.empty() ||
       static_cast<int>(board_offsets.size()) < min_covered) {
     SearchProgress::Complete(progress);
     return std::vector<ConditionalLine>();
@@ -1534,7 +1592,9 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
   std::vector<ConditionalLine> res = SolveHelperUncached(
       min_tricks, cache_in, board_trees, solvable_boards, leader, lvl,
       progress, min_covered);
-  solve_memo_->Insert(std::move(key), min_covered, res);
+  if (!IsStopRequested()) {
+    solve_memo_->Insert(std::move(key), min_covered, res);
+  }
   return res;
 }
 

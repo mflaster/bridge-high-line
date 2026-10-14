@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const numIters = document.getElementById('numIters');
   const presetSelect = document.getElementById('presetSelect');
   const solveBtn = document.getElementById('solveBtn');
+  const stopSolveBtn = document.getElementById('stopSolveBtn');
+  const stopSolveActionBtn = document.getElementById('stopSolveActionBtn');
 
   const inputNorth = document.getElementById('inputNorth');
   const inputEast = document.getElementById('inputEast');
@@ -2031,9 +2033,33 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDealSvg();
   }
 
+  let activeSolveAbortController = null;
+  let solveStoppedByUser = false;
+
+  async function requestStopSolve() {
+    solveStoppedByUser = true;
+    if (stopSolveBtn) stopSolveBtn.disabled = true;
+    if (stopSolveActionBtn) stopSolveActionBtn.disabled = true;
+    try {
+      fetch('/api/stop_solve', { method: 'POST' }).catch(() => {});
+    } catch (_) {}
+    if (activeSolveAbortController) {
+      activeSolveAbortController.abort();
+    }
+  }
+
+  if (stopSolveBtn) {
+    stopSolveBtn.addEventListener('click', requestStopSolve);
+  }
+  if (stopSolveActionBtn) {
+    stopSolveActionBtn.addEventListener('click', requestStopSolve);
+  }
+
   // Solve Deal Event
   solveBtn.addEventListener('click', async () => {
     clearPanels();
+    solveStoppedByUser = false;
+    activeSolveAbortController = new AbortController();
     setStatus('running', 'Solving deal and analyzing optimal decision tree...');
     solveBtn.disabled = true;
     const startTime = performance.now();
@@ -2078,12 +2104,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isSolving = true;
     const statusPollTimer = setInterval(async () => {
-      if (!isSolving) return;
+      if (!isSolving || solveStoppedByUser) return;
       try {
         const stRes = await fetch('/api/solve_status');
-        if (!isSolving || !stRes.ok) return;
+        if (!isSolving || solveStoppedByUser || !stRes.ok) return;
         const stData = await stRes.json();
-        if (!isSolving) return;
+        if (!isSolving || solveStoppedByUser) return;
         if (stData && stData.status) {
           const curSec = ((performance.now() - startTime) / 1000).toFixed(1);
           const progress = (typeof stData.progress === 'number') ? stData.progress : null;
@@ -2098,13 +2124,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await fetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: activeSolveAbortController.signal
       });
 
       const data = await response.json();
       isSolving = false;
       clearInterval(statusPollTimer);
       const elapsed = (performance.now() - startTime).toFixed(1);
+      const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
+
+      if (solveStoppedByUser || (data && data.stopped)) {
+        setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+        return;
+      }
 
       if (!response.ok || !data.success) {
         setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
@@ -2174,11 +2207,17 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       isSolving = false;
       clearInterval(statusPollTimer);
-      console.error(err);
-      setStatus('error', 'Network or server error: ' + err.message);
+      const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
+      if (solveStoppedByUser || (err && err.name === 'AbortError')) {
+        setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+      } else {
+        console.error(err);
+        setStatus('error', 'Network or server error: ' + err.message);
+      }
     } finally {
       isSolving = false;
       clearInterval(statusPollTimer);
+      activeSolveAbortController = null;
       solveBtn.disabled = false;
     }
   });
@@ -2585,6 +2624,8 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.requirements = reqs;
       }
 
+      solveStoppedByUser = false;
+      activeSolveAbortController = new AbortController();
       setStatus('running', `Computing new line from Trick #${ctx.trickNum}...`);
       computeNewLineBtn.disabled = true;
       solveBtn.disabled = true;
@@ -2592,12 +2633,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let isSolving = true;
       const statusPollTimer = setInterval(async () => {
-        if (!isSolving) return;
+        if (!isSolving || solveStoppedByUser) return;
         try {
           const stRes = await fetch('/api/solve_status');
-          if (!isSolving || !stRes.ok) return;
+          if (!isSolving || solveStoppedByUser || !stRes.ok) return;
           const stData = await stRes.json();
-          if (!isSolving) return;
+          if (!isSolving || solveStoppedByUser) return;
           if (stData && stData.status) {
             const curSec = ((performance.now() - startTime) / 1000).toFixed(1);
             const progress = (typeof stData.progress === 'number') ? stData.progress : null;
@@ -2610,13 +2651,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const response = await fetch('/api/solve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: activeSolveAbortController.signal
         });
 
         const data = await response.json();
         isSolving = false;
         clearInterval(statusPollTimer);
         const elapsed = (performance.now() - startTime).toFixed(1);
+        const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
+
+        if (solveStoppedByUser || (data && data.stopped)) {
+          setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+          return;
+        }
 
         if (!response.ok || !data.success) {
           setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
@@ -2709,11 +2757,17 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         isSolving = false;
         clearInterval(statusPollTimer);
-        console.error(err);
-        setStatus('error', 'Network or server error: ' + err.message);
+        const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
+        if (solveStoppedByUser || (err && err.name === 'AbortError')) {
+          setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+        } else {
+          console.error(err);
+          setStatus('error', 'Network or server error: ' + err.message);
+        }
       } finally {
         isSolving = false;
         clearInterval(statusPollTimer);
+        activeSolveAbortController = null;
         solveBtn.disabled = false;
         updateProposeLineBarUI();
       }
@@ -2726,6 +2780,15 @@ document.addEventListener('DOMContentLoaded', () => {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
     if (timeStr) execTime.textContent = timeStr;
+    const isRunning = (type === 'running');
+    if (stopSolveBtn) {
+      stopSolveBtn.classList.toggle('hidden', !isRunning);
+      if (isRunning) stopSolveBtn.disabled = false;
+    }
+    if (stopSolveActionBtn) {
+      stopSolveActionBtn.classList.toggle('hidden', !isRunning);
+      if (isRunning) stopSolveActionBtn.disabled = false;
+    }
     if (!statusProgress || !statusProgressFill) return;
     if (typeof progress === 'number' && progress >= 0) {
       const pct = Math.round(Math.min(1, progress) * 100);
