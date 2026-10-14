@@ -1089,6 +1089,18 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S Q52; H JT984; D K2; C 874;',
       west: 'D A;',
       unknown_cards: 'S 9764 H 76532 D JT9876543 C KQJT93'
+    },
+    two_way_finesse: {
+      name: "2-Way Finesse",
+      trump: 'NOTRUMP',
+      leader: 'NORTH',
+      target: 10,
+      iters: 50,
+      north: 'S AJ97; H A2; D A2; C A2;',
+      east: '',
+      south: 'S KT86; H K3; D K3; C K3;',
+      west: '',
+      unknown_cards: 'S Q5432 H 98765 D 98765 C 98765'
     }
   };
 

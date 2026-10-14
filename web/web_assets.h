@@ -31,6 +31,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="twelve_card_spades">12-Card Spades Deal (4S)</option>
           <option value="restricted_choice">Restricted Choice (7S)</option>
           <option value="mollo_6s">Mollo 6S</option>
+          <option value="two_way_finesse">2-Way Finesse</option>
         </select>
       </div>
     </div>
@@ -3551,6 +3552,18 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S Q52; H JT984; D K2; C 874;',
       west: 'D A;',
       unknown_cards: 'S 9764 H 76532 D JT9876543 C KQJT93'
+    },
+    two_way_finesse: {
+      name: "2-Way Finesse",
+      trump: 'NOTRUMP',
+      leader: 'NORTH',
+      target: 10,
+      iters: 50,
+      north: 'S AJ97; H A2; D A2; C A2;',
+      east: '',
+      south: 'S KT86; H K3; D K3; C K3;',
+      west: '',
+      unknown_cards: 'S Q5432 H 98765 D 98765 C 98765'
     }
   };
 
@@ -6907,6 +6920,18 @@ inline const char* PRESETS_JSON = R"rawjson(
     "south": "S Q52; H JT984; D K2; C 874;",
     "west": "D A;",
     "unknown_cards": "S 9764 H 76532 D JT9876543 C KQJT93"
+  },
+  "two_way_finesse": {
+    "name": "2-Way Finesse",
+    "trump": "NOTRUMP",
+    "leader": "NORTH",
+    "target": 10,
+    "iters": 50,
+    "north": "S AJ97; H A2; D A2; C A2;",
+    "east": "",
+    "south": "S KT86; H K3; D K3; C K3;",
+    "west": "",
+    "unknown_cards": "S Q5432 H 98765 D 98765 C 98765"
   }
 }
 
