@@ -5,16 +5,6 @@
 #include <optional>
 #include <string>
 
-static int CardsInSuit(uint64_t hand, Suit s) {
-  uint16_t suit_bits = (hand >> (static_cast<int>(s) * 16)) & 0xffff;
-  int count = 0;
-  while (suit_bits) {
-    count += (suit_bits & 1);
-    suit_bits >>= 1;
-  }
-  return count;
-}
-
 static std::optional<InvariantHandChoice> ResolveHandChoice(
     const std::string& label,
     const std::string& hand1_label,

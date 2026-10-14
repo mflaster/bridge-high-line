@@ -15,6 +15,28 @@ TEST_CASE("Cards") {
   REQUIRE(Card::GetSuitedCard(HEARTS, 0) == (1 << 16));
 }
 
+TEST_CASE("CardsInSuit") {
+  uint64_t empty_hand = 0;
+  REQUIRE(CardsInSuit(empty_hand, SPADES) == 0);
+  REQUIRE(CardsInSuit(empty_hand, HEARTS) == 0);
+  REQUIRE(CardsInSuit(empty_hand, DIAMONDS) == 0);
+  REQUIRE(CardsInSuit(empty_hand, CLUBS) == 0);
+  REQUIRE(CardsInSuit(empty_hand, NOTRUMP) == 0);
+
+  uint64_t single_spade = Card::GetSuitedCard(SPADES, 0);
+  REQUIRE(CardsInSuit(single_spade, SPADES) == 1);
+  REQUIRE(CardsInSuit(single_spade, HEARTS) == 0);
+  REQUIRE(CardsInSuit(single_spade, DIAMONDS) == 0);
+  REQUIRE(CardsInSuit(single_spade, CLUBS) == 0);
+
+  uint64_t hand = ParseHand("S AKQ5; H JT9; D 8762; C 43; ");
+  REQUIRE(CardsInSuit(hand, SPADES) == 4);
+  REQUIRE(CardsInSuit(hand, HEARTS) == 3);
+  REQUIRE(CardsInSuit(hand, DIAMONDS) == 4);
+  REQUIRE(CardsInSuit(hand, CLUBS) == 2);
+  REQUIRE(CardsInSuit(hand, NOTRUMP) == 0);
+}
+
 TEST_CASE("ParseSuit") {
   REQUIRE(Card::ParseSuit('S') == SPADES);
   REQUIRE(Card::ParseSuit('h') == HEARTS);

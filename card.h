@@ -69,3 +69,10 @@ inline uint64_t ExtractHonors(uint64_t hand) {
 inline int CountHonorsInHand(uint64_t hand) {
   return PopCount64(ExtractHonors(hand));
 }
+
+inline int CardsInSuit(uint64_t hand, Suit s) {
+  if (static_cast<int>(s) < 0 || static_cast<int>(s) >= 4) {
+    return 0;
+  }
+  return PopCount64((hand >> (static_cast<int>(s) * 16)) & 0xffffULL);
+}
