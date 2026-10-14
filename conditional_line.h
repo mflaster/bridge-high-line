@@ -52,19 +52,30 @@ class GeneralizedDemiPlay {
   static std::string PrintGeneralizedPlays(const GeneralizedPlaysVector &plays);
 
  private:
-  std::map<std::string,
-      std::map<std::string, std::vector<int>>> opp_to_card_to_boards_;
-
-  std::map<std::string, std::map<std::string, std::vector<int>>>
-      opp_to_card_to_boards_by_suit_[4];
+  struct RawPlayBucket {
+    Suit suit_led;
+    std::string opp_card;
+    std::string my_card;
+    std::vector<int> boards;
+  };
+  std::vector<RawPlayBucket> buckets_;
   bool has_by_suit_ = false;
   Suit trump_suit_;
 };
 
 struct GeneralizedTrick {
+  struct BoardTrickEntry {
+    int board = 0;
+    uint8_t winner = 0;
+    char win_card[3] = {0, 0, 0};
+    uint64_t trick_mask = 0;
+    std::string trick_str;
+  };
+
   GeneralizedDemiStruct demi1;
   GeneralizedDemiStruct demi2;
   std::set<int> boards;
+  std::vector<BoardTrickEntry> board_entries;
   int leader = 0;
   GeneralizedTrick(const GeneralizedDemiStruct &d1,
                    const GeneralizedDemiStruct &d2,
@@ -74,14 +85,17 @@ struct GeneralizedTrick {
 
   GeneralizedTrick() {}
 
-  bool Empty() const { return boards.empty(); }
+  size_t NumBoards() const {
+    return !demi2.boards_vec.empty() ? demi2.boards_vec.size() : boards.size();
+  }
+  bool HasBoardTricks() const {
+    return !board_entries.empty() || !demi2.board_to_trick.empty();
+  }
+  bool Empty() const { return boards.empty() && demi2.boards_vec.empty(); }
+  void PopulateLegacyMaps();
   std::string ToString(bool compact = false) const;
 
-  std::string GetTrickForBoard(int b) const {
-    auto it = demi2.board_to_trick.find(b);
-    assert(it != demi2.board_to_trick.end());
-    return it->second;
-  }
+  std::string GetTrickForBoard(int b) const;
 };
 
 using GeneralizedTricksVector = std::vector<GeneralizedTrick>;
@@ -93,7 +107,8 @@ class GeneralizedTrickFinder {
   }
 
   void RecordOptimalTrick(int leader, const std::string &trick, int board);
-  GeneralizedTricksVector GetGeneralizedTricks(unsigned int top = 10);
+  GeneralizedTricksVector GetGeneralizedTricks(
+      unsigned int top = 10, bool populate_boards_set = true);
 
   static std::string PrintGeneralizedTricks(
       const GeneralizedTricksVector &plays);
@@ -102,16 +117,22 @@ class GeneralizedTrickFinder {
   struct RecordedTrick {
     std::array<std::string, 4> cards;
     int board = 0;
+    uint8_t winner = 0;
+    uint8_t win_card_idx = 0;
+    Suit suit_led = NOTRUMP;
+    uint64_t trick_mask = 0;
   };
   GeneralizedTrick BuildGeneralizedTrick(
       const GeneralizedDemiStruct &d1,
       const GeneralizedDemiStruct &d2,
-      const std::vector<uint> *d1_trick_indices) const;
+      const std::vector<uint> *d1_trick_indices,
+      bool populate_boards_set) const;
 
   std::vector<RecordedTrick> tricks_;
   std::vector<std::string> raw_tricks_;
   int leader_ = -1;
   Suit trump_suit_ = NOTRUMP;
+  bool monotonic_boards_ = true;
 };
 
 // Abstract base class representing a conditional branching rule in a ConditionalLine.
@@ -192,8 +213,12 @@ class ConditionalLine {  // ConditionalLineBranch
                              std::move(continue_with));
   }
 
-  // Sets the next trick action (GeneralizedTrick) to be played at this node in the decision tree.
-  void SetAction(const GeneralizedTrick &gt) { do_first_ = gt; }
+  // Sets the next trick action (GeneralizedTrick) to be played at this node in
+  // the decision tree.
+  void SetAction(const GeneralizedTrick &gt) {
+    do_first_ = gt;
+    do_first_.PopulateLegacyMaps();
+  }
 
   // Recursively formats human-readable text representation of the decision tree.
   std::string Describe(int lvl = 0, bool sort_branches = false) const;

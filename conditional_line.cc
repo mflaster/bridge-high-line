@@ -296,63 +296,63 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
     int leader, Suit known_suit_led, unsigned int top,
     bool populate_boards_set) {
   VLOG(2) << "GetGeneralizedPlays";
-  std::map<pair<std::string, std::string>, std::vector<int>> generalized;
-  if (has_by_suit_) {
-    for (int s = 0; s < 4; ++s) {
-      Suit suit_led = static_cast<Suit>(s);
-      for (const auto &[opp_card, card_to_boards] :
-           opp_to_card_to_boards_by_suit_[s]) {
-        auto opp_card_choices =
-            GeneralizeOppCard(opp_card, suit_led, trump_suit_);
-        for (const auto &choice : opp_card_choices) {
-          for (const auto &[my_card, boards] : card_to_boards) {
-            auto &dest = generalized[make_pair(choice, my_card)];
-            dest.insert(dest.end(), boards.begin(), boards.end());
-          }
+  struct GenBucket {
+    std::string opp_card;
+    std::string my_card;
+    std::vector<int> boards;
+  };
+  std::vector<GenBucket> generalized;
+  generalized.reserve(buckets_.size() * 3);
+  for (const RawPlayBucket &b : buckets_) {
+    Suit suit_led =
+        has_by_suit_
+            ? b.suit_led
+            : (known_suit_led != NOTRUMP
+                   ? known_suit_led
+                   : (leader % 2 == 0 ? GetSuitOfCard(b.my_card)
+                                      : GetSuitOfCard(b.opp_card)));
+    auto opp_card_choices =
+        GeneralizeOppCard(b.opp_card, suit_led, trump_suit_);
+    for (const auto &choice : opp_card_choices) {
+      std::vector<int> *dest = nullptr;
+      for (GenBucket &gb : generalized) {
+        if (gb.opp_card == choice && gb.my_card == b.my_card) {
+          dest = &gb.boards;
+          break;
         }
       }
-    }
-  } else {
-    for (const auto &[opp_card, card_to_boards] : opp_to_card_to_boards_) {
-      for (const auto &[my_card, boards] : card_to_boards) {
-        Suit suit_led = known_suit_led != NOTRUMP ? known_suit_led
-                        : (leader % 2 == 0
-                           ? GetSuitOfCard(my_card)
-                           : GetSuitOfCard(opp_card));
-        auto opp_card_choices =
-            GeneralizeOppCard(opp_card, suit_led, trump_suit_);
-        for (const auto &choice : opp_card_choices) {
-          auto &dest = generalized[make_pair(choice, my_card)];
-          dest.insert(dest.end(), boards.begin(), boards.end());
-        }
+      if (dest == nullptr) {
+        generalized.push_back(GenBucket{choice, b.my_card, b.boards});
+      } else {
+        dest->insert(dest->end(), b.boards.begin(), b.boards.end());
       }
     }
   }
-  using GenMapIter =
-      std::map<pair<std::string, std::string>, std::vector<int>>::iterator;
-  std::vector<GenMapIter> sorted;
-  sorted.reserve(generalized.size());
-  for (auto it = generalized.begin(); it != generalized.end(); ++it) {
-    auto &vec = it->second;
+  std::sort(generalized.begin(), generalized.end(),
+            [](const GenBucket &a, const GenBucket &b) {
+              if (a.opp_card != b.opp_card) return a.opp_card < b.opp_card;
+              return a.my_card < b.my_card;
+            });
+  for (GenBucket &gb : generalized) {
+    auto &vec = gb.boards;
     std::sort(vec.begin(), vec.end());
     vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
-    sorted.push_back(it);
   }
 #if TRY_GENERAL_CARDS_FIRST
-  std::reverse(sorted.begin(), sorted.end());
+  std::reverse(generalized.begin(), generalized.end());
 #endif
-  std::stable_sort(sorted.begin(), sorted.end(),
-                   [](const GenMapIter &a, const GenMapIter &b) {
-                     return a->second.size() > b->second.size();
+  std::stable_sort(generalized.begin(), generalized.end(),
+                   [](const GenBucket &a, const GenBucket &b) {
+                     return a.boards.size() > b.boards.size();
                    });
 
   GeneralizedPlaysVector ans;
-  ans.reserve(std::min<size_t>(top, sorted.size()));
+  ans.reserve(std::min<size_t>(top, generalized.size()));
 
   size_t count_group_start = 0;
   int prev_count = -1;
-  for (const GenMapIter &map_it : sorted) {
-    int count = static_cast<int>(map_it->second.size());
+  for (GenBucket &gb : generalized) {
+    int count = static_cast<int>(gb.boards.size());
     if (ans.size() >= top) {
       break;
     }
@@ -360,12 +360,11 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
       count_group_start = ans.size();
       prev_count = count;
     }
-    const auto &opp_me = map_it->first;
-    std::vector<int> &boards_vec = map_it->second;
+    std::vector<int> &boards_vec = gb.boards;
     bool redundant = false;
     for (size_t k = count_group_start; k < ans.size(); ++k) {
-      if (ans[k].my_card == opp_me.second &&
-          CardsAreRedundant(ans[k].opp_card, opp_me.first) &&
+      if (ans[k].my_card == gb.my_card &&
+          CardsAreRedundant(ans[k].opp_card, gb.opp_card) &&
           ans[k].boards_vec == boards_vec) {
         redundant = true;
         break;
@@ -375,8 +374,8 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
       continue;
     }
     GeneralizedDemiStruct gds;
-    gds.opp_card = opp_me.first;
-    gds.my_card = opp_me.second;
+    gds.opp_card = std::move(gb.opp_card);
+    gds.my_card = std::move(gb.my_card);
     gds.boards_vec = std::move(boards_vec);
     if (populate_boards_set) {
       for (int b : gds.boards_vec) {
@@ -392,17 +391,25 @@ void GeneralizedDemiPlay::RecordOptimalPlay(const std::string &opp_card,
                                             const std::string &my_card,
                                             int board_num,
                                             const std::string *trick) {
+  Suit suit_led = NOTRUMP;
   if (trick) {
     CHECK_NE((*trick)[0], '(') << *trick;
-    Suit suit_led = Card::ParseSuit((*trick)[0]);
-    if (suit_led >= 0 && suit_led < 4) {
+    Suit parsed = Card::ParseSuit((*trick)[0]);
+    if (parsed >= 0 && parsed < 4) {
       has_by_suit_ = true;
-      opp_to_card_to_boards_by_suit_[suit_led][opp_card][my_card].push_back(
-          board_num);
+      suit_led = parsed;
+    }
+  }
+  for (RawPlayBucket &b : buckets_) {
+    if (b.suit_led == suit_led && b.opp_card == opp_card &&
+        b.my_card == my_card) {
+      if (b.boards.empty() || b.boards.back() != board_num) {
+        b.boards.push_back(board_num);
+      }
       return;
     }
   }
-  opp_to_card_to_boards_[opp_card][my_card].push_back(board_num);
+  buckets_.push_back(RawPlayBucket{suit_led, opp_card, my_card, {board_num}});
 }
 
 std::string GeneralizedDemiPlay::PrintGeneralizedPlays(
@@ -422,6 +429,32 @@ std::string GeneralizedDemiPlay::PrintGeneralizedPlays(
   return ans;
 }
 
+void GeneralizedTrick::PopulateLegacyMaps() {
+  if (boards.empty() && !demi2.boards_vec.empty()) {
+    for (int b : demi2.boards_vec) {
+      boards.insert(boards.end(), b);
+    }
+  }
+  if (demi2.board_to_trick.empty() && !board_entries.empty()) {
+    for (const auto &entry : board_entries) {
+      demi2.board_to_trick.emplace_hint(demi2.board_to_trick.end(),
+                                        entry.board, entry.trick_str);
+    }
+  }
+}
+
+std::string GeneralizedTrick::GetTrickForBoard(int b) const {
+  if (!board_entries.empty()) {
+    auto it = std::lower_bound(
+        board_entries.begin(), board_entries.end(), b,
+        [](const BoardTrickEntry &e, int val) { return e.board < val; });
+    assert(it != board_entries.end() && it->board == b);
+    return it->trick_str;
+  }
+  auto it = demi2.board_to_trick.find(b);
+  assert(it != demi2.board_to_trick.end());
+  return it->second;
+}
 
 void GeneralizedTrickFinder::RecordOptimalTrick(
     int leader, const std::string &trick, int board) {
@@ -429,6 +462,9 @@ void GeneralizedTrickFinder::RecordOptimalTrick(
     leader_ = leader;
   }
   CHECK_EQ(leader, leader_);
+  if (!tricks_.empty() && board < tricks_.back().board) {
+    monotonic_boards_ = false;
+  }
   RecordedTrick rt;
   rt.board = board;
   size_t pos = 0;
@@ -442,31 +478,87 @@ void GeneralizedTrickFinder::RecordOptimalTrick(
     pos = end;
   }
   CHECK_EQ(4, idx) << trick;
+  Suit cur_win_suit = NOTRUMP;
+  int cur_win_val = -1;
+  int win_idx = 0;
+  uint64_t mask = 0;
+  for (int c = 0; c < 4; ++c) {
+    CardType ct = Card::ParseStringCard(rt.cards[c]);
+    mask |= ct;
+    auto [s, v] = Card::DecodeCard(ct);
+    if (c == 0) {
+      rt.suit_led = s;
+      cur_win_suit = s;
+      cur_win_val = v;
+      win_idx = 0;
+    } else if (s == cur_win_suit) {
+      if (v > cur_win_val) {
+        cur_win_val = v;
+        win_idx = c;
+      }
+    } else if (s == trump_suit_) {
+      cur_win_suit = s;
+      cur_win_val = v;
+      win_idx = c;
+    }
+  }
+  rt.trick_mask = mask;
+  rt.winner = static_cast<uint8_t>((leader + win_idx) % 4);
+  rt.win_card_idx = static_cast<uint8_t>(win_idx);
   tricks_.push_back(std::move(rt));
   raw_tricks_.push_back(trick);
 }
 
 GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
-    unsigned int top) {
+    unsigned int top, bool populate_boards_set) {
   GeneralizedDemiPlay demi1(trump_suit_);
-  std::map<std::string, std::map<std::string, std::vector<uint>>>
-      raw_d1_to_tricks;
+  struct RawD1Bucket {
+    std::string opp1;
+    std::string my1;
+    std::vector<uint> indices;
+  };
+  std::vector<RawD1Bucket> raw_d1_to_tricks;
+  raw_d1_to_tricks.reserve(16);
   for (uint i = 0; i < tricks_.size(); i++) {
-    const auto &[cards, board] = tricks_[i];
-    const std::string &opp1 = (leader_ % 2 == 0) ? cards[1] : cards[0];
-    const std::string &my1 = (leader_ % 2 == 0) ? cards[0] : cards[1];
-    demi1.RecordOptimalPlay(opp1, my1, board, nullptr);
-    raw_d1_to_tricks[opp1][my1].push_back(i);
+    const RecordedTrick &rt = tricks_[i];
+    const std::string &opp1 = (leader_ % 2 == 0) ? rt.cards[1] : rt.cards[0];
+    const std::string &my1 = (leader_ % 2 == 0) ? rt.cards[0] : rt.cards[1];
+    demi1.RecordOptimalPlay(opp1, my1, rt.board, nullptr);
+    bool found = false;
+    for (RawD1Bucket &b : raw_d1_to_tricks) {
+      if (b.opp1 == opp1 && b.my1 == my1) {
+        b.indices.push_back(i);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      raw_d1_to_tricks.push_back(RawD1Bucket{opp1, my1, {i}});
+    }
   }
-  std::map<pair<std::string, std::string>, std::vector<uint>> d1_to_tricks;
-  for (const auto &[opp1, my_map] : raw_d1_to_tricks) {
-    for (const auto &[my1, idx_vec] : my_map) {
-      Suit suit_led =
-          (leader_ % 2 == 0) ? GetSuitOfCard(my1) : GetSuitOfCard(opp1);
-      auto opp1_choices = GeneralizeOppCard(opp1, suit_led, trump_suit_);
-      for (const auto &choice : opp1_choices) {
-        auto &dest = d1_to_tricks[make_pair(choice, my1)];
-        dest.insert(dest.end(), idx_vec.begin(), idx_vec.end());
+  struct GenD1Bucket {
+    std::string opp1;
+    std::string my1;
+    std::vector<uint> indices;
+  };
+  std::vector<GenD1Bucket> d1_to_tricks;
+  d1_to_tricks.reserve(raw_d1_to_tricks.size() * 3);
+  for (const auto &rb : raw_d1_to_tricks) {
+    Suit suit_led =
+        (leader_ % 2 == 0) ? GetSuitOfCard(rb.my1) : GetSuitOfCard(rb.opp1);
+    auto opp1_choices = GeneralizeOppCard(rb.opp1, suit_led, trump_suit_);
+    for (const auto &choice : opp1_choices) {
+      std::vector<uint> *dest = nullptr;
+      for (GenD1Bucket &gb : d1_to_tricks) {
+        if (gb.opp1 == choice && gb.my1 == rb.my1) {
+          dest = &gb.indices;
+          break;
+        }
+      }
+      if (dest == nullptr) {
+        d1_to_tricks.push_back(GenD1Bucket{choice, rb.my1, rb.indices});
+      } else {
+        dest->insert(dest->end(), rb.indices.begin(), rb.indices.end());
       }
     }
   }
@@ -506,18 +598,26 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     GeneralizedDemiPlay demi2(trump_suit_);
     Suit d1_suit_led = (leader_ % 2 == 0) ? GetSuitOfCard(d1.my_card)
                                           : GetSuitOfCard(d1.opp_card);
-    auto tricks_it = d1_to_tricks.find(make_pair(d1.opp_card, d1.my_card));
-    if (tricks_it != d1_to_tricks.end()) {
-      std::sort(tricks_it->second.begin(), tricks_it->second.end());
-      d1_trick_vecs[d1_idx] = &tricks_it->second;
-      for (uint i : tricks_it->second) {
-        const auto &[cards, board] = tricks_[i];
+    std::vector<uint> *tricks_vec = nullptr;
+    for (GenD1Bucket &gb : d1_to_tricks) {
+      if (gb.opp1 == d1.opp_card && gb.my1 == d1.my_card) {
+        tricks_vec = &gb.indices;
+        break;
+      }
+    }
+    if (tricks_vec != nullptr) {
+      std::sort(tricks_vec->begin(), tricks_vec->end());
+      d1_trick_vecs[d1_idx] = tricks_vec;
+      for (uint i : *tricks_vec) {
+        const RecordedTrick &rt = tricks_[i];
         const std::string *trick_ptr =
             (d1_suit_led == NOTRUMP) ? &raw_tricks_[i] : nullptr;
         if (leader_ % 2 == 0) {
-          demi2.RecordOptimalPlay(cards[3], cards[2], board, trick_ptr);
+          demi2.RecordOptimalPlay(rt.cards[3], rt.cards[2], rt.board,
+                                  trick_ptr);
         } else {
-          demi2.RecordOptimalPlay(cards[2], cards[3], board, trick_ptr);
+          demi2.RecordOptimalPlay(rt.cards[2], rt.cards[3], rt.board,
+                                  trick_ptr);
         }
       }
     }
@@ -576,7 +676,8 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
             CardsAreRedundant(prev_opp1, d1.opp_card) &&
             prev.demi2.boards_vec == d2.boards_vec) {
           if (d1.boards_vec.size() > ans_d1_board_count[ans_idx]) {
-            ans[ans_idx] = BuildGeneralizedTrick(d1, d2, idx_vec);
+            ans[ans_idx] =
+                BuildGeneralizedTrick(d1, d2, idx_vec, populate_boards_set);
             ans_d1_board_count[ans_idx] = d1.boards_vec.size();
           }
           replaced_or_redundant = true;
@@ -587,7 +688,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
         continue;
       }
     }
-    ans.push_back(BuildGeneralizedTrick(d1, d2, idx_vec));
+    ans.push_back(BuildGeneralizedTrick(d1, d2, idx_vec, populate_boards_set));
     ans_d1_board_count.push_back(d1.boards_vec.size());
   }
   return ans;
@@ -596,7 +697,8 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
 GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
     const GeneralizedDemiStruct &d1,
     const GeneralizedDemiStruct &d2,
-    const std::vector<uint> *d1_trick_indices) const {
+    const std::vector<uint> *d1_trick_indices,
+    bool populate_boards_set) const {
   GeneralizedTrick gt;
   gt.leader = leader_;
   gt.demi1.opp_card = d1.opp_card;
@@ -604,28 +706,58 @@ GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
   gt.demi2.opp_card = d2.opp_card;
   gt.demi2.my_card = d2.my_card;
   gt.demi2.boards_vec = d2.boards_vec;
-  for (int b : d2.boards_vec) {
-    gt.boards.insert(gt.boards.end(), b);
-  }
   if (d1_trick_indices != nullptr) {
     size_t target_boards = d2.boards_vec.size();
+    gt.board_entries.reserve(target_boards);
     for (auto rit = d1_trick_indices->rbegin();
          rit != d1_trick_indices->rend(); ++rit) {
       uint i = *rit;
-      const auto &[cards, board] = tricks_[i];
-      const std::string &my2 = (leader_ % 2 == 0) ? cards[2] : cards[3];
+      const RecordedTrick &rt = tricks_[i];
+      const std::string &my2 = (leader_ % 2 == 0) ? rt.cards[2] : rt.cards[3];
       if (my2 != d2.my_card) {
         continue;
       }
-      const std::string &opp2 = (leader_ % 2 == 0) ? cards[3] : cards[2];
-      Suit suit_led = Card::ParseSuit(raw_tricks_[i][0]);
-      if (GeneralizesTo(opp2, d2.opp_card, suit_led, trump_suit_)) {
-        gt.demi2.board_to_trick.try_emplace(board, raw_tricks_[i]);
-        if (gt.demi2.board_to_trick.size() == target_boards) {
+      const std::string &opp2 = (leader_ % 2 == 0) ? rt.cards[3] : rt.cards[2];
+      if (GeneralizesTo(opp2, d2.opp_card, rt.suit_led, trump_suit_)) {
+        if (monotonic_boards_) {
+          if (!gt.board_entries.empty() &&
+              gt.board_entries.back().board == rt.board) {
+            continue;
+          }
+        } else {
+          bool exists = false;
+          for (const auto &e : gt.board_entries) {
+            if (e.board == rt.board) {
+              exists = true;
+              break;
+            }
+          }
+          if (exists) continue;
+        }
+        GeneralizedTrick::BoardTrickEntry entry;
+        entry.board = rt.board;
+        entry.winner = rt.winner;
+        const std::string &wc = rt.cards[rt.win_card_idx];
+        entry.win_card[0] = wc.size() > 0 ? wc[0] : '\0';
+        entry.win_card[1] = wc.size() > 1 ? wc[1] : '\0';
+        entry.win_card[2] = '\0';
+        entry.trick_mask = rt.trick_mask;
+        entry.trick_str = raw_tricks_[i];
+        gt.board_entries.push_back(std::move(entry));
+        if (gt.board_entries.size() == target_boards) {
           break;
         }
       }
     }
+    if (monotonic_boards_) {
+      std::reverse(gt.board_entries.begin(), gt.board_entries.end());
+    } else {
+      std::sort(gt.board_entries.begin(), gt.board_entries.end(),
+                [](const auto &a, const auto &b) { return a.board < b.board; });
+    }
+  }
+  if (populate_boards_set) {
+    gt.PopulateLegacyMaps();
   }
   return gt;
 }
@@ -652,14 +784,26 @@ std::string GeneralizedTrick::ToString(bool compact) const {
   }
 
   if (!compact) {
-    // play_str += " [" + std::to_string(boards.size()) + "]";
-    play_str += " [" + StrJoin(boards, ",") + "]";
-    int num_tricks = 0;
-    for (int b : boards) {
-      auto it = demi2.board_to_trick.find(b);
-      play_str += " / " + (it != demi2.board_to_trick.end() ? it->second : "");
-      if (++num_tricks >= 5) {
-        break;
+    if (!boards.empty()) {
+      play_str += " [" + StrJoin(boards, ",") + "]";
+      int num_tricks = 0;
+      for (int b : boards) {
+        auto it = demi2.board_to_trick.find(b);
+        play_str +=
+            " / " + (it != demi2.board_to_trick.end() ? it->second : "");
+        if (++num_tricks >= 5) {
+          break;
+        }
+      }
+    } else {
+      std::set<int> bset(demi2.boards_vec.begin(), demi2.boards_vec.end());
+      play_str += " [" + StrJoin(bset, ",") + "]";
+      int num_tricks = 0;
+      for (const auto &e : board_entries) {
+        play_str += " / " + e.trick_str;
+        if (++num_tricks >= 5) {
+          break;
+        }
       }
     }
   }
@@ -751,10 +895,69 @@ struct TrickOppPatternMask {
   }
 };
 
+bool AccumulateTrickStringIntoMask(const std::string &t_str, int opp_pos,
+                                   TrickOppPatternMask *mask) {
+  size_t c0_pos = 0;
+  size_t c0_len = 0;
+  size_t opp_c_pos = 0;
+  size_t opp_c_len = 0;
+  size_t pos = 0;
+  int idx = 0;
+  while (pos < t_str.size() && idx <= opp_pos) {
+    while (pos < t_str.size() && t_str[pos] == ' ') ++pos;
+    if (pos >= t_str.size()) break;
+    size_t end = pos;
+    while (end < t_str.size() && t_str[end] != ' ') ++end;
+    if (idx == 0) {
+      c0_pos = pos;
+      c0_len = end - pos;
+    }
+    if (idx == opp_pos) {
+      opp_c_pos = pos;
+      opp_c_len = end - pos;
+    }
+    ++idx;
+    pos = end;
+  }
+  if (idx <= opp_pos || c0_len < 2 || opp_c_len < 2) {
+    mask->always_true = true;
+    return false;
+  }
+  mask->has_any = true;
+  Suit suit_led = Card::ParseSuit(t_str[c0_pos]);
+  Suit card_suit = Card::ParseSuit(t_str[opp_c_pos]);
+  char opp_rank = t_str[opp_c_pos + 1];
+  bool is_discard = (suit_led != NOTRUMP && card_suit != suit_led);
+  if (is_discard) {
+    mask->has_discard = true;
+  } else if (card_suit >= 0 && card_suit < 4) {
+    uint32_t &sm = mask->suit_mask[card_suit];
+    sm |= (1u << 0);  // '_'
+    if (isdigit(opp_rank)) {
+      sm |= (1u << 1);  // 'x'
+    } else {
+      sm |= (1u << 2);  // 'X'
+      int bit = PatternCharBit(opp_rank);
+      if (bit >= 0) {
+        sm |= (1u << bit);
+      }
+    }
+  }
+  return true;
+}
+
 TrickOppPatternMask BuildTrickOppPatternMask(
     const GeneralizedTrick &general_trick, int opp_pos) {
   TrickOppPatternMask mask;
   mask.computed = true;
+  if (!general_trick.board_entries.empty()) {
+    for (const auto &entry : general_trick.board_entries) {
+      if (!AccumulateTrickStringIntoMask(entry.trick_str, opp_pos, &mask)) {
+        return mask;
+      }
+    }
+    return mask;
+  }
   if (general_trick.demi2.board_to_trick.empty()) {
     mask.always_true = true;
     return mask;
@@ -765,52 +968,8 @@ TrickOppPatternMask BuildTrickOppPatternMask(
       mask.always_true = true;
       return mask;
     }
-    const std::string &t_str = it->second;
-    size_t c0_pos = 0;
-    size_t c0_len = 0;
-    size_t opp_c_pos = 0;
-    size_t opp_c_len = 0;
-    size_t pos = 0;
-    int idx = 0;
-    while (pos < t_str.size() && idx <= opp_pos) {
-      while (pos < t_str.size() && t_str[pos] == ' ') ++pos;
-      if (pos >= t_str.size()) break;
-      size_t end = pos;
-      while (end < t_str.size() && t_str[end] != ' ') ++end;
-      if (idx == 0) {
-        c0_pos = pos;
-        c0_len = end - pos;
-      }
-      if (idx == opp_pos) {
-        opp_c_pos = pos;
-        opp_c_len = end - pos;
-      }
-      ++idx;
-      pos = end;
-    }
-    if (idx <= opp_pos || c0_len < 2 || opp_c_len < 2) {
-      mask.always_true = true;
+    if (!AccumulateTrickStringIntoMask(it->second, opp_pos, &mask)) {
       return mask;
-    }
-    mask.has_any = true;
-    Suit suit_led = Card::ParseSuit(t_str[c0_pos]);
-    Suit card_suit = Card::ParseSuit(t_str[opp_c_pos]);
-    char opp_rank = t_str[opp_c_pos + 1];
-    bool is_discard = (suit_led != NOTRUMP && card_suit != suit_led);
-    if (is_discard) {
-      mask.has_discard = true;
-    } else if (card_suit >= 0 && card_suit < 4) {
-      uint32_t &sm = mask.suit_mask[card_suit];
-      sm |= (1u << 0);  // '_'
-      if (isdigit(opp_rank)) {
-        sm |= (1u << 1);  // 'x'
-      } else {
-        sm |= (1u << 2);  // 'X'
-        int bit = PatternCharBit(opp_rank);
-        if (bit >= 0) {
-          sm |= (1u << bit);
-        }
-      }
     }
   }
   return mask;
@@ -838,12 +997,12 @@ bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
   }
   if (opp1[0] == opp2[0] &&
       ((opp1[1] == 'X' && opp2[1] == 'x') ||
-       (opp1[1] == 'x' && opp2[1] == 'X'))) {
+        (opp1[1] == 'x' && opp2[1] == 'X'))) {
     return true;
   }
   if (opp1 == opp2 ||
-      trick1.demi2.board_to_trick.empty() ||
-      trick2.demi2.board_to_trick.empty()) {
+      !trick1.HasBoardTricks() ||
+      !trick2.HasBoardTricks()) {
     return false;
   }
   int spec1 = PatternSpecificity(opp1);
@@ -1019,10 +1178,11 @@ int AssignRedundancyKeys(
       (*ungrouped_by_my1)[my1_id[i]]++;
     }
     const uint64_t *mi = &masks[i * num_words];
+    size_t size_i = input[i].NumBoards();
     for (size_t j = i + 1; j < input.size(); ++j) {
       if ((*key_id)[j] >= 0) continue;
-      if (input[i].boards.size() != input[j].boards.size()) {
-        // Since input is sorted by boards.size() descending, no later j can
+      if (size_i != input[j].NumBoards()) {
+        // Since input is sorted by NumBoards() descending, no later j can
         // have the same board set size.
         break;
       }
@@ -1124,7 +1284,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
       group_mask[w] = mi[w];
     }
 
-    if (def_leads && !input[i].demi2.board_to_trick.empty()) {
+    if (def_leads && input[i].HasBoardTricks()) {
       for (uint j = 0; j < i; j++) {
         try_add(j);
       }
