@@ -3,12 +3,14 @@
 #include <atomic>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "conditional_line.h"
+#include "line_finder.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
 
@@ -108,4 +110,12 @@ class WebServer {
   httplib::Server svr_;
   std::unique_ptr<std::thread> server_thread_;
   std::atomic<bool> running_{false};
+  std::mutex cached_lf_mu_;
+  std::unique_ptr<LineFinder> cached_lf_;
+  int cached_num_iters_ = 0;
+  std::vector<uint64_t> cached_hands_;
+  uint64_t cached_unknown_cards_ = 0;
+  Suit cached_trump_ = NOTRUMP;
+  int cached_leader_ = -1;
+  nlohmann::json cached_reqs_json_;
 };

@@ -860,3 +860,46 @@ TEST_CASE("LineFinder_RestrictedChoice_NoDuplicateTrick1Splits") {
     REQUIRE(line.conditions().size() == 1);
   }
 }
+
+TEST_CASE("LineFinder_ReuseCachedDealsForForcedLead") {
+  srand48(0);
+  std::vector<uint64_t> hands(4, 0);
+  hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+  hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+  uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+
+  LineFinder lf(30);
+  std::vector<ConditionalLine> base_lines =
+      lf.Solve(6, hands, unknown, 0, HEARTS, {});
+  REQUIRE(!base_lines.empty());
+  int base_cov = base_lines[0].CoveredFinalBoards();
+  REQUIRE(base_cov > 0);
+
+  // Forced lead HT (distinct rank in suit) should reuse base_boards_ and
+  // base_init_trees_ and match a fresh cold solve with the same seed.
+  std::vector<ConditionalLine> warm_ht =
+      lf.Solve(6, hands, unknown, 0, HEARTS, {Card::ParseStringCard("HT")});
+  REQUIRE(!warm_ht.empty());
+
+  srand48(0);
+  LineFinder cold_lf_ht(30);
+  std::vector<ConditionalLine> cold_ht =
+      cold_lf_ht.Solve(6, hands, unknown, 0, HEARTS,
+                       {Card::ParseStringCard("HT")});
+  REQUIRE(!cold_ht.empty());
+  REQUIRE(warm_ht[0].CoveredFinalBoards() == cold_ht[0].CoveredFinalBoards());
+
+  // Forced lead S5 (higher of touching/near-touching spades) and S3 (lower in
+  // same suit) should also match fresh cold solves on the same 30 deals.
+  std::vector<ConditionalLine> warm_s5 =
+      lf.Solve(6, hands, unknown, 0, HEARTS, {Card::ParseStringCard("S5")});
+  REQUIRE(!warm_s5.empty());
+
+  srand48(0);
+  LineFinder cold_lf_s5(30);
+  std::vector<ConditionalLine> cold_s5 =
+      cold_lf_s5.Solve(6, hands, unknown, 0, HEARTS,
+                       {Card::ParseStringCard("S5")});
+  REQUIRE(!cold_s5.empty());
+  REQUIRE(warm_s5[0].CoveredFinalBoards() == cold_s5[0].CoveredFinalBoards());
+}

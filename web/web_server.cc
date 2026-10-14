@@ -1336,45 +1336,75 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
     if (is_fuzzy) {
       total_boards = num_iters;
-      LineFinder lf(num_iters);
-      if (req_json.contains("requirements")) {
-        auto &reqs_json = req_json["requirements"];
-        std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
-        for (int i = 0; i < 4; ++i) {
-          std::string p_key = (i == 0 ? "N" : (i == 1 ? "E" : (i == 2 ? "S" : "W")));
-          if (reqs_json.contains(p_key)) {
-            auto &p_req = reqs_json[p_key];
-            if (p_req.contains("hcp_low") && p_req.contains("hcp_high")) {
-              reqs[i].push_back(std::make_shared<HighCardRange>(
-                  p_req["hcp_low"].get<int>(), p_req["hcp_high"].get<int>()));
-            }
-            if (p_req.contains("spades_min")) {
-              reqs[i].push_back(std::make_shared<SuitAtLeast>(
-                  SPADES, p_req["spades_min"].get<int>()));
-            }
-            if (p_req.contains("suit_max") && p_req["suit_max"].is_object()) {
-              for (auto &[s_key, max_val] : p_req["suit_max"].items()) {
-                if (max_val.is_number_integer()) {
-                  Suit s = ParseSuitName(s_key);
-                  if (s != NOTRUMP) {
-                    reqs[i].push_back(std::make_shared<SuitLength>(
-                        s, 0, std::max(0, max_val.get<int>())));
+      nlohmann::json reqs_json =
+          req_json.contains("requirements") ? req_json["requirements"]
+                                            : nlohmann::json();
+      std::unique_ptr<LineFinder> lf;
+      bool reused_lf = false;
+      {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
+        if (cached_lf_ && !cur_trick.empty() &&
+            cached_num_iters_ == num_iters && cached_hands_ == hands &&
+            cached_unknown_cards_ == unknown_cards &&
+            cached_trump_ == trump_suit && cached_leader_ == leader &&
+            cached_reqs_json_ == reqs_json) {
+          lf = std::move(cached_lf_);
+          reused_lf = true;
+        }
+      }
+      if (!lf) {
+        lf = std::make_unique<LineFinder>(num_iters);
+        if (req_json.contains("requirements")) {
+          std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
+          for (int i = 0; i < 4; ++i) {
+            std::string p_key =
+                (i == 0 ? "N" : (i == 1 ? "E" : (i == 2 ? "S" : "W")));
+            if (reqs_json.contains(p_key)) {
+              auto &p_req = reqs_json[p_key];
+              if (p_req.contains("hcp_low") && p_req.contains("hcp_high")) {
+                reqs[i].push_back(std::make_shared<HighCardRange>(
+                    p_req["hcp_low"].get<int>(),
+                    p_req["hcp_high"].get<int>()));
+              }
+              if (p_req.contains("spades_min")) {
+                reqs[i].push_back(std::make_shared<SuitAtLeast>(
+                    SPADES, p_req["spades_min"].get<int>()));
+              }
+              if (p_req.contains("suit_max") &&
+                  p_req["suit_max"].is_object()) {
+                for (auto &[s_key, max_val] : p_req["suit_max"].items()) {
+                  if (max_val.is_number_integer()) {
+                    Suit s = ParseSuitName(s_key);
+                    if (s != NOTRUMP) {
+                      reqs[i].push_back(std::make_shared<SuitLength>(
+                          s, 0, std::max(0, max_val.get<int>())));
+                    }
                   }
                 }
               }
             }
           }
+          lf->SetRequirements(reqs);
         }
-        lf.SetRequirements(reqs);
       }
 
       std::vector<ConditionalLine> lines =
-          lf.Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
-                   cur_trick, num_threads);
-      solve_ms = lf.solve_ms();
-      invariant_ms = lf.invariant_ms();
+          lf->Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
+                    cur_trick, num_threads);
+      solve_ms = lf->solve_ms();
+      invariant_ms = lf->invariant_ms();
 
-      const auto &boards = lf.boards();
+      std::vector<BoardState> boards = lf->boards();
+      if (reused_lf || cur_trick.empty()) {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
+        cached_lf_ = std::move(lf);
+        cached_num_iters_ = num_iters;
+        cached_hands_ = hands;
+        cached_unknown_cards_ = unknown_cards;
+        cached_trump_ = trump_suit;
+        cached_leader_ = leader;
+        cached_reqs_json_ = std::move(reqs_json);
+      }
       std::set<int> covered_set;
       if (!lines.empty()) {
         covered_set = lines[0].CoveredBoardsSet();
