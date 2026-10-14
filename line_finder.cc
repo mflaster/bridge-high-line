@@ -734,6 +734,24 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << " get_line_from_trick_calls="
             << get_line_from_trick_calls.load();
 
+  if (ans.empty() && !cur_trick.empty() && !board_offsets.empty()) {
+    GeneralizedTrickFinder gen_trick_finder(trump);
+    for (int b : board_offsets) {
+      auto tree0 = OptimalPlayTree::FindOptimalPlayTree(
+          boards[b], /*min_tricks=*/0, &cache, /*deepen_levels=*/0);
+      for (const OptimalLine &trick : tree0->GetLines()) {
+        gen_trick_finder.RecordOptimalTrick(leader, trick, b);
+      }
+    }
+    GeneralizedTricksVector gen_tricks =
+        gen_trick_finder.GetGeneralizedTricks(1);
+    if (!gen_tricks.empty()) {
+      ConditionalLine fail_line;
+      fail_line.SetAction(gen_tricks[0]);
+      ans.push_back(std::move(fail_line));
+    }
+  }
+
   DeduplicateTopLevelLines(&ans);
 
   auto start_invariant = std::chrono::high_resolution_clock::now();

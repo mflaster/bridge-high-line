@@ -143,7 +143,9 @@ uint64_t ParseHand(std::string hand_str) {
       case '\t':
       case '\r':
       case '\n':
-      case '-': break;
+      case ',':
+      case 'x':
+      case 'X': break;
       case 'S': case 's': cur_suit = SPADES; break;
       case 'H': case 'h': cur_suit = HEARTS; break;
       case 'D': case 'd': cur_suit = DIAMONDS; break;
@@ -153,8 +155,11 @@ uint64_t ParseHand(std::string hand_str) {
       case 'Q': case 'q': card_val = 10; break;
       case 'J': case 'j': card_val = 9; break;
       case 'T': case 't': card_val = 8; break;
-      default:
+      case '2': case '3': case '4': case '5':
+      case '6': case '7': case '8': case '9':
         card_val = hand_str[i] - '2';
+        break;
+      default:
         break;
     }
     if (card_val == -1) {

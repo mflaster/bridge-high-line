@@ -943,105 +943,7 @@ void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   j["children"] = children;
 }
 
-uint64_t ParseUnknownCards(const std::string &unknown_str,
-                           const std::vector<uint64_t> &hands,
-                           std::string &error_msg) {
-  uint64_t combined_known_cards = hands[0] | hands[1] | hands[2] | hands[3];
-
-  std::vector<int> available_ranks[4];
-  for (int s = 0; s < 4; ++s) {
-    Suit suit = static_cast<Suit>(s);
-    for (int r = 12; r >= 0; --r) {
-      uint64_t card_bit = Card::GetSuitedCard(suit, r);
-      if ((combined_known_cards & card_bit) == 0) {
-        available_ranks[s].push_back(r);
-      }
-    }
-  }
-
-  uint64_t unknown_cards = 0;
-  Suit cur_suit = SPADES;
-
-  for (size_t i = 0; i < unknown_str.size(); ++i) {
-    char c = unknown_str[i];
-    if (c == '1' && i + 1 < unknown_str.size() && unknown_str[i + 1] == '0') {
-      c = 'T';
-      i++;
-    }
-
-    if (std::isspace(static_cast<unsigned char>(c)) || c == ';' || c == ',' || c == '-') {
-      continue;
-    }
-
-    if (c == 'S' || c == 's') { cur_suit = SPADES; continue; }
-    if (c == 'H' || c == 'h') { cur_suit = HEARTS; continue; }
-    if (c == 'D' || c == 'd') { cur_suit = DIAMONDS; continue; }
-    if (c == 'C' || c == 'c') { cur_suit = CLUBS; continue; }
-
-    int card_val = -1;
-    if (c == 'A' || c == 'a') card_val = 12;
-    else if (c == 'K' || c == 'k') card_val = 11;
-    else if (c == 'Q' || c == 'q') card_val = 10;
-    else if (c == 'J' || c == 'j') card_val = 9;
-    else if (c == 'T' || c == 't') card_val = 8;
-    else if (c >= '2' && c <= '9') card_val = c - '2';
-
-    if (card_val >= 0) {
-      uint64_t card_bit = Card::GetSuitedCard(cur_suit, card_val);
-      if ((combined_known_cards & card_bit) != 0) {
-        error_msg = "Card " + Card::PrintCard(card_bit) + " in unknown cards conflicts with a known hand card.";
-        return 0;
-      }
-      if ((unknown_cards & card_bit) != 0) {
-        error_msg = "Duplicate card " + Card::PrintCard(card_bit) + " in unknown cards specification.";
-        return 0;
-      }
-      unknown_cards |= card_bit;
-      auto &ranks = available_ranks[static_cast<int>(cur_suit)];
-      auto it = std::find(ranks.begin(), ranks.end(), card_val);
-      if (it != ranks.end()) {
-        ranks.erase(it);
-      }
-      continue;
-    }
-
-    if (c == 'x' || c == 'X') {
-      auto &ranks = available_ranks[static_cast<int>(cur_suit)];
-      if (ranks.empty()) {
-        error_msg = "Not enough outstanding cards available in " + SuitDebugString(cur_suit) + " for wildcard 'x'.";
-        return 0;
-      }
-      int picked_rank = ranks.front();
-      ranks.erase(ranks.begin());
-      uint64_t card_bit = Card::GetSuitedCard(cur_suit, picked_rank);
-      unknown_cards |= card_bit;
-      continue;
-    }
-
-    error_msg = std::string("Unrecognized character '") + c + "' in unknown cards specification.";
-    return 0;
-  }
-
-  int parsed_count = CountCardsInHand(unknown_cards);
-  int n_cnt = CountCardsInHand(hands[0]);
-  int e_cnt = CountCardsInHand(hands[1]);
-  int s_cnt = CountCardsInHand(hands[2]);
-  int w_cnt = CountCardsInHand(hands[3]);
-
-  int max_cnt = std::max({n_cnt, e_cnt, s_cnt, w_cnt});
-  if (max_cnt == 0) max_cnt = 13;
-  int expected = (4 * max_cnt) - (n_cnt + e_cnt + s_cnt + w_cnt);
-
-  if (parsed_count != expected) {
-    error_msg = "Invalid unknown cards count: specified " + std::to_string(parsed_count) +
-                " unknown card(s), but expected " + std::to_string(expected) + " based on hand sizes.";
-    return 0;
-  }
-
-  return unknown_cards;
-}
-
-uint64_t ComputeUnknownCards(const std::vector<uint64_t>& hands) {
+uint64_t ComputeUnknownCards(const std::vector<uint64_t> &hands) {
   int n_cnt = CountCardsInHand(hands[0]);
   int e_cnt = CountCardsInHand(hands[1]);
   int s_cnt = CountCardsInHand(hands[2]);
@@ -1083,6 +985,191 @@ uint64_t ComputeUnknownCards(const std::vector<uint64_t>& hands) {
   }
 
   return unknown_cards;
+}
+
+void ExtractHandWildcards(const std::string &hand_str,
+                          std::vector<std::pair<Suit, char>> *wildcards) {
+  Suit cur_suit = SPADES;
+  for (size_t i = 0; i < hand_str.size(); ++i) {
+    char c = hand_str[i];
+    if (c == 'S' || c == 's') {
+      cur_suit = SPADES;
+    } else if (c == 'H' || c == 'h') {
+      cur_suit = HEARTS;
+    } else if (c == 'D' || c == 'd') {
+      cur_suit = DIAMONDS;
+    } else if (c == 'C' || c == 'c') {
+      cur_suit = CLUBS;
+    } else if (c == 'x' || c == 'X') {
+      wildcards->emplace_back(cur_suit, c);
+    }
+  }
+}
+
+bool ResolveHandsAndUnknownCards(
+    const std::vector<std::string> &hand_strs, const std::string &unknown_str,
+    std::vector<uint64_t> *hands, uint64_t *unknown_cards_out,
+    std::vector<CardType> (*resolved_hand_wildcards)[4][4],
+    std::string *error_msg) {
+  std::vector<std::pair<Suit, char>> hand_wildcards[4];
+  for (int p = 0; p < 4; ++p) {
+    ExtractHandWildcards(hand_strs[p], &hand_wildcards[p]);
+  }
+
+  uint64_t combined_known_cards =
+      (*hands)[0] | (*hands)[1] | (*hands)[2] | (*hands)[3];
+  uint64_t unknown_cards = 0;
+  std::vector<std::pair<Suit, char>> unknown_wildcards;
+
+  if (!unknown_str.empty()) {
+    Suit cur_suit = SPADES;
+    for (size_t i = 0; i < unknown_str.size(); ++i) {
+      char c = unknown_str[i];
+      if (c == '1' && i + 1 < unknown_str.size() && unknown_str[i + 1] == '0') {
+        c = 'T';
+        i++;
+      }
+      if (std::isspace(static_cast<unsigned char>(c)) || c == ';' ||
+          c == ',' || c == '-') {
+        continue;
+      }
+      if (c == 'S' || c == 's') {
+        cur_suit = SPADES;
+        continue;
+      }
+      if (c == 'H' || c == 'h') {
+        cur_suit = HEARTS;
+        continue;
+      }
+      if (c == 'D' || c == 'd') {
+        cur_suit = DIAMONDS;
+        continue;
+      }
+      if (c == 'C' || c == 'c') {
+        cur_suit = CLUBS;
+        continue;
+      }
+
+      int card_val = -1;
+      if (c == 'A' || c == 'a') {
+        card_val = 12;
+      } else if (c == 'K' || c == 'k') {
+        card_val = 11;
+      } else if (c == 'Q' || c == 'q') {
+        card_val = 10;
+      } else if (c == 'J' || c == 'j') {
+        card_val = 9;
+      } else if (c == 'T' || c == 't') {
+        card_val = 8;
+      } else if (c >= '2' && c <= '9') {
+        card_val = c - '2';
+      }
+
+      if (card_val >= 0) {
+        uint64_t card_bit = Card::GetSuitedCard(cur_suit, card_val);
+        if ((combined_known_cards & card_bit) != 0) {
+          *error_msg = "Card " + Card::PrintCard(card_bit) +
+                       " in unknown cards conflicts with a known hand card.";
+          return false;
+        }
+        if ((unknown_cards & card_bit) != 0) {
+          *error_msg = "Duplicate card " + Card::PrintCard(card_bit) +
+                       " in unknown cards specification.";
+          return false;
+        }
+        unknown_cards |= card_bit;
+        continue;
+      }
+
+      if (c == 'x' || c == 'X') {
+        unknown_wildcards.emplace_back(cur_suit, c);
+        continue;
+      }
+
+      *error_msg = std::string("Unrecognized character '") + c +
+                   "' in unknown cards specification.";
+      return false;
+    }
+  }
+
+  std::vector<int> available_ranks[4];
+  uint64_t all_explicit = combined_known_cards | unknown_cards;
+  for (int s = 0; s < 4; ++s) {
+    Suit suit = static_cast<Suit>(s);
+    for (int r = 0; r <= 12; ++r) {
+      uint64_t card_bit = Card::GetSuitedCard(suit, r);
+      if ((all_explicit & card_bit) == 0) {
+        available_ranks[s].push_back(r);
+      }
+    }
+  }
+
+  auto pick_wildcard_card = [&](Suit suit, char wc,
+                                CardType *out_bit) -> bool {
+    auto &ranks = available_ranks[static_cast<int>(suit)];
+    if (ranks.empty()) {
+      *error_msg = "Not enough outstanding cards available in " +
+                   SuitDebugString(suit) + " for wildcard 'x'.";
+      return false;
+    }
+    int picked_rank = 0;
+    if (wc == 'X') {
+      picked_rank = ranks.back();
+      ranks.pop_back();
+    } else {
+      picked_rank = ranks.front();
+      ranks.erase(ranks.begin());
+    }
+    *out_bit = Card::GetSuitedCard(suit, picked_rank);
+    return true;
+  };
+
+  for (int p = 0; p < 4; ++p) {
+    for (const auto &[suit, wc] : hand_wildcards[p]) {
+      CardType card_bit = 0;
+      if (!pick_wildcard_card(suit, wc, &card_bit)) {
+        return false;
+      }
+      (*hands)[p] |= card_bit;
+      if (resolved_hand_wildcards != nullptr) {
+        (*resolved_hand_wildcards)[p][static_cast<int>(suit)].push_back(
+            card_bit);
+      }
+    }
+  }
+
+  if (!unknown_str.empty()) {
+    for (const auto &[suit, wc] : unknown_wildcards) {
+      CardType card_bit = 0;
+      if (!pick_wildcard_card(suit, wc, &card_bit)) {
+        return false;
+      }
+      unknown_cards |= card_bit;
+    }
+
+    int parsed_count = CountCardsInHand(unknown_cards);
+    int n_cnt = CountCardsInHand((*hands)[0]);
+    int e_cnt = CountCardsInHand((*hands)[1]);
+    int s_cnt = CountCardsInHand((*hands)[2]);
+    int w_cnt = CountCardsInHand((*hands)[3]);
+
+    int max_cnt = std::max({n_cnt, e_cnt, s_cnt, w_cnt});
+    if (max_cnt == 0) max_cnt = 13;
+    int expected = (4 * max_cnt) - (n_cnt + e_cnt + s_cnt + w_cnt);
+
+    if (parsed_count != expected) {
+      *error_msg = "Invalid unknown cards count: specified " +
+                   std::to_string(parsed_count) +
+                   " unknown card(s), but expected " +
+                   std::to_string(expected) + " based on hand sizes.";
+      return false;
+    }
+    *unknown_cards_out = unknown_cards;
+  } else {
+    *unknown_cards_out = ComputeUnknownCards(*hands);
+  }
+
+  return true;
 }
 
 void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
@@ -1330,34 +1417,32 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       num_threads = std::max(1, req_json["num_threads"].get<int>());
     }
 
-    int n_cnt = CountCardsInHand(hands[0]);
-    int e_cnt = CountCardsInHand(hands[1]);
-    int s_cnt = CountCardsInHand(hands[2]);
-    int w_cnt = CountCardsInHand(hands[3]);
-
     std::string unknown_str = "";
-    if (req_json.contains("unknown_cards") && req_json["unknown_cards"].is_string()) {
+    if (req_json.contains("unknown_cards") &&
+        req_json["unknown_cards"].is_string()) {
       unknown_str = req_json["unknown_cards"].get<std::string>();
     }
 
     uint64_t unknown_cards = 0;
     std::string unknown_err = "";
+    std::vector<CardType> resolved_hand_wildcards[4][4];
+    std::vector<std::string> hand_strs = {north_str, east_str, south_str,
+                                          west_str};
 
-    if (!unknown_str.empty()) {
-      unknown_cards = ParseUnknownCards(unknown_str, hands, unknown_err);
-      if (!unknown_err.empty()) {
-        response["success"] = false;
-        response["error"] = unknown_err;
-        res.status = 400;
-        res.set_content(response.dump(), "application/json");
-        return;
-      }
-    } else {
-      unknown_cards = ComputeUnknownCards(hands);
+    if (!ResolveHandsAndUnknownCards(hand_strs, unknown_str, &hands,
+                                     &unknown_cards, &resolved_hand_wildcards,
+                                     &unknown_err)) {
+      response["success"] = false;
+      response["error"] = unknown_err;
+      res.status = 400;
+      res.set_content(response.dump(), "application/json");
+      return;
     }
 
+    bool reuse_deals = req_json.value("reuse_deals", false);
     bool is_fuzzy = false;
-    if (unknown_cards != 0 || req_json.contains("requirements") || !unknown_str.empty()) {
+    if (unknown_cards != 0 || req_json.contains("requirements") ||
+        !unknown_str.empty() || reuse_deals) {
       is_fuzzy = true;
     }
 
@@ -1394,13 +1479,35 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
     std::vector<CardType> cur_trick;
     if (req_json.contains("cur_trick") && req_json["cur_trick"].is_array()) {
-      for (const auto &c_json : req_json["cur_trick"]) {
-        if (c_json.is_string()) {
-          std::string c_str = c_json.get<std::string>();
-          if (!c_str.empty()) {
-            CardType ct = Card::ParseStringCard(c_str);
+      for (size_t k = 0; k < req_json["cur_trick"].size(); ++k) {
+        const auto &c_json = req_json["cur_trick"][k];
+        if (!c_json.is_string()) continue;
+        std::string c_str = c_json.get<std::string>();
+        if (c_str.size() < 2) continue;
+        Suit s = Card::ParseSuit(static_cast<char>(std::toupper(c_str[0])));
+        char rch = c_str[1];
+        if (c_str.size() >= 3 && c_str[1] == '1' && c_str[2] == '0') {
+          rch = 'T';
+        }
+        int seat = (leader + static_cast<int>(k)) % 4;
+        if (s != NOTRUMP && (rch == 'x' || rch == 'X' || rch == '_')) {
+          auto &vec = resolved_hand_wildcards[seat][static_cast<int>(s)];
+          if (!vec.empty()) {
+            CardType ct = vec.front();
+            vec.erase(vec.begin());
             cur_trick.push_back(ct);
+          } else {
+            std::vector<CardType> suit_cards =
+                CardsInHandInSuit(hands[seat], s, /*played_cards=*/0);
+            if (!suit_cards.empty()) {
+              CardType ct =
+                  (rch == 'X') ? suit_cards.back() : suit_cards.front();
+              cur_trick.push_back(ct);
+            }
           }
+        } else {
+          CardType ct = Card::ParseStringCard(c_str);
+          cur_trick.push_back(ct);
         }
       }
     }
@@ -1419,8 +1526,6 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
 
     double solve_ms = 0.0;
     double invariant_ms = 0.0;
-
-    bool reuse_deals = req_json.value("reuse_deals", false);
     std::vector<std::vector<std::string>> replay_tricks;
     if (req_json.contains("replay_tricks") &&
         req_json["replay_tricks"].is_array()) {
@@ -1722,9 +1827,25 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         success_boards = 0;
         failure_boards = total_boards;
         covered_boards = 0;
-        tree_node = BuildTreeFromOptimalLines(
-            optimal_lines, tricks_won, node_counter, BoardState(),
-            start_trick_num, initial_ns_tricks);
+        std::vector<int> all_failed_ids(boards.size());
+        for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
+          all_failed_ids[b_idx] = b_idx;
+        }
+        ConditionalLine empty_line;
+        FailureIndex line_failures =
+            IndexFailures(empty_line, boards, all_failed_ids, num_threads);
+        if (initial_ns_tricks > 0 && !line_failures.unplaced.boards.empty()) {
+          line_failures.unplaced.min_ns_tricks += initial_ns_tricks;
+          line_failures.unplaced.max_ns_tricks += initial_ns_tricks;
+        }
+        if (!line_failures.unplaced.boards.empty()) {
+          tree_node = MakeFailureLeaf(line_failures.unplaced, "", node_counter,
+                                      total_boards);
+        } else {
+          tree_node = BuildTreeFromOptimalLines(
+              optimal_lines, tricks_won, node_counter, BoardState(),
+              start_trick_num, initial_ns_tricks);
+        }
       }
     } else {
       BoardState bs;
