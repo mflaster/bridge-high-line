@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -134,6 +135,9 @@ class LineFinder {
   // Estimated fraction of the play-tree search finished, in [0, 1], or -1
   // when no search is running.
   static double GetSolveProgress();
+  using ProgressCallback =
+      std::function<void(const std::string &status, double progress)>;
+  static void SetProgressCallback(ProgressCallback cb);
   static void RequestStop();
   static void ClearStop();
   static bool IsStopRequested();

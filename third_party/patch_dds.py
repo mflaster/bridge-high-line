@@ -128,6 +128,25 @@ def patch_solver_if_cpp(solver_if: pathlib.Path) -> None:
   solver_if.write_text(patched, encoding="utf-8")
 
 
+def patch_system_cpp(system_cpp: pathlib.Path) -> None:
+  text = system_cpp.read_text(encoding="utf-8")
+  if "__EMSCRIPTEN__" in text:
+    return
+  nl = "\r\n" if "\r\n" in text else "\n"
+  target = "  (void) System::GetCores(ncores);"
+  replacement = (
+      "  (void) System::GetCores(ncores);" + nl + nl +
+      "#ifdef __EMSCRIPTEN__" + nl +
+      "  kilobytesFree = 512ULL * 1024ULL;" + nl +
+      "  ncores = 1;" + nl +
+      "  return;" + nl +
+      "#endif"
+  )
+  if target not in text:
+    raise RuntimeError(f"Could not find target line in {system_cpp}")
+  system_cpp.write_text(text.replace(target, replacement, 1), encoding="utf-8")
+
+
 def main() -> int:
   if len(sys.argv) != 2:
     print(f"Usage: {sys.argv[0]} <dds_source_dir>", file=sys.stderr)
@@ -135,8 +154,10 @@ def main() -> int:
   dds_dir = pathlib.Path(sys.argv[1])
   patch_memory_h(dds_dir / "src" / "Memory.h")
   patch_solver_if_cpp(dds_dir / "src" / "SolverIF.cpp")
+  patch_system_cpp(dds_dir / "src" / "System.cpp")
   return 0
 
 
 if __name__ == "__main__":
   sys.exit(main())
+

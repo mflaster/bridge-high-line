@@ -1106,6 +1106,196 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // Dual-Mode Backend Adapter: uses C++ HTTP server (/api/...) when available,
+  // and automatically falls back to client-side WebAssembly (solver_worker.js)
+  // when hosted statically (e.g. GitHub Pages).
+  let backendMode = null; // 'server' | 'wasm'
+  let backendDetectPromise = null;
+  let wasmWorker = null;
+  let wasmNextRequestId = 1;
+  let wasmActiveRequest = null;
+  let wasmLatestStatus = { status: 'Idle', progress: -1 };
+
+  function initWasmWorker() {
+    if (wasmWorker) return wasmWorker;
+    wasmLatestStatus = { status: 'Loading WebAssembly solver...', progress: -1 };
+    wasmWorker = new Worker('solver_worker.js');
+    wasmWorker.onmessage = (e) => {
+      const msg = e.data;
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'ready') {
+        wasmLatestStatus = { status: 'Idle', progress: -1 };
+      } else if (msg.type === 'progress') {
+        wasmLatestStatus = {
+          status: msg.status || 'Solving...',
+          progress: (typeof msg.progress === 'number') ? msg.progress : -1
+        };
+      } else if (msg.type === 'solve_result') {
+        if (wasmActiveRequest && wasmActiveRequest.id === msg.id) {
+          const req = wasmActiveRequest;
+          wasmActiveRequest = null;
+          try {
+            const parsed = JSON.parse(msg.resultJson || '{}');
+            req.resolve({
+              ok: parsed.success !== false,
+              json: async () => parsed
+            });
+          } catch (err) {
+            req.resolve({
+              ok: false,
+              json: async () => ({
+                success: false,
+                error: 'Invalid JSON from WebAssembly solver'
+              })
+            });
+          }
+        }
+      } else if (msg.type === 'error') {
+        if (wasmActiveRequest) {
+          const req = wasmActiveRequest;
+          wasmActiveRequest = null;
+          req.resolve({
+            ok: false,
+            json: async () => ({
+              success: false,
+              error: msg.error || 'WebAssembly worker error'
+            })
+          });
+        }
+      }
+    };
+    wasmWorker.onerror = (err) => {
+      if (wasmActiveRequest) {
+        const req = wasmActiveRequest;
+        wasmActiveRequest = null;
+        req.resolve({
+          ok: false,
+          json: async () => ({
+            success: false,
+            error: 'Web Worker error: ' + (err && err.message ? err.message : 'failed to load solver_worker.js')
+          })
+        });
+      }
+    };
+    return wasmWorker;
+  }
+
+  function configureWasmThreadsUI() {
+    const numThreadsSelect = document.getElementById('numThreads');
+    if (!numThreadsSelect) return;
+    numThreadsSelect.value = '1';
+    numThreadsSelect.disabled = true;
+    numThreadsSelect.title = 'Running client-side in WebAssembly Web Worker (1 worker thread)';
+  }
+
+  async function ensureBackendMode() {
+    if (backendMode) return backendMode;
+    if (backendDetectPromise) return backendDetectPromise;
+    backendDetectPromise = (async () => {
+      if (window.BRIDGE_FORCE_WASM === true) {
+        backendMode = 'wasm';
+        configureWasmThreadsUI();
+        initWasmWorker();
+        return backendMode;
+      }
+      try {
+        const res = await fetch('/api/health', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status === 'ok') {
+            backendMode = 'server';
+            return backendMode;
+          }
+        }
+      } catch (_) {}
+      backendMode = 'wasm';
+      configureWasmThreadsUI();
+      initWasmWorker();
+      return backendMode;
+    })();
+    return backendDetectPromise;
+  }
+
+  async function apiSolve(payload, signal) {
+    const mode = await ensureBackendMode();
+    if (mode === 'server') {
+      return fetch('/api/solve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal
+      });
+    }
+    const worker = initWasmWorker();
+    const reqId = wasmNextRequestId++;
+    wasmLatestStatus = { status: 'Starting solve...', progress: -1 };
+    return new Promise((resolve) => {
+      wasmActiveRequest = { id: reqId, resolve };
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          if (wasmActiveRequest && wasmActiveRequest.id === reqId) {
+            wasmActiveRequest = null;
+            resolve({
+              ok: false,
+              json: async () => ({
+                success: false,
+                stopped: true,
+                error: 'Solve stopped by user.'
+              })
+            });
+          }
+        }, { once: true });
+      }
+      worker.postMessage({
+        type: 'solve',
+        id: reqId,
+        payloadJson: JSON.stringify(Object.assign({}, payload, { num_threads: 1 }))
+      });
+    });
+  }
+
+  async function apiSolveStatus() {
+    const mode = await ensureBackendMode();
+    if (mode === 'server') {
+      return fetch('/api/solve_status');
+    }
+    const st = { status: wasmLatestStatus.status || 'Solving...' };
+    if (typeof wasmLatestStatus.progress === 'number' && wasmLatestStatus.progress >= 0) {
+      st.progress = wasmLatestStatus.progress;
+    }
+    return {
+      ok: true,
+      json: async () => st
+    };
+  }
+
+  function apiStopSolve() {
+    if (backendMode === 'wasm') {
+      if (wasmWorker) {
+        wasmWorker.terminate();
+        wasmWorker = null;
+      }
+      if (wasmActiveRequest) {
+        const req = wasmActiveRequest;
+        wasmActiveRequest = null;
+        req.resolve({
+          ok: false,
+          json: async () => ({
+            success: false,
+            stopped: true,
+            error: 'Solve stopped by user.'
+          })
+        });
+      }
+      wasmLatestStatus = { status: 'Solve stopped.', progress: -1 };
+      initWasmWorker();
+      return;
+    }
+    try {
+      fetch('/api/stop_solve', { method: 'POST' }).catch(() => {});
+    } catch (_) {}
+  }
+
   async function fetchPresets() {
     try {
       const res = await fetch('/api/presets');
@@ -1114,11 +1304,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
           PRESETS = loaded;
           populatePresetSelect();
+          return;
+        }
+      }
+    } catch (e) {
+      // Try static presets.json fallback next
+    }
+    try {
+      const res = await fetch('presets.json');
+      if (res.ok) {
+        const loaded = await res.json();
+        if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
+          PRESETS = loaded;
+          populatePresetSelect();
+          return;
         }
       }
     } catch (e) {
       // Fall back to default embedded PRESETS
     }
+    ensureBackendMode();
   }
 
   function populatePresetSelect() {
@@ -2040,9 +2245,7 @@ document.addEventListener('DOMContentLoaded', () => {
     solveStoppedByUser = true;
     if (stopSolveBtn) stopSolveBtn.disabled = true;
     if (stopSolveActionBtn) stopSolveActionBtn.disabled = true;
-    try {
-      fetch('/api/stop_solve', { method: 'POST' }).catch(() => {});
-    } catch (_) {}
+    apiStopSolve();
     if (activeSolveAbortController) {
       activeSolveAbortController.abort();
     }
@@ -2106,7 +2309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusPollTimer = setInterval(async () => {
       if (!isSolving || solveStoppedByUser) return;
       try {
-        const stRes = await fetch('/api/solve_status');
+        const stRes = await apiSolveStatus();
         if (!isSolving || solveStoppedByUser || !stRes.ok) return;
         const stData = await stRes.json();
         if (!isSolving || solveStoppedByUser) return;
@@ -2121,12 +2324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
 
     try {
-      const response = await fetch('/api/solve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: activeSolveAbortController.signal
-      });
+      const response = await apiSolve(payload, activeSolveAbortController.signal);
 
       const data = await response.json();
       isSolving = false;
@@ -2635,7 +2833,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const statusPollTimer = setInterval(async () => {
         if (!isSolving || solveStoppedByUser) return;
         try {
-          const stRes = await fetch('/api/solve_status');
+          const stRes = await apiSolveStatus();
           if (!isSolving || solveStoppedByUser || !stRes.ok) return;
           const stData = await stRes.json();
           if (!isSolving || solveStoppedByUser) return;
@@ -2648,12 +2846,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 200);
 
       try {
-        const response = await fetch('/api/solve', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: activeSolveAbortController.signal
-        });
+        const response = await apiSolve(payload, activeSolveAbortController.signal);
 
         const data = await response.json();
         isSolving = false;
@@ -4177,6 +4370,64 @@ document.addEventListener('DOMContentLoaded', () => {
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
     zoomLevel = Math.max(0.3, Math.min(3.0, zoomLevel * zoomFactor));
     updateTransform();
+  });
+
+  // Mobile Touch Pan & Pinch-to-Zoom
+  let touchDragging = false;
+  let touchStartClientX = 0;
+  let touchStartClientY = 0;
+  let touchStartPanX = 0;
+  let touchStartPanY = 0;
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1.0;
+
+  treeViewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchDragging = true;
+      pinchStartDist = 0;
+      touchStartClientX = e.touches[0].clientX;
+      touchStartClientY = e.touches[0].clientY;
+      touchStartPanX = panX;
+      touchStartPanY = panY;
+    } else if (e.touches.length === 2) {
+      touchDragging = false;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.hypot(dx, dy);
+      pinchStartZoom = zoomLevel;
+    }
+  }, { passive: true });
+
+  treeViewport.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && touchDragging) {
+      const dx = e.touches[0].clientX - touchStartClientX;
+      const dy = e.touches[0].clientY - touchStartClientY;
+      if (Math.hypot(dx, dy) > 4) {
+        e.preventDefault();
+        panX = touchStartPanX + dx;
+        panY = touchStartPanY + dy;
+        updateTransform();
+      }
+    } else if (e.touches.length === 2 && pinchStartDist > 0) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 0) {
+        zoomLevel = Math.max(0.3, Math.min(3.0, pinchStartZoom * (dist / pinchStartDist)));
+        updateTransform();
+      }
+    }
+  }, { passive: false });
+
+  treeViewport.addEventListener('touchend', () => {
+    touchDragging = false;
+    pinchStartDist = 0;
+  });
+
+  treeViewport.addEventListener('touchcancel', () => {
+    touchDragging = false;
+    pinchStartDist = 0;
   });
 
   zoomInBtn.addEventListener('click', () => { zoomLevel = Math.min(3.0, zoomLevel * 1.2); updateTransform(); });

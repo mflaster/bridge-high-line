@@ -37,13 +37,15 @@ FetchContent_Declare(
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
-# 3. Catch2
-set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-  Catch2
-  URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.5.2.tar.gz
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
+# 3. Catch2 (only needed for native test builds)
+if(NOT EMSCRIPTEN)
+  set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    Catch2
+    URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.5.2.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+endif()
 
 # 4. DDS
 FetchContent_Declare(
@@ -52,7 +54,11 @@ FetchContent_Declare(
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
-FetchContent_MakeAvailable(boost_headers glog Catch2)
+if(EMSCRIPTEN)
+  FetchContent_MakeAvailable(boost_headers glog)
+else()
+  FetchContent_MakeAvailable(boost_headers glog Catch2)
+endif()
 
 if(NOT TARGET Boost::thread)
   add_library(Boost::thread ALIAS boost_headers)
@@ -80,28 +86,21 @@ if(NOT dds_POPULATED)
   endif()
   file(GLOB DDS_SOURCES "${dds_SOURCE_DIR}/src/*.cpp")
   add_library(dds STATIC ${DDS_SOURCES})
-  target_compile_definitions(dds PRIVATE DDS_THREADS_OPENMP)
   target_include_directories(dds PUBLIC
     "${dds_SOURCE_DIR}/include"
     "${dds_SOURCE_DIR}/src"
   )
-  find_package(OpenMP REQUIRED)
-  target_link_libraries(dds PUBLIC OpenMP::OpenMP_CXX boost_headers)
+  if(EMSCRIPTEN)
+    target_compile_options(dds PRIVATE -O3 -msimd128 -fexceptions)
+    target_link_libraries(dds PUBLIC boost_headers)
+  else()
+    target_compile_definitions(dds PRIVATE DDS_THREADS_OPENMP)
+    find_package(OpenMP REQUIRED)
+    target_link_libraries(dds PUBLIC OpenMP::OpenMP_CXX boost_headers)
+  endif()
 endif()
 
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/web/web_assets.h
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/web/generate_web_assets.py
-  DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/index.html
-    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
-    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
-    ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
-  COMMENT "Generating web/web_assets.h from static web assets"
-)
-
-# Core bridge solver library
-add_library(bridge_lib STATIC
+set(BRIDGE_CORE_SOURCES
   string_util.cc
   card.cc
   hand.cc
@@ -112,67 +111,117 @@ add_library(bridge_lib STATIC
   conditional_line.cc
   line_finder.cc
   interface_dds.cc
-  golden_serializer.cc
   web/web_server.cc
-  web/web_assets.h
   unknown_cards_invariant.cc
   cross_hand_summarizer.cc
   search_progress.cc
 )
 
-target_include_directories(bridge_lib PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/web
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party
-)
-
-target_link_libraries(bridge_lib PUBLIC
-  dds
-  glog::glog
-  boost_headers
-  OpenMP::OpenMP_CXX
-  Catch2::Catch2
-)
-
-if(WIN32)
-  target_link_libraries(bridge_lib PUBLIC ws2_32 crypt32)
-endif()
-
-# Executable: bridge_server
-add_executable(bridge_server web/server_main.cc)
-target_link_libraries(bridge_server PRIVATE bridge_lib)
-
-# Executable: line_finder_perf
-add_executable(line_finder_perf perf/line_finder_perf.cc)
-target_link_libraries(line_finder_perf PRIVATE bridge_lib)
-
-enable_testing()
-
-set(TEST_NAMES
-  basic_test
-  board_state_test
-  conditional_line_test
-  dds_test
-  deal_test
-  hand_requirements_test
-  interface_dds_test
-  line_finder_test
-  server_test
-  cross_hand_summarizer_test
-  search_progress_test
-  string_util_test
-)
-
-foreach(test_name IN LISTS TEST_NAMES)
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/${test_name}.cc")
-    set(TEST_SRC "web/${test_name}.cc")
-  else()
-    set(TEST_SRC "${test_name}.cc")
-  endif()
-  add_executable(${test_name} ${TEST_SRC})
-  target_link_libraries(${test_name} PRIVATE
-    bridge_lib
-    Catch2::Catch2WithMain
+if(EMSCRIPTEN)
+  add_library(bridge_lib STATIC ${BRIDGE_CORE_SOURCES})
+  target_include_directories(bridge_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/web
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party
   )
-  add_test(NAME ${test_name} COMMAND ${test_name} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-endforeach()
+  target_compile_options(bridge_lib PUBLIC
+    -O3
+    -msimd128
+    -fexceptions
+    -Wno-unknown-pragmas
+  )
+  target_link_libraries(bridge_lib PUBLIC
+    dds
+    glog::glog
+    boost_headers
+  )
+
+  add_executable(bridge_wasm web/wasm_main.cc)
+  target_link_libraries(bridge_wasm PRIVATE bridge_lib)
+  target_link_options(bridge_wasm PRIVATE
+    "-O3"
+    "-fexceptions"
+    "-sALLOW_MEMORY_GROWTH=1"
+    "-sINITIAL_MEMORY=67108864"
+    "-sMAXIMUM_MEMORY=2147483648"
+    "-sSTACK_SIZE=8388608"
+    "-sENVIRONMENT=worker,web,node"
+    "-sEXPORTED_FUNCTIONS=['_wasm_solve_json','_wasm_get_solve_status','_wasm_stop_solve','_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
+  )
+else()
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/web/web_assets.h
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/web/generate_web_assets.py
+    DEPENDS
+      ${CMAKE_CURRENT_SOURCE_DIR}/web/static/index.html
+      ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
+      ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
+      ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
+    COMMENT "Generating web/web_assets.h from static web assets"
+  )
+
+  # Core bridge solver library
+  add_library(bridge_lib STATIC
+    ${BRIDGE_CORE_SOURCES}
+    golden_serializer.cc
+    web/web_assets.h
+  )
+
+  target_include_directories(bridge_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/web
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+  )
+
+  target_link_libraries(bridge_lib PUBLIC
+    dds
+    glog::glog
+    boost_headers
+    OpenMP::OpenMP_CXX
+    Catch2::Catch2
+  )
+
+  if(WIN32)
+    target_link_libraries(bridge_lib PUBLIC ws2_32 crypt32)
+  endif()
+
+  # Executable: bridge_server
+  add_executable(bridge_server web/server_main.cc)
+  target_link_libraries(bridge_server PRIVATE bridge_lib)
+
+  # Executable: line_finder_perf
+  add_executable(line_finder_perf perf/line_finder_perf.cc)
+  target_link_libraries(line_finder_perf PRIVATE bridge_lib)
+
+  enable_testing()
+
+  set(TEST_NAMES
+    basic_test
+    board_state_test
+    conditional_line_test
+    dds_test
+    deal_test
+    hand_requirements_test
+    interface_dds_test
+    line_finder_test
+    server_test
+    cross_hand_summarizer_test
+    search_progress_test
+    string_util_test
+  )
+
+  foreach(test_name IN LISTS TEST_NAMES)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/${test_name}.cc")
+      set(TEST_SRC "web/${test_name}.cc")
+    else()
+      set(TEST_SRC "${test_name}.cc")
+    endif()
+    add_executable(${test_name} ${TEST_SRC})
+    target_link_libraries(${test_name} PRIVATE
+      bridge_lib
+      Catch2::Catch2WithMain
+    )
+    add_test(NAME ${test_name} COMMAND ${test_name} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  endforeach()
+endif()

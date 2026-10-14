@@ -2048,3 +2048,114 @@ body.is-resizing * {
   gap: 8px;
 }
 
+/* Mobile Responsive Layout */
+@media (max-width: 768px) {
+  .app-header {
+    padding: 10px 12px;
+  }
+
+  .header-content {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .logo h1 {
+    font-size: 17px;
+  }
+
+  .preset-selector {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .preset-selector .select-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .app-main {
+    padding: 8px 10px 16px;
+  }
+
+  .card-panel {
+    padding: 10px;
+  }
+
+  .hand-input-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .req-fields {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .decision-tree-panel > .panel-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .tab-buttons {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  .tab-btn {
+    padding: 6px 10px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+
+  .zoom-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tree-legend {
+    margin-right: auto;
+  }
+
+  .status-box {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .status-progress {
+    flex: 1 1 100%;
+    order: 4;
+  }
+
+  .results-summary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .tree-layout-wrapper {
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+  }
+
+  .tree-viewport {
+    height: 360px;
+    min-height: 320px;
+    flex: none;
+    touch-action: none;
+  }
+
+  .tree-inspector-panel {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 360px;
+  }
+}
+
+

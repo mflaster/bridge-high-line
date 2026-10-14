@@ -1,7 +1,6 @@
 #include "line_finder.h"
 
 #include <ctype.h>
-#include <omp.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -11,6 +10,7 @@
 #include "deal.h"
 #include "glog/logging.h"
 #include "interface_dds.h"
+#include "omp_compat.h"
 
 void FuzzyBoardState::SetHands(const std::vector<uint64_t> &hands,
                                uint64_t unknown_cards) {
@@ -335,6 +335,21 @@ std::shared_ptr<SearchProgress> g_active_progress;
 std::atomic<int> g_best_covered{0};
 std::atomic<int> g_total_boards{0};
 std::atomic<bool> g_stop_requested{false};
+LineFinder::ProgressCallback g_progress_cb;
+std::atomic<bool> g_has_progress_cb{false};
+std::atomic<uint32_t> g_progress_tick{0};
+
+void MaybeNotifyProgress() {
+  if (!g_has_progress_cb.load(std::memory_order_relaxed)) return;
+  LineFinder::ProgressCallback cb;
+  {
+    std::lock_guard<std::mutex> lock(g_status_mutex);
+    cb = g_progress_cb;
+  }
+  if (cb) {
+    cb(LineFinder::GetSolveStatus(), LineFinder::GetSolveProgress());
+  }
+}
 }  // namespace
 
 static std::atomic<uint64_t> get_line_from_trick_calls{0};
@@ -342,6 +357,12 @@ static std::atomic<uint64_t> g_play_trick_calls{0};
 static std::atomic<uint64_t> g_memo_hits{0};
 static std::atomic<uint64_t> g_memo_misses{0};
 static std::atomic<uint64_t> g_memo_evictions{0};
+
+void LineFinder::SetProgressCallback(ProgressCallback cb) {
+  std::lock_guard<std::mutex> lock(g_status_mutex);
+  g_has_progress_cb.store(static_cast<bool>(cb), std::memory_order_relaxed);
+  g_progress_cb = std::move(cb);
+}
 
 void LineFinder::RequestStop() {
   g_stop_requested.store(true, std::memory_order_relaxed);
@@ -352,6 +373,13 @@ void LineFinder::ClearStop() {
 }
 
 bool LineFinder::IsStopRequested() {
+  if (g_has_progress_cb.load(std::memory_order_relaxed)) {
+    uint32_t tick =
+        g_progress_tick.fetch_add(1, std::memory_order_relaxed) + 1;
+    if ((tick & 63u) == 0u) {
+      MaybeNotifyProgress();
+    }
+  }
   return g_stop_requested.load(std::memory_order_relaxed);
 }
 
@@ -372,8 +400,11 @@ std::string LineFinder::GetSolveStatus() {
 }
 
 void LineFinder::SetSolveStatus(const std::string &status) {
-  std::lock_guard<std::mutex> lock(g_status_mutex);
-  g_solve_status = status;
+  {
+    std::lock_guard<std::mutex> lock(g_status_mutex);
+    g_solve_status = status;
+  }
+  MaybeNotifyProgress();
 }
 
 double LineFinder::GetSolveProgress() {

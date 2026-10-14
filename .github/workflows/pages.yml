@@ -1,0 +1,114 @@
+name: Build Wasm & Deploy GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-wasm:
+    name: Build WebAssembly Solver
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: emsdk-cache
+
+      - name: Cache CMake Wasm dependencies
+        uses: actions/cache@v4
+        with:
+          path: build-wasm/_deps
+          key: wasm-deps-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'third_party/patch_dds.py') }}
+          restore-keys: |
+            wasm-deps-v1-${{ runner.os }}-
+
+      - name: Configure and build bridge_wasm
+        run: |
+          emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-wasm -j "$(nproc)"
+
+      - name: Smoke-test bridge_wasm in Node.js
+        run: |
+          node -e '
+            const path = require("path");
+            global.self = global;
+            const statuses = [];
+            global.self.onBridgeSolverProgress = (st, prog) => {
+              statuses.push({ st, prog });
+            };
+            global.Module = {
+              onRuntimeInitialized() {
+                const req = JSON.stringify({
+                  hands: {
+                    N: "S AQ; H -; D -; C -;",
+                    E: "S 54; H -; D -; C -;",
+                    S: "S 87; H -; D -; C -;",
+                    W: "S KJ; H -; D -; C -;"
+                  },
+                  trump: "SPADES",
+                  leader: "NORTH",
+                  min_tricks: 1,
+                  num_iters: 1,
+                  num_threads: 1
+                });
+                const out = JSON.parse(
+                  global.Module.ccall("wasm_solve_json", "string", ["string"], [req])
+                );
+                if (!out.success || out.tricks_won !== 1 || out.best_lead !== "SA") {
+                  console.error("Unexpected Wasm solve output:", out);
+                  process.exit(1);
+                }
+                console.log("Wasm smoke test passed:", out.best_lead, "statuses:", statuses.length);
+                process.exit(0);
+              }
+            };
+            require(path.resolve("build-wasm/bridge_wasm.js"));
+          '
+
+      - name: Assemble static site bundle
+        run: |
+          mkdir -p _site
+          cp web/static/index.html _site/
+          cp web/static/styles.css _site/
+          cp web/static/app.js _site/
+          cp web/static/solver_worker.js _site/
+          cp web/presets.json _site/
+          cp build-wasm/bridge_wasm.js _site/
+          cp build-wasm/bridge_wasm.wasm _site/
+          touch _site/.nojekyll
+          ls -lh _site/
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build-wasm
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

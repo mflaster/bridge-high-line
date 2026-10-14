@@ -12,7 +12,9 @@
 #include "conditional_line.h"
 #include "line_finder.h"
 #include "solver.h"
+#ifndef __EMSCRIPTEN__
 #include "third_party/httplib.h"
+#endif
 #include "third_party/nlohmann/json.hpp"
 
 struct DecisionTreeNode {
@@ -78,7 +80,8 @@ struct FailureIndex {
 
 std::string ExtractFirstCard(const std::string &seq);
 std::string FormatWinnerCondition(const PlayCondition *cond_ptr);
-std::string FormatBranchCondition(const PlayCondition *cond_ptr, bool only_choice = false);
+std::string FormatBranchCondition(const PlayCondition *cond_ptr,
+                                  bool only_choice = false);
 FailureIndex IndexFailures(const ConditionalLine &line,
                            const std::vector<BoardState> &boards,
                            const std::vector<int> &failed_board_ids,
@@ -94,18 +97,27 @@ class WebServer {
   WebServer(const std::string &host = "0.0.0.0", int port = 8080);
   ~WebServer();
 
+#ifndef __EMSCRIPTEN__
   bool Start(bool async = false);
   void Stop();
+#endif
+
+  std::string SolveJson(const std::string &req_body,
+                        int *http_status_out = nullptr);
+  std::string GetSolveStatusJson() const;
+  std::string StopSolveJson();
 
   int port() const { return port_; }
   std::string host() const { return host_; }
 
  private:
+#ifndef __EMSCRIPTEN__
   void RegisterRoutes();
   void HandleHealth(const httplib::Request &req, httplib::Response &res);
   void HandleSolve(const httplib::Request &req, httplib::Response &res);
   void HandleSolveStatus(const httplib::Request &req, httplib::Response &res);
   void HandleStopSolve(const httplib::Request &req, httplib::Response &res);
+#endif
   std::unique_ptr<LineFinder> CheckoutLineFinder(
       int num_iters, const std::vector<uint64_t> &hands,
       uint64_t unknown_cards, Suit trump_suit, int leader,
@@ -118,9 +130,11 @@ class WebServer {
 
   std::string host_;
   int port_;
+#ifndef __EMSCRIPTEN__
   httplib::Server svr_;
   std::unique_ptr<std::thread> server_thread_;
   std::atomic<bool> running_{false};
+#endif
   std::mutex cached_lf_mu_;
   std::unique_ptr<LineFinder> cached_lf_;
   int cached_num_iters_ = 0;
