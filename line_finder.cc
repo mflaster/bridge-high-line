@@ -62,16 +62,162 @@ void PlayTrick(const std::string &trick, BoardState &bs) {
   return bs.PlayTrick(trick);
 }
 
+namespace {
+
+// Plays a card on `bs` matching `card_str` (e.g. "SA", "Cx", "D2").
+// Returns true if a legal card in `bs.ValidCardsToPlay()` was matched and
+// played, or false if the board cannot follow this play.
+bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
+  if (card_str.size() < 2) return false;
+  Suit suit = Card::ParseSuit(static_cast<char>(std::toupper(card_str[0])));
+  if (suit == NOTRUMP) return false;
+  char rch = card_str[1];
+  if (card_str.size() >= 3 && card_str[1] == '1' && card_str[2] == '0') {
+    rch = 'T';
+  }
+  bool is_spot_wildcard = (rch == 'x' || rch == '_');
+  bool is_honor_wildcard = (rch == 'X');
+  CardType exact_card = 0;
+  if (!is_spot_wildcard && !is_honor_wildcard) {
+    std::string norm_str(1, static_cast<char>(std::toupper(card_str[0])));
+    norm_str += static_cast<char>(std::toupper(rch));
+    exact_card = Card::ParseStringCard(norm_str);
+  }
+
+  std::vector<CardType> valid = bs.ValidCardsToPlay();
+  if (exact_card != 0) {
+    for (CardType v : valid) {
+      if (v == exact_card) {
+        bs.PlayCard(bs.CurPlayer(), v);
+        return true;
+      }
+    }
+    auto [ex_suit, ex_rank] = Card::DecodeCard(exact_card);
+    // Only fall back to another spot card if the requested card was itself a
+    // spot card (2..9) chosen from Unknown Cards to stand in for 'x'.
+    if (ex_rank <= 9) {
+      is_spot_wildcard = true;
+    } else {
+      return false;
+    }
+  }
+
+  // Pick the lowest matching card of `suit` in `valid` (ValidCardsToPlay
+  // iterates suits and ranks 2..14 in ascending order).
+  for (CardType v : valid) {
+    auto [vs, vr] = Card::DecodeCard(v);
+    if (vs != suit) continue;
+    if (is_spot_wildcard && vr <= 9) {
+      bs.PlayCard(bs.CurPlayer(), v);
+      return true;
+    }
+    if (is_honor_wildcard && vr >= 10) {
+      bs.PlayCard(bs.CurPlayer(), v);
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
 std::vector<BoardState> LineFinder::SetupBoards(
     Suit trump, int leader, std::set<int> &board_offsets,
     const std::vector<CardType> &cur_trick, bool deal_missing_cards) {
   std::vector<BoardState> boards;
+  initial_boards_.clear();
+
+  if (!predealt_boards_.empty() &&
+      static_cast<int>(predealt_boards_.size()) == num_iters_) {
+    initial_boards_ = predealt_boards_;
+    for (int i = 0; i < num_iters_; i++) {
+      BoardState sim = predealt_boards_[i];
+      sim.set_board_id(static_cast<uint32_t>(i + 1));
+      sim.set_check_card_play(false);
+      sim.SetTrump(trump);
+
+      bool valid_for_branch = true;
+      for (const auto &trick_cards : replay_tricks_) {
+        if (trick_cards.size() != 4) {
+          valid_for_branch = false;
+          break;
+        }
+        for (const std::string &c_str : trick_cards) {
+          if (!PlayReplayCardOnBoard(c_str, sim)) {
+            valid_for_branch = false;
+            break;
+          }
+        }
+        if (!valid_for_branch) break;
+      }
+
+      if (valid_for_branch && sim.CurPlayer() != leader) {
+        valid_for_branch = false;
+      }
+
+      std::vector<uint64_t> rem_hands(4, 0);
+      for (int p = 0; p < 4; ++p) {
+        rem_hands[p] = sim.GetHand(p) & ~sim.played_cards();
+      }
+      if (valid_for_branch) {
+        for (const auto &req : fuzzy_state_.hand_reqs1()) {
+          if (req && !req->MeetsRequirement(rem_hands[1])) {
+            valid_for_branch = false;
+            break;
+          }
+        }
+      }
+      if (valid_for_branch) {
+        for (const auto &req : fuzzy_state_.hand_reqs3()) {
+          if (req && !req->MeetsRequirement(rem_hands[3])) {
+            valid_for_branch = false;
+            break;
+          }
+        }
+      }
+
+      BoardState b;
+      if (valid_for_branch) {
+        b.SetHands(rem_hands);
+        b.set_board_id(static_cast<uint32_t>(i + 1));
+        b.set_check_card_play(false);
+        b.SetTrump(trump);
+        b.SetLead(leader);
+        for (CardType c : cur_trick) {
+          if (!PlayReplayCardOnBoard(Card::PrintCard(c), b)) {
+            valid_for_branch = false;
+            break;
+          }
+        }
+      }
+
+      if (!valid_for_branch) {
+        // Populate a valid placeholder board with the expected card count so
+        // boards_[i] is well-formed, but omit `i` from `board_offsets` so it
+        // cannot be covered along this branch.
+        b = fuzzy_state_.Randomize(deal_missing_cards);
+        b.set_board_id(static_cast<uint32_t>(i + 1));
+        b.set_check_card_play(false);
+        b.SetTrump(trump);
+        b.SetLead(leader);
+        for (CardType c : cur_trick) {
+          b.PlayCard(b.CurPlayer(), c);
+        }
+      } else {
+        board_offsets.insert(i);
+      }
+      boards.emplace_back(b);
+    }
+    return boards;
+  }
+
   for (int i = 0; i < num_iters_; i++) {
     BoardState b = fuzzy_state_.Randomize(deal_missing_cards);
     b.set_board_id(static_cast<uint32_t>(i + 1));
     b.set_check_card_play(false);
     b.SetTrump(trump);
     b.SetLead(leader);
+    initial_boards_.emplace_back(b);
     for (CardType c : cur_trick) {
       b.PlayCard(b.CurPlayer(), c);
     }
@@ -263,7 +409,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
   boards_ = boards;
 
   solve_memo_ = std::make_unique<SolveMemo>();
-  SolverCache cache;
+  if (!shared_cache_) {
+    shared_cache_ = std::make_shared<SolverCache>();
+  }
+  SolverCache &cache = *shared_cache_;
   auto start_init_trees = std::chrono::high_resolution_clock::now();
   std::map<int, std::shared_ptr<OptimalPlayTree>> board_trees;
   std::vector<std::shared_ptr<OptimalPlayTree>> init_trees(boards.size());
@@ -271,6 +420,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
   #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
       if (effective_threads > 1)
   for (size_t i = 0; i < boards.size(); i++) {
+    if (board_offsets.count(static_cast<int>(i)) == 0) {
+      ++init_done;
+      continue;
+    }
     init_trees[i] = OptimalPlayTree::FindOptimalPlayTree(
         boards[i], min_tricks, &cache);
     int done = ++init_done;
@@ -281,7 +434,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << " with mini_max " << init_trees[i]->MiniMax();
   }
   for (size_t i = 0; i < boards.size(); i++) {
-    board_trees[static_cast<int>(i)] = init_trees[i];
+    if (init_trees[i]) {
+      board_trees[static_cast<int>(i)] = init_trees[i];
+    }
   }
   auto end_init_trees = std::chrono::high_resolution_clock::now();
   double init_trees_ms = std::chrono::duration<double, std::milli>(

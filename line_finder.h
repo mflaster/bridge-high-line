@@ -38,7 +38,12 @@ class FuzzyBoardState {
     if (r.size() > 1) hand_reqs1_ = r[1];
     if (r.size() > 3) hand_reqs3_ = r[3];
   }
-
+  const std::vector<std::shared_ptr<HandRequirements>> &hand_reqs1() const {
+    return hand_reqs1_;
+  }
+  const std::vector<std::shared_ptr<HandRequirements>> &hand_reqs3() const {
+    return hand_reqs3_;
+  }
 
   BoardState Randomize(bool deal_missing_cards = false);
 
@@ -65,6 +70,23 @@ class LineFinder {
   void SetRequirements(
       const std::vector<std::vector<std::shared_ptr<HandRequirements>>> &r) {
     fuzzy_state_.SetRequirements(r);
+  }
+  const std::vector<std::shared_ptr<HandRequirements>> &hand_reqs1() const {
+    return fuzzy_state_.hand_reqs1();
+  }
+  const std::vector<std::shared_ptr<HandRequirements>> &hand_reqs3() const {
+    return fuzzy_state_.hand_reqs3();
+  }
+
+  void SetPredealtBoards(
+      const std::vector<BoardState> &predealt_boards,
+      const std::vector<std::vector<std::string>> &replay_tricks = {}) {
+    predealt_boards_ = predealt_boards;
+    replay_tricks_ = replay_tricks;
+  }
+
+  void SetSharedCache(std::shared_ptr<SolverCache> cache) {
+    shared_cache_ = std::move(cache);
   }
 
   // Solves for optimal play lines to achieve min_tricks across simulated boards.
@@ -103,6 +125,12 @@ class LineFinder {
   double solve_ms() const { return solve_ms_; }
   double invariant_ms() const { return invariant_ms_; }
   const std::vector<BoardState> &boards() const { return boards_; }
+  const std::vector<BoardState> &initial_boards() const {
+    return initial_boards_;
+  }
+  const std::shared_ptr<SolverCache> &shared_cache() const {
+    return shared_cache_;
+  }
 
  protected:
   std::vector<BoardState> SetupBoards(
@@ -180,6 +208,10 @@ class LineFinder {
   int num_iters_;
   FuzzyBoardState fuzzy_state_;
   std::vector<BoardState> boards_;
+  std::vector<BoardState> initial_boards_;
+  std::vector<BoardState> predealt_boards_;
+  std::vector<std::vector<std::string>> replay_tricks_;
+  std::shared_ptr<SolverCache> shared_cache_;
   std::unique_ptr<SolveMemo> solve_memo_;
   double solve_ms_ = 0.0;
   double invariant_ms_ = 0.0;

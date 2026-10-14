@@ -3,12 +3,14 @@
 #include <atomic>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "conditional_line.h"
+#include "solver.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
 
@@ -108,4 +110,7 @@ class WebServer {
   httplib::Server svr_;
   std::unique_ptr<std::thread> server_thread_;
   std::atomic<bool> running_{false};
+  std::mutex last_solve_mu_;
+  std::vector<BoardState> last_initial_boards_;
+  std::shared_ptr<SolverCache> last_solver_cache_;
 };

@@ -31,6 +31,10 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index->body.find("resetLineBtn") != std::string::npos);
   REQUIRE(res_index->body.find("equivalentLinesBar") != std::string::npos);
   REQUIRE(res_index->body.find("equivalentLineSelect") != std::string::npos);
+  REQUIRE(res_index->body.find("tabCompareLinesBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("panelCompareLines") != std::string::npos);
+  REQUIRE(res_index->body.find("compareLinesList") != std::string::npos);
+  REQUIRE(res_index->body.find("compareLinesResults") != std::string::npos);
 
   // Test CSS serving
   auto res_css = client.Get("/styles.css");
@@ -42,6 +46,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_css->body.find(".card-chip.card-lead") != std::string::npos);
   REQUIRE(res_css->body.find(".card-rank-playable") != std::string::npos);
   REQUIRE(res_css->body.find(".equivalent-lines-bar") != std::string::npos);
+  REQUIRE(res_css->body.find(".compare-line-row") != std::string::npos);
+  REQUIRE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
 
   // Test JS serving
   auto res_js = client.Get("/app.js");
@@ -53,6 +59,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("function selectEquivalentLine") != std::string::npos);
   REQUIRE(res_js->body.find("function formatLineSuccessPctPrefix") != std::string::npos);
   REQUIRE(res_js->body.find("function buildSelectableLinesList") != std::string::npos);
+  REQUIRE(res_js->body.find("function renderCompareLinesTab") != std::string::npos);
+  REQUIRE(res_js->body.find("function renderComparePairSection") != std::string::npos);
   REQUIRE(res_js->body.find("function formatProposedCardsDescriptor") != std::string::npos);
   REQUIRE(res_js->body.find("Original line") != std::string::npos);
   REQUIRE(res_js->body.find("Alt line") != std::string::npos);
@@ -844,6 +852,57 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   for (const auto &h : void_json["all_hands"]) {
     std::string e_hand = h["E"].get<std::string>();
     REQUIRE(e_hand.find("D ") == std::string::npos);
+  }
+
+  // Test reuse_deals + replay_tricks: a subsequent manual alternate line solve
+  // operates on the exact same dealt hands (0..N-1) and returns top-level
+  // covered_board_ids.
+  nlohmann::json base_req;
+  base_req["hands"]["N"] = "S AQ; H 2; D -; C -;";
+  base_req["hands"]["E"] = "";
+  base_req["hands"]["S"] = "S 87; H A; D -; C -;";
+  base_req["hands"]["W"] = "";
+  base_req["trump"] = "SPADES";
+  base_req["leader"] = "SOUTH";
+  base_req["min_tricks"] = 3;
+  base_req["num_iters"] = 16;
+  base_req["unknown_cards"] = "S K432 H 43";
+
+  auto res_base = client.Post("/api/solve", base_req.dump(), "application/json");
+  REQUIRE(res_base);
+  REQUIRE(res_base->status == 200);
+  nlohmann::json base_json = nlohmann::json::parse(res_base->body);
+  REQUIRE(base_json["success"] == true);
+  REQUIRE(base_json.contains("covered_board_ids"));
+  REQUIRE(base_json["all_hands"].size() == 16);
+
+  // Now compute an alternate line with reuse_deals=true after Trick 1 (HA H3 H2 H4)
+  nlohmann::json alt_req;
+  alt_req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  alt_req["hands"]["E"] = "";
+  alt_req["hands"]["S"] = "S 87; H -; D -; C -;";
+  alt_req["hands"]["W"] = "";
+  alt_req["trump"] = "SPADES";
+  alt_req["leader"] = "SOUTH";
+  alt_req["min_tricks"] = 2;
+  alt_req["num_iters"] = 16;
+  alt_req["unknown_cards"] = "S K432";
+  alt_req["start_trick_num"] = 2;
+  alt_req["initial_ns_tricks"] = 1;
+  alt_req["reuse_deals"] = true;
+  alt_req["replay_tricks"] =
+      nlohmann::json::array({nlohmann::json::array({"HA", "Hx", "H2", "Hx"})});
+
+  auto res_alt = client.Post("/api/solve", alt_req.dump(), "application/json");
+  REQUIRE(res_alt);
+  REQUIRE(res_alt->status == 200);
+  nlohmann::json alt_json = nlohmann::json::parse(res_alt->body);
+  REQUIRE(alt_json["success"] == true);
+  REQUIRE(alt_json.contains("covered_board_ids"));
+  REQUIRE(alt_json["all_hands"].size() == 16);
+  for (int i = 0; i < 16; ++i) {
+    REQUIRE(alt_json["all_hands"][i]["E"] == base_json["all_hands"][i]["E"]);
+    REQUIRE(alt_json["all_hands"][i]["W"] == base_json["all_hands"][i]["W"]);
   }
 
   server.Stop();

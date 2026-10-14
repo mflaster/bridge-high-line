@@ -1334,9 +1334,35 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     double solve_ms = 0.0;
     double invariant_ms = 0.0;
 
+    bool reuse_deals = req_json.value("reuse_deals", false);
+    std::vector<std::vector<std::string>> replay_tricks;
+    if (req_json.contains("replay_tricks") &&
+        req_json["replay_tricks"].is_array()) {
+      for (const auto &t_json : req_json["replay_tricks"]) {
+        if (t_json.is_array()) {
+          std::vector<std::string> cards;
+          for (const auto &c_json : t_json) {
+            if (c_json.is_string()) {
+              cards.push_back(c_json.get<std::string>());
+            }
+          }
+          replay_tricks.push_back(std::move(cards));
+        }
+      }
+    }
+
     if (is_fuzzy) {
       total_boards = num_iters;
       LineFinder lf(num_iters);
+      if (reuse_deals) {
+        std::lock_guard<std::mutex> lock(last_solve_mu_);
+        if (static_cast<int>(last_initial_boards_.size()) == num_iters) {
+          lf.SetPredealtBoards(last_initial_boards_, replay_tricks);
+          if (last_solver_cache_) {
+            lf.SetSharedCache(last_solver_cache_);
+          }
+        }
+      }
       if (req_json.contains("requirements")) {
         auto &reqs_json = req_json["requirements"];
         std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
@@ -1374,11 +1400,21 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
       solve_ms = lf.solve_ms();
       invariant_ms = lf.invariant_ms();
 
+      if (!reuse_deals && !lf.initial_boards().empty()) {
+        std::lock_guard<std::mutex> lock(last_solve_mu_);
+        last_initial_boards_ = lf.initial_boards();
+        last_solver_cache_ = lf.shared_cache();
+      }
+
       const auto &boards = lf.boards();
+      const auto &display_boards =
+          !lf.initial_boards().empty() ? lf.initial_boards() : boards;
       std::set<int> covered_set;
       if (!lines.empty()) {
         covered_set = lines[0].CoveredBoardsSet();
       }
+      response["covered_board_ids"] =
+          std::vector<int>(covered_set.begin(), covered_set.end());
 
       constexpr size_t kMaxSampleHands = 100;
       nlohmann::json sample_hands_json = nlohmann::json::array();
@@ -1390,12 +1426,16 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         if (!is_covered) {
           failed_board_ids.push_back(b_idx);
         }
+        const BoardState &disp_b =
+            b_idx < static_cast<int>(display_boards.size())
+                ? display_boards[b_idx]
+                : boards[b_idx];
         nlohmann::json hand_entry = {
             {"board_id", b_idx},
-            {"N", HandDebugString(boards[b_idx].GetHand(0), true)},
-            {"E", HandDebugString(boards[b_idx].GetHand(1), true)},
-            {"S", HandDebugString(boards[b_idx].GetHand(2), true)},
-            {"W", HandDebugString(boards[b_idx].GetHand(3), true)},
+            {"N", HandDebugString(disp_b.GetHand(0), true)},
+            {"E", HandDebugString(disp_b.GetHand(1), true)},
+            {"S", HandDebugString(disp_b.GetHand(2), true)},
+            {"W", HandDebugString(disp_b.GetHand(3), true)},
             {"succeeded", is_covered},
         };
         all_hands_json.push_back(hand_entry);
