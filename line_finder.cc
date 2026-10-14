@@ -7,9 +7,6 @@
 #include <chrono>
 #include <cmath>
 #include <mutex>
-#if defined(__linux__) && defined(__GLIBC__)
-#include <malloc.h>
-#endif
 #include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "glog/logging.h"
@@ -329,9 +326,6 @@ std::vector<ConditionalLine> LineFinder::Solve(
   for (size_t s = 0; s < SolverCache::kNumShards; ++s) {
     cache.tree_cache[s].clear();
   }
-#if defined(__linux__) && defined(__GLIBC__)
-  malloc_trim(0);
-#endif
 
   // Tied lines can be the same line of play described with different
   // branching (say, splitting Trick 1 on a defender's card when an unsplit or
