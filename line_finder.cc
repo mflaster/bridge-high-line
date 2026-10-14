@@ -243,7 +243,7 @@ std::set<std::string> LineFinder::FindBestLead(
   std::map<std::string, std::set<int>> lead_to_boards;
   std::map<int, int> board_tricks;
   size_t max_outcome = 0;
-  for (uint i = 0; i < boards.size(); i++) {
+  for (unsigned int i = 0; i < boards.size(); i++) {
     std::vector<std::string> choices =
         FindBestCardsToPlay(boards[i], min_tricks);
     if (choices.empty()) {
@@ -290,7 +290,7 @@ std::multiset<int> LineFinder::FindTricksWon(
       SetupBoards(trump, leader, board_offsets, cur_trick,
                   deal_missing_cards);
   std::multiset<int> tricks_won;
-  for (uint i = 0; i < boards.size(); i++) {
+  for (unsigned int i = 0; i < boards.size(); i++) {
     int cards_left =
         CardsInHand(boards[i].GetHand(0), boards[i].played_cards()).size();
     int mini_max = FindOptimalTricks(boards[i]);
@@ -1478,7 +1478,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     }
   };
 
-  for (uint i = 0; i < groupings.size(); i++) {
+  for (unsigned int i = 0; i < groupings.size(); i++) {
     if (IsStopRequested()) {
       break;
     }
@@ -1898,7 +1898,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
       gen_trick_finder.RecordOptimalTrick(leader, trick, b);
     }
   }
-  uint kMaxTricks = 500;
+  unsigned int kMaxTricks = 500;
   GeneralizedTricksVector gen_tricks =
       gen_trick_finder.GetGeneralizedTricks(kMaxTricks,
                                             /*populate_boards_set=*/false);

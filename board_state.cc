@@ -233,7 +233,7 @@ void BoardState::PlayTrick(const std::string &trick) {
     CardType best_card = 0;
     std::vector<CardType> valid_cards = ValidCardsToPlay();
     CHECK(!valid_cards.empty());
-    for (uint j = 0; j < valid_cards.size(); j++) {
+    for (unsigned int j = 0; j < valid_cards.size(); j++) {
       int64_t d = c > valid_cards[j] ? c - valid_cards[j] :
                   valid_cards[j] - c;
       VLOG(3) << "Looking at card " << j << " / " << valid_cards.size()
