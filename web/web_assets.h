@@ -271,7 +271,7 @@ inline const char* INDEX_HTML = R"rawhtml(
             <span id="statTricks" class="stat-value">-</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Optimal Lead</span>
+            <span id="statLeadLabel" class="stat-label">Optimal Lead</span>
             <span id="statLead" class="stat-value">-</span>
           </div>
           <div id="cardStatSuccess" class="stat-card stat-card-toggle active" role="button" tabindex="0" title="Click to view Success deals in the Distribution Summary and Sample Hands tabs">
@@ -2200,6 +2200,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const execTime = document.getElementById('execTime');
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
+  const statLeadLabel = document.getElementById('statLeadLabel');
   const statLead = document.getElementById('statLead');
   const cardStatSuccess = document.getElementById('cardStatSuccess');
   const cardStatFailure = document.getElementById('cardStatFailure');
@@ -2716,9 +2717,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? currentSolveData.tricks_won
         : '-';
     }
-    if (statLead) {
-      statLead.textContent = currentSolveData.best_lead || '-';
-    }
+    updateLeadStat(currentSolveData);
     const total = currentSolveData.total_boards || 1;
     const success = currentSolveData.success_boards !== undefined
       ? currentSolveData.success_boards
@@ -3074,9 +3073,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return copy;
   }
 
+  function updateLeadStat(data) {
+    const hasForcedLead = data
+      ? Boolean(data.is_forced_lead || getActiveInitialCurTrick().length > 0)
+      : (getActiveInitialCurTrick().length > 0);
+    if (statLeadLabel) {
+      statLeadLabel.textContent = hasForcedLead ? 'Card Led' : 'Optimal Lead';
+    }
+    if (statLead) {
+      statLead.textContent = (data && data.best_lead) ? data.best_lead : '-';
+    }
+  }
+
   function updateProposeLineBarUI() {
+    const minProposedCards = activeProposalContext ? (activeProposalContext.initialCurCount || 0) : 0;
     const hasProposedCards = Boolean(
-      activeProposalContext && activeProposalContext.proposedCards.length > 0
+      activeProposalContext && activeProposalContext.proposedCards.length > minProposedCards
     );
     if (solveBtn) {
       solveBtn.disabled = hasProposedCards;
@@ -3124,10 +3136,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       if (computeNewLineBtn) {
-        computeNewLineBtn.disabled = (proposedCards.length === 0);
+        computeNewLineBtn.disabled = !hasProposedCards;
       }
       if (undoProposedCardBtn) {
-        undoProposedCardBtn.disabled = (proposedCards.length === 0);
+        undoProposedCardBtn.disabled = !hasProposedCards;
       }
     } else {
       if (proposeLineTitle) {
@@ -3346,7 +3358,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const effectiveStates = activeTrickCardStates ||
-      ((!currentSolveData && !activeProposalContext) ? buildInitialCurTrickCardStates() : null);
+      (!activeProposalContext ? buildInitialCurTrickCardStates() : null);
     const seatPlayState = (effectiveStates && seatKey) ? effectiveStates[seatKey] : null;
     const suitTokenLists = {};
     let hasCards = false;
@@ -3603,7 +3615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (equivalentLinesBar) equivalentLinesBar.classList.add('hidden');
     if (equivalentLineSelect) equivalentLineSelect.innerHTML = '';
     if (statTricks) statTricks.textContent = '-';
-    if (statLead) statLead.textContent = '-';
+    updateLeadStat(null);
     if (statSuccess) statSuccess.textContent = '-';
     if (statFailure) statFailure.textContent = '-';
 
@@ -3874,6 +3886,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('success', completeMsg, timeStr);
       execTime.textContent = timeStr;
 
+      data.is_forced_lead = (initCurTrick.length > 0);
       currentSolveData = data;
       currentSolveData.active_line_index = 0;
       hasComputedProposedLine = false;
@@ -3899,7 +3912,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show summary
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
-      statLead.textContent = data.best_lead || '-';
+      updateLeadStat(data);
 
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
@@ -4067,7 +4080,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (undoProposedCardBtn) {
     undoProposedCardBtn.addEventListener('click', () => {
-      if (!activeProposalContext || activeProposalContext.proposedCards.length === 0) return;
+      const minCards = activeProposalContext ? (activeProposalContext.initialCurCount || 0) : 0;
+      if (!activeProposalContext || activeProposalContext.proposedCards.length <= minCards) return;
       activeProposalContext.proposedCards.pop();
       applyProposalStateToSvg();
     });
@@ -4075,8 +4089,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (resetLineBtn) {
     resetLineBtn.addEventListener('click', () => {
-      if (activeProposalContext && activeProposalContext.proposedCards.length > 0) {
-        activeProposalContext.proposedCards = [];
+      const minCards = activeProposalContext ? (activeProposalContext.initialCurCount || 0) : 0;
+      if (activeProposalContext && activeProposalContext.proposedCards.length > minCards) {
+        activeProposalContext.proposedCards = activeProposalContext.proposedCards.slice(0, minCards);
         applyProposalStateToSvg();
         return;
       }
@@ -4111,7 +4126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
-      statLead.textContent = data.best_lead || '-';
+      updateLeadStat(data);
 
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
@@ -4396,7 +4411,18 @@ document.addEventListener('DOMContentLoaded', () => {
           if (originalSolveSnapshot && originalSolveSnapshot.inputs) {
             data.leader = originalSolveSnapshot.inputs.leader;
           }
+          if (originalSolveSnapshot && originalSolveSnapshot.data && originalSolveSnapshot.data.best_lead) {
+            data.best_lead = originalSolveSnapshot.data.best_lead;
+          }
         }
+
+        const origForcedLead = Boolean(
+          originalSolveSnapshot &&
+          originalSolveSnapshot.inputs &&
+          Array.isArray(originalSolveSnapshot.inputs.curTrick) &&
+          originalSolveSnapshot.inputs.curTrick.length > 0
+        );
+        data.is_forced_lead = origForcedLead || (ctx.trickNum === 1 && proposedCards.length > 0);
 
         const altNumber = proposedAltLines.length + 1;
         const altDescriptor = formatProposedCardsDescriptor(proposedCards, ctx.trickNum);
@@ -4424,7 +4450,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultsSummary.classList.remove('hidden');
         statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
-        statLead.textContent = data.best_lead || '-';
+        updateLeadStat(data);
 
         const successPct = Math.round((success / total) * 100);
         const failurePct = Math.round((failure / total) * 100);
@@ -5509,6 +5535,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const selectedTrickRow = trickRows[selectedIdx];
+      const initCur = (selectedIdx === 0 && selectedTrickRow.trickNum === 1)
+        ? getActiveInitialCurTrick()
+        : [];
+      const initialProposedCards = [];
+      if (initCur.length > 0) {
+        let leadSuit = null;
+        initCur.forEach((cStr, idx) => {
+          const seatIdx = (selectedTrickRow.leadSeatIdx + idx) % 4;
+          const seatName = getSeatName(seatIdx);
+          const parsed = parseSingleCardToken(cStr, leadSuit, trumpCode);
+          if (idx === 0) leadSuit = parsed.suit;
+          parsed.seatIdx = seatIdx;
+          parsed.seatName = seatName;
+          parsed.fromUnknown = false;
+          parsed.movedToken = parsed.rankStr;
+          parsed.clickedToken = parsed.rankStr;
+          initialProposedCards.push(parsed);
+        });
+      }
       activeProposalContext = {
         trickNum: selectedTrickRow.trickNum,
         selectedIdx: selectedIdx,
@@ -5516,18 +5561,17 @@ document.addEventListener('DOMContentLoaded', () => {
         nsTricksBefore: nsTricksBefore,
         playedStates: clonePlayStates(states),
         prefixTrickRows: prefixTrickRows,
-        proposedCards: []
+        initialCurCount: initialProposedCards.length,
+        proposedCards: initialProposedCards.slice()
       };
 
-      activeTrickCardStates = states;
-      updateProposeLineBarUI();
       if (rowElements) {
         rowElements.forEach((el, idx) => {
           el.classList.toggle('trick-row-selected', idx === selectedIdx);
           el.classList.toggle('trick-row-past', idx < selectedIdx);
         });
       }
-      updateDealSvg();
+      applyProposalStateToSvg();
     }
 
     // Reset card highlights when switching inspected node until a trick is clicked
