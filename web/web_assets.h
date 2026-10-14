@@ -5952,6 +5952,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const tokens = tokenizeTrick(rawTrick);
       if (tokens.length === 0) return;
+      console.assert(tokens.length === 4, 'Expected 4 cards in trick:', rawTrick);
 
       if (typeof pathNode.leader === 'number' && pathNode.leader >= 0 && pathNode.leader <= 3) {
         currentLeader = pathNode.leader;
@@ -6465,7 +6466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Always display cards in fixed N (0), E (1), S (2), W (3) order
         [0, 1, 2, 3].forEach((seatIdx) => {
           const playIdx = tr.cards.findIndex(card => card.seatIdx === seatIdx);
-          if (playIdx === -1) return;
+          console.assert(playIdx !== -1, 'Expected all 4 seats in trick', tr);
           const c = tr.cards[playIdx];
           const chip = document.createElement('span');
           const isWinner = (playIdx === tr.winningCardIdx);
