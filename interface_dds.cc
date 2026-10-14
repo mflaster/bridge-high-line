@@ -586,9 +586,14 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
       cache->tree_hits.fetch_add(1, std::memory_order_relaxed);
       ans = existing->second;
     } else {
-      if (cache->tree_cache[shard].size() >=
+      if (cache->tree_ring[shard].size() <
           SolverCache::kMaxTreeCachePerShard) {
-        cache->tree_cache[shard].erase(cache->tree_cache[shard].begin());
+        cache->tree_ring[shard].push_back(key);
+      } else {
+        size_t &cur = cache->tree_cursor[shard];
+        cache->tree_cache[shard].erase(cache->tree_ring[shard][cur]);
+        cache->tree_ring[shard][cur] = key;
+        cur = (cur + 1) % SolverCache::kMaxTreeCachePerShard;
       }
       cache->tree_cache[shard].emplace(key, ans);
       cache->tree_misses.fetch_add(1, std::memory_order_relaxed);

@@ -571,6 +571,11 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     }
     ans.emplace_back(d1, d2, d2.boards, leader_);
   }
+  for (GeneralizedTrick &gt : ans) {
+    gt.demi1.boards.clear();
+    gt.demi1.board_to_trick.clear();
+    gt.demi2.boards.clear();
+  }
   return ans;
 }
 
