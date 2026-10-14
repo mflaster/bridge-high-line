@@ -103,6 +103,11 @@ class GeneralizedTrickFinder {
     std::array<std::string, 4> cards;
     int board = 0;
   };
+  GeneralizedTrick BuildGeneralizedTrick(
+      const GeneralizedDemiStruct &d1,
+      const GeneralizedDemiStruct &d2,
+      const std::vector<uint> *d1_trick_indices) const;
+
   std::vector<RecordedTrick> tricks_;
   std::vector<std::string> raw_tricks_;
   int leader_ = -1;

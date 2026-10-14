@@ -197,6 +197,11 @@ class LineFinder {
     std::unordered_map<std::string, MemoEntry> shards[kMemoShards];
     std::vector<std::string> ring[kMemoShards];
     size_t cursor[kMemoShards] = {};
+
+    bool Lookup(const std::string &key, int min_covered,
+                std::vector<ConditionalLine> *out);
+    void Insert(std::string key, int min_covered,
+                const std::vector<ConditionalLine> &res);
   };
 
   int num_iters_;

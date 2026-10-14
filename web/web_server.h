@@ -104,6 +104,15 @@ class WebServer {
   void HandleHealth(const httplib::Request &req, httplib::Response &res);
   void HandleSolve(const httplib::Request &req, httplib::Response &res);
   void HandleSolveStatus(const httplib::Request &req, httplib::Response &res);
+  std::unique_ptr<LineFinder> CheckoutLineFinder(
+      int num_iters, const std::vector<uint64_t> &hands,
+      uint64_t unknown_cards, Suit trump_suit, int leader,
+      const std::vector<CardType> &cur_trick,
+      const nlohmann::json &reqs_json, bool *reused_lf);
+  void CheckinLineFinder(
+      std::unique_ptr<LineFinder> lf, int num_iters,
+      const std::vector<uint64_t> &hands, uint64_t unknown_cards,
+      Suit trump_suit, int leader, nlohmann::json reqs_json);
 
   std::string host_;
   int port_;

@@ -550,43 +550,6 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
   size_t count_group_start = 0;
   int prev_inter_count = -1;
 
-  auto build_generalized_trick =
-      [&](size_t d1_idx,
-          const GeneralizedDemiStruct &d1,
-          GeneralizedDemiStruct &d2_src) -> GeneralizedTrick {
-    GeneralizedTrick gt;
-    gt.leader = leader_;
-    gt.demi1.opp_card = d1.opp_card;
-    gt.demi1.my_card = d1.my_card;
-    gt.demi2.opp_card = d2_src.opp_card;
-    gt.demi2.my_card = d2_src.my_card;
-    gt.demi2.boards_vec = d2_src.boards_vec;
-    for (int b : d2_src.boards_vec) {
-      gt.boards.insert(gt.boards.end(), b);
-    }
-    const std::vector<uint> *idx_vec = d1_trick_vecs[d1_idx];
-    if (idx_vec != nullptr) {
-      size_t target_boards = d2_src.boards_vec.size();
-      for (auto rit = idx_vec->rbegin(); rit != idx_vec->rend(); ++rit) {
-        uint i = *rit;
-        const auto &[cards, board] = tricks_[i];
-        const std::string &my2 = (leader_ % 2 == 0) ? cards[2] : cards[3];
-        if (my2 != d2_src.my_card) {
-          continue;
-        }
-        const std::string &opp2 = (leader_ % 2 == 0) ? cards[3] : cards[2];
-        Suit suit_led = Card::ParseSuit(raw_tricks_[i][0]);
-        if (GeneralizesTo(opp2, d2_src.opp_card, suit_led, trump_suit_)) {
-          gt.demi2.board_to_trick.try_emplace(board, raw_tricks_[i]);
-          if (gt.demi2.board_to_trick.size() == target_boards) {
-            break;
-          }
-        }
-      }
-    }
-    return gt;
-  };
-
   for (const TrickPairCand &cand : sorted) {
     if (ans.size() >= top) {
       break;
@@ -598,7 +561,8 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     size_t d1_idx = cand.d1_idx;
     size_t d2_idx = cand.d2_idx;
     const auto &d1 = demi1_plays[d1_idx];
-    GeneralizedDemiStruct &d2 = all_demi2_plays[d1_idx][d2_idx];
+    const GeneralizedDemiStruct &d2 = all_demi2_plays[d1_idx][d2_idx];
+    const std::vector<uint> *idx_vec = d1_trick_vecs[d1_idx];
     if (leader_ % 2 != 0) {
       bool replaced_or_redundant = false;
       for (size_t ans_idx = count_group_start; ans_idx < ans.size();
@@ -612,7 +576,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
             CardsAreRedundant(prev_opp1, d1.opp_card) &&
             prev.demi2.boards_vec == d2.boards_vec) {
           if (d1.boards_vec.size() > ans_d1_board_count[ans_idx]) {
-            ans[ans_idx] = build_generalized_trick(d1_idx, d1, d2);
+            ans[ans_idx] = BuildGeneralizedTrick(d1, d2, idx_vec);
             ans_d1_board_count[ans_idx] = d1.boards_vec.size();
           }
           replaced_or_redundant = true;
@@ -623,10 +587,47 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
         continue;
       }
     }
-    ans.push_back(build_generalized_trick(d1_idx, d1, d2));
+    ans.push_back(BuildGeneralizedTrick(d1, d2, idx_vec));
     ans_d1_board_count.push_back(d1.boards_vec.size());
   }
   return ans;
+}
+
+GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
+    const GeneralizedDemiStruct &d1,
+    const GeneralizedDemiStruct &d2,
+    const std::vector<uint> *d1_trick_indices) const {
+  GeneralizedTrick gt;
+  gt.leader = leader_;
+  gt.demi1.opp_card = d1.opp_card;
+  gt.demi1.my_card = d1.my_card;
+  gt.demi2.opp_card = d2.opp_card;
+  gt.demi2.my_card = d2.my_card;
+  gt.demi2.boards_vec = d2.boards_vec;
+  for (int b : d2.boards_vec) {
+    gt.boards.insert(gt.boards.end(), b);
+  }
+  if (d1_trick_indices != nullptr) {
+    size_t target_boards = d2.boards_vec.size();
+    for (auto rit = d1_trick_indices->rbegin();
+         rit != d1_trick_indices->rend(); ++rit) {
+      uint i = *rit;
+      const auto &[cards, board] = tricks_[i];
+      const std::string &my2 = (leader_ % 2 == 0) ? cards[2] : cards[3];
+      if (my2 != d2.my_card) {
+        continue;
+      }
+      const std::string &opp2 = (leader_ % 2 == 0) ? cards[3] : cards[2];
+      Suit suit_led = Card::ParseSuit(raw_tricks_[i][0]);
+      if (GeneralizesTo(opp2, d2.opp_card, suit_led, trump_suit_)) {
+        gt.demi2.board_to_trick.try_emplace(board, raw_tricks_[i]);
+        if (gt.demi2.board_to_trick.size() == target_boards) {
+          break;
+        }
+      }
+    }
+  }
+  return gt;
 }
 
 std::string GeneralizedTrick::ToString(bool compact) const {
@@ -959,18 +960,8 @@ std::vector<GeneralizedTrick> MakeGroupStartingWith(
 
 namespace {
 
-std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
-    std::vector<GeneralizedTrick> *mutable_input,
-    const std::vector<GeneralizedTrick> &input) {
-  VLOG(1) << "GroupTricks on " << input.size();
-  for (const GeneralizedTrick &trick : input) {
-    VLOG(1) << "  " << trick.ToString(false);
-  }
-  std::vector<std::vector<GeneralizedTrick>> ans;
-  if (input.empty()) {
-    return ans;
-  }
-
+std::vector<uint64_t> BuildTrickBoardBitmasks(
+    const std::vector<GeneralizedTrick> &input, size_t *num_words_out) {
   int max_board = 0;
   for (const GeneralizedTrick &trick : input) {
     if (!trick.demi2.boards_vec.empty()) {
@@ -980,6 +971,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
     }
   }
   size_t num_words = (max_board / 64) + 1;
+  *num_words_out = num_words;
   std::vector<uint64_t> masks(input.size() * num_words, 0);
   for (size_t i = 0; i < input.size(); ++i) {
     uint64_t *m = &masks[i * num_words];
@@ -997,46 +989,38 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
       }
     }
   }
+  return masks;
+}
 
-  auto encode_card_id = [](const std::string &c) -> int {
-    if (c.size() >= 2) {
-      return (static_cast<unsigned char>(c[0]) << 8) |
-             static_cast<unsigned char>(c[1]);
-    }
-    return c.empty() ? 0 : static_cast<unsigned char>(c[0]);
-  };
-  std::vector<int> my1_id(input.size());
-  std::vector<int> my2_id(input.size());
-  for (size_t i = 0; i < input.size(); ++i) {
-    my1_id[i] = encode_card_id(input[i].demi1.my_card);
-    my2_id[i] = encode_card_id(input[i].demi2.my_card);
+int EncodeCardId(const std::string &c) {
+  if (c.size() >= 2) {
+    return (static_cast<unsigned char>(c[0]) << 8) |
+           static_cast<unsigned char>(c[1]);
   }
+  return c.empty() ? 0 : static_cast<unsigned char>(c[0]);
+}
 
-  bool def_leads = (input[0].leader % 2 != 0);
-  std::vector<std::array<TrickOppPatternMask, 2>> opp_masks;
-  if (def_leads) {
-    opp_masks.resize(input.size());
-  }
-
-  // A trick is redundant only if a trick with the same declarer cards and
-  // the same board set has already been grouped, i.e. it is merely another
-  // opponent-pattern spelling of the same play. Two different plays that
-  // happen to be feasible on the same boards (say cashing an idle trump
-  // versus taking a finesse) can still lead to different final coverage and
-  // must each get their own group.
-  std::vector<int> key_id(input.size(), -1);
+// Assigns an equivalence key ID to each trick based on (my1, my2, board_mask).
+// Two tricks with the same declarer cards and identical board sets differ only
+// in opponent-pattern spelling; once one is grouped, the others are redundant.
+int AssignRedundancyKeys(
+    const std::vector<GeneralizedTrick> &input,
+    const std::vector<uint64_t> &masks, size_t num_words,
+    const std::vector<int> &my1_id, const std::vector<int> &my2_id,
+    bool def_leads, std::vector<int> *key_id,
+    std::unordered_map<int, int> *ungrouped_by_my1) {
+  key_id->assign(input.size(), -1);
   int next_key_id = 0;
-  std::unordered_map<int, int> ungrouped_by_my1;
   for (size_t i = 0; i < input.size(); ++i) {
-    if (key_id[i] >= 0) continue;
+    if ((*key_id)[i] >= 0) continue;
     int kid = next_key_id++;
-    key_id[i] = kid;
+    (*key_id)[i] = kid;
     if (!def_leads) {
-      ungrouped_by_my1[my1_id[i]]++;
+      (*ungrouped_by_my1)[my1_id[i]]++;
     }
     const uint64_t *mi = &masks[i * num_words];
     for (size_t j = i + 1; j < input.size(); ++j) {
-      if (key_id[j] >= 0) continue;
+      if ((*key_id)[j] >= 0) continue;
       if (input[i].boards.size() != input[j].boards.size()) {
         // Since input is sorted by boards.size() descending, no later j can
         // have the same board set size.
@@ -1052,11 +1036,47 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
           }
         }
         if (same_mask) {
-          key_id[j] = kid;
+          (*key_id)[j] = kid;
         }
       }
     }
   }
+  return next_key_id;
+}
+
+std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
+    std::vector<GeneralizedTrick> *mutable_input,
+    const std::vector<GeneralizedTrick> &input) {
+  VLOG(1) << "GroupTricks on " << input.size();
+  for (const GeneralizedTrick &trick : input) {
+    VLOG(1) << "  " << trick.ToString(false);
+  }
+  std::vector<std::vector<GeneralizedTrick>> ans;
+  if (input.empty()) {
+    return ans;
+  }
+
+  size_t num_words = 0;
+  std::vector<uint64_t> masks = BuildTrickBoardBitmasks(input, &num_words);
+
+  std::vector<int> my1_id(input.size());
+  std::vector<int> my2_id(input.size());
+  for (size_t i = 0; i < input.size(); ++i) {
+    my1_id[i] = EncodeCardId(input[i].demi1.my_card);
+    my2_id[i] = EncodeCardId(input[i].demi2.my_card);
+  }
+
+  bool def_leads = (input[0].leader % 2 != 0);
+  std::vector<std::array<TrickOppPatternMask, 2>> opp_masks;
+  if (def_leads) {
+    opp_masks.resize(input.size());
+  }
+
+  std::vector<int> key_id;
+  std::unordered_map<int, int> ungrouped_by_my1;
+  int next_key_id = AssignRedundancyKeys(
+      input, masks, num_words, my1_id, my2_id, def_leads, &key_id,
+      &ungrouped_by_my1);
   int ungrouped_keys = next_key_id;
   std::vector<uint8_t> key_grouped(next_key_id, 0);
   std::vector<int> group_indices;
