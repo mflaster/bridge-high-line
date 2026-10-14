@@ -17,11 +17,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [g++-12]
+        compiler: [g++-13]
 
     env:
       DEBIAN_FRONTEND: noninteractive
       CXX: ${{ matrix.compiler }}
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
 
     steps:
       - name: Checkout repository
@@ -29,21 +34,34 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            g++ \
-            ${{ matrix.compiler }} \
-            cmake \
-            make
+          pkgs=()
+          command -v "${{ matrix.compiler }}" >/dev/null || pkgs+=("${{ matrix.compiler }}")
+          command -v cmake >/dev/null || pkgs+=(cmake)
+          command -v make >/dev/null || pkgs+=(make)
+          command -v ccache >/dev/null || pkgs+=(ccache)
+          if [ ${#pkgs[@]} -gt 0 ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends "${pkgs[@]}"
+          fi
 
       - name: Cache CMake build dependencies
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: cmake-v2-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
+          key: cmake-v3-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt', 'third_party/patch_dds.py') }}
           restore-keys: |
-            cmake-v2-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-
+            cmake-v3-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ hashFiles('CMakeLists.txt', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
+          restore-keys: |
+            ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-
 
       - name: Build and Run Tests
         run: |
+          ccache -z
           make run_all_tests
+          ccache -s
