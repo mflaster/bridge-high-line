@@ -1394,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['S', 'H', 'D', 'C'].forEach(s => {
       const val = suits[s];
       if (val && val !== '-') {
-        cnt += val.length;
+        cnt += val.replace(/10/g, 'T').length;
       }
     });
     return cnt;
@@ -1888,6 +1888,10 @@ document.addEventListener('DOMContentLoaded', () => {
             leadSpansToBox.push({ span: valSpan, textNode: textNode });
           }
         });
+        if (tokenItems.length > 8) {
+          textNode.setAttribute('textLength', isUnknown ? '84' : '106');
+          textNode.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+        }
       }
 
       group.appendChild(textNode);
@@ -2103,10 +2107,128 @@ document.addEventListener('DOMContentLoaded', () => {
     activateTab('tree');
   }
 
+  let loadedBoardHands = null; // Stores original { N, E, S, W } compass hands when a 4-hand deal is scanned/loaded
+  let currentDeclarerSeat = 'N';
+
+  function combineHandsToUnknownString(handA, handB) {
+    const suitsA = parseHandToSuits(handA || '');
+    const suitsB = parseHandToSuits(handB || '');
+    const rankOrder = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+    const parts = [];
+    ['S', 'H', 'D', 'C'].forEach(s => {
+      const combined = ((suitsA[s] || '') + (suitsB[s] || '')).replace(/10/g, 'T').toUpperCase();
+      const sorted = rankOrder.filter(r => combined.includes(r)).join('');
+      if (sorted.length > 0) {
+        parts.push(`${s} ${sorted}`);
+      }
+    });
+    return parts.join(' ');
+  }
+
+  function updateDeclarerBarUI(seat) {
+    currentDeclarerSeat = seat;
+    const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
+    const order = ['N', 'E', 'S', 'W'];
+    const idx = order.indexOf(seat);
+    const dummySeat = order[(idx + 2) % 4];
+    const lhoSeat = order[(idx + 1) % 4];
+    const rhoSeat = order[(idx + 3) % 4];
+
+    document.querySelectorAll('.declarer-seat-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.seat === seat);
+    });
+    document.querySelectorAll('.modal-declarer-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.seat === seat);
+    });
+
+    const declarerMappingHint = document.getElementById('declarerMappingHint');
+    if (declarerMappingHint) {
+      declarerMappingHint.textContent = (seat === 'N')
+        ? 'N=Decl · S=Dummy'
+        : `N=${seat}(Decl) · S=${dummySeat}(Dummy)`;
+    }
+
+    const modalDeclarerHint = document.getElementById('modalDeclarerHint');
+    if (modalDeclarerHint) {
+      modalDeclarerHint.textContent = `${seatNames[seat]} → Hand 0 (N) · ${seatNames[dummySeat]} → Hand 2 (S)`;
+    }
+
+    const roleMap = {
+      [seat]: { text: 'Declarer (→ N)', cls: 'scan-role-tag role-declarer' },
+      [dummySeat]: { text: 'Dummy (→ S)', cls: 'scan-role-tag role-dummy' },
+      [lhoSeat]: { text: 'Defender (LHO → Unk)', cls: 'scan-role-tag' },
+      [rhoSeat]: { text: 'Defender (RHO → Unk)', cls: 'scan-role-tag' }
+    };
+    ['N', 'E', 'S', 'W'].forEach(s => {
+      const el = document.getElementById(`scanRole${s}`);
+      if (el && roleMap[s]) {
+        el.textContent = roleMap[s].text;
+        el.className = roleMap[s].cls;
+      }
+    });
+  }
+
+  function applyDeclarerRotation(seat) {
+    const order = ['N', 'E', 'S', 'W'];
+    const idx = order.indexOf(seat);
+    if (idx === -1) return;
+
+    // If loadedBoardHands is not yet set, capture from inputs if all 4 hands are present
+    if (!loadedBoardHands) {
+      const nVal = inputNorth.value.trim();
+      const eVal = inputEast.value.trim();
+      const sVal = inputSouth.value.trim();
+      const wVal = inputWest.value.trim();
+      if (countHandCards(nVal) > 0 && countHandCards(eVal) > 0 &&
+          countHandCards(sVal) > 0 && countHandCards(wVal) > 0) {
+        loadedBoardHands = { N: nVal, E: eVal, S: sVal, W: wVal };
+      } else if (seat === 'S' && countHandCards(nVal) > 0 && countHandCards(sVal) > 0 &&
+                 countHandCards(eVal) === 0 && countHandCards(wVal) === 0) {
+        // Flip N and S on single-dummy preset
+        inputNorth.value = sVal;
+        inputSouth.value = nVal;
+        updateDeclarerBarUI(seat);
+        clearPanels();
+        updateDealSvg();
+        return;
+      } else {
+        updateDeclarerBarUI(seat);
+        return;
+      }
+    }
+
+    const declHand = loadedBoardHands[order[idx]] || '';
+    const lhoHand = loadedBoardHands[order[(idx + 1) % 4]] || '';
+    const dummyHand = loadedBoardHands[order[(idx + 2) % 4]] || '';
+    const rhoHand = loadedBoardHands[order[(idx + 3) % 4]] || '';
+
+    presetCurTrick = [];
+    clearPanels();
+    inputNorth.value = declHand;
+    inputSouth.value = dummyHand;
+    inputEast.value = '';
+    inputWest.value = '';
+    if (inputUnknownCards) {
+      inputUnknownCards.value = combineHandsToUnknownString(lhoHand, rhoHand);
+    }
+
+    updateDeclarerBarUI(seat);
+    setStatus('idle', `Loaded board with ${order[idx]} as Declarer (rotated to North) and ${order[(idx + 2) % 4]} as Dummy (South).`);
+    updateDealSvg();
+  }
+
+  document.querySelectorAll('.declarer-seat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      applyDeclarerRotation(btn.dataset.seat);
+    });
+  });
+
   function loadPreset(key) {
     const p = PRESETS[key];
     if (!p) return;
 
+    loadedBoardHands = null;
+    updateDeclarerBarUI('N');
     presetCurTrick = Array.isArray(p.cur_trick) ? p.cur_trick.slice() : [];
     clearPanels();
     setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
@@ -2134,8 +2256,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Load TXT / Deal File Handler
+  // Load Photo / Image or TXT / Deal File Handler
   const loadTxtBtn = document.getElementById('loadTxtBtn');
+  const recropPhotoBtn = document.getElementById('recropPhotoBtn');
   const fileInputTxt = document.getElementById('fileInputTxt');
 
   if (loadTxtBtn && fileInputTxt) {
@@ -2148,6 +2271,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = e.target.files[0];
       if (!file) return;
 
+      const isImage = (file.type && file.type.startsWith('image/')) ||
+                      /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name || '');
+      if (isImage) {
+        openPhotoScanModalWithFile(file);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target.result;
@@ -2157,8 +2287,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (recropPhotoBtn) {
+    recropPhotoBtn.addEventListener('click', () => {
+      openPhotoScanModalExisting();
+    });
+  }
+
   function parseAndApplyDealText(text) {
     if (!text) return;
+    loadedBoardHands = null;
     presetCurTrick = [];
     clearPanels();
     setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
@@ -2235,7 +2372,1277 @@ document.addEventListener('DOMContentLoaded', () => {
       inputWest.value = plainLines[3];
     }
 
+    if (countHandCards(inputNorth.value) > 0 && countHandCards(inputEast.value) > 0 &&
+        countHandCards(inputSouth.value) > 0 && countHandCards(inputWest.value) > 0) {
+      loadedBoardHands = {
+        N: inputNorth.value.trim(),
+        E: inputEast.value.trim(),
+        S: inputSouth.value.trim(),
+        W: inputWest.value.trim()
+      };
+      const declKey = (keyValues.declarer || '').trim().toUpperCase().charAt(0);
+      if (['N', 'E', 'S', 'W'].includes(declKey)) {
+        applyDeclarerRotation(declKey);
+        return;
+      }
+    }
+    updateDeclarerBarUI('N');
     updateDealSvg();
+  }
+
+  // =========================================================================
+  // On-Device Bridge Hand Record OCR & Interactive Crop Modal
+  // =========================================================================
+  const OCR_TEMPLATE_DATA = {"aspect":{"2":0.739,"3":0.703,"4":0.78,"5":0.712,"6":0.718,"7":0.703,"8":0.728,"9":0.731,"K":0.902,"J":0.6,"A":1.016,"Q":0.985},"tpl":{"2":[0.031,0.09,0.118,0.092,0.051,0.02,0.008,0.049,0.098,0.119,0.109,0.061,0.061,0.114,0.118,0.055,0.003,0.001,0,0.007,0.056,0.107,0.119,0.091,0.079,0.119,0.108,0.034,0,0,0,0,0.027,0.087,0.12,0.109,0.049,0.08,0.059,0.012,0,0,0,0,0.023,0.083,0.12,0.112,0.002,0.003,0.002,0.001,0,0,0,0,0.045,0.105,0.12,0.095,0,0,0,0,0,0,0,0.015,0.081,0.119,0.119,0.074,0,0,0,0,0,0,0.001,0.049,0.112,0.119,0.095,0.036,0,0,0,0,0,0.017,0.053,0.098,0.109,0.078,0.033,0.004,0,0,0,0,0.023,0.08,0.116,0.108,0.058,0.016,0.001,0,0,0,0,0.022,0.082,0.115,0.12,0.071,0.014,0.001,0,0,0,0,0.011,0.069,0.12,0.118,0.088,0.022,0,0,0,0,0.004,0.031,0.074,0.107,0.095,0.059,0.019,0,0,0,0,0,0.035,0.095,0.119,0.091,0.023,0.001,0,0,0,0,0,0,0.075,0.12,0.12,0.097,0.06,0.06,0.06,0.06,0.06,0.06,0.06,0.051,0.103,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.111,0.118,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12,0.12],"3":[0.053,0.112,0.126,0.093,0.044,0.011,0.033,0.088,0.126,0.119,0.069,0.013,0.085,0.126,0.113,0.044,0,0,0,0.036,0.11,0.126,0.1,0.037,0.1,0.125,0.093,0.02,0,0,0,0.015,0.086,0.126,0.111,0.048,0.034,0.041,0.028,0.005,0,0,0,0.018,0.088,0.126,0.105,0.042,0,0,0,0,0.001,0.001,0.014,0.067,0.117,0.122,0.075,0.016,0,0,0,0,0.032,0.064,0.076,0.113,0.123,0.088,0.028,0,0,0,0,0.005,0.07,0.12,0.121,0.126,0.123,0.077,0.025,0.008,0,0,0,0.003,0.036,0.052,0.056,0.077,0.111,0.121,0.101,0.051,0,0,0,0,0,0,0,0.01,0.07,0.118,0.126,0.092,0,0,0,0,0,0,0,0,0.029,0.092,0.126,0.111,0.049,0.049,0.028,0.002,0,0,0,0,0.015,0.078,0.126,0.119,0.114,0.117,0.073,0.01,0,0,0,0,0.029,0.092,0.126,0.11,0.093,0.124,0.109,0.05,0.009,0,0,0.022,0.079,0.12,0.121,0.078,0.04,0.101,0.125,0.106,0.065,0.049,0.049,0.087,0.122,0.122,0.085,0.027,0.011,0.049,0.098,0.12,0.114,0.112,0.112,0.121,0.115,0.083,0.032,0.001,0.001,0.008,0.041,0.074,0.084,0.109,0.096,0.077,0.059,0.025,0.004,0],"4":[0,0,0,0,0,0.029,0.1,0.13,0.129,0.066,0.002,0,0,0,0,0,0.005,0.066,0.125,0.129,0.129,0.066,0.003,0,0,0,0,0.001,0.032,0.102,0.116,0.117,0.129,0.067,0.003,0,0,0,0,0.03,0.093,0.109,0.061,0.087,0.129,0.067,0.002,0,0,0,0.008,0.08,0.126,0.067,0.01,0.077,0.13,0.066,0.002,0,0,0.001,0.037,0.113,0.105,0.032,0.006,0.077,0.13,0.066,0.002,0,0,0.013,0.08,0.119,0.062,0.007,0.007,0.077,0.13,0.066,0.002,0,0.018,0.069,0.114,0.071,0.013,0,0.007,0.078,0.13,0.066,0.002,0,0.066,0.119,0.094,0.016,0,0,0.007,0.077,0.13,0.066,0.001,0,0.105,0.129,0.101,0.064,0.064,0.064,0.068,0.103,0.13,0.097,0.064,0.06,0.127,0.13,0.13,0.13,0.13,0.13,0.13,0.13,0.13,0.13,0.13,0.126,0.083,0.087,0.087,0.087,0.087,0.087,0.089,0.112,0.13,0.108,0.087,0.084,0.002,0.002,0.002,0.002,0.002,0.002,0.009,0.078,0.13,0.067,0.003,0.002,0,0,0,0,0,0,0.007,0.077,0.13,0.065,0.001,0,0,0,0,0,0,0,0.007,0.077,0.13,0.065,0,0,0,0,0,0,0,0,0.007,0.077,0.13,0.065,0,0],"5":[0.007,0.067,0.121,0.105,0.067,0.06,0.06,0.06,0.06,0.06,0.06,0.03,0.022,0.084,0.123,0.08,0.009,0.002,0.002,0.002,0.002,0.002,0.002,0.001,0.031,0.093,0.123,0.069,0,0,0,0,0,0,0,0,0.044,0.105,0.121,0.056,0.008,0.032,0.042,0.022,0.001,0,0,0,0.066,0.121,0.12,0.085,0.071,0.107,0.122,0.093,0.061,0.031,0.001,0,0.078,0.123,0.123,0.122,0.12,0.121,0.121,0.122,0.122,0.093,0.038,0.006,0.087,0.123,0.119,0.092,0.057,0.05,0.05,0.077,0.114,0.123,0.102,0.046,0.054,0.073,0.061,0.025,0.003,0,0,0.011,0.06,0.11,0.123,0.097,0,0,0,0,0,0,0,0,0.019,0.081,0.123,0.119,0,0,0,0,0,0,0,0,0.005,0.067,0.123,0.123,0.028,0.028,0.016,0.001,0,0,0,0,0.004,0.066,0.123,0.123,0.1,0.102,0.063,0.008,0,0,0,0,0.022,0.083,0.123,0.11,0.103,0.123,0.101,0.037,0.005,0,0,0.012,0.065,0.113,0.12,0.075,0.063,0.114,0.12,0.087,0.041,0.027,0.027,0.063,0.109,0.121,0.094,0.035,0.024,0.073,0.108,0.115,0.095,0.089,0.089,0.109,0.113,0.088,0.045,0.008,0.004,0.021,0.063,0.095,0.099,0.11,0.104,0.096,0.073,0.033,0.008,0],"6":[0.011,0.059,0.105,0.101,0.066,0.027,0.006,0.045,0.094,0.114,0.101,0.046,0.035,0.092,0.114,0.072,0.012,0.001,0,0.007,0.057,0.105,0.113,0.067,0.061,0.11,0.106,0.042,0,0,0,0,0.023,0.079,0.112,0.069,0.084,0.114,0.077,0.014,0.001,0.001,0.001,0.001,0.003,0.021,0.038,0.021,0.103,0.114,0.06,0.018,0.05,0.056,0.056,0.056,0.044,0.016,0,0,0.111,0.111,0.068,0.062,0.105,0.11,0.11,0.112,0.1,0.07,0.026,0,0.113,0.112,0.098,0.097,0.084,0.056,0.052,0.085,0.108,0.112,0.079,0.027,0.113,0.114,0.108,0.06,0.016,0.003,0.002,0.018,0.064,0.105,0.11,0.073,0.112,0.114,0.094,0.025,0,0,0,0,0.02,0.078,0.114,0.1,0.111,0.114,0.08,0.015,0,0,0,0,0.006,0.063,0.114,0.111,0.099,0.114,0.077,0.013,0,0,0,0,0.006,0.062,0.113,0.11,0.08,0.114,0.094,0.026,0,0,0,0,0.017,0.073,0.114,0.1,0.052,0.103,0.109,0.059,0.008,0,0,0.009,0.055,0.101,0.11,0.069,0.019,0.068,0.106,0.1,0.055,0.026,0.026,0.05,0.099,0.112,0.088,0.034,0.004,0.029,0.07,0.106,0.099,0.084,0.084,0.097,0.108,0.091,0.05,0.01,0,0.004,0.021,0.067,0.087,0.099,0.102,0.089,0.075,0.045,0.014,0],"7":[0.084,0.084,0.084,0.084,0.084,0.084,0.084,0.088,0.13,0.169,0.167,0.133,0.006,0.006,0.006,0.006,0.006,0.006,0.008,0.041,0.124,0.167,0.138,0.065,0,0,0,0,0,0.003,0.019,0.092,0.161,0.152,0.084,0.017,0,0,0,0,0.001,0.015,0.081,0.151,0.151,0.087,0.021,0.001,0,0,0,0,0.004,0.052,0.147,0.168,0.101,0.017,0,0,0,0,0,0.002,0.008,0.085,0.167,0.144,0.057,0.001,0,0,0,0,0.001,0.006,0.024,0.116,0.166,0.105,0.015,0,0,0,0,0,0.004,0.014,0.075,0.153,0.138,0.052,0,0,0,0,0,0,0.006,0.039,0.126,0.165,0.095,0.01,0,0,0,0,0,0.001,0.006,0.06,0.148,0.151,0.062,0,0,0,0,0,0,0.004,0.01,0.081,0.16,0.13,0.035,0,0,0,0,0,0.001,0.006,0.029,0.114,0.163,0.1,0.009,0,0,0,0,0,0.003,0.007,0.048,0.135,0.163,0.075,0,0,0,0,0,0,0.004,0.008,0.059,0.144,0.161,0.066,0,0,0,0,0,0,0.008,0.01,0.071,0.154,0.159,0.061,0,0,0,0,0,0,0.011,0.011,0.084,0.161,0.152,0.054,0,0,0,0,0,0],"8":[0.02,0.074,0.111,0.09,0.042,0.015,0.012,0.059,0.106,0.111,0.074,0.019,0.044,0.1,0.113,0.058,0.002,0.001,0.001,0.021,0.085,0.113,0.1,0.044,0.057,0.112,0.112,0.041,0,0,0,0.004,0.062,0.113,0.111,0.055,0.05,0.106,0.112,0.048,0,0,0,0.007,0.067,0.113,0.109,0.053,0.022,0.078,0.113,0.086,0.025,0.001,0.001,0.043,0.097,0.112,0.082,0.026,0.003,0.032,0.085,0.11,0.082,0.057,0.057,0.091,0.112,0.084,0.03,0.002,0.002,0.011,0.064,0.112,0.11,0.101,0.102,0.111,0.109,0.062,0.011,0.002,0.03,0.072,0.101,0.088,0.058,0.034,0.037,0.069,0.098,0.1,0.072,0.027,0.077,0.113,0.103,0.04,0,0,0,0.009,0.062,0.105,0.113,0.071,0.102,0.113,0.081,0.017,0,0,0,0,0.022,0.079,0.113,0.097,0.112,0.113,0.066,0.006,0,0,0,0,0.006,0.062,0.113,0.109,0.104,0.113,0.076,0.013,0,0,0,0,0.012,0.069,0.113,0.107,0.074,0.11,0.103,0.04,0.004,0,0,0.006,0.049,0.098,0.112,0.081,0.038,0.091,0.113,0.082,0.038,0.023,0.023,0.046,0.096,0.113,0.096,0.043,0.01,0.054,0.095,0.104,0.089,0.081,0.081,0.094,0.11,0.096,0.055,0.013,0,0.016,0.046,0.079,0.089,0.101,0.101,0.089,0.078,0.048,0.014,0],"9":[0.035,0.09,0.113,0.09,0.045,0.016,0.012,0.059,0.105,0.108,0.066,0.014,0.065,0.113,0.11,0.052,0.002,0,0.001,0.016,0.078,0.113,0.098,0.042,0.084,0.113,0.094,0.025,0,0,0,0.001,0.044,0.099,0.113,0.068,0.107,0.113,0.069,0.008,0,0,0,0,0.019,0.076,0.113,0.093,0.112,0.113,0.065,0.006,0,0,0,0,0.019,0.076,0.113,0.106,0.101,0.113,0.085,0.019,0,0,0,0,0.039,0.095,0.113,0.11,0.079,0.113,0.106,0.04,0.004,0,0,0.009,0.065,0.11,0.113,0.113,0.04,0.093,0.113,0.089,0.054,0.044,0.044,0.066,0.096,0.106,0.113,0.112,0.003,0.031,0.084,0.113,0.113,0.113,0.113,0.103,0.06,0.075,0.113,0.107,0,0,0.025,0.063,0.095,0.102,0.079,0.044,0.019,0.063,0.113,0.102,0,0,0,0.009,0.033,0.038,0.019,0.001,0.024,0.081,0.113,0.087,0.029,0.045,0.038,0.011,0,0,0,0.001,0.049,0.104,0.113,0.064,0.065,0.111,0.106,0.038,0.001,0,0.001,0.024,0.086,0.113,0.094,0.037,0.039,0.094,0.113,0.071,0.021,0.018,0.021,0.069,0.111,0.1,0.052,0.008,0.013,0.06,0.104,0.101,0.077,0.076,0.077,0.101,0.103,0.062,0.015,0,0,0.019,0.062,0.092,0.101,0.108,0.1,0.09,0.06,0.019,0,0],"K":[0.126,0.094,0.014,0,0,0.001,0.025,0.092,0.125,0.093,0.024,0,0.126,0.094,0.015,0,0,0.016,0.075,0.118,0.114,0.051,0,0,0.126,0.094,0.015,0,0.002,0.051,0.115,0.113,0.069,0.015,0,0,0.126,0.094,0.015,0.01,0.051,0.103,0.112,0.059,0.011,0,0,0,0.126,0.094,0.015,0.048,0.115,0.112,0.054,0.007,0,0,0,0,0.126,0.095,0.037,0.091,0.126,0.099,0.022,0,0,0,0,0,0.126,0.111,0.093,0.118,0.124,0.113,0.044,0,0,0,0,0,0.126,0.126,0.126,0.088,0.072,0.115,0.102,0.036,0,0,0,0,0.126,0.126,0.096,0.024,0.008,0.083,0.126,0.083,0.008,0,0,0,0.126,0.112,0.043,0.001,0,0.057,0.126,0.109,0.037,0,0,0,0.126,0.096,0.017,0,0,0.024,0.098,0.125,0.086,0.017,0,0,0.126,0.094,0.014,0,0,0.002,0.029,0.099,0.122,0.059,0.001,0,0.126,0.094,0.014,0,0,0,0,0.064,0.126,0.102,0.027,0,0.126,0.093,0.014,0,0,0,0,0.03,0.103,0.123,0.081,0.023,0.126,0.093,0.014,0,0,0,0,0.005,0.061,0.119,0.118,0.065,0.126,0.094,0.015,0,0,0,0,0,0.021,0.098,0.126,0.105],"J":[0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0,0,0,0,0,0,0,0,0.06,0.122,0.124,0.124,0.005,0.006,0.002,0,0,0,0,0,0.06,0.122,0.124,0.124,0.047,0.06,0.023,0.001,0,0,0,0,0.06,0.122,0.124,0.123,0.109,0.112,0.053,0.002,0,0,0,0.004,0.065,0.123,0.124,0.118,0.115,0.124,0.08,0.023,0.006,0.002,0.005,0.032,0.089,0.124,0.116,0.096,0.095,0.121,0.111,0.085,0.047,0.021,0.048,0.09,0.114,0.123,0.09,0.049,0.058,0.105,0.12,0.121,0.1,0.081,0.102,0.123,0.122,0.107,0.053,0.01,0.018,0.065,0.098,0.105,0.112,0.117,0.109,0.105,0.091,0.056,0.017,0],"A":[0,0,0,0.011,0.094,0.132,0.134,0.072,0,0,0,0,0,0,0,0.023,0.109,0.114,0.128,0.084,0.002,0,0,0,0,0,0.001,0.05,0.123,0.074,0.101,0.104,0.015,0,0,0,0,0,0.012,0.09,0.124,0.038,0.062,0.12,0.05,0,0,0,0,0,0.036,0.124,0.099,0.012,0.027,0.113,0.079,0,0,0,0,0,0.046,0.132,0.085,0.004,0.016,0.105,0.105,0.025,0,0,0,0.001,0.066,0.134,0.067,0.001,0.004,0.082,0.13,0.052,0,0,0,0.01,0.096,0.121,0.037,0,0,0.058,0.133,0.08,0.008,0,0,0.032,0.121,0.122,0.076,0.062,0.062,0.087,0.134,0.115,0.026,0,0,0.045,0.132,0.133,0.131,0.131,0.131,0.132,0.134,0.127,0.05,0,0.001,0.062,0.132,0.108,0.094,0.097,0.099,0.102,0.125,0.134,0.071,0,0.006,0.088,0.104,0.031,0.019,0.021,0.022,0.024,0.069,0.13,0.093,0.012,0.034,0.113,0.074,0.001,0,0,0,0,0.019,0.101,0.117,0.042,0.068,0.132,0.055,0,0,0,0,0,0.002,0.077,0.128,0.076,0.092,0.132,0.044,0,0,0,0,0,0,0.064,0.133,0.108,0.122,0.118,0.028,0,0,0,0,0,0,0.04,0.122,0.124],"Q":[0.002,0.046,0.128,0.108,0.057,0.013,0.009,0.055,0.113,0.127,0.048,0,0.005,0.079,0.129,0.058,0.002,0,0,0.004,0.057,0.127,0.088,0.013,0.041,0.118,0.089,0.012,0,0,0,0,0.01,0.085,0.124,0.053,0.08,0.136,0.05,0,0,0,0,0,0,0.047,0.132,0.091,0.1,0.13,0.037,0,0,0,0,0,0,0.032,0.123,0.101,0.122,0.121,0.029,0,0,0,0,0,0,0.025,0.117,0.12,0.137,0.11,0.017,0,0,0,0,0,0,0.023,0.116,0.128,0.124,0.119,0.027,0,0,0,0,0,0,0.024,0.116,0.121,0.102,0.13,0.037,0,0,0,0,0,0,0.03,0.122,0.104,0.083,0.135,0.046,0,0,0,0,0,0,0.044,0.133,0.094,0.046,0.12,0.082,0.008,0,0.01,0.066,0.061,0.022,0.079,0.129,0.061,0.008,0.083,0.123,0.049,0,0.014,0.093,0.132,0.1,0.124,0.093,0.017,0.002,0.048,0.129,0.106,0.051,0.01,0.04,0.121,0.136,0.134,0.055,0,0,0.011,0.066,0.123,0.126,0.094,0.094,0.126,0.121,0.119,0.089,0.042,0,0,0.006,0.052,0.079,0.091,0.088,0.079,0.048,0.061,0.126,0.126,0,0,0,0.006,0.01,0.022,0.019,0.01,0.005,0.018,0.079,0.109]}};
+
+  const OCR_RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+  const OCR_TW = 12, OCR_TH = 16;
+
+  function computeBinaryMask(img) {
+    const { width, height, data } = img;
+    const stride = data.length === width * height * 4 ? 4 : 3;
+    const gray = new Float32Array(width * height);
+    const intImg = new Float64Array((width + 1) * (height + 1));
+    for (let y = 0; y < height; y++) {
+      let rowSum = 0;
+      for (let x = 0; x < width; x++) {
+        const p = (y * width + x) * stride;
+        const lum = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+        gray[y * width + x] = lum;
+        rowSum += lum;
+        intImg[(y + 1) * (width + 1) + (x + 1)] =
+            intImg[y * (width + 1) + (x + 1)] + rowSum;
+      }
+    }
+    const mask = new Uint8Array(width * height);
+    const rad = Math.max(12, Math.round(Math.min(width, height) / 14));
+    for (let y = 0; y < height; y++) {
+      const y0 = Math.max(0, y - rad);
+      const y1 = Math.min(height - 1, y + rad);
+      for (let x = 0; x < width; x++) {
+        const x0 = Math.max(0, x - rad);
+        const x1 = Math.min(width - 1, x + rad);
+        const area = (y1 - y0 + 1) * (x1 - x0 + 1);
+        const sum = intImg[(y1 + 1) * (width + 1) + (x1 + 1)] -
+                    intImg[y0 * (width + 1) + (x1 + 1)] -
+                    intImg[(y1 + 1) * (width + 1) + x0] +
+                    intImg[y0 * (width + 1) + x0];
+        const localMean = sum / area;
+        if (gray[y * width + x] < localMean * 0.78 && gray[y * width + x] < 175) {
+          mask[y * width + x] = 1;
+        }
+      }
+    }
+    const vBorders = [];
+    for (let x = 0; x < width; x++) {
+      let cnt = 0;
+      for (let y = 0; y < height; y++) if (mask[y * width + x]) cnt++;
+      if (cnt > height * 0.45) {
+        vBorders.push(x);
+        for (let y = 0; y < height; y++) mask[y * width + x] = 0;
+      }
+    }
+    for (let y = 0; y < height; y++) {
+      let cnt = 0;
+      for (let x = 0; x < width; x++) if (mask[y * width + x]) cnt++;
+      if (cnt > width * 0.45) {
+        for (let x = 0; x < width; x++) mask[y * width + x] = 0;
+      }
+    }
+    return { mask, gray, vBorders };
+  }
+
+  function findHandAnchorsBW(img, mask) {
+    const { width, height } = img;
+    const visited = new Uint8Array(width * height);
+    const blobs = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const p = y * width + x;
+        if (!mask[p] || visited[p]) continue;
+        let minX = x, maxX = x, minY = y, maxY = y, count = 0;
+        const q = [p];
+        visited[p] = 1;
+        while (q.length) {
+          const cur = q.pop();
+          const cy = Math.floor(cur / width), cx = cur % width;
+          count++;
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+          if (cy < minY) minY = cy;
+          if (cy > maxY) maxY = cy;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const nx = cx + dx, ny = cy + dy;
+              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                const np = ny * width + nx;
+                if (mask[np] && !visited[np]) {
+                  visited[np] = 1;
+                  q.push(np);
+                }
+              }
+            }
+          }
+        }
+        const bw = maxX - minX + 1, bh = maxY - minY + 1;
+        if (count >= 12 && bw >= 6 && bh >= 6 && bw <= height * 0.08 && bh <= height * 0.08 &&
+            bw / bh >= 0.55 && bw / bh <= 1.45) {
+          blobs.push({ minX, maxX, minY, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: bw, h: bh });
+        }
+      }
+    }
+    const stacks = [];
+    for (let i = 0; i < blobs.length; i++) {
+      const b0 = blobs[i];
+      if (b0.cx >= width * 0.86) continue;
+      const aligned = blobs.filter(b =>
+        Math.abs(b.cx - b0.cx) <= Math.max(5, b0.w * 0.45) &&
+        Math.abs(b.h - b0.h) <= Math.max(5, b0.h * 0.45) &&
+        b.cy >= b0.cy
+      ).sort((a, b) => a.cy - b.cy);
+      for (let j = 0; j < aligned.length; j++) {
+        for (let k = j + 1; k < aligned.length; k++) {
+          const b1 = aligned[j], b2 = aligned[k];
+          const dy = b2.cy - b1.cy;
+          if (dy < b0.h * 1.05 || dy > b0.h * 2.5) continue;
+          if (Math.abs((b1.cy - b0.cy) - dy) > Math.max(4, dy * 0.25)) continue;
+          const b3 = aligned.find(b => Math.abs((b.cy - b2.cy) - dy) <= Math.max(4, dy * 0.25));
+          if (b3) {
+            stacks.push({
+              heart: b1,
+              diamond: b2,
+              cx: (b0.cx + b1.cx + b2.cx + b3.cx) / 4,
+              cy: (b1.cy + b2.cy) / 2,
+              dy: (b3.cy - b0.cy) / 3,
+              xStart: Math.round(Math.max(b0.maxX, b1.maxX, b2.maxX, b3.maxX) + Math.max(3, b0.w * 0.22)),
+              iconW: (b0.w + b1.w + b2.w + b3.w) / 4,
+              iconH: (b0.h + b1.h + b2.h + b3.h) / 4
+            });
+          }
+        }
+      }
+    }
+    return selectBestCompassQuad(stacks, width, height);
+  }
+
+  function selectBestCompassQuad(pairs, width, height) {
+    if (!pairs || pairs.length < 4) return null;
+    let bestQuad = null, bestScore = 1e9;
+    for (let iN = 0; iN < pairs.length; iN++) {
+      for (let iS = 0; iS < pairs.length; iS++) {
+        if (iS === iN) continue;
+        const N = pairs[iN], S = pairs[iS];
+        if (S.cy - N.cy < height * 0.28) continue;
+        if (Math.abs(N.cx - S.cx) > width * 0.18) continue;
+        for (let iW = 0; iW < pairs.length; iW++) {
+          if (iW === iN || iW === iS) continue;
+          for (let iE = 0; iE < pairs.length; iE++) {
+            if (iE === iN || iE === iS || iE === iW) continue;
+            const W = pairs[iW], E = pairs[iE];
+            if (E.cx - W.cx < width * 0.32) continue;
+            if (W.cx >= N.cx - width * 0.08 || E.cx <= N.cx + width * 0.08) continue;
+            if (Math.abs(W.cy - E.cy) > height * 0.12) continue;
+            const midY = (W.cy + E.cy) / 2;
+            const midX = (W.cx + E.cx) / 2;
+            if (midY <= N.cy + N.dy || midY >= S.cy - S.dy) continue;
+            const score =
+              Math.abs(N.cx - S.cx) * 2.5 +
+              Math.abs(W.cy - E.cy) * 2.5 +
+              Math.abs((N.cx + S.cx) / 2 - midX) * 1.5 +
+              Math.abs((N.cy + S.cy) / 2 - midY) * 1.5;
+            if (score < bestScore) {
+              bestScore = score;
+              bestQuad = { N, W, E, S };
+            }
+          }
+        }
+      }
+    }
+    return bestQuad;
+  }
+
+  function findHandAnchors(img, mask) {
+    const { width, height, data } = img;
+    const stride = data.length === width * height * 4 ? 4 : 3;
+    const visited = new Uint8Array(width * height);
+    const redBlobs = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const p = y * width + x;
+        if (visited[p]) continue;
+        const r = data[p * stride], g = data[p * stride + 1], b = data[p * stride + 2];
+        if (r - Math.max(g, b) > 35 && r > 90) {
+          let minX = x, maxX = x, minY = y, maxY = y, count = 0;
+          const q = [p];
+          visited[p] = 1;
+          while (q.length) {
+            const cur = q.pop();
+            const cy = Math.floor(cur / width), cx = cur % width;
+            count++;
+            if (cx < minX) minX = cx;
+            if (cx > maxX) maxX = cx;
+            if (cy < minY) minY = cy;
+            if (cy > maxY) maxY = cy;
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = cx + dx, ny = cy + dy;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                  const np = ny * width + nx;
+                  if (!visited[np]) {
+                    const nr = data[np * stride], ng = data[np * stride + 1], nb = data[np * stride + 2];
+                    if (nr - Math.max(ng, nb) > 35 && nr > 90) {
+                      visited[np] = 1;
+                      q.push(np);
+                    }
+                  }
+                }
+              }
+            }
+          }
+          const bw = maxX - minX + 1, bh = maxY - minY + 1;
+          if (count >= 12 && bw >= 6 && bh >= 6 && bw <= height * 0.12 && bh <= height * 0.12) {
+            redBlobs.push({
+              minX, maxX, minY, maxY,
+              cx: (minX + maxX) / 2,
+              cy: (minY + maxY) / 2,
+              w: bw, h: bh, count
+            });
+          }
+        }
+      }
+    }
+
+    const pairs = [];
+    for (let i = 0; i < redBlobs.length; i++) {
+      for (let j = 0; j < redBlobs.length; j++) {
+        if (i === j) continue;
+        const a = redBlobs[i], b = redBlobs[j];
+        const dy = b.cy - a.cy;
+        if (Math.abs(a.cx - b.cx) <= Math.max(8, a.w * 0.6) &&
+            dy >= a.h * 1.05 && dy <= a.h * 2.6 &&
+            a.cx < width * 0.86) {
+          const spadeY = Math.round(a.cy - dy);
+          const clubY = Math.round(b.cy + dy);
+          if (spadeY < 2 || clubY >= height - 2) continue;
+          pairs.push({
+            heart: a,
+            diamond: b,
+            cx: (a.cx + b.cx) / 2,
+            cy: (a.cy + b.cy) / 2,
+            dy,
+            xStart: Math.round(Math.max(a.maxX, b.maxX) + Math.max(3, a.w * 0.22)),
+            iconW: (a.w + b.w) / 2,
+            iconH: (a.h + b.h) / 2
+          });
+        }
+      }
+    }
+    const quad = selectBestCompassQuad(pairs, width, height);
+    if (quad) return quad;
+    return mask ? findHandAnchorsBW(img, mask) : null;
+  }
+
+  function rasterizeGlyphPatch(mask, width, box) {
+    const vec = new Float32Array(OCR_TW * OCR_TH);
+    let norm = 0;
+    for (let ty = 0; ty < OCR_TH; ty++) {
+      const sy0 = box.y0 + (ty / OCR_TH) * box.h;
+      const sy1 = box.y0 + ((ty + 1) / OCR_TH) * box.h;
+      for (let tx = 0; tx < OCR_TW; tx++) {
+        const sx0 = box.x0 + (tx / OCR_TW) * box.w;
+        const sx1 = box.x0 + ((tx + 1) / OCR_TW) * box.w;
+        let sum = 0, cnt = 0;
+        for (let y = Math.floor(sy0); y <= Math.min(box.y1, Math.floor(sy1)); y++) {
+          for (let x = Math.floor(sx0); x <= Math.min(box.x1, Math.floor(sx1)); x++) {
+            sum += mask[y * width + x];
+            cnt++;
+          }
+        }
+        const val = cnt > 0 ? sum / cnt : 0;
+        vec[ty * OCR_TW + tx] = val;
+        norm += val * val;
+      }
+    }
+    norm = Math.sqrt(norm) || 1;
+    for (let i = 0; i < vec.length; i++) vec[i] /= norm;
+    return vec;
+  }
+
+  function segmentSuitStrip(mask, width, height, x0, x1, yCenter, dy) {
+    const y0 = Math.max(0, Math.round(yCenter - dy * 0.42));
+    const y1 = Math.min(height - 1, Math.round(yCenter + dy * 0.42));
+    const colDark = [];
+    for (let x = x0; x < x1; x++) {
+      let dark = 0;
+      for (let y = y0; y <= y1; y++) {
+        if (mask[y * width + x]) dark++;
+      }
+      colDark.push(dark);
+    }
+    const rawSegs = [];
+    let inSeg = false, segStart = 0, blankRun = 0;
+    for (let i = 0; i < colDark.length; i++) {
+      if (colDark[i] > 0) {
+        if (!inSeg) {
+          inSeg = true;
+          segStart = x0 + i;
+        }
+        blankRun = 0;
+      } else if (inSeg) {
+        inSeg = false;
+        rawSegs.push([segStart, x0 + i - 1]);
+      } else {
+        blankRun++;
+        if (rawSegs.length > 0 && blankRun > dy * 0.62) break;
+      }
+    }
+    if (inSeg) rawSegs.push([segStart, x1 - 1]);
+
+    const boxes = [];
+    function addBox(sx0, sx1) {
+      let sy0 = y1, sy1 = y0, ink = 0;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = sx0; x <= sx1; x++) {
+          if (mask[y * width + x]) {
+            ink++;
+            if (y < sy0) sy0 = y;
+            if (y > sy1) sy1 = y;
+          }
+        }
+      }
+      if (ink < 3) return;
+      const w = sx1 - sx0 + 1;
+      const h = sy1 - sy0 + 1;
+      if (h <= dy * 0.25 && w >= dy * 0.35) {
+        boxes.push({ x0: sx0, x1: sx1, y0: sy0, y1: sy1, w, h, isVoid: true });
+        return;
+      }
+      if (w > h * 1.18 && h >= dy * 0.5) {
+        let bestSplit = -1, minCol = 1e9;
+        const search0 = sx0 + Math.max(4, Math.floor(w * 0.25));
+        const search1 = sx0 + Math.min(w - 5, Math.ceil(w * 0.75));
+        for (let x = search0; x <= search1; x++) {
+          let c = 0;
+          for (let y = sy0; y <= sy1; y++) {
+            if (mask[y * width + x]) c++;
+          }
+          if (c < minCol) {
+            minCol = c;
+            bestSplit = x;
+          }
+        }
+        if (bestSplit > sx0 && minCol <= 3) {
+          addBox(sx0, bestSplit - 1);
+          addBox(bestSplit + 1, sx1);
+          return;
+        }
+      }
+      boxes.push({ x0: sx0, x1: sx1, y0: sy0, y1: sy1, w, h, isVoid: false });
+    }
+    for (const [sx0, sx1] of rawSegs) addBox(sx0, sx1);
+
+    const clean = boxes.filter(b => b.isVoid || b.h >= dy * 0.5);
+    if (clean.length === 1 && clean[0].isVoid) {
+      return [];
+    }
+    const nonVoid = clean.filter(b => !b.isVoid);
+
+    const tokens = [];
+    for (let i = 0; i < nonVoid.length; i++) {
+      const b = nonVoid[i];
+      const aspect = b.w / b.h;
+      if (aspect < 0.50 && i + 1 < nonVoid.length && (nonVoid[i + 1].w / nonVoid[i + 1].h) >= 0.52) {
+        const next = nonVoid[i + 1];
+        tokens.push({
+          isTen: true,
+          oneBox: b,
+          zeroBox: next,
+          w: next.x1 - b.x0 + 1,
+          h: Math.max(b.h, next.h)
+        });
+        i++;
+      } else {
+        tokens.push({
+          isTen: false,
+          box: b,
+          w: b.w,
+          h: b.h,
+          aspect,
+          vec: rasterizeGlyphPatch(mask, width, b)
+        });
+      }
+    }
+    return tokens;
+  }
+
+  function scoreOcrToken(tok, rank) {
+    if (rank === 'T') {
+      return tok.isTen ? 2.5 : -4.0;
+    }
+    if (tok.isTen) {
+      return -4.0;
+    }
+    const tpl = OCR_TEMPLATE_DATA.tpl[rank];
+    let dot = 0;
+    for (let i = 0; i < OCR_TW * OCR_TH; i++) dot += tok.vec[i] * tpl[i];
+    const aspectDiff = Math.abs(tok.aspect - OCR_TEMPLATE_DATA.aspect[rank]);
+    return dot * 2.0 - aspectDiff * 1.5;
+  }
+
+  function solveSuitPartitionDP(suitTokensByHand) {
+    const dirs = ['N', 'W', 'E', 'S'];
+    const lens = dirs.map(d => suitTokensByHand[d].length);
+    const totalSlots = lens[0] + lens[1] + lens[2] + lens[3];
+
+    if (totalSlots === 13) {
+      const [L0, L1, L2, L3] = lens;
+      const S0 = L0 + 1, S1 = L1 + 1, S2 = L2 + 1, S3 = L3 + 1;
+      const numStates = S0 * S1 * S2 * S3;
+      const dp = new Float32Array(numStates).fill(-1e9);
+      const parent = new Int32Array(13 * numStates).fill(-1);
+      dp[0] = 0;
+
+      for (let rIdx = 0; rIdx < 13; rIdx++) {
+        const rank = OCR_RANKS[rIdx];
+        const nextDp = new Float32Array(numStates).fill(-1e9);
+        for (let i0 = 0; i0 <= L0; i0++) {
+          for (let i1 = 0; i1 <= L1; i1++) {
+            for (let i2 = 0; i2 <= L2; i2++) {
+              for (let i3 = 0; i3 <= L3; i3++) {
+                if (i0 + i1 + i2 + i3 !== rIdx) continue;
+                const st = ((i0 * S1 + i1) * S2 + i2) * S3 + i3;
+                const curVal = dp[st];
+                if (curVal <= -1e8) continue;
+                const idxs = [i0, i1, i2, i3];
+                for (let h = 0; h < 4; h++) {
+                  if (idxs[h] < lens[h]) {
+                    const sc = curVal + scoreOcrToken(suitTokensByHand[dirs[h]][idxs[h]], rank);
+                    const n0 = i0 + (h === 0 ? 1 : 0);
+                    const n1 = i1 + (h === 1 ? 1 : 0);
+                    const n2 = i2 + (h === 2 ? 1 : 0);
+                    const n3 = i3 + (h === 3 ? 1 : 0);
+                    const nst = ((n0 * S1 + n1) * S2 + n2) * S3 + n3;
+                    if (sc > nextDp[nst]) {
+                      nextDp[nst] = sc;
+                      parent[rIdx * numStates + nst] = h;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        dp.set(nextDp);
+      }
+      const res = { N: [], W: [], E: [], S: [] };
+      let c0 = L0, c1 = L1, c2 = L2, c3 = L3;
+      for (let rIdx = 12; rIdx >= 0; rIdx--) {
+        const st = ((c0 * S1 + c1) * S2 + c2) * S3 + c3;
+        const h = parent[rIdx * numStates + st];
+        if (h >= 0 && h < 4) {
+          res[dirs[h]].unshift(OCR_RANKS[rIdx]);
+          if (h === 0) c0--;
+          else if (h === 1) c1--;
+          else if (h === 2) c2--;
+          else c3--;
+        }
+      }
+      return res;
+    }
+
+    const res = {};
+    for (const d of dirs) {
+      const toks = suitTokensByHand[d];
+      const m = toks.length;
+      if (m === 0) { res[d] = []; continue; }
+      const K = Math.min(m, 13);
+      const dp = Array.from({ length: K }, () => new Float32Array(13).fill(-1e9));
+      const par = Array.from({ length: K }, () => new Int32Array(13).fill(-1));
+      for (let r = 0; r < 13; r++) dp[0][r] = scoreOcrToken(toks[0], OCR_RANKS[r]);
+      for (let k = 1; k < K; k++) {
+        for (let r = k; r < 13; r++) {
+          const s = scoreOcrToken(toks[k], OCR_RANKS[r]);
+          for (let pr = k - 1; pr < r; pr++) {
+            if (dp[k - 1][pr] + s > dp[k][r]) {
+              dp[k][r] = dp[k - 1][pr] + s;
+              par[k][r] = pr;
+            }
+          }
+        }
+      }
+      let bestR = 0;
+      for (let r = 1; r < 13; r++) if (dp[K - 1][r] > dp[K - 1][bestR]) bestR = r;
+      const seq = [];
+      for (let k = K - 1; k >= 0; k--) {
+        seq.unshift(OCR_RANKS[bestR]);
+        bestR = par[k][bestR];
+      }
+      res[d] = seq;
+    }
+    return res;
+  }
+
+  function formatSuitRanksArrayToHandString(suitsArr) {
+    const suitKeys = ['S', 'H', 'D', 'C'];
+    return suitKeys.map((sk, idx) => {
+      const cards = (suitsArr[idx] && suitsArr[idx].length > 0) ? suitsArr[idx].join('') : '-';
+      return `${sk} ${cards};`;
+    }).join(' ');
+  }
+
+  function recognizeBoardFromImageData(img) {
+    const { mask, vBorders } = computeBinaryMask(img);
+    const anchors = findHandAnchors(img, mask);
+    if (!anchors) return null;
+
+    const dirs = ['N', 'W', 'E', 'S'];
+    const tokensBySuitAndHand = [{}, {}, {}, {}];
+    for (const dir of dirs) {
+      const h = anchors[dir];
+      let xEnd = (dir === 'W') ? Math.floor(anchors.E.cx - anchors.E.iconW) : img.width - 4;
+      for (const bx of vBorders) {
+        if (bx > h.xStart + h.dy * 1.2 && bx < xEnd) {
+          xEnd = bx - 2;
+          break;
+        }
+      }
+      const rowsY = [h.heart.cy - h.dy, h.heart.cy, h.diamond.cy, h.diamond.cy + h.dy];
+      for (let sIdx = 0; sIdx < 4; sIdx++) {
+        tokensBySuitAndHand[sIdx][dir] = segmentSuitStrip(
+          mask, img.width, img.height, h.xStart, xEnd, rowsY[sIdx], h.dy
+        );
+      }
+    }
+    const recognized = { N: [], W: [], E: [], S: [] };
+    for (let sIdx = 0; sIdx < 4; sIdx++) {
+      const suitRes = solveSuitPartitionDP(tokensBySuitAndHand[sIdx]);
+      for (const dir of dirs) {
+        recognized[dir].push(suitRes[dir]);
+      }
+    }
+    const hands = {
+      N: formatSuitRanksArrayToHandString(recognized.N),
+      E: formatSuitRanksArrayToHandString(recognized.E),
+      S: formatSuitRanksArrayToHandString(recognized.S),
+      W: formatSuitRanksArrayToHandString(recognized.W)
+    };
+    return { hands, anchors, raw: recognized };
+  }
+
+  function detectAllBoardsInImageData(img) {
+    const { width, height, data } = img;
+    const stride = data.length === width * height * 4 ? 4 : 3;
+    const scale = Math.max(1, Math.floor(Math.max(width, height) / 1100));
+    const sw = Math.floor(width / scale), sh = Math.floor(height / scale);
+    const visited = new Uint8Array(sw * sh);
+    const redBlobs = [];
+    for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+        const p = y * sw + x;
+        if (visited[p]) continue;
+        const origP = (y * scale * width + x * scale) * stride;
+        const r = data[origP], g = data[origP + 1], b = data[origP + 2];
+        if (r - Math.max(g, b) > 35 && r > 90) {
+          let minX = x, maxX = x, minY = y, maxY = y, count = 0;
+          const q = [p];
+          visited[p] = 1;
+          while (q.length) {
+            const cur = q.pop();
+            const cy = Math.floor(cur / sw), cx = cur % sw;
+            count++;
+            if (cx < minX) minX = cx;
+            if (cx > maxX) maxX = cx;
+            if (cy < minY) minY = cy;
+            if (cy > maxY) maxY = cy;
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = cx + dx, ny = cy + dy;
+                if (nx >= 0 && nx < sw && ny >= 0 && ny < sh) {
+                  const np = ny * sw + nx;
+                  if (!visited[np]) {
+                    const op = (ny * scale * width + nx * scale) * stride;
+                    const nr = data[op], ng = data[op + 1], nb = data[op + 2];
+                    if (nr - Math.max(ng, nb) > 35 && nr > 90) {
+                      visited[np] = 1;
+                      q.push(np);
+                    }
+                  }
+                }
+              }
+            }
+          }
+          const bw = (maxX - minX + 1) * scale, bh = (maxY - minY + 1) * scale;
+          if (count * scale * scale >= 12 && bw >= 5 && bh >= 5 && bw <= 90 && bh <= 90) {
+            redBlobs.push({
+              minX: minX * scale, maxX: maxX * scale,
+              minY: minY * scale, maxY: maxY * scale,
+              cx: ((minX + maxX) / 2) * scale,
+              cy: ((minY + maxY) / 2) * scale,
+              w: bw, h: bh
+            });
+          }
+        }
+      }
+    }
+    const pairs = [];
+    for (let i = 0; i < redBlobs.length; i++) {
+      for (let j = 0; j < redBlobs.length; j++) {
+        if (i === j) continue;
+        const a = redBlobs[i], b = redBlobs[j];
+        const dy = b.cy - a.cy;
+        if (Math.abs(a.cx - b.cx) <= Math.max(8, a.w * 0.6) &&
+            dy >= a.h * 1.05 && dy <= a.h * 2.6) {
+          pairs.push({
+            cx: (a.cx + b.cx) / 2,
+            cy: (a.cy + b.cy) / 2,
+            dy,
+            w: (a.w + b.w) / 2
+          });
+        }
+      }
+    }
+    const quads = [];
+    const used = new Set();
+    pairs.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+    for (let iN = 0; iN < pairs.length; iN++) {
+      if (used.has(iN)) continue;
+      const N = pairs[iN];
+      let bestQ = null, bestSc = 1e9;
+      for (let iS = 0; iS < pairs.length; iS++) {
+        if (iS === iN || used.has(iS)) continue;
+        const S = pairs[iS];
+        const vDist = S.cy - N.cy;
+        if (vDist < N.dy * 4.5 || vDist > N.dy * 12) continue;
+        if (Math.abs(N.cx - S.cx) > N.dy * 2.0) continue;
+        const midY = (N.cy + S.cy) / 2;
+        for (let iW = 0; iW < pairs.length; iW++) {
+          if (used.has(iW)) continue;
+          const W = pairs[iW];
+          if (Math.abs(W.cy - midY) > N.dy * 1.8) continue;
+          const dxW = N.cx - W.cx;
+          if (dxW < N.dy * 2.5 || dxW > N.dy * 9.0) continue;
+          for (let iE = 0; iE < pairs.length; iE++) {
+            if (used.has(iE)) continue;
+            const E = pairs[iE];
+            if (Math.abs(E.cy - W.cy) > N.dy * 1.2) continue;
+            const dxE = E.cx - N.cx;
+            if (dxE < N.dy * 2.5 || dxE > N.dy * 9.0) continue;
+            const sc = Math.abs(N.cx - S.cx) * 2 + Math.abs(W.cy - E.cy) * 2 + Math.abs(dxW - dxE);
+            if (sc < bestSc) {
+              bestSc = sc;
+              bestQ = { iN, iS, iW, iE, N, S, W, E };
+            }
+          }
+        }
+      }
+      if (bestQ) {
+        used.add(bestQ.iN); used.add(bestQ.iS); used.add(bestQ.iW); used.add(bestQ.iE);
+        const { N, S, W, E } = bestQ;
+        const dy = (N.dy + S.dy + W.dy + E.dy) / 4;
+        const spanX = E.cx - W.cx;
+        const x0 = Math.max(0, Math.round(W.cx - dy * 1.1));
+        const y0 = Math.max(0, Math.round(N.cy - dy * 2.8));
+        const x1 = Math.min(width, Math.round(E.cx + spanX * 0.56));
+        const y1 = Math.min(height, Math.round(S.cy + dy * 3.0));
+        quads.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+      }
+    }
+    quads.sort((a, b) => (Math.abs(a.y - b.y) < 50 ? a.x - b.x : a.y - b.y));
+    return quads;
+  }
+
+  function validateFourHandsDeck(hands) {
+    const counts = { N: 0, E: 0, S: 0, W: 0 };
+    const seen = new Map();
+    const duplicates = [];
+    ['N', 'E', 'S', 'W'].forEach(seat => {
+      const suits = parseHandToSuits(hands[seat] || '');
+      ['S', 'H', 'D', 'C'].forEach(sk => {
+        const str = (suits[sk] || '').replace(/10/g, 'T').toUpperCase();
+        for (let i = 0; i < str.length; i++) {
+          const r = str.charAt(i);
+          if (OCR_RANKS.includes(r)) {
+            counts[seat]++;
+            const key = `${sk}${r}`;
+            if (seen.has(key)) {
+              duplicates.push(`${key} (${seen.get(key)} & ${seat})`);
+            } else {
+              seen.set(key, seat);
+            }
+          }
+        }
+      });
+    });
+    const total = counts.N + counts.E + counts.S + counts.W;
+    const isExact52 = (
+      counts.N === 13 && counts.E === 13 && counts.S === 13 && counts.W === 13 &&
+      seen.size === 52 && duplicates.length === 0
+    );
+    return { isExact52, counts, uniqueCount: seen.size, duplicates };
+  }
+
+  // Modal DOM Elements & Interactive Crop State
+  const photoScanModal = document.getElementById('photoScanModal');
+  const closePhotoModalBtn = document.getElementById('closePhotoModalBtn');
+  const cancelPhotoModalBtn = document.getElementById('cancelPhotoModalBtn');
+  const applyPhotoModalBtn = document.getElementById('applyPhotoModalBtn');
+  const cropCanvas = document.getElementById('cropCanvas');
+  const cropCanvasViewport = document.getElementById('cropCanvasViewport');
+  const cropRotateBtn = document.getElementById('cropRotateBtn');
+  const cropZoomToBoxBtn = document.getElementById('cropZoomToBoxBtn');
+  const cropResetViewBtn = document.getElementById('cropResetViewBtn');
+  const cropNewPhotoBtn = document.getElementById('cropNewPhotoBtn');
+  const rescanCropBtn = document.getElementById('rescanCropBtn');
+  const detectedBoardsBar = document.getElementById('detectedBoardsBar');
+  const detectedBoardsList = document.getElementById('detectedBoardsList');
+  const scanStatusBadge = document.getElementById('scanStatusBadge');
+  const scanInputN = document.getElementById('scanInputN');
+  const scanInputE = document.getElementById('scanInputE');
+  const scanInputS = document.getElementById('scanInputS');
+  const scanInputW = document.getElementById('scanInputW');
+
+  let scanSourceCanvas = null; // Offscreen canvas holding current (possibly rotated) image
+  let detectedBoardBoxes = []; // Array of { x, y, w, h } in scanSourceCanvas coords
+  let activeDetectedBoardIdx = -1;
+  let cropBox = { x: 0, y: 0, w: 100, h: 100 }; // In scanSourceCanvas coords
+  let lastDetectedAnchors = null; // In cropBox-relative coords
+  let cropViewZoom = 1.0;
+  let cropViewOffsetX = 0;
+  let cropViewOffsetY = 0;
+  let cropDragMode = null; // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e', 'pan'
+  let cropDragStartImg = { x: 0, y: 0 };
+  let cropDragStartClient = { x: 0, y: 0 };
+  let cropDragStartBox = null;
+  let cropPinchDist = 0;
+  let cropPinchStartZoom = 1.0;
+
+  function openPhotoScanModalWithFile(file) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const off = document.createElement('canvas');
+        off.width = img.naturalWidth || img.width;
+        off.height = img.naturalHeight || img.height;
+        const ctx = off.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        scanSourceCanvas = off;
+        if (recropPhotoBtn) recropPhotoBtn.classList.remove('hidden');
+        openPhotoScanModalExisting(true);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function openPhotoScanModalExisting(resetDetection = false) {
+    if (!scanSourceCanvas || !photoScanModal) return;
+    photoScanModal.classList.remove('hidden');
+    updateDeclarerBarUI(currentDeclarerSeat);
+
+    requestAnimationFrame(() => {
+      if (resetDetection) {
+        runFullPhotoBoardDetection();
+      } else {
+        fitCropPhotoView();
+        renderCropCanvas();
+      }
+    });
+  }
+
+  function closePhotoScanModal() {
+    if (photoScanModal) photoScanModal.classList.add('hidden');
+  }
+
+  function runFullPhotoBoardDetection() {
+    if (!scanSourceCanvas) return;
+    const ctx = scanSourceCanvas.getContext('2d');
+    const fullData = ctx.getImageData(0, 0, scanSourceCanvas.width, scanSourceCanvas.height);
+    detectedBoardBoxes = detectAllBoardsInImageData(fullData);
+
+    if (detectedBoardBoxes.length > 0) {
+      activeDetectedBoardIdx = 0;
+      cropBox = { ...detectedBoardBoxes[0] };
+    } else {
+      activeDetectedBoardIdx = -1;
+      const padX = Math.round(scanSourceCanvas.width * 0.06);
+      const padY = Math.round(scanSourceCanvas.height * 0.06);
+      cropBox = {
+        x: padX,
+        y: padY,
+        w: Math.max(40, scanSourceCanvas.width - 2 * padX),
+        h: Math.max(40, scanSourceCanvas.height - 2 * padY)
+      };
+    }
+
+    renderDetectedBoardsPills();
+    fitCropPhotoView();
+    if (detectedBoardBoxes.length > 1) {
+      zoomCropViewToBox();
+    }
+    scanCurrentCropRegion();
+  }
+
+  function renderDetectedBoardsPills() {
+    if (!detectedBoardsBar || !detectedBoardsList) return;
+    detectedBoardsList.innerHTML = '';
+    if (detectedBoardBoxes.length <= 1) {
+      detectedBoardsBar.classList.add('hidden');
+      return;
+    }
+    detectedBoardsBar.classList.remove('hidden');
+    detectedBoardBoxes.forEach((box, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `board-pill-btn${idx === activeDetectedBoardIdx ? ' active' : ''}`;
+      btn.textContent = `#${idx + 1}`;
+      btn.addEventListener('click', () => {
+        activeDetectedBoardIdx = idx;
+        cropBox = { ...detectedBoardBoxes[idx] };
+        renderDetectedBoardsPills();
+        zoomCropViewToBox();
+        scanCurrentCropRegion();
+      });
+      detectedBoardsList.appendChild(btn);
+    });
+  }
+
+  function fitCropPhotoView() {
+    if (!scanSourceCanvas || !cropCanvasViewport || !cropCanvas) return;
+    const rect = cropCanvasViewport.getBoundingClientRect();
+    const cw = Math.max(260, Math.floor(rect.width));
+    const ch = Math.max(220, Math.floor(rect.height));
+    cropCanvas.width = cw;
+    cropCanvas.height = ch;
+
+    const scaleX = (cw - 24) / scanSourceCanvas.width;
+    const scaleY = (ch - 24) / scanSourceCanvas.height;
+    cropViewZoom = Math.min(scaleX, scaleY);
+    cropViewOffsetX = (cw - scanSourceCanvas.width * cropViewZoom) / 2;
+    cropViewOffsetY = (ch - scanSourceCanvas.height * cropViewZoom) / 2;
+    renderCropCanvas();
+  }
+
+  function zoomCropViewToBox() {
+    if (!scanSourceCanvas || !cropCanvas) return;
+    const cw = cropCanvas.width;
+    const ch = cropCanvas.height;
+    const scaleX = (cw * 0.82) / Math.max(40, cropBox.w);
+    const scaleY = (ch * 0.82) / Math.max(40, cropBox.h);
+    cropViewZoom = Math.min(scaleX, scaleY);
+    const boxCenterX = cropBox.x + cropBox.w / 2;
+    const boxCenterY = cropBox.y + cropBox.h / 2;
+    cropViewOffsetX = cw / 2 - boxCenterX * cropViewZoom;
+    cropViewOffsetY = ch / 2 - boxCenterY * cropViewZoom;
+    renderCropCanvas();
+  }
+
+  function clientToImageCoords(clientX, clientY) {
+    const rect = cropCanvas.getBoundingClientRect();
+    const cx = (clientX - rect.left) * (cropCanvas.width / Math.max(1, rect.width));
+    const cy = (clientY - rect.top) * (cropCanvas.height / Math.max(1, rect.height));
+    return {
+      x: (cx - cropViewOffsetX) / cropViewZoom,
+      y: (cy - cropViewOffsetY) / cropViewZoom,
+      cx,
+      cy
+    };
+  }
+
+  function renderCropCanvas() {
+    if (!cropCanvas || !scanSourceCanvas) return;
+    const ctx = cropCanvas.getContext('2d');
+    const cw = cropCanvas.width, ch = cropCanvas.height;
+    ctx.clearRect(0, 0, cw, ch);
+
+    ctx.save();
+    ctx.translate(cropViewOffsetX, cropViewOffsetY);
+    ctx.scale(cropViewZoom, cropViewZoom);
+    ctx.drawImage(scanSourceCanvas, 0, 0);
+    ctx.restore();
+
+    const bx = cropViewOffsetX + cropBox.x * cropViewZoom;
+    const by = cropViewOffsetY + cropBox.y * cropViewZoom;
+    const bw = cropBox.w * cropViewZoom;
+    const bh = cropBox.h * cropViewZoom;
+
+    // Dim outside cropBox
+    ctx.fillStyle = 'rgba(8, 13, 26, 0.62)';
+    ctx.fillRect(0, 0, cw, Math.max(0, by));
+    ctx.fillRect(0, Math.min(ch, by + bh), cw, Math.max(0, ch - (by + bh)));
+    ctx.fillRect(0, Math.max(0, by), Math.max(0, bx), Math.max(0, bh));
+    ctx.fillRect(Math.min(cw, bx + bw), Math.max(0, by), Math.max(0, cw - (bx + bw)), Math.max(0, bh));
+
+    // Draw other detected board outlines
+    detectedBoardBoxes.forEach((db, idx) => {
+      if (idx === activeDetectedBoardIdx) return;
+      const dx = cropViewOffsetX + db.x * cropViewZoom;
+      const dy = cropViewOffsetY + db.y * cropViewZoom;
+      const dw = db.w * cropViewZoom;
+      const dh = db.h * cropViewZoom;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeRect(dx, dy, dw, dh);
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.85)';
+      ctx.fillRect(dx + 4, dy + 4, 24, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText(`#${idx + 1}`, dx + 8, dy + 15);
+      ctx.restore();
+    });
+
+    // Draw active crop rectangle & subtle 3x3 compass grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(bx + bw / 3, by); ctx.lineTo(bx + bw / 3, by + bh);
+    ctx.moveTo(bx + (2 * bw) / 3, by); ctx.lineTo(bx + (2 * bw) / 3, by + bh);
+    ctx.moveTo(bx, by + bh / 3); ctx.lineTo(bx + bw, by + bh / 3);
+    ctx.moveTo(bx, by + (2 * bh) / 3); ctx.lineTo(bx + bw, by + (2 * bh) / 3);
+    ctx.stroke();
+    ctx.restore();
+
+    // Draw detected N/W/E/S suit anchor markers inside cropBox
+    if (lastDetectedAnchors) {
+      ctx.save();
+      ['N', 'W', 'E', 'S'].forEach(dir => {
+        const a = lastDetectedAnchors[dir];
+        if (!a) return;
+        const ax = bx + a.cx * cropViewZoom;
+        const ay = by + a.cy * cropViewZoom;
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+        ctx.beginPath();
+        ctx.arc(ax, ay, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    // Active crop border and 8 resize handles
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    const handles = [
+      [bx, by], [bx + bw / 2, by], [bx + bw, by],
+      [bx, by + bh / 2], [bx + bw, by + bh / 2],
+      [bx, by + bh], [bx + bw / 2, by + bh], [bx + bw, by + bh]
+    ];
+    ctx.fillStyle = '#38bdf8';
+    ctx.strokeStyle = '#0b1120';
+    ctx.lineWidth = 1.5;
+    handles.forEach(([hx, hy]) => {
+      ctx.beginPath();
+      ctx.arc(hx, hy, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+
+  function scanCurrentCropRegion() {
+    if (!scanSourceCanvas) return;
+    const sx = Math.max(0, Math.round(cropBox.x));
+    const sy = Math.max(0, Math.round(cropBox.y));
+    const sw = Math.min(scanSourceCanvas.width - sx, Math.max(32, Math.round(cropBox.w)));
+    const sh = Math.min(scanSourceCanvas.height - sy, Math.max(32, Math.round(cropBox.h)));
+
+    // Normalize crop width to ~420px for consistent OCR resolution
+    const targetW = 420;
+    const scale = (sw < 340 || sw > 560) ? (targetW / sw) : 1.0;
+    const tw = Math.max(64, Math.round(sw * scale));
+    const th = Math.max(64, Math.round(sh * scale));
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = tw;
+    tempCanvas.height = th;
+    const tCtx = tempCanvas.getContext('2d');
+    tCtx.drawImage(scanSourceCanvas, sx, sy, sw, sh, 0, 0, tw, th);
+    const imgData = tCtx.getImageData(0, 0, tw, th);
+
+    const res = recognizeBoardFromImageData(imgData);
+    if (!res) {
+      lastDetectedAnchors = null;
+      if (scanStatusBadge) {
+        scanStatusBadge.className = 'scan-status-badge scan-status-warn';
+        scanStatusBadge.textContent = '⚠ Adjust crop box to frame a single 4-hand board diagram.';
+      }
+      renderCropCanvas();
+      return;
+    }
+
+    lastDetectedAnchors = {};
+    ['N', 'W', 'E', 'S'].forEach(dir => {
+      lastDetectedAnchors[dir] = {
+        cx: res.anchors[dir].cx / scale,
+        cy: res.anchors[dir].cy / scale
+      };
+    });
+
+    if (scanInputN) scanInputN.value = res.hands.N;
+    if (scanInputE) scanInputE.value = res.hands.E;
+    if (scanInputS) scanInputS.value = res.hands.S;
+    if (scanInputW) scanInputW.value = res.hands.W;
+
+    updateScanValidationBadge();
+    renderCropCanvas();
+  }
+
+  function updateScanValidationBadge() {
+    if (!scanStatusBadge) return;
+    const hands = {
+      N: scanInputN ? scanInputN.value : '',
+      E: scanInputE ? scanInputE.value : '',
+      S: scanInputS ? scanInputS.value : '',
+      W: scanInputW ? scanInputW.value : ''
+    };
+    const v = validateFourHandsDeck(hands);
+    if (v.isExact52) {
+      scanStatusBadge.className = 'scan-status-badge scan-status-ok';
+      scanStatusBadge.textContent = '✓ 52/52 cards verified (13 N · 13 E · 13 S · 13 W)';
+    } else {
+      scanStatusBadge.className = 'scan-status-badge scan-status-warn';
+      const dupText = v.duplicates.length > 0 ? ` · Dup: ${v.duplicates.slice(0, 2).join(', ')}` : '';
+      scanStatusBadge.textContent =
+        `⚠ Card counts: N=${v.counts.N}, E=${v.counts.E}, S=${v.counts.S}, W=${v.counts.W} (${v.uniqueCount}/52 unique)${dupText}`;
+    }
+  }
+
+  [scanInputN, scanInputE, scanInputS, scanInputW].forEach(inp => {
+    if (inp) {
+      inp.addEventListener('input', updateScanValidationBadge);
+    }
+  });
+
+  function hitTestCropHandle(cx, cy) {
+    const bx = cropViewOffsetX + cropBox.x * cropViewZoom;
+    const by = cropViewOffsetY + cropBox.y * cropViewZoom;
+    const bw = cropBox.w * cropViewZoom;
+    const bh = cropBox.h * cropViewZoom;
+    const r = 20;
+
+    if (Math.hypot(cx - bx, cy - by) <= r) return 'nw';
+    if (Math.hypot(cx - (bx + bw), cy - by) <= r) return 'ne';
+    if (Math.hypot(cx - bx, cy - (by + bh)) <= r) return 'sw';
+    if (Math.hypot(cx - (bx + bw), cy - (by + bh)) <= r) return 'se';
+    if (Math.hypot(cx - (bx + bw / 2), cy - by) <= r) return 'n';
+    if (Math.hypot(cx - (bx + bw / 2), cy - (by + bh)) <= r) return 's';
+    if (Math.hypot(cx - bx, cy - (by + bh / 2)) <= r) return 'w';
+    if (Math.hypot(cx - (bx + bw), cy - (by + bh / 2)) <= r) return 'e';
+    if (cx >= bx && cx <= bx + bw && cy >= by && cy <= by + bh) return 'move';
+    return 'pan';
+  }
+
+  function startCropPointer(clientX, clientY) {
+    if (!scanSourceCanvas) return;
+    const pt = clientToImageCoords(clientX, clientY);
+    cropDragMode = hitTestCropHandle(pt.cx, pt.cy);
+    cropDragStartImg = { x: pt.x, y: pt.y };
+    cropDragStartClient = { x: pt.cx, y: pt.cy, rawX: clientX, rawY: clientY };
+    cropDragStartBox = { ...cropBox, offsetX: cropViewOffsetX, offsetY: cropViewOffsetY };
+  }
+
+  function moveCropPointer(clientX, clientY) {
+    if (!cropDragMode || !scanSourceCanvas || !cropDragStartBox) return;
+    const pt = clientToImageCoords(clientX, clientY);
+    const dx = pt.x - cropDragStartImg.x;
+    const dy = pt.y - cropDragStartImg.y;
+    const minSize = 48;
+    const maxW = scanSourceCanvas.width;
+    const maxH = scanSourceCanvas.height;
+
+    if (cropDragMode === 'pan') {
+      cropViewOffsetX = cropDragStartBox.offsetX + (pt.cx - cropDragStartClient.x);
+      cropViewOffsetY = cropDragStartBox.offsetY + (pt.cy - cropDragStartClient.y);
+      renderCropCanvas();
+      return;
+    }
+
+    activeDetectedBoardIdx = -1;
+    let { x, y, w, h } = cropDragStartBox;
+    if (cropDragMode === 'move') {
+      x = Math.max(0, Math.min(maxW - w, x + dx));
+      y = Math.max(0, Math.min(maxH - h, y + dy));
+    } else {
+      if (cropDragMode.includes('w')) {
+        const nx = Math.max(0, Math.min(x + w - minSize, x + dx));
+        w = (x + w) - nx;
+        x = nx;
+      }
+      if (cropDragMode.includes('e')) {
+        w = Math.max(minSize, Math.min(maxW - x, w + dx));
+      }
+      if (cropDragMode.includes('n')) {
+        const ny = Math.max(0, Math.min(y + h - minSize, y + dy));
+        h = (y + h) - ny;
+        y = ny;
+      }
+      if (cropDragMode.includes('s')) {
+        h = Math.max(minSize, Math.min(maxH - y, h + dy));
+      }
+    }
+    cropBox = { x, y, w, h };
+    renderCropCanvas();
+  }
+
+  function endCropPointer(clientX, clientY) {
+    if (!cropDragMode) return;
+    const mode = cropDragMode;
+    cropDragMode = null;
+
+    // Check if user tapped on another detected board box
+    if (mode === 'pan' && clientX !== undefined && cropDragStartClient) {
+      const moved = Math.hypot(clientX - cropDragStartClient.rawX, clientY - cropDragStartClient.rawY);
+      if (moved < 8) {
+        const pt = clientToImageCoords(clientX, clientY);
+        const hitIdx = detectedBoardBoxes.findIndex(b =>
+          pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h
+        );
+        if (hitIdx !== -1) {
+          activeDetectedBoardIdx = hitIdx;
+          cropBox = { ...detectedBoardBoxes[hitIdx] };
+          renderDetectedBoardsPills();
+          scanCurrentCropRegion();
+          return;
+        }
+      }
+    }
+
+    if (mode !== 'pan') {
+      renderDetectedBoardsPills();
+      scanCurrentCropRegion();
+    }
+  }
+
+  if (cropCanvas) {
+    cropCanvas.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startCropPointer(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!cropDragMode) return;
+      moveCropPointer(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (!cropDragMode) return;
+      endCropPointer(e.clientX, e.clientY);
+    });
+
+    cropCanvas.addEventListener('wheel', (e) => {
+      if (!scanSourceCanvas) return;
+      e.preventDefault();
+      const pt = clientToImageCoords(e.clientX, e.clientY);
+      const factor = e.deltaY < 0 ? 1.15 : 0.87;
+      const newZoom = Math.max(0.15, Math.min(6.0, cropViewZoom * factor));
+      cropViewOffsetX = pt.cx - pt.x * newZoom;
+      cropViewOffsetY = pt.cy - pt.y * newZoom;
+      cropViewZoom = newZoom;
+      renderCropCanvas();
+    }, { passive: false });
+
+    cropCanvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        e.preventDefault();
+        cropPinchDist = 0;
+        startCropPointer(e.touches[0].clientX, e.touches[0].clientY);
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        cropDragMode = null;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        cropPinchDist = Math.hypot(dx, dy);
+        cropPinchStartZoom = cropViewZoom;
+      }
+    }, { passive: false });
+
+    cropCanvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && cropDragMode) {
+        e.preventDefault();
+        moveCropPointer(e.touches[0].clientX, e.touches[0].clientY);
+      } else if (e.touches.length === 2 && cropPinchDist > 0) {
+        e.preventDefault();
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const pt = clientToImageCoords(midClientX, midClientY);
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0) {
+          const newZoom = Math.max(0.15, Math.min(6.0, cropPinchStartZoom * (dist / cropPinchDist)));
+          cropViewOffsetX = pt.cx - pt.x * newZoom;
+          cropViewOffsetY = pt.cy - pt.y * newZoom;
+          cropViewZoom = newZoom;
+          renderCropCanvas();
+        }
+      }
+    }, { passive: false });
+
+    cropCanvas.addEventListener('touchend', (e) => {
+      if (cropDragMode) {
+        const t = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0] : null;
+        endCropPointer(t ? t.clientX : undefined, t ? t.clientY : undefined);
+      }
+      cropPinchDist = 0;
+    });
+  }
+
+  if (cropRotateBtn) {
+    cropRotateBtn.addEventListener('click', () => {
+      if (!scanSourceCanvas) return;
+      const rot = document.createElement('canvas');
+      rot.width = scanSourceCanvas.height;
+      rot.height = scanSourceCanvas.width;
+      const rCtx = rot.getContext('2d');
+      rCtx.translate(rot.width / 2, rot.height / 2);
+      rCtx.rotate(Math.PI / 2);
+      rCtx.drawImage(scanSourceCanvas, -scanSourceCanvas.width / 2, -scanSourceCanvas.height / 2);
+      scanSourceCanvas = rot;
+      runFullPhotoBoardDetection();
+    });
+  }
+
+  if (cropZoomToBoxBtn) {
+    cropZoomToBoxBtn.addEventListener('click', zoomCropViewToBox);
+  }
+
+  if (cropResetViewBtn) {
+    cropResetViewBtn.addEventListener('click', fitCropPhotoView);
+  }
+
+  if (cropNewPhotoBtn && fileInputTxt) {
+    cropNewPhotoBtn.addEventListener('click', () => {
+      fileInputTxt.value = '';
+      fileInputTxt.click();
+    });
+  }
+
+  if (rescanCropBtn) {
+    rescanCropBtn.addEventListener('click', scanCurrentCropRegion);
+  }
+
+  document.querySelectorAll('.modal-declarer-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      updateDeclarerBarUI(btn.dataset.seat);
+    });
+  });
+
+  if (closePhotoModalBtn) closePhotoModalBtn.addEventListener('click', closePhotoScanModal);
+  if (cancelPhotoModalBtn) cancelPhotoModalBtn.addEventListener('click', closePhotoScanModal);
+
+  if (applyPhotoModalBtn) {
+    applyPhotoModalBtn.addEventListener('click', () => {
+      loadedBoardHands = {
+        N: (scanInputN ? scanInputN.value : '').trim(),
+        E: (scanInputE ? scanInputE.value : '').trim(),
+        S: (scanInputS ? scanInputS.value : '').trim(),
+        W: (scanInputW ? scanInputW.value : '').trim()
+      };
+      closePhotoScanModal();
+      applyDeclarerRotation(currentDeclarerSeat);
+    });
   }
 
   let activeSolveAbortController = null;

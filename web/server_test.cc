@@ -928,6 +928,15 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   REQUIRE(res_index);
   REQUIRE(res_index->body.find("stopSolveBtn") != std::string::npos);
   REQUIRE(res_index->body.find("stopSolveActionBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("photoScanModal") != std::string::npos);
+  REQUIRE(res_index->body.find("declarerRotateBar") != std::string::npos);
+  REQUIRE(res_index->body.find("image/*,.txt,.deal") != std::string::npos);
+
+  auto res_app_js = client.Get("/app.js");
+  REQUIRE(res_app_js);
+  REQUIRE(res_app_js->body.find("recognizeBoardFromImageData") !=
+          std::string::npos);
+  REQUIRE(res_app_js->body.find("applyDeclarerRotation") != std::string::npos);
 
   // Test partial-trick proposal with wildcard 'x' moved from Unknown Cards
   // into West's hand (e.g. Simple Finesse preset: S7, Sx, SA).
