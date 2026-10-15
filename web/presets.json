@@ -64,7 +64,7 @@
     "trump": "SPADES",
     "leader": "NORTH",
     "target": 9,
-    "iters": 500,
+    "iters": 100,
     "north": "S Q73; H JT87; D 87; C J95;",
     "east": "",
     "south": "S AKJ652; H A43; D 5; C KQ;",

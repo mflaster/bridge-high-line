@@ -84,7 +84,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(presets_file_json["mollo_6s"]["cur_trick"] == nlohmann::json::array({"DQ"}));
   REQUIRE(presets_file_json.contains("two_way_finesse"));
   for (const auto& [key, preset] : presets_file_json.items()) {
-    REQUIRE(preset["iters"].get<int>() >= 100);
+    REQUIRE(preset["iters"].get<int>() == 100);
   }
 
   auto res_presets_api = client.Get("/api/presets");
@@ -99,7 +99,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(presets_api_json.contains("mollo_6s"));
   REQUIRE(presets_api_json.contains("two_way_finesse"));
   for (const auto& [key, preset] : presets_api_json.items()) {
-    REQUIRE(preset["iters"].get<int>() >= 100);
+    REQUIRE(preset["iters"].get<int>() == 100);
   }
 
   // Test Health Endpoint
