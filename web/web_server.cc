@@ -165,10 +165,23 @@ std::shared_ptr<DecisionTreeNode> MakeFailureLeaf(
     leaf->branch_winner = group.winner;
   }
   leaf->ns_tricks = group.max_ns_tricks;
-  int cnt = static_cast<int>(group.boards.size());
-  leaf->label = "Hand Failed (" + std::to_string(cnt) + "/" +
-                std::to_string(total) + " boards) (" + NsTricksRange(group) +
-                " tricks won by N/S)";
+  int cnt = 0;
+  bool has_actual = false;
+  for (int b : group.boards) {
+    if (b >= 0) {
+      ++cnt;
+    } else if (b == -1) {
+      has_actual = true;
+    }
+  }
+  if (cnt > 0 || !has_actual) {
+    leaf->label = "Hand Failed (" + std::to_string(cnt) + "/" +
+                  std::to_string(total) + " boards) (" + NsTricksRange(group) +
+                  " tricks won by N/S)";
+  } else {
+    leaf->label = "Actual Hand (#0) Failed (" + NsTricksRange(group) +
+                  " tricks won by N/S)";
+  }
   leaf->success_boards = 0;
   leaf->failure_boards = cnt;
   leaf->total_boards = total;
@@ -336,6 +349,10 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     leaf->total_boards = total;
     leaf->covered_boards = success_cnt;
     leaf->boards = std::vector<int>(final_boards.begin(), final_boards.end());
+    if (failures && failures->actual_succeeded &&
+        failures->actual_success_leaf == &line) {
+      leaf->boards.push_back(-1);
+    }
     return leaf;
   }
 
@@ -397,6 +414,10 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         node->failure_boards = failure_cnt;
         node->covered_boards = success_cnt;
       }
+      if (failures && failures->actual_succeeded &&
+          failures->actual_last_node == &line) {
+        node->boards.push_back(-1);
+      }
       node->total_boards = total;
       node->label = label_str;
       AttachFailures(node, line, failures, node_id, total);
@@ -433,6 +454,10 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       child_node->total_boards = total;
       child_node->covered_boards = fb.size();
       child_node->boards = std::vector<int>(fb.begin(), fb.end());
+      if (failures && failures->actual_succeeded &&
+          failures->actual_last_node == &line) {
+        child_node->boards.push_back(-1);
+      }
     } else {
       child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id,
                                                 trick_num + 1, total,
@@ -893,6 +918,131 @@ int AccumulateFailureCounts(const std::shared_ptr<DecisionTreeNode> &node) {
   }
   node->failure_boards = sum;
   return sum;
+}
+
+bool PropagateActualBoardId(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return false;
+  bool has_actual =
+      std::find(node->boards.begin(), node->boards.end(), -1) !=
+      node->boards.end();
+  for (auto &child : node->children) {
+    if (PropagateActualBoardId(child)) {
+      has_actual = true;
+    }
+  }
+  if (has_actual &&
+      std::find(node->boards.begin(), node->boards.end(), -1) ==
+          node->boards.end()) {
+    node->boards.push_back(-1);
+  }
+  return has_actual;
+}
+
+ConditionalLine::BoardPlayTrace AttachActualBoardToFailures(
+    const ConditionalLine &line, const BoardState &actual_bs, int min_tricks,
+    FailureIndex *index) {
+  ConditionalLine::BoardPlayTrace trace = line.TraceOnBoard(actual_bs, -1);
+  if (!index) return trace;
+
+  for (const auto &step : trace.steps) {
+    if (step.node && step.unmatched_seat < 0) {
+      index->tricks[step.node]["-1"] = step.trick_str;
+    }
+  }
+
+  bool reached_line_end = false;
+  const ConditionalLine *reached_leaf = nullptr;
+  if (!trace.steps.empty()) {
+    const auto &last = trace.steps.back();
+    if (last.node && last.unmatched_seat < 0 && last.winner >= 0) {
+      for (const auto &cond : last.node->conditions()) {
+        const auto *wc =
+            dynamic_cast<const WinnerPlayCondition *>(cond.first.get());
+        if (!wc) continue;
+        if (wc->who() == last.winner) {
+          if (!cond.second) {
+            reached_line_end = true;
+          } else if (cond.second->do_first().Empty() &&
+                     cond.second->conditions().empty()) {
+            reached_line_end = true;
+            reached_leaf = cond.second.get();
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  if (reached_line_end && trace.final_ns_tricks >= min_tricks) {
+    index->actual_succeeded = true;
+    index->actual_last_node = trace.steps.back().node;
+    index->actual_success_leaf = reached_leaf;
+    return trace;
+  }
+
+  index->actual_succeeded = false;
+  auto add_to_group = [](FailureIndex::Group &group, int board_id,
+                         int ns_tricks) {
+    if (group.boards.empty()) {
+      group.min_ns_tricks = ns_tricks;
+      group.max_ns_tricks = ns_tricks;
+    } else {
+      group.min_ns_tricks = std::min(group.min_ns_tricks, ns_tricks);
+      group.max_ns_tricks = std::max(group.max_ns_tricks, ns_tricks);
+    }
+    group.boards.push_back(board_id);
+  };
+
+  if (trace.steps.empty() || !trace.steps.back().node) {
+    if (index->unplaced.condition.empty()) {
+      index->unplaced.condition = "no line applies";
+    }
+    add_to_group(index->unplaced, -1, trace.final_ns_tricks);
+  } else {
+    const auto &last = trace.steps.back();
+    if (last.unmatched_seat >= 0) {
+      Suit suit_led = last.trick_str.empty()
+                          ? NOTRUMP
+                          : Card::ParseSuit(last.trick_str[0]);
+      Suit trump = actual_bs.GetTrump();
+      Suit card_suit = last.unmatched_card.empty()
+                           ? NOTRUMP
+                           : Card::ParseSuit(last.unmatched_card[0]);
+      bool is_discard = (last.unmatched_seat != last.leader &&
+                         suit_led != NOTRUMP && card_suit != suit_led &&
+                         card_suit != trump);
+      std::string card_key = is_discard ? "R_" : last.unmatched_card;
+      std::string key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
+                        card_key + ":w" + std::to_string(last.winner);
+      FailureIndex::Group &group = index->unmatched_leaves[last.node][key];
+      if (group.condition.empty()) {
+        group.condition = is_discard
+                              ? ("if " + SeatLetter(last.unmatched_seat) +
+                                 " discards")
+                              : ("if " + SeatLetter(last.unmatched_seat) +
+                                 " plays " + last.unmatched_card);
+      }
+      group.leader = last.leader;
+      group.winner = last.winner;
+      if (group.trick_str.empty()) {
+        group.trick_str = last.trick_str;
+      }
+      group.board_to_trick["-1"] = last.trick_str;
+      add_to_group(group, -1, trace.final_ns_tricks);
+    } else {
+      std::string key =
+          "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
+      WinnerPlayCondition cond(last.winner,
+                               std::set<std::string>{last.winning_card});
+      FailureIndex::Group &group = index->leaves[last.node][key];
+      if (group.condition.empty()) {
+        group.condition = FormatBranchCondition(&cond, false);
+      }
+      group.winner = last.winner;
+      add_to_group(group, -1, trace.final_ns_tricks);
+    }
+  }
+  return trace;
 }
 
 void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
@@ -1567,6 +1717,78 @@ std::string WebServer::SolveJson(const std::string &req_body,
       }
     }
 
+    bool has_actual_deal = false;
+    BoardState actual_init_bs;
+    BoardState actual_bs;
+    if (is_fuzzy && req_json.contains("actual_deal") &&
+        req_json["actual_deal"].is_object()) {
+      const auto &ad = req_json["actual_deal"];
+      std::string ad_e = ad.value("E", "");
+      std::string ad_w = ad.value("W", "");
+      if (!ad_e.empty() || !ad_w.empty()) {
+        std::string ad_n = ad.value("N", north_str);
+        std::string ad_s = ad.value("S", south_str);
+        std::vector<uint64_t> actual_hands(4, 0);
+        actual_hands[0] = ParseHand(ad_n);
+        actual_hands[1] = ParseHand(ad_e);
+        actual_hands[2] = ParseHand(ad_s);
+        actual_hands[3] = ParseHand(ad_w);
+        uint64_t dummy_unknown = 0;
+        std::string dummy_err;
+        std::vector<std::string> actual_strs = {ad_n, ad_e, ad_s, ad_w};
+        bool resolved_ok = ResolveHandsAndUnknownCards(
+            actual_strs, "", &actual_hands, &dummy_unknown, nullptr,
+            &dummy_err);
+        if (actual_hands[0] == 0) actual_hands[0] = hands[0];
+        if (actual_hands[2] == 0) actual_hands[2] = hands[2];
+        int n_cards = CountCardsInHand(actual_hands[0]);
+        bool valid_counts =
+            resolved_ok && n_cards > 0 &&
+            CountCardsInHand(actual_hands[1]) == n_cards &&
+            CountCardsInHand(actual_hands[2]) == n_cards &&
+            CountCardsInHand(actual_hands[3]) == n_cards;
+        if (valid_counts) {
+          int init_lead = leader;
+          if (req_json.contains("initial_leader") &&
+              req_json["initial_leader"].is_string()) {
+            std::string il_str = req_json["initial_leader"].get<std::string>();
+            if (!il_str.empty()) {
+              char il_c = static_cast<char>(
+                  std::toupper(static_cast<unsigned char>(il_str[0])));
+              if (il_c == 'N') init_lead = 0;
+              else if (il_c == 'E') init_lead = 1;
+              else if (il_c == 'S') init_lead = 2;
+              else if (il_c == 'W') init_lead = 3;
+            }
+          }
+          actual_init_bs.SetHands(actual_hands);
+          actual_init_bs.SetTrump(trump_suit);
+          actual_init_bs.SetLead(init_lead);
+          actual_init_bs.MarkMissingCardsAsPlayed();
+          actual_init_bs.set_board_id(0xAC70A100u);
+
+          actual_bs = actual_init_bs;
+          bool replay_ok = true;
+          for (const auto &trick_cards : replay_tricks) {
+            for (const std::string &c_str : trick_cards) {
+              if (!PlayReplayCardOnBoard(c_str, actual_bs)) {
+                replay_ok = false;
+                break;
+              }
+            }
+            if (!replay_ok) break;
+          }
+          if (replay_ok) {
+            actual_bs.SetLead(leader);
+            for (CardType ct : cur_trick) {
+              actual_bs.PlayCard(actual_bs.CurPlayer(), ct);
+            }
+            has_actual_deal = true;
+          }
+        }
+      }
+    }
+
     if (is_fuzzy) {
       total_boards = num_iters;
       nlohmann::json reqs_json =
@@ -1714,6 +1936,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
         std::vector<std::set<int>> line_covered_sets(lines.size());
         std::vector<std::string> trick1_summaries(lines.size());
         std::vector<std::vector<std::string>> line_steps(lines.size());
+        std::vector<nlohmann::json> line_actual_hands(lines.size());
 
         for (size_t i = 0; i < lines.size(); ++i) {
           line_covered_sets[i] = lines[i].CoveredBoardsSet();
@@ -1727,6 +1950,20 @@ std::string WebServer::SolveJson(const std::string &req_body,
           }
           FailureIndex line_failures = IndexFailures(
               lines[i], boards, line_failed_ids, num_threads);
+          if (has_actual_deal) {
+            ConditionalLine::BoardPlayTrace actual_trace =
+                AttachActualBoardToFailures(lines[i], actual_bs, min_tricks,
+                                            &line_failures);
+            line_actual_hands[i] = {
+                {"board_id", -1},
+                {"N", HandDebugString(actual_init_bs.GetHand(0), true)},
+                {"E", HandDebugString(actual_init_bs.GetHand(1), true)},
+                {"S", HandDebugString(actual_init_bs.GetHand(2), true)},
+                {"W", HandDebugString(actual_init_bs.GetHand(3), true)},
+                {"succeeded", line_failures.actual_succeeded},
+                {"ns_tricks", initial_ns_tricks + actual_trace.final_ns_tricks},
+            };
+          }
           if (initial_ns_tricks > 0) {
             auto offset_group = [&](FailureIndex::Group &grp) {
               if (!grp.boards.empty()) {
@@ -1754,6 +1991,9 @@ std::string WebServer::SolveJson(const std::string &req_body,
           AccumulateFailureCounts(ltree);
           if (ltree) {
             CollapseRedundantNodes(ltree);
+            if (has_actual_deal) {
+              PropagateActualBoardId(ltree);
+            }
             SetDefaultCollapsedState(ltree);
           }
           line_trees[i] = ltree;
@@ -1821,6 +2061,9 @@ std::string WebServer::SolveJson(const std::string &req_body,
               {"tree", line_trees[i] ? nlohmann::json(*line_trees[i])
                                      : nlohmann::json::object()},
           };
+          if (has_actual_deal && !line_actual_hands[i].is_null()) {
+            line_entry["actual_hand"] = line_actual_hands[i];
+          }
           if (lines[i].has_summary()) {
             line_entry["distribution_summary"] = lines[i].summary();
           }
@@ -1841,6 +2084,9 @@ std::string WebServer::SolveJson(const std::string &req_body,
         // shown by default, and all equivalent lines are included in `lines`.
         response["num_lines"] = lines.size();
         response["lines"] = std::move(lines_json);
+        if (has_actual_deal && !line_actual_hands[0].is_null()) {
+          response["actual_hand"] = line_actual_hands[0];
+        }
         if (lines[0].has_summary()) {
           response["distribution_summary"] = lines[0].summary();
         }
@@ -1858,6 +2104,20 @@ std::string WebServer::SolveJson(const std::string &req_body,
         ConditionalLine empty_line;
         FailureIndex line_failures =
             IndexFailures(empty_line, boards, all_failed_ids, num_threads);
+        if (has_actual_deal) {
+          ConditionalLine::BoardPlayTrace actual_trace =
+              AttachActualBoardToFailures(empty_line, actual_bs, min_tricks,
+                                          &line_failures);
+          response["actual_hand"] = {
+              {"board_id", -1},
+              {"N", HandDebugString(actual_init_bs.GetHand(0), true)},
+              {"E", HandDebugString(actual_init_bs.GetHand(1), true)},
+              {"S", HandDebugString(actual_init_bs.GetHand(2), true)},
+              {"W", HandDebugString(actual_init_bs.GetHand(3), true)},
+              {"succeeded", false},
+              {"ns_tricks", initial_ns_tricks + actual_trace.final_ns_tricks},
+          };
+        }
         if (initial_ns_tricks > 0 && !line_failures.unplaced.boards.empty()) {
           line_failures.unplaced.min_ns_tricks += initial_ns_tricks;
           line_failures.unplaced.max_ns_tricks += initial_ns_tricks;

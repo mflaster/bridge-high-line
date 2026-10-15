@@ -56,6 +56,8 @@ class FuzzyBoardState {
   std::vector<std::vector<std::shared_ptr<HandRequirements>>> all_hand_reqs_;
 };
 
+bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs);
+
 class LineFinder {
  public:
   LineFinder(int num_iters)

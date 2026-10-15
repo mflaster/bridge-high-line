@@ -306,6 +306,10 @@ inline const char* INDEX_HTML = R"rawhtml(
             <span class="stat-label">Failure Rate</span>
             <span id="statFailure" class="stat-value">-</span>
           </div>
+          <div id="cardStatActual" class="stat-card stat-card-toggle hidden" role="button" tabindex="0" title="Click to view and trace the Actual Deal (#0)">
+            <span class="stat-label">Actual (#0)</span>
+            <span id="statActual" class="stat-value">-</span>
+          </div>
         </div>
 
         <!-- Equivalent / Alternative Lines Selector Bar -->
@@ -1206,7 +1210,7 @@ body.is-resizing * {
 
 .results-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
 }
 
@@ -1239,6 +1243,18 @@ body.is-resizing * {
   color: #f59e0b;
 }
 
+#cardStatActual .stat-value {
+  color: #38bdf8;
+}
+
+#cardStatActual.actual-makes .stat-value {
+  color: #10b981;
+}
+
+#cardStatActual.actual-fails .stat-value {
+  color: #f59e0b;
+}
+
 #cardStatSuccess.active {
   border-color: #10b981;
   background-color: #0d2820;
@@ -1249,6 +1265,12 @@ body.is-resizing * {
   border-color: #f59e0b;
   background-color: #262115;
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+#cardStatActual.active {
+  border-color: #38bdf8;
+  background-color: #0f2438;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
 }
 
 .equivalent-lines-bar {
@@ -1349,6 +1371,12 @@ body.is-resizing * {
   background-color: rgba(245, 158, 11, 0.2);
   color: #fcd34d;
   border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.mode-badge.mode-actual {
+  background-color: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.45);
 }
 
 .mode-sub {
@@ -1991,6 +2019,17 @@ body.is-resizing * {
   padding: 1px 5px;
   font-family: monospace;
   line-height: 1.3;
+}
+
+.sample-deal-card-actual {
+  border-color: rgba(56, 189, 248, 0.55);
+  background-color: #132c3d;
+}
+
+.sample-deal-id-actual {
+  color: #7dd3fc;
+  background-color: #0b1b2b;
+  border-color: rgba(56, 189, 248, 0.55);
 }
 
 .sample-deal-row-center {
@@ -3159,8 +3198,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const statLead = document.getElementById('statLead');
   const cardStatSuccess = document.getElementById('cardStatSuccess');
   const cardStatFailure = document.getElementById('cardStatFailure');
+  const cardStatActual = document.getElementById('cardStatActual');
   const statSuccess = document.getElementById('statSuccess');
   const statFailure = document.getElementById('statFailure');
+  const statActual = document.getElementById('statActual');
   const equivalentLinesBar = document.getElementById('equivalentLinesBar');
   const equivalentLinesBadge = document.getElementById('equivalentLinesBadge');
   const equivalentLinesHint = document.getElementById('equivalentLinesHint');
@@ -3405,7 +3446,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateActualStat(data) {
+    if (!cardStatActual || !statActual) return;
+    if (data && data.actual_hand) {
+      cardStatActual.classList.remove('hidden');
+      const makes = Boolean(data.actual_hand.succeeded);
+      cardStatActual.classList.toggle('actual-makes', makes);
+      cardStatActual.classList.toggle('actual-fails', !makes);
+      const tricksPart = data.actual_hand.ns_tricks !== undefined
+        ? ` (${data.actual_hand.ns_tricks})`
+        : '';
+      statActual.textContent = `${makes ? 'MAKES' : 'FAILS'}${tricksPart}`;
+    } else {
+      cardStatActual.classList.add('hidden');
+      cardStatActual.classList.remove('active', 'actual-makes', 'actual-fails');
+      statActual.textContent = '-';
+      if (activeViewMode === 'actual') {
+        activeViewMode = 'success';
+      }
+    }
+  }
+
   function updateViewMode(mode) {
+    if (mode === 'actual' && (!currentSolveData || !currentSolveData.actual_hand)) {
+      mode = 'success';
+    }
     activeViewMode = mode;
     const total = (currentSolveData && currentSolveData.total_boards) ? currentSolveData.total_boards : 1;
     const success = (currentSolveData && currentSolveData.success_boards !== undefined)
@@ -3415,9 +3480,45 @@ document.addEventListener('DOMContentLoaded', () => {
       ? currentSolveData.failure_boards
       : Math.max(0, total - success);
 
+    if (cardStatSuccess) cardStatSuccess.classList.toggle('active', mode === 'success');
+    if (cardStatFailure) cardStatFailure.classList.toggle('active', mode === 'failure');
+    if (cardStatActual) cardStatActual.classList.toggle('active', mode === 'actual');
+
+    if (mode === 'actual' && currentSolveData && currentSolveData.actual_hand) {
+      const ah = currentSolveData.actual_hand;
+      const statusText = ah.succeeded ? 'MAKES' : 'FAILS';
+      const tricksText = ah.ns_tricks !== undefined ? `, ${ah.ns_tricks} tricks won by N/S` : '';
+      if (summaryModeBadge) {
+        summaryModeBadge.className = 'mode-badge mode-actual';
+        summaryModeBadge.textContent = 'Actual Deal (#0)';
+      }
+      if (sampleHandsModeBadge) {
+        sampleHandsModeBadge.className = 'mode-badge mode-actual';
+        sampleHandsModeBadge.textContent = 'Actual Deal (#0)';
+      }
+      if (summaryModeSub) {
+        summaryModeSub.textContent = `(${statusText}${tricksText})`;
+      }
+      if (sampleHandsModeSub) {
+        sampleHandsModeSub.textContent =
+          `(${statusText}${tricksText} — click card to trace #0 in Decision Tree)`;
+      }
+      if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
+      if (sampleHandsModeHeader) sampleHandsModeHeader.classList.remove('hidden');
+
+      const distSummary = ah.succeeded
+        ? currentSolveData.distribution_summary
+        : currentSolveData.failure_distribution_summary;
+      if (distSummary) {
+        renderDistributionSummary(distSummary);
+      } else {
+        clearDistributionSummary(`Actual Deal (#0) ${statusText}${tricksText}.`);
+      }
+      renderSampleHands([ah]);
+      return;
+    }
+
     if (mode === 'success') {
-      if (cardStatSuccess) cardStatSuccess.classList.add('active');
-      if (cardStatFailure) cardStatFailure.classList.remove('active');
       if (summaryModeBadge) {
         summaryModeBadge.className = 'mode-badge mode-success';
         summaryModeBadge.textContent = 'Success Deals';
@@ -3434,7 +3535,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sampleList = currentSolveData.sample_hands || [];
         if (sampleHandsModeSub) {
           sampleHandsModeSub.textContent =
-            `(${success}/${total} boards, ${pct}% — showing ${sampleList.length})`;
+            `(${success}/${total} boards, ${pct}% — showing ${sampleList.length}${currentSolveData.actual_hand ? ' + Actual #0' : ''})`;
         }
       }
       if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
@@ -3446,15 +3547,19 @@ document.addEventListener('DOMContentLoaded', () => {
         clearDistributionSummary('No distribution summary available for success deals.');
       }
 
-      if (currentSolveData && Array.isArray(currentSolveData.sample_hands) &&
-          currentSolveData.sample_hands.length > 0) {
-        renderSampleHands(currentSolveData.sample_hands);
+      const handsToShow = [];
+      if (currentSolveData && currentSolveData.actual_hand) {
+        handsToShow.push(currentSolveData.actual_hand);
+      }
+      if (currentSolveData && Array.isArray(currentSolveData.sample_hands)) {
+        handsToShow.push(...currentSolveData.sample_hands);
+      }
+      if (handsToShow.length > 0) {
+        renderSampleHands(handsToShow);
       } else {
         clearSampleHands('No covered sample hands available.');
       }
     } else {
-      if (cardStatFailure) cardStatFailure.classList.add('active');
-      if (cardStatSuccess) cardStatSuccess.classList.remove('active');
       if (summaryModeBadge) {
         summaryModeBadge.className = 'mode-badge mode-failure';
         summaryModeBadge.textContent = 'Failure Deals';
@@ -3471,7 +3576,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const failSampleList = currentSolveData.failure_sample_hands || [];
         if (sampleHandsModeSub) {
           sampleHandsModeSub.textContent =
-            `(${failure}/${total} boards, ${pct}% — showing ${failSampleList.length})`;
+            `(${failure}/${total} boards, ${pct}% — showing ${failSampleList.length}${currentSolveData.actual_hand ? ' + Actual #0' : ''})`;
         }
       }
       if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
@@ -3483,9 +3588,15 @@ document.addEventListener('DOMContentLoaded', () => {
         clearDistributionSummary('No failure distribution summary available (100% success rate or no failure deals).');
       }
 
-      if (currentSolveData && Array.isArray(currentSolveData.failure_sample_hands) &&
-          currentSolveData.failure_sample_hands.length > 0) {
-        renderSampleHands(currentSolveData.failure_sample_hands);
+      const failHandsToShow = [];
+      if (currentSolveData && currentSolveData.actual_hand) {
+        failHandsToShow.push(currentSolveData.actual_hand);
+      }
+      if (currentSolveData && Array.isArray(currentSolveData.failure_sample_hands)) {
+        failHandsToShow.push(...currentSolveData.failure_sample_hands);
+      }
+      if (failHandsToShow.length > 0) {
+        renderSampleHands(failHandsToShow);
       } else {
         clearSampleHands('No failed sample hands available (100% success rate or no failure deals).');
       }
@@ -3510,6 +3621,21 @@ document.addEventListener('DOMContentLoaded', () => {
     cardStatFailure.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         updateViewMode('failure');
+      }
+    });
+  }
+
+  if (cardStatActual) {
+    const activateActualMode = () => {
+      updateViewMode('actual');
+      if (panelDecisionTree && !panelDecisionTree.classList.contains('hidden')) {
+        traceHandByNumber(0, false);
+      }
+    };
+    cardStatActual.addEventListener('click', activateActualMode);
+    cardStatActual.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        activateActualMode();
       }
     });
   }
@@ -3580,6 +3706,7 @@ document.addEventListener('DOMContentLoaded', () => {
           best_lead: baseData.best_lead,
           covered_boards: baseData.covered_boards,
           covered_board_ids: baseData.covered_board_ids,
+          actual_hand: baseData.actual_hand,
           distribution_summary: baseData.distribution_summary,
           failure_distribution_summary: baseData.failure_distribution_summary
         };
@@ -4039,6 +4166,9 @@ document.addEventListener('DOMContentLoaded', () => {
         baseCopy.distribution_summary = lineObj.distribution_summary || null;
         baseCopy.failure_distribution_summary =
           lineObj.failure_distribution_summary || null;
+        if (lineObj.actual_hand) {
+          baseCopy.actual_hand = lineObj.actual_hand;
+        }
 
         const total = baseCopy.total_boards || 1;
         if (Array.isArray(lineObj.covered_board_ids) &&
@@ -4077,6 +4207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : '-';
     }
     updateLeadStat(currentSolveData);
+    updateActualStat(currentSolveData);
     const total = currentSolveData.total_boards || 1;
     const success = currentSolveData.success_boards !== undefined
       ? currentSolveData.success_boards
@@ -5196,6 +5327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (equivalentLineSelect) equivalentLineSelect.innerHTML = '';
     if (statTricks) statTricks.textContent = '-';
     updateLeadStat(null);
+    updateActualStat(null);
     if (statSuccess) statSuccess.textContent = '-';
     if (statFailure) statFailure.textContent = '-';
 
@@ -5241,6 +5373,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let loadedBoardHands = null; // Stores original { N, E, S, W } compass hands when a 4-hand deal is scanned/loaded
+  let loadedActualDeal = null; // Stores rotated { N: decl, E: lho, S: dummy, W: rho } for Board #0 (Actual)
   let currentDeclarerSeat = 'N';
 
   function combineHandsToUnknownString(handA, handB) {
@@ -5256,6 +5389,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     return parts.join(' ');
+  }
+
+  function getActiveActualDeal() {
+    if (!loadedActualDeal || (!loadedActualDeal.E && !loadedActualDeal.W)) {
+      return null;
+    }
+    if (countHandCards(inputEast ? inputEast.value : '') > 0 ||
+        countHandCards(inputWest ? inputWest.value : '') > 0) {
+      return null;
+    }
+    const curUnk = inputUnknownCards ? inputUnknownCards.value.trim() : '';
+    if (!curUnk) return null;
+    const expectedUnk = combineHandsToUnknownString(loadedActualDeal.E, loadedActualDeal.W);
+    const normCurUnk = combineHandsToUnknownString(curUnk, '');
+    if (expectedUnk !== normCurUnk) return null;
+    return {
+      N: inputNorth ? inputNorth.value.trim() : loadedActualDeal.N,
+      E: loadedActualDeal.E,
+      S: inputSouth ? inputSouth.value.trim() : loadedActualDeal.S,
+      W: loadedActualDeal.W
+    };
   }
 
   function updateDeclarerBarUI(seat) {
@@ -5335,6 +5489,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const dummyHand = loadedBoardHands[order[(idx + 2) % 4]] || '';
     const rhoHand = loadedBoardHands[order[(idx + 3) % 4]] || '';
 
+    loadedActualDeal = {
+      N: declHand,
+      E: lhoHand,
+      S: dummyHand,
+      W: rhoHand
+    };
+
     presetCurTrick = [];
     clearPanels();
     inputNorth.value = declHand;
@@ -5361,6 +5522,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!p) return;
 
     loadedBoardHands = null;
+    loadedActualDeal = null;
     updateDeclarerBarUI('N');
     presetCurTrick = Array.isArray(p.cur_trick) ? p.cur_trick.slice() : [];
     clearPanels();
@@ -5444,6 +5606,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function parseAndApplyDealText(text) {
     if (!text) return;
     loadedBoardHands = null;
+    loadedActualDeal = null;
     presetCurTrick = [];
     clearPanels();
     setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
@@ -7239,6 +7402,11 @@ document.addEventListener('DOMContentLoaded', () => {
       payload.unknown_cards = inputUnknownCards.value.trim();
     }
 
+    const activeActualDeal = getActiveActualDeal();
+    if (activeActualDeal) {
+      payload.actual_deal = activeActualDeal;
+    }
+
     // Include hand requirements if entered
     const wHcpLow = document.getElementById('wHcpLow').value;
     const wHcpHigh = document.getElementById('wHcpHigh').value;
@@ -7319,7 +7487,8 @@ document.addEventListener('DOMContentLoaded', () => {
           leader: leaderSelect.value,
           targetTricks: targetTricks.value,
           numIters: numIters.value,
-          curTrick: initCurTrick
+          curTrick: initCurTrick,
+          actualDeal: activeActualDeal ? Object.assign({}, activeActualDeal) : null
         }
       };
       updateProposeLineBarUI();
@@ -7328,6 +7497,7 @@ document.addEventListener('DOMContentLoaded', () => {
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
       updateLeadStat(data);
+      updateActualStat(data);
 
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
@@ -7338,7 +7508,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
       if (traceHandInput) {
-        traceHandInput.placeholder = `1..${total}`;
+        traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
       }
 
       populateEquivalentLinesControls(data, 0);
@@ -7430,7 +7600,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let root = null;
     let prevNode = null;
-    const allBoards = [];
+    const allBoards = [-1];
     for (let i = 0; i < totalBoards; i++) allBoards.push(i);
     const boardIdStr = totalBoards > 0 ? '0' : null;
 
@@ -7462,8 +7632,9 @@ document.addEventListener('DOMContentLoaded', () => {
         proposed: true,
         children: []
       };
+      node.board_to_trick = { '-1': trickStr };
       if (boardIdStr !== null) {
-        node.board_to_trick = { [boardIdStr]: trickStr };
+        node.board_to_trick[boardIdStr] = trickStr;
       }
 
       if (idx > 0 && prevNode) {
@@ -7548,6 +7719,7 @@ document.addEventListener('DOMContentLoaded', () => {
       resultsSummary.classList.remove('hidden');
       statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
       updateLeadStat(data);
+      updateActualStat(data);
 
       const total = data.total_boards || 1;
       const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
@@ -7558,7 +7730,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
       if (traceHandInput) {
-        traceHandInput.placeholder = `1..${total}`;
+        traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
       }
 
       setStatus('success', 'Restored original solved line.');
@@ -7732,6 +7904,16 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.unknown_cards = remUnknownStr;
       }
 
+      const snapActualDeal = (originalSolveSnapshot && originalSolveSnapshot.inputs && originalSolveSnapshot.inputs.actualDeal)
+        ? originalSolveSnapshot.inputs.actualDeal
+        : getActiveActualDeal();
+      if (snapActualDeal) {
+        payload.actual_deal = snapActualDeal;
+        payload.initial_leader = (originalSolveSnapshot && originalSolveSnapshot.inputs && originalSolveSnapshot.inputs.leader)
+          ? originalSolveSnapshot.inputs.leader
+          : leaderSelect.value;
+      }
+
       // Preserve any HCP requirements and record void suits when E or W showed
       // out (played a card of a different suit than the suit led) on a prefix
       // trick or earlier in the current trick.
@@ -7872,7 +8054,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTracedHandStateOnly();
         if (traceHandInput) {
           traceHandInput.value = '';
-          traceHandInput.placeholder = `1..${total}`;
+          traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
         }
         updateProposeLineBarUI();
         const allEntries = buildSelectableLinesList();
@@ -7885,6 +8067,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsSummary.classList.remove('hidden');
         statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
         updateLeadStat(data);
+        updateActualStat(data);
 
         const successPct = ((success / total) * 100).toFixed(1);
         const failurePct = ((failure / total) * 100).toFixed(1);
@@ -8007,7 +8190,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!container) return;
       const cards = container.querySelectorAll('.sample-deal-card');
       cards.forEach(card => {
-        const bId = card.dataset.boardId !== undefined ? parseInt(card.dataset.boardId, 10) : -1;
+        const bId = card.dataset.boardId !== undefined ? parseInt(card.dataset.boardId, 10) : null;
         card.classList.toggle('traced-deal-card', activeTracedBoardId !== null && bId === activeTracedBoardId);
       });
     });
@@ -8034,6 +8217,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function findDealByBoardId(boardId) {
     if (!currentSolveData) return null;
+    if (boardId === -1 && currentSolveData.actual_hand) {
+      return currentSolveData.actual_hand;
+    }
     const lists = [
       currentSolveData.all_hands,
       currentSolveData.sample_hands,
@@ -8067,7 +8253,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
-  function traceHandByNumber(rawInput) {
+  function traceHandByNumber(rawInput, switchTab = true) {
     if (!currentSolveData || !currentTreeData) {
       setTraceHandError('Solve a deal first to trace a hand.');
       return false;
@@ -8075,8 +8261,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleaned = String(rawInput !== undefined && rawInput !== null ? rawInput : '').replace(/^#/, '').trim();
     const handNum = parseInt(cleaned, 10);
     const totalBoards = currentSolveData.total_boards || 1;
-    if (!cleaned || isNaN(handNum) || handNum < 1 || handNum > totalBoards) {
-      setTraceHandError(`Enter a hand number between 1 and ${totalBoards}.`);
+    const minHandNum = currentSolveData.actual_hand ? 0 : 1;
+    if (!cleaned || isNaN(handNum) || handNum < minHandNum || handNum > totalBoards) {
+      setTraceHandError(`Enter a hand number between ${minHandNum} and ${totalBoards}.`);
       return false;
     }
 
@@ -8118,7 +8305,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setTraceHandError('');
     updateSampleHandCardsSelection();
 
-    activateTab('tree');
+    if (switchTab) {
+      activateTab('tree');
+    }
     if (treeInspectorPanel) {
       treeInspectorPanel.classList.remove('collapsed');
     }
@@ -8533,6 +8722,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const withPct = (n) => total ? `${n} (${((n / total) * 100).toFixed(1)}%)` : `${n}`;
     if (node.failure) {
       const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
+      if (fails === 0 && Array.isArray(node.boards) && node.boards.includes(-1)) {
+        return { primary: 'Fails: Actual (#0)', secondary: '' };
+      }
       return { primary: `Fails: ${withPct(fails)}`, secondary: '' };
     }
     const wins = node.success_boards !== undefined ? node.success_boards : node.covered_boards;
@@ -8762,6 +8954,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Traced Hand Banner (when tracing a specific board)
     if (isTracingBoard) {
       const handNum = activeTracedBoardId + 1;
+      const isActualHand = (activeTracedBoardId === -1);
       const isFail = Boolean(
         (activeTracedDeal && activeTracedDeal.succeeded === false) ||
         (node && node.failure)
@@ -8786,9 +8979,12 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
       }
+      const handTitleText = isActualHand
+        ? 'Traced Hand #0 (Actual Layout)'
+        : `Traced Hand #${handNum}`;
       bannerEl.innerHTML = `
         <div class="traced-hand-banner-header">
-          <span class="traced-hand-title">Traced Hand #${handNum}</span>
+          <span class="traced-hand-title">${handTitleText}</span>
           <span class="traced-hand-badge ${isFail ? 'badge-fails' : 'badge-makes'}">${isFail ? 'FAILS' : 'MAKES'}</span>
         </div>
         ${holdingsHtml}
@@ -9549,21 +9745,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (sampleHandsGrid) {
       sampleHandsGrid.innerHTML = '';
-      const cappedList = handsList.slice(0, 100);
+      const cappedList = handsList.slice(0, 101);
       cappedList.forEach((deal, idx) => {
         const card = document.createElement('div');
         const boardId = (deal.board_id !== undefined) ? deal.board_id : idx;
         const boardNum = boardId + 1;
-        card.className = `sample-deal-card${activeTracedBoardId === boardId ? ' traced-deal-card' : ''}`;
+        const isActual = (boardId === -1);
+        card.className = `sample-deal-card${isActual ? ' sample-deal-card-actual' : ''}${activeTracedBoardId === boardId ? ' traced-deal-card' : ''}`;
         card.dataset.boardId = String(boardId);
-        card.title = `Click to trace Hand #${boardNum} in the Decision Tree`;
+        card.title = isActual
+          ? 'Click to trace Hand #0 (Actual Layout) in the Decision Tree'
+          : `Click to trace Hand #${boardNum} in the Decision Tree`;
         card.addEventListener('click', () => {
           traceHandByNumber(boardNum);
         });
 
         const idBadge = document.createElement('span');
-        idBadge.className = 'sample-deal-id';
-        idBadge.textContent = `#${boardNum}`;
+        idBadge.className = `sample-deal-id${isActual ? ' sample-deal-id-actual' : ''}`;
+        if (isActual) {
+          const outcomeTag = deal.succeeded !== undefined
+            ? ` (${deal.succeeded ? 'MAKES' : 'FAILS'})`
+            : '';
+          idBadge.textContent = `#0 · ACTUAL${outcomeTag}`;
+        } else {
+          idBadge.textContent = `#${boardNum}`;
+        }
         card.appendChild(idBadge);
 
         const rowNorth = document.createElement('div');

@@ -659,7 +659,7 @@ body.is-resizing * {
 
 .results-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
 }
 
@@ -692,6 +692,18 @@ body.is-resizing * {
   color: #f59e0b;
 }
 
+#cardStatActual .stat-value {
+  color: #38bdf8;
+}
+
+#cardStatActual.actual-makes .stat-value {
+  color: #10b981;
+}
+
+#cardStatActual.actual-fails .stat-value {
+  color: #f59e0b;
+}
+
 #cardStatSuccess.active {
   border-color: #10b981;
   background-color: #0d2820;
@@ -702,6 +714,12 @@ body.is-resizing * {
   border-color: #f59e0b;
   background-color: #262115;
   box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+
+#cardStatActual.active {
+  border-color: #38bdf8;
+  background-color: #0f2438;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
 }
 
 .equivalent-lines-bar {
@@ -802,6 +820,12 @@ body.is-resizing * {
   background-color: rgba(245, 158, 11, 0.2);
   color: #fcd34d;
   border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.mode-badge.mode-actual {
+  background-color: rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.45);
 }
 
 .mode-sub {
@@ -1444,6 +1468,17 @@ body.is-resizing * {
   padding: 1px 5px;
   font-family: monospace;
   line-height: 1.3;
+}
+
+.sample-deal-card-actual {
+  border-color: rgba(56, 189, 248, 0.55);
+  background-color: #132c3d;
+}
+
+.sample-deal-id-actual {
+  color: #7dd3fc;
+  background-color: #0b1b2b;
+  border-color: rgba(56, 189, 248, 0.55);
 }
 
 .sample-deal-row-center {

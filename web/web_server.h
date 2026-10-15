@@ -76,6 +76,10 @@ struct FailureIndex {
       unmatched_leaves;
   // Failed boards for which no trick of the line could be played at all.
   Group unplaced;
+  // Optional actual deal (Board #0, board_id = -1) success leaf tracking.
+  bool actual_succeeded = false;
+  const ConditionalLine *actual_last_node = nullptr;
+  const ConditionalLine *actual_success_leaf = nullptr;
 };
 
 std::string ExtractFirstCard(const std::string &seq);
