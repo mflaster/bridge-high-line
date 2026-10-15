@@ -9535,6 +9535,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getNodeFailFraction(node) {
+    if (!node) return 0;
+    if (node.failure) return 1;
+    const wins = Math.max(
+      0,
+      node.success_boards !== undefined ? node.success_boards : (node.covered_boards || 0)
+    );
+    const fails = Math.max(0, node.failure_boards || 0);
+    const reaching = wins + fails;
+    if (reaching <= 0 || fails <= 0) return 0;
+    return Math.min(1, Math.max(0, fails / reaching));
+  }
+
   // Decision Tree SVG Rendering
   function renderDecisionTree(rootNode, resetView = false) {
     treeRootGroup.innerHTML = '';
@@ -9544,6 +9557,10 @@ document.addEventListener('DOMContentLoaded', () => {
       zoomLevel = 1.0;
     }
     updateTransform();
+
+    const treeDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    treeRootGroup.appendChild(treeDefs);
+    let failGradCounter = 0;
 
     function attachParentPointers(node, parent = null) {
       if (!node) return;
@@ -9681,6 +9698,45 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
+
+      const failFrac = getNodeFailFraction(node);
+      if (failFrac > 0 && failFrac < 1) {
+        const gradId = `node-fail-grad-${failGradCounter++}`;
+        const splitPct = ((1 - failFrac) * 100).toFixed(2) + '%';
+        const baseColor = (node.type === 'condition')
+          ? '#1e1b4b'
+          : (node.type === 'outcome' ? '#064e3b' : '#1e293b');
+        const failColor = '#450a0a';
+        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        grad.setAttribute('id', gradId);
+        grad.setAttribute('x1', '0%');
+        grad.setAttribute('y1', '0%');
+        grad.setAttribute('x2', '100%');
+        grad.setAttribute('y2', '0%');
+
+        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop1.setAttribute('offset', '0%');
+        stop1.setAttribute('stop-color', baseColor);
+        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop2.setAttribute('offset', splitPct);
+        stop2.setAttribute('stop-color', baseColor);
+        const stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop3.setAttribute('offset', splitPct);
+        stop3.setAttribute('stop-color', failColor);
+        const stop4 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop4.setAttribute('offset', '100%');
+        stop4.setAttribute('stop-color', failColor);
+
+        grad.appendChild(stop1);
+        grad.appendChild(stop2);
+        grad.appendChild(stop3);
+        grad.appendChild(stop4);
+        treeDefs.appendChild(grad);
+        rect.style.fill = `url(#${gradId})`;
+      } else if (failFrac >= 1 && !node.failure) {
+        rect.style.fill = '#450a0a';
+      }
+
       node._svgRect = rect;
 
       g.appendChild(rect);
