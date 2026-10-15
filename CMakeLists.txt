@@ -25,6 +25,7 @@ include(FetchContent)
 FetchContent_Declare(
   boost_headers
   URL https://github.com/boostorg/headers/archive/refs/tags/boost-1.83.0.tar.gz
+  URL_HASH SHA256=c39a832624e041ea47ac198ef931d5d259d38bf56ecaa44239fad986cf4206f2
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
@@ -34,6 +35,7 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   glog
   URL https://github.com/google/glog/archive/refs/tags/v0.7.1.tar.gz
+  URL_HASH SHA256=00e4a87e87b7e7612f519a41e491f16623b12423620006f59f5688bfd8d13b08
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
@@ -43,6 +45,7 @@ if(NOT EMSCRIPTEN)
   FetchContent_Declare(
     Catch2
     URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.5.2.tar.gz
+    URL_HASH SHA256=269543a49eb76f40b3f93ff231d4c24c27a7e16c90e47d2e45bcc564de470c6e
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
   )
 endif()
@@ -51,6 +54,7 @@ endif()
 FetchContent_Declare(
   dds
   URL https://github.com/dds-bridge/dds/archive/refs/tags/v2.9.0.tar.gz
+  URL_HASH SHA256=9ef36d8c36bf697ba3b499fcb9dca51a4b423278ac72e947235ac86f0b5fc38a
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
