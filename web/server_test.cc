@@ -36,6 +36,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index->body.find("compareLinesList") != std::string::npos);
   REQUIRE(res_index->body.find("compareLinesResults") != std::string::npos);
   REQUIRE(res_index->body.find("Rand deals:") != std::string::npos);
+  REQUIRE(res_index->body.find("openFeedbackBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("feedbackModal") != std::string::npos);
 
   // Test CSS serving
   auto res_css = client.Get("/styles.css");
@@ -49,6 +51,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_css->body.find(".equivalent-lines-bar") != std::string::npos);
   REQUIRE(res_css->body.find(".compare-line-row") != std::string::npos);
   REQUIRE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
+  REQUIRE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
 
   // Test JS serving
   auto res_js = client.Get("/app.js");
@@ -69,6 +72,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("trick-columns-header") != std::string::npos);
   REQUIRE(res_js->body.find("function handleProposeCardClick") != std::string::npos);
   REQUIRE(res_js->body.find("function zoomAroundPoint") != std::string::npos);
+  REQUIRE(res_js->body.find("function submitSentryFeedback") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");

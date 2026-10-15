@@ -6684,6 +6684,253 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Sentry User Feedback & Error Reporting
+  const SENTRY_DSN = 'https://4f773fa337d8e6b1e559790da9ee1fb1@o4512261310709760.ingest.us.sentry.io/4512261325324288';
+  const SENTRY_ENVELOPE_URL = 'https://o4512261310709760.ingest.us.sentry.io/api/4512261325324288/envelope/?sentry_key=4f773fa337d8e6b1e559790da9ee1fb1&sentry_version=7&sentry_client=bridge-high-line-web%2F1.0.0';
+
+  const openFeedbackBtn = document.getElementById('openFeedbackBtn');
+  const feedbackModal = document.getElementById('feedbackModal');
+  const closeFeedbackModalBtn = document.getElementById('closeFeedbackModalBtn');
+  const cancelFeedbackBtn = document.getElementById('cancelFeedbackBtn');
+  const feedbackForm = document.getElementById('feedbackForm');
+  const feedbackNameInput = document.getElementById('feedbackNameInput');
+  const feedbackEmailInput = document.getElementById('feedbackEmailInput');
+  const feedbackMessageInput = document.getElementById('feedbackMessageInput');
+  const feedbackIncludeDealCheckbox = document.getElementById('feedbackIncludeDealCheckbox');
+  const feedbackStatusMsg = document.getElementById('feedbackStatusMsg');
+  const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
+
+  function generateSentryEventId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID().replace(/-/g, '');
+    }
+    let id = '';
+    const hex = '0123456789abcdef';
+    for (let i = 0; i < 32; i++) {
+      id += hex[Math.floor(Math.random() * 16)];
+    }
+    return id;
+  }
+
+  function collectFeedbackDealSnapshot() {
+    const snap = {
+      preset: presetSelect ? presetSelect.value : '',
+      hands: {
+        N: inputNorth ? inputNorth.value : '',
+        E: inputEast ? inputEast.value : '',
+        S: inputSouth ? inputSouth.value : '',
+        W: inputWest ? inputWest.value : ''
+      },
+      unknown_cards: inputUnknownCards ? inputUnknownCards.value.trim() : '',
+      trump: trumpSelect ? trumpSelect.value : '',
+      leader: leaderSelect ? leaderSelect.value : '',
+      min_tricks: targetTricks ? (parseInt(targetTricks.value, 10) || 1) : 1,
+      num_iters: numIters ? (parseInt(numIters.value, 10) || 100) : 100,
+      cur_trick: getActiveInitialCurTrick(),
+      proposed_cards: (activeProposalContext && Array.isArray(activeProposalContext.proposedCards))
+        ? activeProposalContext.proposedCards.map(c => `${c.suit}${c.rank}`)
+        : []
+    };
+    const wHcpLowEl = document.getElementById('wHcpLow');
+    const wHcpHighEl = document.getElementById('wHcpHigh');
+    if ((wHcpLowEl && wHcpLowEl.value) || (wHcpHighEl && wHcpHighEl.value)) {
+      snap.w_hcp = {
+        low: wHcpLowEl ? wHcpLowEl.value : '',
+        high: wHcpHighEl ? wHcpHighEl.value : ''
+      };
+    }
+    if (currentSolveData) {
+      snap.last_solve = {
+        success: Boolean(currentSolveData.success),
+        tricks_won: currentSolveData.tricks_won,
+        best_lead: currentSolveData.best_lead || ''
+      };
+    }
+    return snap;
+  }
+
+  async function submitSentryFeedback({ name, email, message, includeDeal }) {
+    const eventId = generateSentryEventId();
+    const feedbackEventId = generateSentryEventId();
+    const nowIso = new Date().toISOString();
+    const dealSnapshot = includeDeal ? collectFeedbackDealSnapshot() : null;
+    const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
+
+    const firstLine = message.split('\n')[0].trim().slice(0, 80) || 'Feedback';
+    const dealSummaryText = dealSnapshot
+      ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
+      : '';
+
+    const userObj = {
+      name: name || 'Anonymous',
+      ...(email ? { email } : {})
+    };
+
+    const eventPayload = {
+      event_id: eventId,
+      timestamp: nowIso,
+      platform: 'javascript',
+      level: 'info',
+      logger: 'user.feedback',
+      environment,
+      message: {
+        formatted: `[User Feedback] ${firstLine}\n\n${message}${dealSummaryText}`
+      },
+      fingerprint: ['user-feedback', eventId],
+      user: userObj,
+      tags: {
+        feedback: 'true',
+        preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+        trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
+        leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
+        backend_mode: backendMode || 'unknown'
+      },
+      contexts: dealSnapshot ? { deal: dealSnapshot } : {},
+      extra: {
+        feedback_message: message,
+        deal_state: dealSnapshot,
+        url: window.location.href,
+        user_agent: navigator.userAgent
+      }
+    };
+
+    const feedbackPayload = {
+      event_id: feedbackEventId,
+      timestamp: nowIso,
+      level: 'info',
+      platform: 'javascript',
+      environment,
+      user: userObj,
+      tags: {
+        preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+        backend_mode: backendMode || 'unknown'
+      },
+      contexts: {
+        feedback: {
+          name: name || 'Anonymous',
+          ...(email ? { contact_email: email } : {}),
+          message,
+          associated_event_id: eventId,
+          url: window.location.href
+        },
+        ...(dealSnapshot ? { deal: dealSnapshot } : {})
+      }
+    };
+
+    const envelopeBody = [
+      JSON.stringify({ event_id: eventId, sent_at: nowIso, dsn: SENTRY_DSN }),
+      JSON.stringify({ type: 'event' }),
+      JSON.stringify(eventPayload),
+      JSON.stringify({ type: 'feedback' }),
+      JSON.stringify(feedbackPayload)
+    ].join('\n') + '\n';
+
+    const res = await fetch(SENTRY_ENVELOPE_URL, {
+      method: 'POST',
+      body: envelopeBody
+    });
+    if (!res.ok) {
+      throw new Error(`Sentry returned HTTP ${res.status}`);
+    }
+    return eventId;
+  }
+
+  function openFeedbackModal() {
+    if (!feedbackModal) return;
+    try {
+      const savedName = localStorage.getItem('bridge_feedback_name');
+      const savedEmail = localStorage.getItem('bridge_feedback_email');
+      if (savedName && feedbackNameInput && !feedbackNameInput.value) {
+        feedbackNameInput.value = savedName;
+      }
+      if (savedEmail && feedbackEmailInput && !feedbackEmailInput.value) {
+        feedbackEmailInput.value = savedEmail;
+      }
+    } catch (_) {}
+    if (feedbackStatusMsg) {
+      feedbackStatusMsg.className = 'feedback-status-msg hidden';
+      feedbackStatusMsg.textContent = '';
+    }
+    feedbackModal.classList.remove('hidden');
+    if (feedbackMessageInput) {
+      setTimeout(() => feedbackMessageInput.focus(), 20);
+    }
+  }
+
+  function closeFeedbackModal() {
+    if (!feedbackModal) return;
+    feedbackModal.classList.add('hidden');
+  }
+
+  if (openFeedbackBtn) {
+    openFeedbackBtn.addEventListener('click', openFeedbackModal);
+  }
+  if (closeFeedbackModalBtn) {
+    closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);
+  }
+  if (cancelFeedbackBtn) {
+    cancelFeedbackBtn.addEventListener('click', closeFeedbackModal);
+  }
+  if (feedbackModal) {
+    feedbackModal.addEventListener('click', (e) => {
+      if (e.target === feedbackModal) {
+        closeFeedbackModal();
+      }
+    });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && feedbackModal && !feedbackModal.classList.contains('hidden')) {
+      closeFeedbackModal();
+    }
+  });
+
+  if (feedbackForm) {
+    feedbackForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = feedbackNameInput ? feedbackNameInput.value.trim() : '';
+      const email = feedbackEmailInput ? feedbackEmailInput.value.trim() : '';
+      const message = feedbackMessageInput ? feedbackMessageInput.value.trim() : '';
+      const includeDeal = feedbackIncludeDealCheckbox ? feedbackIncludeDealCheckbox.checked : true;
+
+      if (!message) return;
+
+      try {
+        if (name) localStorage.setItem('bridge_feedback_name', name);
+        if (email) localStorage.setItem('bridge_feedback_email', email);
+      } catch (_) {}
+
+      if (submitFeedbackBtn) {
+        submitFeedbackBtn.disabled = true;
+        submitFeedbackBtn.textContent = 'Sending...';
+      }
+      if (feedbackStatusMsg) {
+        feedbackStatusMsg.className = 'feedback-status-msg hidden';
+      }
+
+      try {
+        await submitSentryFeedback({ name, email, message, includeDeal });
+        if (feedbackMessageInput) feedbackMessageInput.value = '';
+        if (feedbackStatusMsg) {
+          feedbackStatusMsg.textContent = 'Thank you! Your feedback has been recorded.';
+          feedbackStatusMsg.className = 'feedback-status-msg success';
+        }
+        setTimeout(() => {
+          closeFeedbackModal();
+        }, 1200);
+      } catch (err) {
+        if (feedbackStatusMsg) {
+          feedbackStatusMsg.textContent = `Failed to send feedback: ${err.message || err}`;
+          feedbackStatusMsg.className = 'feedback-status-msg error';
+        }
+      } finally {
+        if (submitFeedbackBtn) {
+          submitFeedbackBtn.disabled = false;
+          submitFeedbackBtn.textContent = 'Send Feedback';
+        }
+      }
+    });
+  }
+
   // Initial UI Render & Fetch Presets
   fetchPresets().then(() => {
     if (presetSelect && presetSelect.value) {
@@ -6693,4 +6940,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
-
