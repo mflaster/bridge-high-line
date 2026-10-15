@@ -9537,6 +9537,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getNodeFailFraction(node) {
+    if (!node) return 0;
+    if (node.failure) return 1;
+    const wins = Math.max(
+      0,
+      node.success_boards !== undefined ? node.success_boards : (node.covered_boards || 0)
+    );
+    const fails = Math.max(0, node.failure_boards || 0);
+    const reaching = wins + fails;
+    if (reaching <= 0 || fails <= 0) return 0;
+    return Math.min(1, Math.max(0, fails / reaching));
+  }
+
   // Decision Tree SVG Rendering
   function renderDecisionTree(rootNode, resetView = false) {
     treeRootGroup.innerHTML = '';
@@ -9547,6 +9560,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateTransform();
 
+    const treeDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    treeRootGroup.appendChild(treeDefs);
+    let failGradCounter = 0;
+
     function attachParentPointers(node, parent = null) {
       if (!node) return;
       node._parent = parent;
@@ -9556,17 +9573,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     attachParentPointers(rootNode);
 
-    // Calculate layout coordinates recursively
+    // Calculate layout coordinates recursively using vertical contour packing
     const nodeWidth = 164;
     const nodeHeight = 78;
-    const levelHeight = 140;
-    const siblingGap = 24;
+    const siblingGap = 20;
+    const verticalPad = 16;
 
-    let leafCounter = 0;
+    function getEdgeLabelWidth(child) {
+      if (!child || !child.condition) return 0;
+      let condText = child.condition;
+      if (condText.startsWith('after ')) {
+        condText = condText.substring(6);
+      }
+      return Math.max(54, condText.length * 7 + 12);
+    }
+
+    function shiftSubtree(node, dx) {
+      if (!node || dx === 0) return;
+      node._x += dx;
+      if (node._boxes) {
+        for (const b of node._boxes) {
+          b.xMin += dx;
+          b.xMax += dx;
+        }
+      }
+      if (node.children && node.children.length > 0 && !node._collapsed) {
+        node.children.forEach(c => shiftSubtree(c, dx));
+      }
+    }
 
     function layoutNode(node, depth = 0, y = 0) {
       node._depth = depth;
       node._y = y;
+      node._width = nodeWidth;
       if (node._collapsed === undefined) {
         if (node.collapsed !== undefined) {
           node._collapsed = node.collapsed;
@@ -9576,20 +9615,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       if (!node.children || node.children.length === 0 || node._collapsed) {
-        node._x = leafCounter * (nodeWidth + siblingGap);
-        leafCounter++;
-        node._width = nodeWidth;
-      } else {
-        const gap = (node.children.length === 1) ? 31 : 62;
-        const nextY = y + nodeHeight + gap;
-        node.children.forEach(child => layoutNode(child, depth + 1, nextY));
-        const firstChild = node.children[0];
-        const lastChild = node.children[node.children.length - 1];
-        node._x = (firstChild._x + lastChild._x) / 2;
+        node._x = 0;
+        node._boxes = [{
+          yMin: y,
+          yMax: y + nodeHeight,
+          xMin: 0,
+          xMax: nodeWidth
+        }];
+        return;
       }
+
+      const gap = (node.children.length === 1) ? 31 : 62;
+      const nextY = y + nodeHeight + gap;
+      node.children.forEach(child => layoutNode(child, depth + 1, nextY));
+
+      const combinedBoxes = [...node.children[0]._boxes];
+      for (let i = 1; i < node.children.length; i++) {
+        const prevChild = node.children[i - 1];
+        const currChild = node.children[i];
+
+        let minShift = (prevChild._x + nodeWidth + siblingGap) - currChild._x;
+
+        const wPrev = getEdgeLabelWidth(prevChild);
+        const wCurr = getEdgeLabelWidth(currChild);
+        if (wPrev > 0 && wCurr > 0) {
+          const labelShift = (prevChild._x + wPrev + wCurr + 16) - currChild._x;
+          if (labelShift > minShift) {
+            minShift = labelShift;
+          }
+        }
+
+        for (const bCurr of currChild._boxes) {
+          for (const bPrev of combinedBoxes) {
+            if (bCurr.yMin < bPrev.yMax + verticalPad &&
+                bCurr.yMax + verticalPad > bPrev.yMin) {
+              const reqShift = (bPrev.xMax + siblingGap) - bCurr.xMin;
+              if (reqShift > minShift) {
+                minShift = reqShift;
+              }
+            }
+          }
+        }
+
+        shiftSubtree(currChild, minShift);
+        combinedBoxes.push(...currChild._boxes);
+      }
+
+      const firstChild = node.children[0];
+      const lastChild = node.children[node.children.length - 1];
+      node._x = (firstChild._x + lastChild._x) / 2;
+
+      const startX = node._x + nodeWidth / 2;
+      const startY = y + nodeHeight;
+      const midY = (startY + nextY) / 2;
+      for (const child of node.children) {
+        const lw = getEdgeLabelWidth(child);
+        if (lw > 0) {
+          const endX = child._x + nodeWidth / 2;
+          const midX = (startX + endX) / 2;
+          combinedBoxes.push({
+            yMin: midY - 9,
+            yMax: midY + 9,
+            xMin: midX - lw / 2,
+            xMax: midX + lw / 2
+          });
+        }
+      }
+
+      combinedBoxes.push({
+        yMin: y,
+        yMax: y + nodeHeight,
+        xMin: node._x,
+        xMax: node._x + nodeWidth
+      });
+      node._boxes = combinedBoxes;
     }
 
     layoutNode(rootNode);
+    if (rootNode._boxes && rootNode._boxes.length > 0) {
+      let minX = Infinity;
+      for (const b of rootNode._boxes) {
+        if (b.xMin < minX) minX = b.xMin;
+      }
+      if (Number.isFinite(minX) && minX !== 0) {
+        shiftSubtree(rootNode, -minX);
+      }
+    }
 
     // Pass 1: Draw Links & Edge Badges
     function drawLinks(node) {
@@ -9683,6 +9794,45 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
+
+      const failFrac = getNodeFailFraction(node);
+      if (failFrac > 0 && failFrac < 1) {
+        const gradId = `node-fail-grad-${failGradCounter++}`;
+        const splitPct = ((1 - failFrac) * 100).toFixed(2) + '%';
+        const baseColor = (node.type === 'condition')
+          ? '#1e1b4b'
+          : (node.type === 'outcome' ? '#064e3b' : '#1e293b');
+        const failColor = '#450a0a';
+        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        grad.setAttribute('id', gradId);
+        grad.setAttribute('x1', '0%');
+        grad.setAttribute('y1', '0%');
+        grad.setAttribute('x2', '100%');
+        grad.setAttribute('y2', '0%');
+
+        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop1.setAttribute('offset', '0%');
+        stop1.setAttribute('stop-color', baseColor);
+        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop2.setAttribute('offset', splitPct);
+        stop2.setAttribute('stop-color', baseColor);
+        const stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop3.setAttribute('offset', splitPct);
+        stop3.setAttribute('stop-color', failColor);
+        const stop4 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop4.setAttribute('offset', '100%');
+        stop4.setAttribute('stop-color', failColor);
+
+        grad.appendChild(stop1);
+        grad.appendChild(stop2);
+        grad.appendChild(stop3);
+        grad.appendChild(stop4);
+        treeDefs.appendChild(grad);
+        rect.style.fill = `url(#${gradId})`;
+      } else if (failFrac >= 1 && !node.failure) {
+        rect.style.fill = '#450a0a';
+      }
+
       node._svgRect = rect;
 
       g.appendChild(rect);
@@ -9705,12 +9855,7 @@ document.addEventListener('DOMContentLoaded', () => {
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
       const { primary: detailText, secondary: failLineText } = formatNodeCardDealLines(node);
-      const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
-      if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
-        detail.textContent = detailText;
-      } else {
-        detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
-      }
+      detail.textContent = detailText;
       g.appendChild(detail);
 
       // 3rd Line: N/S Won on outcome nodes, or Fails count on non-outcome nodes
@@ -9758,7 +9903,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function formatNodeCardDealLines(node) {
     const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
-    const withPct = (n) => total ? `${n} (${((n / total) * 100).toFixed(1)}%)` : `${n}`;
+    const withPct = (n, denom = total) => denom > 0 ? `${n} (${((n / denom) * 100).toFixed(1)}%)` : `${n}`;
     if (node.failure) {
       const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
       if (fails === 0 && Array.isArray(node.boards) && node.boards.includes(-1)) {
@@ -9770,9 +9915,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (wins === undefined) return { primary: '', secondary: '' };
     const fails = node.failure_boards || 0;
     if (fails > 0 && node.type !== 'outcome') {
+      const branchTotal = wins + fails;
       return {
-        primary: `Makes: ${withPct(wins)}`,
-        secondary: `Fails: ${withPct(fails)}`
+        primary: `Makes: ${withPct(wins, branchTotal)}`,
+        secondary: `Fails: ${withPct(fails, branchTotal)}`
       };
     }
     return { primary: `Deals: ${withPct(wins)}`, secondary: '' };
@@ -10515,6 +10661,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const trimmed = node.trick.trim();
       if (trimmed.length > 0 &&
           !/^solve/i.test(trimmed) &&
+          !/^defender/i.test(trimmed) &&
           !/^optimal/i.test(trimmed) &&
           !/is led/i.test(trimmed) &&
           !/variants/i.test(trimmed) &&

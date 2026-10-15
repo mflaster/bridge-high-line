@@ -530,7 +530,7 @@ TEST_CASE("BuildTreeFromConditionalLine Common Lead Card Label") {
   int node_id = 0;
   auto node = BuildTreeFromConditionalLine(root_line, node_id);
   REQUIRE(node != nullptr);
-  REQUIRE(node->label == "H7 is led (2 variants)");
+  REQUIRE(node->label == "H7 is led");
 
   // Test fallback when children have different lead cards
   ConditionalLine root_diff;
@@ -552,7 +552,7 @@ TEST_CASE("BuildTreeFromConditionalLine Common Lead Card Label") {
   int node_id2 = 0;
   auto node_diff = BuildTreeFromConditionalLine(root_diff, node_id2);
   REQUIRE(node_diff != nullptr);
-  REQUIRE(node_diff->label == "Solve Lines (2 variants)");
+  REQUIRE(node_diff->label == "Defender leads");
 }
 
 TEST_CASE("FormatWinnerCondition and FormatBranchCondition Formatting") {
@@ -617,7 +617,7 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
   // Failed board 2: East plays C2 (matches Cx), West plays CQ (matches C_) and
   // wins -> winner failure ("if W wins the CQ"), must attach under Variant 1.
   // Failed board 3: East is void in clubs and discards D6 -> unmatched defender
-  // discard ("if E discards"), must attach to "C6 is led (2 variants)" as a
+  // discard ("if E discards"), must attach to "C6 is led" as a
   // sibling of Variant 1, NOT as a child of Variant 1.
   // Failed board 4: East is void in clubs and discards S7 -> consolidated into
   // the same "if E discards" sibling failure leaf with board 3.
@@ -670,7 +670,7 @@ TEST_CASE("Unmatched Defender Play Attaches to Condition Node") {
       BuildTreeFromConditionalLine(multi_root, node_id, 1, 6, 0, &failures);
   REQUIRE(tree != nullptr);
   REQUIRE(tree->type == "condition");
-  REQUIRE(tree->label == "C6 is led (2 variants)");
+  REQUIRE(tree->label == "C6 is led");
   // 2 trick variants + 2 sibling failure leaves ("if E plays CK",
   // "if E discards")
   REQUIRE(tree->children.size() == 4);
