@@ -506,6 +506,46 @@
             </div>
           </div>
 
+          <div class="scan-contract-box">
+            <div class="scan-declarer-header">
+              <span class="scan-declarer-title">Contract</span>
+              <span id="modalContractHint" class="scan-declarer-hint">4♠ (10 tricks)</span>
+            </div>
+            <div class="scan-contract-controls">
+              <div class="declarer-seat-group contract-level-group" role="group" aria-label="Select Contract Level">
+                <button type="button" class="modal-contract-level-btn" data-level="1">1</button>
+                <button type="button" class="modal-contract-level-btn" data-level="2">2</button>
+                <button type="button" class="modal-contract-level-btn" data-level="3">3</button>
+                <button type="button" class="modal-contract-level-btn active" data-level="4">4</button>
+                <button type="button" class="modal-contract-level-btn" data-level="5">5</button>
+                <button type="button" class="modal-contract-level-btn" data-level="6">6</button>
+                <button type="button" class="modal-contract-level-btn" data-level="7">7</button>
+              </div>
+              <div class="declarer-seat-group contract-strain-group" role="group" aria-label="Select Contract Strain">
+                <button type="button" class="modal-contract-strain-btn" data-strain="CLUBS"><span class="card-suit-c">♣</span>C</button>
+                <button type="button" class="modal-contract-strain-btn" data-strain="DIAMONDS"><span class="card-suit-d">♦</span>D</button>
+                <button type="button" class="modal-contract-strain-btn" data-strain="HEARTS"><span class="card-suit-h">♥</span>H</button>
+                <button type="button" class="modal-contract-strain-btn active" data-strain="SPADES"><span class="card-suit-s">♠</span>S</button>
+                <button type="button" class="modal-contract-strain-btn" data-strain="NOTRUMP">NT</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="scan-initial-play-box">
+            <div class="scan-declarer-header">
+              <span class="scan-declarer-title">Opening Lead / Initial Play</span>
+              <span id="modalNextLeadHint" class="scan-declarer-hint">Opening lead: E (LHO)</span>
+            </div>
+            <div class="scan-initial-input-row">
+              <input type="text" id="scanInitialCardsInput" class="text-input mini-text-input" placeholder="Optional: e.g. DQ or DQ D2 DA DK S7 (or tap below)">
+              <button id="scanUndoCardBtn" type="button" class="btn btn-secondary-sm" disabled title="Undo last card">Undo</button>
+              <button id="scanClearCardsBtn" type="button" class="btn btn-secondary-sm" disabled title="Clear all initial cards">Clear</button>
+            </div>
+            <div id="scanInitialPlayError" class="scan-initial-error hidden"></div>
+            <div id="scanInitialPlayedList" class="scan-initial-played-list hidden"></div>
+            <div id="scanInitialCardPicker" class="scan-initial-card-picker"></div>
+          </div>
+
           <div class="scan-hands-preview">
             <div class="scan-hands-header">
               <span>Scanned Compass Hands (editable)</span>

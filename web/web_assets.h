@@ -513,6 +513,46 @@ inline const char* INDEX_HTML = R"rawhtml(
             </div>
           </div>
 
+          <div class="scan-contract-box">
+            <div class="scan-declarer-header">
+              <span class="scan-declarer-title">Contract</span>
+              <span id="modalContractHint" class="scan-declarer-hint">4♠ (10 tricks)</span>
+            </div>
+            <div class="scan-contract-controls">
+              <div class="declarer-seat-group contract-level-group" role="group" aria-label="Select Contract Level">
+                <button type="button" class="modal-contract-level-btn" data-level="1">1</button>
+                <button type="button" class="modal-contract-level-btn" data-level="2">2</button>
+                <button type="button" class="modal-contract-level-btn" data-level="3">3</button>
+                <button type="button" class="modal-contract-level-btn active" data-level="4">4</button>
+                <button type="button" class="modal-contract-level-btn" data-level="5">5</button>
+                <button type="button" class="modal-contract-level-btn" data-level="6">6</button>
+                <button type="button" class="modal-contract-level-btn" data-level="7">7</button>
+              </div>
+              <div class="declarer-seat-group contract-strain-group" role="group" aria-label="Select Contract Strain">
+                <button type="button" class="modal-contract-strain-btn" data-strain="CLUBS"><span class="card-suit-c">♣</span>C</button>
+                <button type="button" class="modal-contract-strain-btn" data-strain="DIAMONDS"><span class="card-suit-d">♦</span>D</button>
+                <button type="button" class="modal-contract-strain-btn" data-strain="HEARTS"><span class="card-suit-h">♥</span>H</button>
+                <button type="button" class="modal-contract-strain-btn active" data-strain="SPADES"><span class="card-suit-s">♠</span>S</button>
+                <button type="button" class="modal-contract-strain-btn" data-strain="NOTRUMP">NT</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="scan-initial-play-box">
+            <div class="scan-declarer-header">
+              <span class="scan-declarer-title">Opening Lead / Initial Play</span>
+              <span id="modalNextLeadHint" class="scan-declarer-hint">Opening lead: E (LHO)</span>
+            </div>
+            <div class="scan-initial-input-row">
+              <input type="text" id="scanInitialCardsInput" class="text-input mini-text-input" placeholder="Optional: e.g. DQ or DQ D2 DA DK S7 (or tap below)">
+              <button id="scanUndoCardBtn" type="button" class="btn btn-secondary-sm" disabled title="Undo last card">Undo</button>
+              <button id="scanClearCardsBtn" type="button" class="btn btn-secondary-sm" disabled title="Clear all initial cards">Clear</button>
+            </div>
+            <div id="scanInitialPlayError" class="scan-initial-error hidden"></div>
+            <div id="scanInitialPlayedList" class="scan-initial-played-list hidden"></div>
+            <div id="scanInitialCardPicker" class="scan-initial-card-picker"></div>
+          </div>
+
           <div class="scan-hands-preview">
             <div class="scan-hands-header">
               <span>Scanned Compass Hands (editable)</span>
@@ -3066,14 +3106,16 @@ body.is-resizing * {
   color: #93c5fd;
 }
 
-.scan-declarer-box {
+.scan-declarer-box,
+.scan-contract-box,
+.scan-initial-play-box {
   background-color: #0f172a;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .scan-declarer-header {
@@ -3105,9 +3147,202 @@ body.is-resizing * {
 }
 
 .modal-declarer-btn {
-  padding: 6px 8px;
-  font-size: 12.5px;
+  padding: 5px 8px;
+  font-size: 12px;
   text-align: center;
+}
+
+.scan-contract-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.contract-level-group {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 2px;
+  gap: 2px;
+}
+
+.contract-strain-group {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 2px;
+  gap: 2px;
+}
+
+.modal-contract-level-btn,
+.modal-contract-strain-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 5px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.modal-contract-level-btn:hover,
+.modal-contract-strain-btn:hover {
+  color: var(--text-main);
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.modal-contract-level-btn.active,
+.modal-contract-strain-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.scan-initial-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scan-initial-input-row .text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.scan-initial-error {
+  font-size: 11px;
+  color: #fca5a5;
+  background-color: rgba(127, 29, 29, 0.35);
+  border: 1px solid #7f1d1d;
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+
+.scan-initial-error.hidden,
+.scan-initial-played-list.hidden {
+  display: none !important;
+}
+
+.scan-initial-played-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 92px;
+  overflow-y: auto;
+  padding: 4px 6px;
+  background-color: #090e1a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+}
+
+.scan-played-trick-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11.5px;
+  font-family: monospace;
+}
+
+.scan-played-trick-label {
+  color: #94a3b8;
+  font-weight: 700;
+  min-width: 24px;
+}
+
+.scan-played-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.scan-played-card-pill.winner-pill {
+  border-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.16);
+}
+
+.scan-played-winner-tag {
+  font-size: 10.5px;
+  color: #6ee7b7;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.scan-initial-card-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background-color: #0b1324;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+}
+
+.scan-picker-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scan-picker-suits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.scan-picker-suit-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.scan-picker-suit-sym {
+  font-size: 13px;
+  font-weight: 800;
+  margin-right: 1px;
+}
+
+.scan-picker-card-btn {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #fef08a;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  font-family: monospace;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1.3;
+  transition: all 0.12s ease;
+}
+
+.scan-picker-card-btn:hover:not(:disabled) {
+  background-color: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.scan-picker-card-btn:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+  color: #64748b;
 }
 
 .scan-hands-preview {
@@ -5403,9 +5638,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wInput = inputWest ? inputWest.value : '';
     const useTracedEW = Boolean(
       activeTracedDeal &&
-      (activeTracedDeal.E || activeTracedDeal.W) &&
-      countHandCards(eInput) === 0 &&
-      countHandCards(wInput) === 0
+      (activeTracedDeal.E || activeTracedDeal.W)
     );
     const eStr = useTracedEW ? (activeTracedDeal.E || '') : eInput;
     const wStr = useTracedEW ? (activeTracedDeal.W || '') : wInput;
@@ -5587,7 +5820,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let loadedBoardHands = null; // Stores original { N, E, S, W } compass hands when a 4-hand deal is scanned/loaded
   let loadedActualDeal = null; // Stores rotated { N: decl, E: lho, S: dummy, W: rho } for Board #0 (Actual)
+  let importedSuitVoids = { E: new Set(), W: new Set() }; // Voids revealed during imported initial play
   let currentDeclarerSeat = 'N';
+  let modalContractLevel = 4;
+  let modalContractStrain = 'SPADES';
 
   function combineHandsToUnknownString(handA, handB) {
     const suitsA = parseHandToSuits(handA || '');
@@ -5608,14 +5844,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!loadedActualDeal || (!loadedActualDeal.E && !loadedActualDeal.W)) {
       return null;
     }
-    if (countHandCards(inputEast ? inputEast.value : '') > 0 ||
-        countHandCards(inputWest ? inputWest.value : '') > 0) {
-      return null;
-    }
     const curUnk = inputUnknownCards ? inputUnknownCards.value.trim() : '';
     if (!curUnk) return null;
+    const eVal = inputEast ? inputEast.value.trim() : '';
+    const wVal = inputWest ? inputWest.value.trim() : '';
     const expectedUnk = combineHandsToUnknownString(loadedActualDeal.E, loadedActualDeal.W);
-    const normCurUnk = combineHandsToUnknownString(curUnk, '');
+    const normCurUnk = combineHandsToUnknownString(curUnk, combineHandsToUnknownString(eVal, wVal));
     if (expectedUnk !== normCurUnk) return null;
     return {
       N: inputNorth ? inputNorth.value.trim() : loadedActualDeal.N,
@@ -5666,9 +5900,13 @@ document.addEventListener('DOMContentLoaded', () => {
         el.className = roleMap[s].cls;
       }
     });
+
+    if (typeof updateModalContractAndPlayUI === 'function') {
+      updateModalContractAndPlayUI();
+    }
   }
 
-  function applyDeclarerRotation(seat) {
+  function applyDeclarerRotation(seat, fromModal = false) {
     const order = ['N', 'E', 'S', 'W'];
     const idx = order.indexOf(seat);
     if (idx === -1) return;
@@ -5697,10 +5935,81 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const declHand = loadedBoardHands[order[idx]] || '';
-    const lhoHand = loadedBoardHands[order[(idx + 1) % 4]] || '';
-    const dummyHand = loadedBoardHands[order[(idx + 2) % 4]] || '';
-    const rhoHand = loadedBoardHands[order[(idx + 3) % 4]] || '';
+    const declSeat = order[idx];
+    const lhoSeat = order[(idx + 1) % 4];
+    const dummySeat = order[(idx + 2) % 4];
+    const rhoSeat = order[(idx + 3) % 4];
+
+    if (fromModal && typeof simulateModalInitialPlay === 'function') {
+      const sim = simulateModalInitialPlay(loadedBoardHands, seat, modalContractStrain);
+      trumpSelect.value = modalContractStrain;
+      const baseTarget = 6 + modalContractLevel;
+      const remTarget = Math.max(1, baseTarget - sim.nsCompletedTricksWon);
+      targetTricks.value = remTarget;
+
+      const rotatedLeaderIdx = (sim.currentLeaderOrigIdx - idx + 4) % 4;
+      leaderSelect.value = getSeatFullString(rotatedLeaderIdx);
+
+      const declAfterComp = formatSuitsToHandStr(sim.remHandsAfterCompleted[declSeat], false);
+      const lhoAfterComp = formatSuitsToHandStr(sim.remHandsAfterCompleted[lhoSeat], false);
+      const dummyAfterComp = formatSuitsToHandStr(sim.remHandsAfterCompleted[dummySeat], false);
+      const rhoAfterComp = formatSuitsToHandStr(sim.remHandsAfterCompleted[rhoSeat], false);
+
+      loadedActualDeal = {
+        N: declAfterComp,
+        E: lhoAfterComp,
+        S: dummyAfterComp,
+        W: rhoAfterComp
+      };
+
+      const partialDef = {
+        E: { S: [], H: [], D: [], C: [] },
+        W: { S: [], H: [], D: [], C: [] }
+      };
+      sim.currentTrickCards.forEach(c => {
+        if (c.rotatedSeatIdx === 1) {
+          partialDef.E[c.suit].push(c.rankStr === '10' ? 'T' : c.rankStr);
+        } else if (c.rotatedSeatIdx === 3) {
+          partialDef.W[c.suit].push(c.rankStr === '10' ? 'T' : c.rankStr);
+        }
+      });
+      const hasPartialE = ['S', 'H', 'D', 'C'].some(s => partialDef.E[s].length > 0);
+      const hasPartialW = ['S', 'H', 'D', 'C'].some(s => partialDef.W[s].length > 0);
+
+      const lhoAfterAll = formatSuitsToHandStr(sim.remHandsAfterAll[lhoSeat], false);
+      const rhoAfterAll = formatSuitsToHandStr(sim.remHandsAfterAll[rhoSeat], false);
+
+      importedSuitVoids = {
+        E: new Set(sim.voidSuits.E),
+        W: new Set(sim.voidSuits.W)
+      };
+      presetCurTrick = sim.currentTrickCards.map(c => c.code);
+      clearPanels();
+
+      inputNorth.value = declAfterComp;
+      inputSouth.value = dummyAfterComp;
+      inputEast.value = hasPartialE ? formatSuitsToHandStr(partialDef.E, false) : '';
+      inputWest.value = hasPartialW ? formatSuitsToHandStr(partialDef.W, false) : '';
+      if (inputUnknownCards) {
+        inputUnknownCards.value = combineHandsToUnknownString(lhoAfterAll, rhoAfterAll);
+      }
+
+      updateDeclarerBarUI(seat);
+      const strainSym = getSuitSymbol(modalContractStrain);
+      const contractDesc = `${modalContractLevel}${strainSym} by ${declSeat}`;
+      const playDesc = (sim.completedTricks.length > 0 || sim.currentTrickCards.length > 0)
+        ? ` (${sim.completedTricks.length} completed trick${sim.completedTricks.length !== 1 ? 's' : ''}` +
+          (sim.currentTrickCards.length > 0 ? `, current trick: ${presetCurTrick.join(' ')}` : '') + ')'
+        : '';
+      setStatus('idle', `Loaded ${contractDesc}${playDesc}. Declarer rotated to North, Dummy (${dummySeat}) to South.`);
+      updateDealSvg();
+      return;
+    }
+
+    const declHand = loadedBoardHands[declSeat] || '';
+    const lhoHand = loadedBoardHands[lhoSeat] || '';
+    const dummyHand = loadedBoardHands[dummySeat] || '';
+    const rhoHand = loadedBoardHands[rhoSeat] || '';
 
     loadedActualDeal = {
       N: declHand,
@@ -5709,7 +6018,9 @@ document.addEventListener('DOMContentLoaded', () => {
       W: rhoHand
     };
 
+    importedSuitVoids = { E: new Set(), W: new Set() };
     presetCurTrick = [];
+    leaderSelect.value = 'EAST';
     clearPanels();
     inputNorth.value = declHand;
     inputSouth.value = dummyHand;
@@ -5720,13 +6031,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateDeclarerBarUI(seat);
-    setStatus('idle', `Loaded board with ${order[idx]} as Declarer (rotated to North) and ${order[(idx + 2) % 4]} as Dummy (South).`);
+    setStatus('idle', `Loaded board with ${declSeat} as Declarer (rotated to North) and ${dummySeat} as Dummy (South).`);
     updateDealSvg();
   }
 
   document.querySelectorAll('.declarer-seat-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      applyDeclarerRotation(btn.dataset.seat);
+      applyDeclarerRotation(btn.dataset.seat, false);
     });
   });
 
@@ -5736,6 +6047,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadedBoardHands = null;
     loadedActualDeal = null;
+    importedSuitVoids = { E: new Set(), W: new Set() };
     updateDeclarerBarUI('N');
     presetCurTrick = Array.isArray(p.cur_trick) ? p.cur_trick.slice() : [];
     clearPanels();
@@ -5820,6 +6132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return;
     loadedBoardHands = null;
     loadedActualDeal = null;
+    importedSuitVoids = { E: new Set(), W: new Set() };
     presetCurTrick = [];
     clearPanels();
     setStatus('idle', 'Ready to solve. Configure hands and click "Solve Deal".');
@@ -6628,9 +6941,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanInputE = document.getElementById('scanInputE');
   const scanInputS = document.getElementById('scanInputS');
   const scanInputW = document.getElementById('scanInputW');
+  const modalContractHint = document.getElementById('modalContractHint');
+  const modalNextLeadHint = document.getElementById('modalNextLeadHint');
+  const scanInitialCardsInput = document.getElementById('scanInitialCardsInput');
+  const scanUndoCardBtn = document.getElementById('scanUndoCardBtn');
+  const scanClearCardsBtn = document.getElementById('scanClearCardsBtn');
+  const scanInitialPlayError = document.getElementById('scanInitialPlayError');
+  const scanInitialPlayedList = document.getElementById('scanInitialPlayedList');
+  const scanInitialCardPicker = document.getElementById('scanInitialCardPicker');
 
   let scanSourceCanvas = null; // Offscreen canvas holding current (possibly rotated) image
-  let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands? } in scanSourceCanvas coords
+  let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands?, pbnDeclarer?, pbnContract? } in scanSourceCanvas coords
   let activeDetectedBoardIdx = -1;
   let cropBox = { x: 0, y: 0, w: 100, h: 100 }; // In scanSourceCanvas coords
   let lastDetectedAnchors = null; // In cropBox-relative coords
@@ -6651,6 +6972,389 @@ document.addEventListener('DOMContentLoaded', () => {
   let activePdfTotalPages = 1;
   let pdfPageBoardCounts = {};
   let pdfJsLoadPromise = null;
+
+  function parseModalSingleCardToken(tok) {
+    if (!tok) return null;
+    const s = tok.trim()
+      .replace(/♠/g, 'S')
+      .replace(/♥/g, 'H')
+      .replace(/♦/g, 'D')
+      .replace(/♣/g, 'C')
+      .toUpperCase();
+    if (!s) return null;
+    let suit = null;
+    let rankPart = '';
+    if ('SHDC'.includes(s[0])) {
+      suit = s[0];
+      rankPart = s.slice(1);
+    } else if ('SHDC'.includes(s[s.length - 1])) {
+      suit = s[s.length - 1];
+      rankPart = s.slice(0, -1);
+    } else {
+      return null;
+    }
+    if (rankPart === '10') rankPart = 'T';
+    if (rankPart.length !== 1 || !'AKQJT98765432'.includes(rankPart)) {
+      return null;
+    }
+    return { suit, rank: rankPart, code: `${suit}${rankPart}` };
+  }
+
+  function cloneModalHandsMap(handsMap) {
+    const copy = {};
+    ['N', 'E', 'S', 'W'].forEach(seat => {
+      copy[seat] = {
+        S: (handsMap[seat] && handsMap[seat].S) ? handsMap[seat].S.slice() : [],
+        H: (handsMap[seat] && handsMap[seat].H) ? handsMap[seat].H.slice() : [],
+        D: (handsMap[seat] && handsMap[seat].D) ? handsMap[seat].D.slice() : [],
+        C: (handsMap[seat] && handsMap[seat].C) ? handsMap[seat].C.slice() : []
+      };
+    });
+    return copy;
+  }
+
+  function strainToTrumpCode(strain) {
+    if (strain === 'SPADES') return 'S';
+    if (strain === 'HEARTS') return 'H';
+    if (strain === 'DIAMONDS') return 'D';
+    if (strain === 'CLUBS') return 'C';
+    return 'NT';
+  }
+
+  function simulateModalInitialPlay(handsObj, declarerSeat, contractStrain) {
+    const order = ['N', 'E', 'S', 'W'];
+    const declIdx = Math.max(0, order.indexOf(declarerSeat || currentDeclarerSeat || 'N'));
+    const trumpCode = strainToTrumpCode(contractStrain || modalContractStrain);
+
+    const srcHands = handsObj || {
+      N: scanInputN ? scanInputN.value : '',
+      E: scanInputE ? scanInputE.value : '',
+      S: scanInputS ? scanInputS.value : '',
+      W: scanInputW ? scanInputW.value : ''
+    };
+
+    const initialHandsMap = {};
+    order.forEach(seat => {
+      const suits = parseHandToSuits(srcHands[seat] || '');
+      initialHandsMap[seat] = {};
+      ['S', 'H', 'D', 'C'].forEach(s => {
+        initialHandsMap[seat][s] = tokenizeSuitRanks(suits[s] || '-')
+          .map(t => (t === '10' ? 'T' : t.toUpperCase()))
+          .filter(t => 'AKQJT98765432'.includes(t));
+      });
+    });
+
+    const remHands = cloneModalHandsMap(initialHandsMap);
+    let remHandsAfterCompleted = cloneModalHandsMap(initialHandsMap);
+
+    let currentLeaderOrigIdx = (declIdx + 1) % 4; // LHO leads to Trick 1
+    const completedTricks = [];
+    let currentTrickCards = [];
+    let nsCompletedTricksWon = 0;
+    const voidSuits = { E: new Set(), W: new Set() };
+    const playedCodes = new Set();
+    let error = null;
+
+    const rawInput = scanInitialCardsInput ? scanInitialCardsInput.value.trim() : '';
+    const rawTokens = rawInput ? rawInput.split(/[\s,;/]+/).filter(Boolean) : [];
+
+    for (let i = 0; i < rawTokens.length; i++) {
+      const rawTok = rawTokens[i];
+      const turnOffset = currentTrickCards.length;
+      const seatOrigIdx = (currentLeaderOrigIdx + turnOffset) % 4;
+      const seatKey = order[seatOrigIdx];
+      const rotatedIdx = (seatOrigIdx - declIdx + 4) % 4;
+
+      const parsed = parseModalSingleCardToken(rawTok);
+      if (!parsed) {
+        error = `Invalid card "${rawTok}" (expected e.g. DQ, H10, SA).`;
+        break;
+      }
+
+      if (playedCodes.has(parsed.code)) {
+        error = `${parsed.code} has already been played.`;
+        break;
+      }
+
+      const seatSuitArr = remHands[seatKey][parsed.suit] || [];
+      const rankIdx = seatSuitArr.indexOf(parsed.rank);
+      if (rankIdx === -1) {
+        const holder = order.find(other =>
+          (remHands[other][parsed.suit] || []).includes(parsed.rank)
+        );
+        if (holder) {
+          error = `It is ${seatKey}'s turn, but ${parsed.code} is held by ${holder}.`;
+        } else {
+          error = `${seatKey} does not hold ${parsed.code}.`;
+        }
+        break;
+      }
+
+      if (turnOffset > 0) {
+        const leadSuit = currentTrickCards[0].suit;
+        if (parsed.suit !== leadSuit) {
+          if ((remHands[seatKey][leadSuit] || []).length > 0) {
+            error = `${seatKey} must follow suit to ${leadSuit} before playing ${parsed.code}.`;
+            break;
+          }
+          if (rotatedIdx === 1) voidSuits.E.add(leadSuit);
+          if (rotatedIdx === 3) voidSuits.W.add(leadSuit);
+        }
+      }
+
+      seatSuitArr.splice(rankIdx, 1);
+      playedCodes.add(parsed.code);
+
+      const leadSuitForCard = currentTrickCards.length > 0 ? currentTrickCards[0].suit : parsed.suit;
+      const cardObj = parseSingleCardToken(parsed.code, leadSuitForCard, trumpCode);
+      cardObj.code = parsed.code;
+      cardObj.origSeatIdx = seatOrigIdx;
+      cardObj.origSeat = seatKey;
+      cardObj.rotatedSeatIdx = rotatedIdx;
+      cardObj.rotatedSeat = order[rotatedIdx];
+      currentTrickCards.push(cardObj);
+
+      if (currentTrickCards.length === 4) {
+        const { winningIdx, winnerCard } = evaluateTrickWinner(currentTrickCards, trumpCode);
+        const winnerOrigIdx = winnerCard ? winnerCard.origSeatIdx : currentLeaderOrigIdx;
+        const winnerRotatedIdx = (winnerOrigIdx - declIdx + 4) % 4;
+        if (winnerRotatedIdx === 0 || winnerRotatedIdx === 2) {
+          nsCompletedTricksWon++;
+        }
+        completedTricks.push({
+          trickNum: completedTricks.length + 1,
+          leaderOrigIdx: currentLeaderOrigIdx,
+          leaderSeat: order[currentLeaderOrigIdx],
+          cards: currentTrickCards.slice(),
+          winningIdx,
+          winnerOrigIdx,
+          winnerSeat: order[winnerOrigIdx],
+          winnerRotatedIdx,
+          winnerRotatedSeat: order[winnerRotatedIdx]
+        });
+        remHandsAfterCompleted = cloneModalHandsMap(remHands);
+        currentLeaderOrigIdx = winnerOrigIdx;
+        currentTrickCards = [];
+      }
+    }
+
+    const nextTrickNum = completedTricks.length + 1;
+    const nextSeatOrigIdx = (currentLeaderOrigIdx + currentTrickCards.length) % 4;
+    const nextSeatKey = order[nextSeatOrigIdx];
+
+    return {
+      completedTricks,
+      currentTrickCards,
+      currentLeaderOrigIdx,
+      nextTrickNum,
+      nextSeatOrigIdx,
+      nextSeatKey,
+      nsCompletedTricksWon,
+      voidSuits,
+      remHandsAfterCompleted,
+      remHandsAfterAll: remHands,
+      error
+    };
+  }
+
+  function appendModalCardToken(cardCode) {
+    if (!scanInitialCardsInput) return;
+    const cur = scanInitialCardsInput.value.trim();
+    scanInitialCardsInput.value = cur ? `${cur} ${cardCode}` : cardCode;
+    updateModalContractAndPlayUI();
+  }
+
+  function updateModalContractAndPlayUI() {
+    document.querySelectorAll('.modal-contract-level-btn').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.level, 10) === modalContractLevel);
+    });
+    document.querySelectorAll('.modal-contract-strain-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.strain === modalContractStrain);
+    });
+
+    const sim = simulateModalInitialPlay();
+    const strainSym = getSuitSymbol(modalContractStrain);
+    const totalTarget = 6 + modalContractLevel;
+    const remTarget = Math.max(1, totalTarget - sim.nsCompletedTricksWon);
+
+    if (modalContractHint) {
+      if (sim.nsCompletedTricksWon > 0) {
+        modalContractHint.textContent =
+          `${modalContractLevel}${strainSym} (${remTarget} more trick${remTarget !== 1 ? 's' : ''} needed; ${sim.nsCompletedTricksWon} won)`;
+      } else {
+        modalContractHint.textContent = `${modalContractLevel}${strainSym} (${totalTarget} tricks)`;
+      }
+    }
+
+    const order = ['N', 'E', 'S', 'W'];
+    const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
+    const declIdx = Math.max(0, order.indexOf(currentDeclarerSeat || 'N'));
+    const getRoleLabel = (origIdx) => {
+      if (origIdx === declIdx) return 'Declarer';
+      if (origIdx === (declIdx + 1) % 4) return 'LHO';
+      if (origIdx === (declIdx + 2) % 4) return 'Dummy';
+      return 'RHO';
+    };
+
+    if (modalNextLeadHint) {
+      const nextRole = getRoleLabel(sim.nextSeatOrigIdx);
+      const nextName = seatNames[sim.nextSeatKey] || sim.nextSeatKey;
+      if (sim.completedTricks.length === 0 && sim.currentTrickCards.length === 0) {
+        modalNextLeadHint.textContent = `Trick 1 opening lead by ${nextName} (${nextRole})`;
+      } else if (sim.currentTrickCards.length === 0) {
+        modalNextLeadHint.textContent = `Trick ${sim.nextTrickNum} lead by ${nextName} (${nextRole})`;
+      } else {
+        modalNextLeadHint.textContent =
+          `Trick ${sim.nextTrickNum} (${sim.currentTrickCards.length}/4): ${nextName} (${nextRole}) to play`;
+      }
+    }
+
+    const hasInputText = Boolean(scanInitialCardsInput && scanInitialCardsInput.value.trim().length > 0);
+    if (scanUndoCardBtn) scanUndoCardBtn.disabled = !hasInputText;
+    if (scanClearCardsBtn) scanClearCardsBtn.disabled = !hasInputText;
+
+    if (scanInitialPlayError) {
+      if (sim.error) {
+        scanInitialPlayError.textContent = sim.error;
+        scanInitialPlayError.classList.remove('hidden');
+      } else {
+        scanInitialPlayError.textContent = '';
+        scanInitialPlayError.classList.add('hidden');
+      }
+    }
+
+    if (scanInitialPlayedList) {
+      scanInitialPlayedList.innerHTML = '';
+      if (sim.completedTricks.length === 0 && sim.currentTrickCards.length === 0) {
+        scanInitialPlayedList.classList.add('hidden');
+      } else {
+        scanInitialPlayedList.classList.remove('hidden');
+        const formatCardsHtml = (cards) => cards.map(c =>
+          `<span class="${c.suitClass}">${c.suitSym}</span>${c.rankStr}`
+        ).join(' ');
+
+        sim.completedTricks.forEach(tr => {
+          const pill = document.createElement('span');
+          pill.className = 'scan-played-trick-pill';
+          pill.innerHTML =
+            `<strong>T${tr.trickNum} (${tr.leaderSeat}):</strong> ${formatCardsHtml(tr.cards)} ` +
+            `<span class="trick-winner-tag">→ ${tr.winnerSeat} wins</span>`;
+          scanInitialPlayedList.appendChild(pill);
+        });
+
+        if (sim.currentTrickCards.length > 0) {
+          const pill = document.createElement('span');
+          pill.className = 'scan-played-trick-pill partial-trick';
+          const leadSeat = order[sim.currentLeaderOrigIdx];
+          pill.innerHTML =
+            `<strong>T${sim.nextTrickNum} (${leadSeat}):</strong> ${formatCardsHtml(sim.currentTrickCards)} ` +
+            `<span class="trick-winner-tag">(${sim.currentTrickCards.length}/4)</span>`;
+          scanInitialPlayedList.appendChild(pill);
+        }
+      }
+    }
+
+    if (scanInitialCardPicker) {
+      scanInitialCardPicker.innerHTML = '';
+      if (sim.completedTricks.length >= 13) {
+        scanInitialCardPicker.textContent = 'All 13 tricks completed.';
+        return;
+      }
+      const nextSeatSuits = sim.remHandsAfterAll[sim.nextSeatKey] || { S: [], H: [], D: [], C: [] };
+      const totalRem = ['S', 'H', 'D', 'C'].reduce((acc, s) => acc + (nextSeatSuits[s] ? nextSeatSuits[s].length : 0), 0);
+      if (totalRem === 0) {
+        return;
+      }
+
+      let legalSuits = new Set(['S', 'H', 'D', 'C']);
+      if (sim.currentTrickCards.length > 0) {
+        const leadSuit = sim.currentTrickCards[0].suit;
+        if (nextSeatSuits[leadSuit] && nextSeatSuits[leadSuit].length > 0) {
+          legalSuits = new Set([leadSuit]);
+        }
+      }
+
+      const nextRole = getRoleLabel(sim.nextSeatOrigIdx);
+      const header = document.createElement('div');
+      header.className = 'scan-picker-header';
+      header.innerHTML =
+        `Tap a card from <strong>${seatNames[sim.nextSeatKey]} (${nextRole})</strong> to add to initial play:`;
+      scanInitialCardPicker.appendChild(header);
+
+      const suitsRow = document.createElement('div');
+      suitsRow.className = 'scan-picker-suits';
+      const suitDefs = [
+        { key: 'S', sym: '♠', cls: 'card-suit-s' },
+        { key: 'H', sym: '♥', cls: 'card-suit-h' },
+        { key: 'D', sym: '♦', cls: 'card-suit-d' },
+        { key: 'C', sym: '♣', cls: 'card-suit-c' }
+      ];
+
+      suitDefs.forEach(sd => {
+        const group = document.createElement('div');
+        group.className = 'scan-picker-suit-group';
+        const symSpan = document.createElement('span');
+        symSpan.className = `scan-picker-suit-sym ${sd.cls}`;
+        symSpan.textContent = sd.sym;
+        group.appendChild(symSpan);
+
+        const ranks = nextSeatSuits[sd.key] || [];
+        if (ranks.length === 0) {
+          const emptySpan = document.createElement('span');
+          emptySpan.style.color = '#64748b';
+          emptySpan.style.fontSize = '0.72rem';
+          emptySpan.textContent = '-';
+          group.appendChild(emptySpan);
+        } else {
+          const isSuitLegal = legalSuits.has(sd.key) && !sim.error;
+          ranks.forEach(r => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'scan-picker-card-btn';
+            btn.textContent = r;
+            btn.disabled = !isSuitLegal;
+            btn.title = isSuitLegal
+              ? `Play ${sd.sym}${r} from ${seatNames[sim.nextSeatKey]}`
+              : `Must follow suit to ${sim.currentTrickCards[0] ? sim.currentTrickCards[0].suit : ''}`;
+            btn.addEventListener('click', () => {
+              appendModalCardToken(`${sd.key}${r}`);
+            });
+            group.appendChild(btn);
+          });
+        }
+        suitsRow.appendChild(group);
+      });
+      scanInitialCardPicker.appendChild(suitsRow);
+    }
+  }
+
+  function syncModalContractFromMainUI() {
+    if (trumpSelect && trumpSelect.value) {
+      modalContractStrain = trumpSelect.value;
+    }
+    if (targetTricks && targetTricks.value) {
+      const tgt = parseInt(targetTricks.value, 10);
+      if (!isNaN(tgt)) {
+        modalContractLevel = Math.max(1, Math.min(7, tgt - 6));
+      }
+    }
+  }
+
+  function applyBoardMetadataToModal(box) {
+    if (!box) return;
+    if (box.pbnDeclarer && ['N', 'E', 'S', 'W'].includes(box.pbnDeclarer)) {
+      currentDeclarerSeat = box.pbnDeclarer;
+    }
+    if (box.pbnContract) {
+      if (box.pbnContract.level >= 1 && box.pbnContract.level <= 7) {
+        modalContractLevel = box.pbnContract.level;
+      }
+      if (box.pbnContract.strain) {
+        modalContractStrain = box.pbnContract.strain;
+      }
+    }
+    updateDeclarerBarUI(currentDeclarerSeat);
+  }
 
   function parsePbnDealString(dealStr) {
     const m = (dealStr || '').trim().match(/^([NESW]):\s*(.+)$/i);
@@ -6680,19 +7384,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const boards = [];
     const lines = text.split(/\r?\n/);
     let curBoard = null;
+    let curDeclarer = null;
+    let curContract = null;
     for (const line of lines) {
       const bm = line.match(/^\[Board\s+"([^"]+)"\]/i);
       if (bm) curBoard = bm[1].trim();
+      const decm = line.match(/^\[Declarer\s+"([NESW])"\]/i);
+      if (decm) {
+        curDeclarer = decm[1].toUpperCase();
+        if (boards.length > 0 && !curBoard && !boards[boards.length - 1].declarer) {
+          boards[boards.length - 1].declarer = curDeclarer;
+        }
+      }
+      const cm = line.match(/^\[Contract\s+"([1-7])(NT|N|S|H|D|C)/i);
+      if (cm) {
+        const lvl = parseInt(cm[1], 10);
+        const stRaw = cm[2].toUpperCase();
+        const strainMap = {
+          C: 'CLUBS', D: 'DIAMONDS', H: 'HEARTS', S: 'SPADES', N: 'NOTRUMP', NT: 'NOTRUMP'
+        };
+        curContract = { level: lvl, strain: strainMap[stRaw] || 'NOTRUMP' };
+        if (boards.length > 0 && !curBoard && !boards[boards.length - 1].contract) {
+          boards[boards.length - 1].contract = curContract;
+        }
+      }
       const dm = line.match(/^\[Deal\s+"([^"]+)"\]/i);
       if (dm) {
         const hands = parsePbnDealString(dm[1]);
         if (hands) {
           boards.push({
             board: curBoard || String(boards.length + 1),
-            hands
+            hands,
+            declarer: curDeclarer,
+            contract: curContract
           });
         }
         curBoard = null;
+        curDeclarer = null;
+        curContract = null;
       }
     }
     return boards;
@@ -6853,7 +7582,9 @@ document.addEventListener('DOMContentLoaded', () => {
         w: cellW - 8,
         h: cellH - 8,
         boardLabel: String(b.board),
-        pbnHands: b.hands
+        pbnHands: b.hands,
+        pbnDeclarer: b.declarer || null,
+        pbnContract: b.contract || null
       });
     });
 
@@ -6876,6 +7607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function renderActivePdfPage() {
     updatePdfPageBarUI();
+    if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     let pageBoardOffset = 0;
     for (let p = 1; p < activePdfPageNum; p++) {
       pageBoardOffset += (pdfPageBoardCounts[p] || 16);
@@ -6909,6 +7641,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (detectedBoardBoxes.length > 0) {
         activeDetectedBoardIdx = 0;
         cropBox = { ...detectedBoardBoxes[0] };
+        applyBoardMetadataToModal(detectedBoardBoxes[0]);
       }
       renderDetectedBoardsPills();
       fitCropPhotoView();
@@ -6925,6 +7658,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activePdfPageNum = 1;
     activePdfTotalPages = Math.max(1, Math.ceil(pbnBoards.length / 16));
     pdfPageBoardCounts = {};
+    syncModalContractFromMainUI();
+    if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     if (recropPhotoBtn) recropPhotoBtn.classList.remove('hidden');
     if (photoScanModal) photoScanModal.classList.remove('hidden');
     updateDeclarerBarUI(currentDeclarerSeat);
@@ -6939,6 +7674,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activePdfPageNum = 1;
     activePdfTotalPages = 1;
     pdfPageBoardCounts = {};
+    syncModalContractFromMainUI();
+    if (scanInitialCardsInput) scanInitialCardsInput.value = '';
 
     if (photoScanModal) photoScanModal.classList.remove('hidden');
     if (recropPhotoBtn) recropPhotoBtn.classList.remove('hidden');
@@ -7006,6 +7743,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activePdfPageNum = 1;
     activePdfTotalPages = 1;
     pdfPageBoardCounts = {};
+    syncModalContractFromMainUI();
+    if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     updatePdfPageBarUI();
 
     const reader = new FileReader();
@@ -7028,6 +7767,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openPhotoScanModalExisting(resetDetection = false) {
     if (!scanSourceCanvas || !photoScanModal) return;
+    if (resetDetection) {
+      syncModalContractFromMainUI();
+      if (scanInitialCardsInput) scanInitialCardsInput.value = '';
+    }
     photoScanModal.classList.remove('hidden');
     updateDeclarerBarUI(currentDeclarerSeat);
     updatePdfPageBarUI();
@@ -7038,6 +7781,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         fitCropPhotoView();
         renderCropCanvas();
+        updateModalContractAndPlayUI();
       }
     });
   }
@@ -7056,13 +7800,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return {
         ...b,
         boardLabel: pbnEntry ? String(pbnEntry.board) : String(boardOffset + idx + 1),
-        pbnHands: pbnEntry ? pbnEntry.hands : null
+        pbnHands: pbnEntry ? pbnEntry.hands : null,
+        pbnDeclarer: pbnEntry ? (pbnEntry.declarer || null) : null,
+        pbnContract: pbnEntry ? (pbnEntry.contract || null) : null
       };
     });
 
     if (detectedBoardBoxes.length > 0) {
       activeDetectedBoardIdx = 0;
       cropBox = { ...detectedBoardBoxes[0] };
+      applyBoardMetadataToModal(detectedBoardBoxes[0]);
     } else {
       activeDetectedBoardIdx = -1;
       const padX = Math.round(scanSourceCanvas.width * 0.06);
@@ -7098,8 +7845,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const label = box.boardLabel || String(idx + 1);
       btn.textContent = `#${label}`;
       btn.addEventListener('click', () => {
+        if (activeDetectedBoardIdx !== idx && scanInitialCardsInput) {
+          scanInitialCardsInput.value = '';
+        }
         activeDetectedBoardIdx = idx;
         cropBox = { ...detectedBoardBoxes[idx] };
+        applyBoardMetadataToModal(detectedBoardBoxes[idx]);
         renderDetectedBoardsPills();
         zoomCropViewToBox();
         scanCurrentCropRegion();
@@ -7303,6 +8054,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (scanInputW) scanInputW.value = useHands.W;
 
     updateScanValidationBadge();
+    updateModalContractAndPlayUI();
     renderCropCanvas();
   }
 
@@ -7328,7 +8080,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   [scanInputN, scanInputE, scanInputS, scanInputW].forEach(inp => {
     if (inp) {
-      inp.addEventListener('input', updateScanValidationBadge);
+      inp.addEventListener('input', () => {
+        updateScanValidationBadge();
+        updateModalContractAndPlayUI();
+      });
     }
   });
 
@@ -7417,8 +8172,12 @@ document.addEventListener('DOMContentLoaded', () => {
           pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h
         );
         if (hitIdx !== -1) {
+          if (activeDetectedBoardIdx !== hitIdx && scanInitialCardsInput) {
+            scanInitialCardsInput.value = '';
+          }
           activeDetectedBoardIdx = hitIdx;
           cropBox = { ...detectedBoardBoxes[hitIdx] };
+          applyBoardMetadataToModal(detectedBoardBoxes[hitIdx]);
           renderDetectedBoardsPills();
           scanCurrentCropRegion();
           return;
@@ -7544,6 +8303,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  document.querySelectorAll('.modal-contract-level-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lvl = parseInt(btn.dataset.level, 10);
+      if (!isNaN(lvl) && lvl >= 1 && lvl <= 7) {
+        modalContractLevel = lvl;
+        updateModalContractAndPlayUI();
+      }
+    });
+  });
+
+  document.querySelectorAll('.modal-contract-strain-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.strain) {
+        modalContractStrain = btn.dataset.strain;
+        updateModalContractAndPlayUI();
+      }
+    });
+  });
+
+  if (scanInitialCardsInput) {
+    scanInitialCardsInput.addEventListener('input', () => {
+      updateModalContractAndPlayUI();
+    });
+  }
+
+  if (scanUndoCardBtn && scanInitialCardsInput) {
+    scanUndoCardBtn.addEventListener('click', () => {
+      const toks = scanInitialCardsInput.value.trim().split(/[\s,;/]+/).filter(Boolean);
+      if (toks.length > 0) {
+        toks.pop();
+        scanInitialCardsInput.value = toks.join(' ');
+        updateModalContractAndPlayUI();
+      }
+    });
+  }
+
+  if (scanClearCardsBtn && scanInitialCardsInput) {
+    scanClearCardsBtn.addEventListener('click', () => {
+      scanInitialCardsInput.value = '';
+      updateModalContractAndPlayUI();
+    });
+  }
+
   if (closePhotoModalBtn) closePhotoModalBtn.addEventListener('click', closePhotoScanModal);
   if (cancelPhotoModalBtn) cancelPhotoModalBtn.addEventListener('click', closePhotoScanModal);
 
@@ -7556,7 +8358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         W: (scanInputW ? scanInputW.value : '').trim()
       };
       closePhotoScanModal();
-      applyDeclarerRotation(currentDeclarerSeat);
+      applyDeclarerRotation(currentDeclarerSeat, true);
     });
   }
 
@@ -7620,16 +8422,28 @@ document.addEventListener('DOMContentLoaded', () => {
       payload.actual_deal = activeActualDeal;
     }
 
-    // Include hand requirements if entered
+    // Include hand requirements if entered or if voids were revealed in initial play
+    const reqs = {};
     const wHcpLow = document.getElementById('wHcpLow').value;
     const wHcpHigh = document.getElementById('wHcpHigh').value;
     if (wHcpLow || wHcpHigh) {
-      payload.requirements = {
-        W: {
-          hcp_low: wHcpLow ? parseInt(wHcpLow, 10) : 0,
-          hcp_high: wHcpHigh ? parseInt(wHcpHigh, 10) : 37
-        }
+      reqs.W = {
+        hcp_low: wHcpLow ? parseInt(wHcpLow, 10) : 0,
+        hcp_high: wHcpHigh ? parseInt(wHcpHigh, 10) : 37
       };
+    }
+    ['E', 'W'].forEach(seatKey => {
+      const voidSet = importedSuitVoids && importedSuitVoids[seatKey];
+      if (voidSet && voidSet.size > 0) {
+        if (!reqs[seatKey]) reqs[seatKey] = {};
+        if (!reqs[seatKey].suit_max) reqs[seatKey].suit_max = {};
+        voidSet.forEach(s => {
+          reqs[seatKey].suit_max[s] = 0;
+        });
+      }
+    });
+    if (Object.keys(reqs).length > 0) {
+      payload.requirements = reqs;
     }
 
     let isSolving = true;
@@ -8129,7 +8943,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Preserve any HCP requirements and record void suits when E or W showed
       // out (played a card of a different suit than the suit led) on a prefix
-      // trick or earlier in the current trick.
+      // trick, earlier in the current trick, or during imported initial play.
       const reqs = {};
       const wHcpLowEl = document.getElementById('wHcpLow');
       const wHcpHighEl = document.getElementById('wHcpHigh');
@@ -8141,6 +8955,16 @@ document.addEventListener('DOMContentLoaded', () => {
           hcp_high: wHcpHigh ? parseInt(wHcpHigh, 10) : 37
         };
       }
+      ['E', 'W'].forEach(seatKey => {
+        const voidSet = importedSuitVoids && importedSuitVoids[seatKey];
+        if (voidSet && voidSet.size > 0) {
+          if (!reqs[seatKey]) reqs[seatKey] = {};
+          if (!reqs[seatKey].suit_max) reqs[seatKey].suit_max = {};
+          voidSet.forEach(s => {
+            reqs[seatKey].suit_max[s] = 0;
+          });
+        }
+      });
       const recordVoidIfShowedOut = (trickCards) => {
         if (!Array.isArray(trickCards) || trickCards.length < 2) return;
         const leadSuit = trickCards[0] && trickCards[0].suit;

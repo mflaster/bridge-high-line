@@ -2474,14 +2474,16 @@ body.is-resizing * {
   color: #93c5fd;
 }
 
-.scan-declarer-box {
+.scan-declarer-box,
+.scan-contract-box,
+.scan-initial-play-box {
   background-color: #0f172a;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .scan-declarer-header {
@@ -2513,9 +2515,202 @@ body.is-resizing * {
 }
 
 .modal-declarer-btn {
-  padding: 6px 8px;
-  font-size: 12.5px;
+  padding: 5px 8px;
+  font-size: 12px;
   text-align: center;
+}
+
+.scan-contract-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.contract-level-group {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 2px;
+  gap: 2px;
+}
+
+.contract-strain-group {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 2px;
+  gap: 2px;
+}
+
+.modal-contract-level-btn,
+.modal-contract-strain-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 5px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.modal-contract-level-btn:hover,
+.modal-contract-strain-btn:hover {
+  color: var(--text-main);
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.modal-contract-level-btn.active,
+.modal-contract-strain-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.scan-initial-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scan-initial-input-row .text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.scan-initial-error {
+  font-size: 11px;
+  color: #fca5a5;
+  background-color: rgba(127, 29, 29, 0.35);
+  border: 1px solid #7f1d1d;
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+
+.scan-initial-error.hidden,
+.scan-initial-played-list.hidden {
+  display: none !important;
+}
+
+.scan-initial-played-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 92px;
+  overflow-y: auto;
+  padding: 4px 6px;
+  background-color: #090e1a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+}
+
+.scan-played-trick-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11.5px;
+  font-family: monospace;
+}
+
+.scan-played-trick-label {
+  color: #94a3b8;
+  font-weight: 700;
+  min-width: 24px;
+}
+
+.scan-played-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.scan-played-card-pill.winner-pill {
+  border-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.16);
+}
+
+.scan-played-winner-tag {
+  font-size: 10.5px;
+  color: #6ee7b7;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.scan-initial-card-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background-color: #0b1324;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+}
+
+.scan-picker-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scan-picker-suits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.scan-picker-suit-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.scan-picker-suit-sym {
+  font-size: 13px;
+  font-weight: 800;
+  margin-right: 1px;
+}
+
+.scan-picker-card-btn {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #fef08a;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  font-family: monospace;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1.3;
+  transition: all 0.12s ease;
+}
+
+.scan-picker-card-btn:hover:not(:disabled) {
+  background-color: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.scan-picker-card-btn:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+  color: #64748b;
 }
 
 .scan-hands-preview {
