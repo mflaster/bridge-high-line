@@ -62,8 +62,6 @@ void PlayTrick(const std::string &trick, BoardState &bs) {
   return bs.PlayTrick(trick);
 }
 
-namespace {
-
 // Plays a card on `bs` matching `card_str` (e.g. "SA", "Cx", "D2").
 // Returns true if a legal card in `bs.ValidCardsToPlay()` was matched and
 // played, or false if the board cannot follow this play.
@@ -118,8 +116,6 @@ bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
   }
   return false;
 }
-
-}  // namespace
 
 std::vector<BoardState> LineFinder::SetupBoards(
     Suit trump, int leader, std::set<int> &board_offsets,

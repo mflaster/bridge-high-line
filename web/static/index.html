@@ -134,8 +134,21 @@
         <div class="hand-inputs-accordion">
           <div class="hand-inputs-header">
             <h3>Hand Text Inputs</h3>
-            <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm">Load</button>
-            <input type="file" id="fileInputTxt" accept=".txt,.deal" style="display: none;">
+            <div class="hand-inputs-actions">
+              <button id="recropPhotoBtn" type="button" class="btn btn-secondary-sm hidden" title="Re-open photo/PDF crop &amp; board scanner">Crop Photo</button>
+              <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm" title="Load from camera photo, image, PDF, PBN, or .txt/.deal file">Load</button>
+              <input type="file" id="fileInputTxt" accept="image/*,.pdf,application/pdf,.pbn,.txt,.deal" style="display: none;">
+            </div>
+          </div>
+          <div id="declarerRotateBar" class="declarer-rotate-bar">
+            <span class="declarer-rotate-label" title="Rotates the 4 compass hands so Declarer is placed at North (Hand 0) and Dummy at South (Hand 2)">Declarer (→ N):</span>
+            <div class="declarer-seat-group" role="group" aria-label="Select Declarer compass seat">
+              <button type="button" class="declarer-seat-btn active" data-seat="N">N</button>
+              <button type="button" class="declarer-seat-btn" data-seat="E">E</button>
+              <button type="button" class="declarer-seat-btn" data-seat="S">S</button>
+              <button type="button" class="declarer-seat-btn" data-seat="W">W</button>
+            </div>
+            <span id="declarerMappingHint" class="declarer-mapping-hint">N=Decl · S=Dummy</span>
           </div>
           <div class="hand-input-row">
             <div class="hand-input-group">
@@ -286,6 +299,10 @@
             <span class="stat-label">Failure Rate</span>
             <span id="statFailure" class="stat-value">-</span>
           </div>
+          <div id="cardStatActual" class="stat-card stat-card-toggle hidden" role="button" tabindex="0" title="Click to view and trace the Actual Deal (#0)">
+            <span class="stat-label">Actual (#0)</span>
+            <span id="statActual" class="stat-value">-</span>
+          </div>
         </div>
 
         <!-- Equivalent / Alternative Lines Selector Bar -->
@@ -430,6 +447,93 @@
       </section>
     </div>
   </main>
+
+  <!-- Photo Crop & On-Device Hand Record Scanner Modal -->
+  <div id="photoScanModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="photoScanModalTitle">
+    <div class="modal-card photo-scan-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="photoScanModalTitle">Scan Hand Record Photo</h2>
+          <span class="modal-subtitle">Drag crop handles around a single 4-hand board diagram (or tap any highlighted board)</span>
+        </div>
+        <button id="closePhotoModalBtn" type="button" class="inspector-close-btn" title="Close modal">✕</button>
+      </div>
+
+      <div class="photo-scan-body">
+        <!-- Left / Top: Interactive Crop Canvas & Toolbar -->
+        <div class="photo-crop-column">
+          <div class="photo-crop-toolbar">
+            <div id="pdfPageBar" class="pdf-page-bar hidden">
+              <button id="pdfPrevPageBtn" type="button" class="btn btn-secondary-sm" title="Previous PDF page">◀</button>
+              <span id="pdfPageIndicator" class="pdf-page-indicator">Page 1 / 1</span>
+              <button id="pdfNextPageBtn" type="button" class="btn btn-secondary-sm" title="Next PDF page">▶</button>
+            </div>
+            <button id="cropRotateBtn" type="button" class="btn btn-secondary-sm" title="Rotate photo 90° clockwise">↻ Rotate 90°</button>
+            <button id="cropZoomToBoxBtn" type="button" class="btn btn-secondary-sm" title="Zoom view to current crop box">🔍 Zoom Crop</button>
+            <button id="cropResetViewBtn" type="button" class="btn btn-secondary-sm" title="Fit full page/photo in view">Fit Page</button>
+            <button id="cropNewPhotoBtn" type="button" class="btn btn-secondary-sm" title="Select another file">New File</button>
+          </div>
+
+          <div id="detectedBoardsBar" class="detected-boards-bar hidden">
+            <span class="detected-boards-label">Detected Boards:</span>
+            <div id="detectedBoardsList" class="detected-boards-list"></div>
+          </div>
+
+          <div id="cropCanvasViewport" class="crop-canvas-viewport">
+            <canvas id="cropCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Right / Bottom: Scanned Hands Preview, Declarer Selection & Actions -->
+        <div class="photo-scan-controls-column">
+          <div id="scanStatusBadge" class="scan-status-badge scan-status-pending">
+            Scanning board diagram...
+          </div>
+
+          <div class="scan-declarer-box">
+            <div class="scan-declarer-header">
+              <span class="scan-declarer-title">Who is Declarer?</span>
+              <span id="modalDeclarerHint" class="scan-declarer-hint">North → Hand 0 (Declarer) · South → Hand 2 (Dummy)</span>
+            </div>
+            <div class="declarer-seat-group declarer-seat-group-lg" role="group" aria-label="Select Declarer in modal">
+              <button type="button" class="modal-declarer-btn active" data-seat="N">North (N)</button>
+              <button type="button" class="modal-declarer-btn" data-seat="E">East (E)</button>
+              <button type="button" class="modal-declarer-btn" data-seat="S">South (S)</button>
+              <button type="button" class="modal-declarer-btn" data-seat="W">West (W)</button>
+            </div>
+          </div>
+
+          <div class="scan-hands-preview">
+            <div class="scan-hands-header">
+              <span>Scanned Compass Hands (editable)</span>
+              <button id="rescanCropBtn" type="button" class="btn btn-secondary-sm" title="Re-run OCR on current crop">↻ Re-scan</button>
+            </div>
+            <div class="scan-hand-field">
+              <label for="scanInputN"><span class="seat-pill">N</span><span id="scanRoleN" class="scan-role-tag">Declarer</span></label>
+              <input type="text" id="scanInputN" class="text-input mini-text-input" placeholder="S ...; H ...; D ...; C ...;">
+            </div>
+            <div class="scan-hand-field">
+              <label for="scanInputE"><span class="seat-pill">E</span><span id="scanRoleE" class="scan-role-tag">Defender (LHO)</span></label>
+              <input type="text" id="scanInputE" class="text-input mini-text-input" placeholder="S ...; H ...; D ...; C ...;">
+            </div>
+            <div class="scan-hand-field">
+              <label for="scanInputS"><span class="seat-pill">S</span><span id="scanRoleS" class="scan-role-tag">Dummy</span></label>
+              <input type="text" id="scanInputS" class="text-input mini-text-input" placeholder="S ...; H ...; D ...; C ...;">
+            </div>
+            <div class="scan-hand-field">
+              <label for="scanInputW"><span class="seat-pill">W</span><span id="scanRoleW" class="scan-role-tag">Defender (RHO)</span></label>
+              <input type="text" id="scanInputW" class="text-input mini-text-input" placeholder="S ...; H ...; D ...; C ...;">
+            </div>
+          </div>
+
+          <div class="modal-footer-actions">
+            <button id="cancelPhotoModalBtn" type="button" class="btn btn-secondary">Cancel</button>
+            <button id="applyPhotoModalBtn" type="button" class="btn btn-primary">Apply to Deal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

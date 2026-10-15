@@ -936,6 +936,22 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   REQUIRE(res_index);
   REQUIRE(res_index->body.find("stopSolveBtn") != std::string::npos);
   REQUIRE(res_index->body.find("stopSolveActionBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("photoScanModal") != std::string::npos);
+  REQUIRE(res_index->body.find("declarerRotateBar") != std::string::npos);
+  REQUIRE(res_index->body.find("pdfPageBar") != std::string::npos);
+  REQUIRE(res_index->body.find(
+              "image/*,.pdf,application/pdf,.pbn,.txt,.deal") !=
+          std::string::npos);
+
+  auto res_app_js = client.Get("/app.js");
+  REQUIRE(res_app_js);
+  REQUIRE(res_app_js->body.find("recognizeBoardFromImageData") !=
+          std::string::npos);
+  REQUIRE(res_app_js->body.find("applyDeclarerRotation") != std::string::npos);
+  REQUIRE(res_app_js->body.find("openPhotoScanModalWithPdfFile") !=
+          std::string::npos);
+  REQUIRE(res_app_js->body.find("extractPbnBoardsFromPdfBuffer") !=
+          std::string::npos);
 
   // Test partial-trick proposal with wildcard 'x' moved from Unknown Cards
   // into West's hand (e.g. Simple Finesse preset: S7, Sx, SA).
@@ -1023,5 +1039,59 @@ TEST_CASE("WebServer Direct SolveJson and ProgressCallback") {
   REQUIRE(st["status"] == "Solve complete.");
 }
 
+TEST_CASE("WebServer SolveJson Actual Deal Evaluation (Board #0)") {
+  WebServer engine;
 
+  // Simple finesse: North has S AQ, South has S 87, unknown S Kxx5.
+  // South leads S7 to finesse SQ.
+  // Case 1: Actual layout has SK onside in West -> should succeed (2 tricks).
+  nlohmann::json req_make;
+  req_make["hands"]["N"] = "S AQ; H -; D -; C -;";
+  req_make["hands"]["E"] = "";
+  req_make["hands"]["S"] = "S 87; H -; D -; C -;";
+  req_make["hands"]["W"] = "";
+  req_make["trump"] = "SPADES";
+  req_make["leader"] = "SOUTH";
+  req_make["min_tricks"] = 2;
+  req_make["num_iters"] = 6;
+  req_make["num_threads"] = 1;
+  req_make["unknown_cards"] = "S Kxx5";
+  req_make["actual_deal"]["N"] = "S AQ; H -; D -; C -;";
+  req_make["actual_deal"]["E"] = "S x5; H -; D -; C -;";
+  req_make["actual_deal"]["S"] = "S 87; H -; D -; C -;";
+  req_make["actual_deal"]["W"] = "S Kx; H -; D -; C -;";
 
+  int status_make = 0;
+  std::string body_make = engine.SolveJson(req_make.dump(), &status_make);
+  REQUIRE(status_make == 200);
+  nlohmann::json res_make = nlohmann::json::parse(body_make);
+  REQUIRE(res_make["success"] == true);
+  REQUIRE(res_make["total_boards"] == 6);
+  REQUIRE(res_make.contains("actual_hand"));
+  REQUIRE(res_make["actual_hand"]["board_id"] == -1);
+  REQUIRE(res_make["actual_hand"]["succeeded"] == true);
+  REQUIRE(res_make["actual_hand"]["ns_tricks"] == 2);
+  REQUIRE(res_make["tree"].contains("boards"));
+  const auto &root_boards_make = res_make["tree"]["boards"];
+  REQUIRE(std::find(root_boards_make.begin(), root_boards_make.end(), -1) !=
+          root_boards_make.end());
+
+  // Case 2: Actual layout has SK offside in East -> finesse fails (1 trick).
+  nlohmann::json req_fail = req_make;
+  req_fail["actual_deal"]["E"] = "S Kx; H -; D -; C -;";
+  req_fail["actual_deal"]["W"] = "S x5; H -; D -; C -;";
+
+  int status_fail = 0;
+  std::string body_fail = engine.SolveJson(req_fail.dump(), &status_fail);
+  REQUIRE(status_fail == 200);
+  nlohmann::json res_fail = nlohmann::json::parse(body_fail);
+  REQUIRE(res_fail["success"] == true);
+  REQUIRE(res_fail["total_boards"] == 6);
+  REQUIRE(res_fail.contains("actual_hand"));
+  REQUIRE(res_fail["actual_hand"]["board_id"] == -1);
+  REQUIRE(res_fail["actual_hand"]["succeeded"] == false);
+  REQUIRE(res_fail["actual_hand"]["ns_tricks"] == 1);
+  const auto &root_boards_fail = res_fail["tree"]["boards"];
+  REQUIRE(std::find(root_boards_fail.begin(), root_boards_fail.end(), -1) !=
+          root_boards_fail.end());
+}
