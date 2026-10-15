@@ -6139,12 +6139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       detail.setAttribute('y', '42');
       detail.setAttribute('class', 'node-text-detail');
       const { primary: detailText, secondary: failLineText } = formatNodeCardDealLines(node);
-      const typeLabel = (node.type === 'condition') ? 'BRANCH' : (node.type || 'action').toUpperCase();
-      if (typeLabel === 'ACTION' || typeLabel === 'OUTCOME') {
-        detail.textContent = detailText;
-      } else {
-        detail.textContent = detailText ? `${typeLabel} | ${detailText}` : typeLabel;
-      }
+      detail.textContent = detailText;
       g.appendChild(detail);
 
       // 3rd Line: N/S Won on outcome nodes, or Fails count on non-outcome nodes
@@ -6192,7 +6187,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function formatNodeCardDealLines(node) {
     const total = (node.total_boards !== undefined && node.total_boards > 0) ? node.total_boards : 0;
-    const withPct = (n) => total ? `${n} (${((n / total) * 100).toFixed(1)}%)` : `${n}`;
+    const withPct = (n, denom = total) => denom > 0 ? `${n} (${((n / denom) * 100).toFixed(1)}%)` : `${n}`;
     if (node.failure) {
       const fails = node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0);
       if (fails === 0 && Array.isArray(node.boards) && node.boards.includes(-1)) {
@@ -6204,9 +6199,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (wins === undefined) return { primary: '', secondary: '' };
     const fails = node.failure_boards || 0;
     if (fails > 0 && node.type !== 'outcome') {
+      const branchTotal = wins + fails;
       return {
-        primary: `Makes: ${withPct(wins)}`,
-        secondary: `Fails: ${withPct(fails)}`
+        primary: `Makes: ${withPct(wins, branchTotal)}`,
+        secondary: `Fails: ${withPct(fails, branchTotal)}`
       };
     }
     return { primary: `Deals: ${withPct(wins)}`, secondary: '' };
