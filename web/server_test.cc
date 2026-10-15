@@ -47,6 +47,8 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_css->body.find(".traced-branch-link") != std::string::npos);
   REQUIRE(res_css->body.find(".trick-columns-header") != std::string::npos);
   REQUIRE(res_css->body.find(".card-chip.card-lead") != std::string::npos);
+  REQUIRE(res_css->body.find(".card-chip.card-winner") != std::string::npos);
+  REQUIRE(res_css->body.find("border-radius: 9999px") != std::string::npos);
   REQUIRE(res_css->body.find(".card-rank-playable") != std::string::npos);
   REQUIRE(res_css->body.find(".equivalent-lines-bar") != std::string::npos);
   REQUIRE(res_css->body.find(".compare-line-row") != std::string::npos);

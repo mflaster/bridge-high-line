@@ -1159,17 +1159,19 @@ body.is-resizing * {
 .card-chip.card-suit-neutral .suit-symbol { color: #cbd5e1; }
 
 .card-chip.card-winner {
+  border-radius: 9999px;
+  padding: 3px 8px;
   font-weight: 800 !important;
 }
 
 .card-chip.card-winner.card-winner-ns {
   border: 2px solid #38bdf8 !important;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5), inset 0 0 4px rgba(56, 189, 248, 0.2);
 }
 
 .card-chip.card-winner.card-winner-ew {
   border: 2px solid #c084fc !important;
-  box-shadow: 0 0 6px rgba(192, 132, 252, 0.4);
+  box-shadow: 0 0 8px rgba(192, 132, 252, 0.5), inset 0 0 4px rgba(192, 132, 252, 0.2);
 }
 
 /* Tree Nodes SVG Styling */
