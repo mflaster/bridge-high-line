@@ -31,6 +31,9 @@
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
         </select>
+        <button id="openFeedbackBtn" type="button" class="feedback-header-btn" title="Send feedback or report an issue">
+          💬 Feedback
+        </button>
       </div>
     </div>
   </header>
@@ -532,6 +535,44 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- User Feedback Modal -->
+  <div id="feedbackModal" class="feedback-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+    <div class="feedback-modal-card">
+      <div class="feedback-modal-header">
+        <h3 id="feedbackModalTitle">Send Feedback</h3>
+        <button id="closeFeedbackModalBtn" type="button" class="feedback-modal-close" aria-label="Close feedback dialog">&times;</button>
+      </div>
+      <p class="feedback-modal-subtitle">
+        Report a bug, unexpected line of play, or suggestion.
+      </p>
+      <form id="feedbackForm" class="feedback-form">
+        <div class="feedback-form-row">
+          <div class="feedback-field">
+            <label for="feedbackNameInput">Name (optional)</label>
+            <input type="text" id="feedbackNameInput" class="text-input" placeholder="Your name" autocomplete="name">
+          </div>
+          <div class="feedback-field">
+            <label for="feedbackEmailInput">Email (optional)</label>
+            <input type="email" id="feedbackEmailInput" class="text-input" placeholder="you@example.com" autocomplete="email">
+          </div>
+        </div>
+        <div class="feedback-field">
+          <label for="feedbackMessageInput">Feedback / Issue Description *</label>
+          <textarea id="feedbackMessageInput" class="text-input feedback-textarea" rows="4" required placeholder="What happened, or what would you like to see improved?"></textarea>
+        </div>
+        <label class="feedback-checkbox-label">
+          <input type="checkbox" id="feedbackIncludeDealCheckbox" checked>
+          <span>Attach current deal &amp; solver state</span>
+        </label>
+        <div id="feedbackStatusMsg" class="feedback-status-msg hidden"></div>
+        <div class="feedback-modal-actions">
+          <button id="cancelFeedbackBtn" type="button" class="btn-secondary">Cancel</button>
+          <button id="submitFeedbackBtn" type="submit" class="btn-primary">Send Feedback</button>
+        </div>
+      </form>
     </div>
   </div>
 
