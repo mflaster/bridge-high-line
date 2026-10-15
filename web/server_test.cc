@@ -68,6 +68,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("leadSeatIdx") != std::string::npos);
   REQUIRE(res_js->body.find("trick-columns-header") != std::string::npos);
   REQUIRE(res_js->body.find("function handleProposeCardClick") != std::string::npos);
+  REQUIRE(res_js->body.find("function zoomAroundPoint") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");

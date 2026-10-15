@@ -1299,6 +1299,7 @@ body.is-resizing * {
   overflow: hidden;
   position: relative;
   cursor: grab;
+  touch-action: none;
 }
 
 .tree-viewport:active {
@@ -3911,7 +3912,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchPresets() {
     try {
-      const res = await fetch('/api/presets');
+      const res = await fetch('/api/presets', { cache: 'no-cache' });
       if (res.ok) {
         const loaded = await res.json();
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
@@ -3924,7 +3925,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Try static presets.json fallback next
     }
     try {
-      const res = await fetch('presets.json');
+      const res = await fetch('presets.json', { cache: 'no-cache' });
       if (res.ok) {
         const loaded = await res.json();
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
@@ -6963,6 +6964,16 @@ document.addEventListener('DOMContentLoaded', () => {
     treeRootGroup.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoomLevel})`);
   }
 
+  function zoomAroundPoint(targetZoom, focalX, focalY) {
+    const newZoom = Math.max(0.3, Math.min(3.0, targetZoom));
+    const worldX = (focalX - panX) / zoomLevel;
+    const worldY = (focalY - panY) / zoomLevel;
+    zoomLevel = newZoom;
+    panX = focalX - worldX * newZoom;
+    panY = focalY - worldY * newZoom;
+    updateTransform();
+  }
+
   treeViewport.addEventListener('mousedown', (e) => {
     isDragging = true;
     startX = e.clientX - panX;
@@ -6980,9 +6991,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   treeViewport.addEventListener('wheel', (e) => {
     e.preventDefault();
+    const rect = treeViewport.getBoundingClientRect();
+    const focalX = e.clientX - rect.left;
+    const focalY = e.clientY - rect.top;
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    zoomLevel = Math.max(0.3, Math.min(3.0, zoomLevel * zoomFactor));
-    updateTransform();
+    zoomAroundPoint(zoomLevel * zoomFactor, focalX, focalY);
   });
 
   // Mobile Touch Pan & Pinch-to-Zoom
@@ -6993,6 +7006,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let touchStartPanY = 0;
   let pinchStartDist = 0;
   let pinchStartZoom = 1.0;
+  let pinchStartPanX = 0;
+  let pinchStartPanY = 0;
+  let pinchStartMidX = 0;
+  let pinchStartMidY = 0;
 
   treeViewport.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
@@ -7004,10 +7021,15 @@ document.addEventListener('DOMContentLoaded', () => {
       touchStartPanY = panY;
     } else if (e.touches.length === 2) {
       touchDragging = false;
+      const rect = treeViewport.getBoundingClientRect();
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       pinchStartDist = Math.hypot(dx, dy);
       pinchStartZoom = zoomLevel;
+      pinchStartPanX = panX;
+      pinchStartPanY = panY;
+      pinchStartMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+      pinchStartMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
     }
   }, { passive: true });
 
@@ -7023,19 +7045,35 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (e.touches.length === 2 && pinchStartDist > 0) {
       e.preventDefault();
+      const rect = treeViewport.getBoundingClientRect();
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
       if (dist > 0) {
-        zoomLevel = Math.max(0.3, Math.min(3.0, pinchStartZoom * (dist / pinchStartDist)));
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+        const newZoom = Math.max(0.3, Math.min(3.0, pinchStartZoom * (dist / pinchStartDist)));
+        const worldX = (pinchStartMidX - pinchStartPanX) / pinchStartZoom;
+        const worldY = (pinchStartMidY - pinchStartPanY) / pinchStartZoom;
+        zoomLevel = newZoom;
+        panX = midX - worldX * newZoom;
+        panY = midY - worldY * newZoom;
         updateTransform();
       }
     }
   }, { passive: false });
 
-  treeViewport.addEventListener('touchend', () => {
-    touchDragging = false;
+  treeViewport.addEventListener('touchend', (e) => {
     pinchStartDist = 0;
+    if (e.touches.length === 1) {
+      touchDragging = true;
+      touchStartClientX = e.touches[0].clientX;
+      touchStartClientY = e.touches[0].clientY;
+      touchStartPanX = panX;
+      touchStartPanY = panY;
+    } else {
+      touchDragging = false;
+    }
   });
 
   treeViewport.addEventListener('touchcancel', () => {
@@ -7043,8 +7081,14 @@ document.addEventListener('DOMContentLoaded', () => {
     pinchStartDist = 0;
   });
 
-  zoomInBtn.addEventListener('click', () => { zoomLevel = Math.min(3.0, zoomLevel * 1.2); updateTransform(); });
-  zoomOutBtn.addEventListener('click', () => { zoomLevel = Math.max(0.3, zoomLevel / 1.2); updateTransform(); });
+  zoomInBtn.addEventListener('click', () => {
+    const rect = treeViewport.getBoundingClientRect();
+    zoomAroundPoint(zoomLevel * 1.2, rect.width / 2, rect.height / 2);
+  });
+  zoomOutBtn.addEventListener('click', () => {
+    const rect = treeViewport.getBoundingClientRect();
+    zoomAroundPoint(zoomLevel / 1.2, rect.width / 2, rect.height / 2);
+  });
   resetZoomBtn.addEventListener('click', () => { zoomLevel = 1.0; panX = 40; panY = 40; updateTransform(); });
 
   function renderDistributionSummary(dist) {
