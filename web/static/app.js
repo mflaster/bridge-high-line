@@ -6794,6 +6794,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
+    const feedbackMessage = `${message}${dealSummaryText}`.slice(0, 4096);
     const feedbackPayload = {
       event_id: feedbackEventId,
       timestamp: nowIso,
@@ -6809,7 +6810,7 @@ document.addEventListener('DOMContentLoaded', () => {
         feedback: {
           name: name || 'Anonymous',
           ...(email ? { contact_email: email } : {}),
-          message,
+          message: feedbackMessage,
           associated_event_id: eventId,
           url: window.location.href
         },
@@ -6817,20 +6818,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    const envelopeBody = [
+    // Sentry envelope spec: `event`, `transaction`, and `feedback` items are
+    // mutually exclusive (at most one per envelope, and the envelope header's
+    // `event_id` must match the contained item's `event_id`). Combining both
+    // in a single envelope causes Relay to reject the request with HTTP 413.
+    const eventEnvelope = [
       JSON.stringify({ event_id: eventId, sent_at: nowIso, dsn: SENTRY_DSN }),
-      JSON.stringify({ type: 'event' }),
-      JSON.stringify(eventPayload),
-      JSON.stringify({ type: 'feedback' }),
+      JSON.stringify({ type: 'event', content_type: 'application/json' }),
+      JSON.stringify(eventPayload)
+    ].join('\n') + '\n';
+
+    const feedbackEnvelope = [
+      JSON.stringify({ event_id: feedbackEventId, sent_at: nowIso, dsn: SENTRY_DSN }),
+      JSON.stringify({ type: 'feedback', content_type: 'application/json' }),
       JSON.stringify(feedbackPayload)
     ].join('\n') + '\n';
 
-    const res = await fetch(SENTRY_ENVELOPE_URL, {
-      method: 'POST',
-      body: envelopeBody
-    });
-    if (!res.ok) {
-      throw new Error(`Sentry returned HTTP ${res.status}`);
+    const [eventRes, feedbackRes] = await Promise.all([
+      fetch(SENTRY_ENVELOPE_URL, { method: 'POST', body: eventEnvelope }),
+      fetch(SENTRY_ENVELOPE_URL, { method: 'POST', body: feedbackEnvelope })
+    ]);
+
+    if (!eventRes.ok && !feedbackRes.ok) {
+      const errText = await eventRes.text().catch(() => '');
+      throw new Error(
+        `Sentry returned HTTP ${eventRes.status}${errText ? ': ' + errText.slice(0, 120) : ''}`
+      );
     }
     return eventId;
   }
