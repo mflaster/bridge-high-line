@@ -3912,7 +3912,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchPresets() {
     try {
-      const res = await fetch('/api/presets');
+      const res = await fetch('/api/presets', { cache: 'no-cache' });
       if (res.ok) {
         const loaded = await res.json();
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
@@ -3925,7 +3925,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Try static presets.json fallback next
     }
     try {
-      const res = await fetch('presets.json');
+      const res = await fetch('presets.json', { cache: 'no-cache' });
       if (res.ok) {
         const loaded = await res.json();
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
