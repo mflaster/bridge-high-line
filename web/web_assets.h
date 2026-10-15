@@ -116,8 +116,8 @@ inline const char* INDEX_HTML = R"rawhtml(
                     <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
                   </div>
                   <div class="middle-control-group">
-                    <label for="numIters">Iters:</label>
-                    <input type="text" inputmode="numeric" id="numIters" value="10" class="middle-number-input">
+                    <label for="numIters">Rand deals:</label>
+                    <input type="text" inputmode="numeric" id="numIters" value="100" class="middle-number-input">
                   </div>
                 </div>
               </foreignObject>
@@ -795,7 +795,7 @@ body.is-resizing * {
   justify-content: center;
   align-items: stretch;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 6px 6px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -817,6 +817,7 @@ body.is-resizing * {
   font-size: 11px;
   font-weight: 600;
   color: #a7f3d0;
+  white-space: nowrap;
 }
 
 .middle-select, .middle-number-input {
@@ -849,7 +850,7 @@ body.is-resizing * {
 .middle-number-input {
   -moz-appearance: textfield;
   appearance: textfield;
-  width: 44px;
+  width: 38px;
   text-align: center;
 }
 
@@ -3612,7 +3613,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'SPADES',
       leader: 'SOUTH',
       target: 2,
-      iters: 10,
+      iters: 100,
       north: 'S AQ; H -; D -; C -;',
       east: '',
       south: 'S 87; H -; D -; C -;',
@@ -3624,7 +3625,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'HEARTS',
       leader: 'SOUTH',
       target: 3,
-      iters: 30,
+      iters: 100,
       north: 'S AQT; H 2; D -; C -;',
       east: '',
       south: 'S 876; H A; D -; C -;',
@@ -3636,7 +3637,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'NOTRUMP',
       leader: 'NORTH',
       target: 6,
-      iters: 15,
+      iters: 100,
       north: 'S A43; H -; D AKQ; C -;',
       east: '',
       south: 'S K2; H K; D 432; C -;',
@@ -3648,7 +3649,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'HEARTS',
       leader: 'NORTH',
       target: 6,
-      iters: 20,
+      iters: 100,
       north: 'S 532; H T7; D T32; C 6;',
       east: '',
       south: 'S K9; H -; D A854; C AKJ;',
@@ -3684,7 +3685,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'SPADES',
       leader: 'NORTH',
       target: 13,
-      iters: 50,
+      iters: 100,
       north: 'S AT987; H AK; D AKQ; C AKQ;',
       east: '',
       south: 'S K654; H QJT; D JT9; C JT9;',
@@ -3697,7 +3698,7 @@ document.addEventListener('DOMContentLoaded', () => {
       leader: 'EAST',
       cur_trick: ['DQ'],
       target: 12,
-      iters: 50,
+      iters: 100,
       north: 'S AKJT83; H AKQ; D -; C A652;',
       east: 'D Q;',
       south: 'S Q52; H JT984; D K2; C 874;',
@@ -3709,7 +3710,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'NOTRUMP',
       leader: 'NORTH',
       target: 10,
-      iters: 50,
+      iters: 100,
       north: 'S AJ97; H A2; D A2; C A2;',
       east: '',
       south: 'S KT86; H K3; D K3; C K3;',
@@ -4892,7 +4893,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: trumpSelect.value,
       leader: leaderSelect.value,
       min_tricks: isNaN(parseInt(targetTricks.value, 10)) ? 1 : parseInt(targetTricks.value, 10),
-      num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10),
+      num_iters: isNaN(parseInt(numIters.value, 10)) ? 100 : parseInt(numIters.value, 10),
       num_threads: isNaN(parsedThreads) ? 16 : parsedThreads
     };
 
@@ -5384,7 +5385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         trump: trumpSelect.value,
         leader: leaderForSolve,
         min_tricks: remainingMinTricks,
-        num_iters: isNaN(parseInt(numIters.value, 10)) ? 10 : parseInt(numIters.value, 10),
+        num_iters: isNaN(parseInt(numIters.value, 10)) ? 100 : parseInt(numIters.value, 10),
         num_threads: isNaN(parsedThreads) ? 16 : parsedThreads,
         cur_trick: curTrickForSolve,
         start_trick_num: startTrickNumForSolve,
@@ -7293,7 +7294,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "trump": "SPADES",
     "leader": "SOUTH",
     "target": 2,
-    "iters": 10,
+    "iters": 100,
     "north": "S AQ; H -; D -; C -;",
     "east": "",
     "south": "S 87; H -; D -; C -;",
@@ -7305,7 +7306,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "trump": "HEARTS",
     "leader": "SOUTH",
     "target": 3,
-    "iters": 30,
+    "iters": 100,
     "north": "S AQT; H 2; D -; C -;",
     "east": "",
     "south": "S 876; H A; D -; C -;",
@@ -7317,7 +7318,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "trump": "NOTRUMP",
     "leader": "NORTH",
     "target": 6,
-    "iters": 15,
+    "iters": 100,
     "north": "S A43; H -; D AKQ; C -;",
     "east": "",
     "south": "S K2; H K; D 432; C -;",
@@ -7329,7 +7330,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "trump": "HEARTS",
     "leader": "NORTH",
     "target": 6,
-    "iters": 20,
+    "iters": 100,
     "north": "S 532; H T7; D T32; C 6;",
     "east": "",
     "south": "S K9; H -; D A854; C AKJ;",
@@ -7365,7 +7366,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "trump": "SPADES",
     "leader": "NORTH",
     "target": 13,
-    "iters": 50,
+    "iters": 100,
     "north": "S AT987; H AK; D AKQ; C AKQ;",
     "east": "",
     "south": "S K654; H QJT; D JT9; C JT9;",
@@ -7378,7 +7379,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "leader": "EAST",
     "cur_trick": ["DQ"],
     "target": 12,
-    "iters": 50,
+    "iters": 100,
     "north": "S AKJT83; H AKQ; D -; C A652;",
     "east": "D Q;",
     "south": "S Q52; H JT984; D K2; C 874;",
@@ -7390,7 +7391,7 @@ inline const char* PRESETS_JSON = R"rawjson(
     "trump": "NOTRUMP",
     "leader": "NORTH",
     "target": 10,
-    "iters": 50,
+    "iters": 100,
     "north": "S AJ97; H A2; D A2; C A2;",
     "east": "",
     "south": "S KT86; H K3; D K3; C K3;",

@@ -1432,7 +1432,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
     hands[2] = ParseHand(south_str);
     hands[3] = ParseHand(west_str);
 
-    int num_iters = 10;
+    int num_iters = 100;
     if (req_json.contains("num_iters")) {
       num_iters = req_json["num_iters"].get<int>();
     }
