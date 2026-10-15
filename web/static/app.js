@@ -6945,6 +6945,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const trimmed = node.trick.trim();
       if (trimmed.length > 0 &&
           !/^solve/i.test(trimmed) &&
+          !/^defender/i.test(trimmed) &&
           !/^optimal/i.test(trimmed) &&
           !/is led/i.test(trimmed) &&
           !/variants/i.test(trimmed) &&

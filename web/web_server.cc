@@ -138,6 +138,16 @@ std::string GetFirstCardFromNode(const std::shared_ptr<DecisionTreeNode> &node) 
   return "";
 }
 
+int GetLeaderFromNode(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node) return -1;
+  if (node->leader >= 0) return node->leader;
+  for (const auto &child : node->children) {
+    int l = GetLeaderFromNode(child);
+    if (l >= 0) return l;
+  }
+  return -1;
+}
+
 namespace {
 
 std::string NsTricksRange(const FailureIndex::Group &group) {
@@ -310,26 +320,31 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         }
       }
 
-      std::string common_card = "";
-      bool all_same = !root_node->children.empty();
-      for (const auto &child : root_node->children) {
-        std::string card = GetFirstCardFromNode(child);
-        if (card.empty()) {
-          all_same = false;
-          break;
-        }
-        if (common_card.empty()) {
-          common_card = card;
-        } else if (common_card != card) {
-          all_same = false;
-          break;
-        }
-      }
-
-      if (all_same && !common_card.empty()) {
-        root_node->label = common_card + " is led (" + std::to_string(root_node->children.size()) + " variants)";
+      int branch_leader = GetLeaderFromNode(root_node);
+      if (branch_leader >= 0 && branch_leader % 2 != 0) {
+        root_node->label = "Defender leads";
       } else {
-        root_node->label = "Solve Lines (" + std::to_string(conds.size()) + " variants)";
+        std::string common_card = "";
+        bool all_same = !root_node->children.empty();
+        for (const auto &child : root_node->children) {
+          std::string card = GetFirstCardFromNode(child);
+          if (card.empty()) {
+            all_same = false;
+            break;
+          }
+          if (common_card.empty()) {
+            common_card = card;
+          } else if (common_card != card) {
+            all_same = false;
+            break;
+          }
+        }
+
+        if (all_same && !common_card.empty()) {
+          root_node->label = common_card + " is led";
+        } else {
+          root_node->label = "Defender leads";
+        }
       }
 
       AttachUnmatchedFailures(root_node, line, failures, node_id, total);
@@ -808,10 +823,12 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
     }
   }
 
-  if (all_same && !common_card.empty()) {
-    root_node->label = common_card + " is led (" + std::to_string(line_roots.size()) + " variants)";
+  if (initial_bs.cur_trick_leader() % 2 != 0) {
+    root_node->label = "Defender leads";
+  } else if (all_same && !common_card.empty()) {
+    root_node->label = common_card + " is led";
   } else {
-    root_node->label = "Optimal Lines (" + std::to_string(line_roots.size()) + " variants)";
+    root_node->label = "Defender leads";
   }
 
   return root_node;
@@ -880,11 +897,12 @@ void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
 void SetDefaultCollapsedState(std::shared_ptr<DecisionTreeNode> &node, bool is_root = true) {
   if (!node) return;
 
-  // A container root node (e.g. "Solve Lines (N variants)") has no trick of its own
+  // A container root node (e.g. "Defender leads" or "<Card> is led") has no trick of its own
   // and multiple child branches. It remains expanded (collapsed = false) so its child
   // branches (the first trick in each branch) are visible.
   if (is_root && node->trick.empty() && node->children.size() > 1 &&
-      (node->label.find("Solve Lines") != std::string::npos ||
+      (node->label.find("Defender leads") != std::string::npos ||
+       node->label.find("Solve Lines") != std::string::npos ||
        node->label.find("Failure Lines") != std::string::npos ||
        node->label.find("Optimal Lines") != std::string::npos ||
        node->label.find("variants") != std::string::npos ||
