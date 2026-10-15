@@ -125,7 +125,7 @@ class GeneralizedTrickFinder {
   GeneralizedTrick BuildGeneralizedTrick(
       const GeneralizedDemiStruct &d1,
       const GeneralizedDemiStruct &d2,
-      const std::vector<uint> *d1_trick_indices,
+      const std::vector<unsigned int> *d1_trick_indices,
       bool populate_boards_set) const;
 
   std::vector<RecordedTrick> tricks_;

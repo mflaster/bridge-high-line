@@ -170,7 +170,7 @@ TEST_CASE("GeneralizedTrickFinders") {
 
 std::string PrintBestLine(const std::vector<ConditionalLine> &lines) {
   std::cout << "PrintBestLine on " << lines.size() << "\n";
-  uint shortest = 0;
+  unsigned int shortest = 0;
   std::string text;
   for (const ConditionalLine &line : lines) {
     std::string x = line.Describe();

@@ -1,15 +1,15 @@
 #include "interface_dds.h"
 
 #include <algorithm>
-#include <omp.h>
 
 #include "glog/logging.h"
+#include "omp_compat.h"
 
 namespace {
 class InitThreads {
  public:
   InitThreads() {
-#if defined(__linux) || defined(__APPLE__)
+#if defined(__linux) || defined(__APPLE__) || defined(__EMSCRIPTEN__)
     SetMaxThreads(0);
 #endif
     DDSInfo info;

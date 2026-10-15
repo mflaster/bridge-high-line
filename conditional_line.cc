@@ -515,11 +515,11 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
   struct RawD1Bucket {
     std::string opp1;
     std::string my1;
-    std::vector<uint> indices;
+    std::vector<unsigned int> indices;
   };
   std::vector<RawD1Bucket> raw_d1_to_tricks;
   raw_d1_to_tricks.reserve(16);
-  for (uint i = 0; i < tricks_.size(); i++) {
+  for (unsigned int i = 0; i < tricks_.size(); i++) {
     const RecordedTrick &rt = tricks_[i];
     const std::string &opp1 = (leader_ % 2 == 0) ? rt.cards[1] : rt.cards[0];
     const std::string &my1 = (leader_ % 2 == 0) ? rt.cards[0] : rt.cards[1];
@@ -539,7 +539,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
   struct GenD1Bucket {
     std::string opp1;
     std::string my1;
-    std::vector<uint> indices;
+    std::vector<unsigned int> indices;
   };
   std::vector<GenD1Bucket> d1_to_tricks;
   d1_to_tricks.reserve(raw_d1_to_tricks.size() * 3);
@@ -548,7 +548,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
         (leader_ % 2 == 0) ? GetSuitOfCard(rb.my1) : GetSuitOfCard(rb.opp1);
     auto opp1_choices = GeneralizeOppCard(rb.opp1, suit_led, trump_suit_);
     for (const auto &choice : opp1_choices) {
-      std::vector<uint> *dest = nullptr;
+      std::vector<unsigned int> *dest = nullptr;
       for (GenD1Bucket &gb : d1_to_tricks) {
         if (gb.opp1 == choice && gb.my1 == rb.my1) {
           dest = &gb.indices;
@@ -567,7 +567,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
       demi1.GetGeneralizedPlays(leader_, NOTRUMP, top * 2,
                                 /*populate_boards_set=*/false);
   std::vector<GeneralizedPlaysVector> all_demi2_plays(demi1_plays.size());
-  std::vector<const std::vector<uint> *> d1_trick_vecs(
+  std::vector<const std::vector<unsigned int> *> d1_trick_vecs(
       demi1_plays.size(), nullptr);
   struct TrickPairCand {
     int count;
@@ -598,7 +598,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     GeneralizedDemiPlay demi2(trump_suit_);
     Suit d1_suit_led = (leader_ % 2 == 0) ? GetSuitOfCard(d1.my_card)
                                           : GetSuitOfCard(d1.opp_card);
-    std::vector<uint> *tricks_vec = nullptr;
+    std::vector<unsigned int> *tricks_vec = nullptr;
     for (GenD1Bucket &gb : d1_to_tricks) {
       if (gb.opp1 == d1.opp_card && gb.my1 == d1.my_card) {
         tricks_vec = &gb.indices;
@@ -608,7 +608,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     if (tricks_vec != nullptr) {
       std::sort(tricks_vec->begin(), tricks_vec->end());
       d1_trick_vecs[d1_idx] = tricks_vec;
-      for (uint i : *tricks_vec) {
+      for (unsigned int i : *tricks_vec) {
         const RecordedTrick &rt = tricks_[i];
         const std::string *trick_ptr =
             (d1_suit_led == NOTRUMP) ? &raw_tricks_[i] : nullptr;
@@ -662,7 +662,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
     size_t d2_idx = cand.d2_idx;
     const auto &d1 = demi1_plays[d1_idx];
     const GeneralizedDemiStruct &d2 = all_demi2_plays[d1_idx][d2_idx];
-    const std::vector<uint> *idx_vec = d1_trick_vecs[d1_idx];
+    const std::vector<unsigned int> *idx_vec = d1_trick_vecs[d1_idx];
     if (leader_ % 2 != 0) {
       bool replaced_or_redundant = false;
       for (size_t ans_idx = count_group_start; ans_idx < ans.size();
@@ -697,7 +697,7 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
 GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
     const GeneralizedDemiStruct &d1,
     const GeneralizedDemiStruct &d2,
-    const std::vector<uint> *d1_trick_indices,
+    const std::vector<unsigned int> *d1_trick_indices,
     bool populate_boards_set) const {
   GeneralizedTrick gt;
   gt.leader = leader_;
@@ -711,7 +711,7 @@ GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
     gt.board_entries.reserve(target_boards);
     for (auto rit = d1_trick_indices->rbegin();
          rit != d1_trick_indices->rend(); ++rit) {
-      uint i = *rit;
+      unsigned int i = *rit;
       const RecordedTrick &rt = tricks_[i];
       const std::string &my2 = (leader_ % 2 == 0) ? rt.cards[2] : rt.cards[3];
       if (my2 != d2.my_card) {
@@ -1096,7 +1096,7 @@ bool IsDistinguishable(const GeneralizedTrick& trick1,
 std::vector<GeneralizedTrick> MakeGroupStartingWith(
     const std::vector<GeneralizedTrick> &input, int start) {
   std::vector<int> indices;
-  for (uint i = start; i < input.size(); i++) {
+  for (unsigned int i = start; i < input.size(); i++) {
     const GeneralizedTrick &trick = input[i];
     bool any_indistinguishable = false;
     for (int idx : indices) {
@@ -1244,7 +1244,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
   std::vector<std::vector<int>> group_idx_list;
   std::vector<int> ref_count(input.size(), 0);
 
-  auto try_add = [&](uint j) {
+  auto try_add = [&](unsigned int j) {
     if (!def_leads && my1_id[j] != my1_id[group_indices[0]]) {
       return;
     }
@@ -1270,7 +1270,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
     }
   };
 
-  for (uint i = 0; i < input.size(); i++) {
+  for (unsigned int i = 0; i < input.size(); i++) {
     if (ungrouped_keys == 0) {
       break;
     }
@@ -1285,11 +1285,11 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
     }
 
     if (def_leads && input[i].HasBoardTricks()) {
-      for (uint j = 0; j < i; j++) {
+      for (unsigned int j = 0; j < i; j++) {
         try_add(j);
       }
     }
-    for (uint j = i + 1; j < input.size(); j++) {
+    for (unsigned int j = i + 1; j < input.size(); j++) {
       try_add(j);
     }
     bool any_new_groupings = false;

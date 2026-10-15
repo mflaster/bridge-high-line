@@ -153,7 +153,7 @@ bool MeetsAllRequirements(
     const std::vector<std::vector<std::shared_ptr<HandRequirements>>> &reqs) {
   CHECK_EQ(hands.size(), 4);
   CHECK_LE(reqs.size(), 4);
-  for (uint i = 0; i < reqs.size(); i++) {
+  for (unsigned int i = 0; i < reqs.size(); i++) {
     for (const auto &hand_req : reqs[i]) {
       if (!hand_req->MeetsRequirement(hands[i])) {
         return false;

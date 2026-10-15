@@ -981,4 +981,39 @@ TEST_CASE("WebServer Solve Status Lifecycle Test") {
   server.Stop();
 }
 
+TEST_CASE("WebServer Direct SolveJson and ProgressCallback") {
+  WebServer engine;
+  std::vector<std::string> progress_statuses;
+  LineFinder::SetProgressCallback(
+      [&progress_statuses](const std::string &status, double) {
+        progress_statuses.push_back(status);
+      });
+
+  nlohmann::json req;
+  req["hands"]["N"] = "S AQ; H -; D -; C -;";
+  req["hands"]["E"] = "S 54; H -; D -; C -;";
+  req["hands"]["S"] = "S 87; H -; D -; C -;";
+  req["hands"]["W"] = "S KJ; H -; D -; C -;";
+  req["trump"] = "SPADES";
+  req["leader"] = "NORTH";
+  req["min_tricks"] = 1;
+  req["num_iters"] = 1;
+  req["num_threads"] = 1;
+
+  int status_code = 0;
+  std::string body = engine.SolveJson(req.dump(), &status_code);
+  LineFinder::SetProgressCallback(nullptr);
+
+  REQUIRE(status_code == 200);
+  nlohmann::json res = nlohmann::json::parse(body);
+  REQUIRE(res["success"] == true);
+  REQUIRE(res["tricks_won"] == 1);
+  REQUIRE(res["best_lead"] == "SA");
+  REQUIRE(!progress_statuses.empty());
+
+  nlohmann::json st = nlohmann::json::parse(engine.GetSolveStatusJson());
+  REQUIRE(st["status"] == "Solve complete.");
+}
+
+
 

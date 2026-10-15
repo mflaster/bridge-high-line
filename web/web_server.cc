@@ -18,7 +18,9 @@
 #include "line_finder.h"
 #include "solver.h"
 #include "string_util.h"
+#ifndef __EMSCRIPTEN__
 #include "web_assets.h"
+#endif
 
 namespace {
 
@@ -1230,13 +1232,36 @@ void to_json(nlohmann::json &j, const CrossHandSummaryReport &summary) {
 
 WebServer::WebServer(const std::string &host, int port)
     : host_(host), port_(port) {
+#ifndef __EMSCRIPTEN__
   RegisterRoutes();
+#endif
 }
 
 WebServer::~WebServer() {
+#ifndef __EMSCRIPTEN__
   Stop();
+#endif
 }
 
+std::string WebServer::GetSolveStatusJson() const {
+  nlohmann::json response;
+  response["status"] = LineFinder::GetSolveStatus();
+  double progress = LineFinder::GetSolveProgress();
+  if (progress >= 0.0) {
+    response["progress"] = progress;
+  }
+  return response.dump();
+}
+
+std::string WebServer::StopSolveJson() {
+  LineFinder::RequestStop();
+  LineFinder::SetSolveStatus("Stopping solve...");
+  nlohmann::json response;
+  response["status"] = "stopping";
+  return response.dump();
+}
+
+#ifndef __EMSCRIPTEN__
 void WebServer::RegisterRoutes() {
   svr_.Get("/", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::INDEX_HTML, "text/html");
@@ -1288,23 +1313,22 @@ void WebServer::HandleHealth(const httplib::Request &, httplib::Response &res) {
 
 void WebServer::HandleSolveStatus(const httplib::Request &,
                                   httplib::Response &res) {
-  nlohmann::json response;
-  response["status"] = LineFinder::GetSolveStatus();
-  double progress = LineFinder::GetSolveProgress();
-  if (progress >= 0.0) {
-    response["progress"] = progress;
-  }
-  res.set_content(response.dump(), "application/json");
+  res.set_content(GetSolveStatusJson(), "application/json");
 }
 
 void WebServer::HandleStopSolve(const httplib::Request &,
                                 httplib::Response &res) {
-  LineFinder::RequestStop();
-  LineFinder::SetSolveStatus("Stopping solve...");
-  nlohmann::json response;
-  response["status"] = "stopping";
-  res.set_content(response.dump(), "application/json");
+  res.set_content(StopSolveJson(), "application/json");
 }
+
+void WebServer::HandleSolve(const httplib::Request &req,
+                            httplib::Response &res) {
+  int status = 200;
+  std::string body = SolveJson(req.body, &status);
+  res.status = status;
+  res.set_content(body, "application/json");
+}
+#endif  // __EMSCRIPTEN__
 
 namespace {
 
@@ -1378,14 +1402,16 @@ void WebServer::CheckinLineFinder(
   cached_reqs_json_ = std::move(reqs_json);
 }
 
-void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res) {
+std::string WebServer::SolveJson(const std::string &req_body,
+                                 int *http_status_out) {
+  if (http_status_out) *http_status_out = 200;
   nlohmann::json response;
   try {
     auto start_time = std::chrono::high_resolution_clock::now();
     LineFinder::ClearStop();
     LineFinder::SetSolveStatus("Starting solve...");
 
-    nlohmann::json req_json = nlohmann::json::parse(req.body);
+    nlohmann::json req_json = nlohmann::json::parse(req_body);
 
     std::string north_str = "";
     std::string east_str = "";
@@ -1434,9 +1460,8 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
                                      &unknown_err)) {
       response["success"] = false;
       response["error"] = unknown_err;
-      res.status = 400;
-      res.set_content(response.dump(), "application/json");
-      return;
+      if (http_status_out) *http_status_out = 400;
+      return response.dump();
     }
 
     bool reuse_deals = req_json.value("reuse_deals", false);
@@ -1576,8 +1601,7 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
         response["success"] = false;
         response["stopped"] = true;
         response["error"] = "Solve stopped by user.";
-        res.set_content(response.dump(), "application/json");
-        return;
+        return response.dump();
       }
       solve_ms = lf->solve_ms();
       invariant_ms = lf->invariant_ms();
@@ -1917,17 +1941,18 @@ void WebServer::HandleSolve(const httplib::Request &req, httplib::Response &res)
     response["elapsed_ms"] = elapsed_ms;
 
     LineFinder::SetSolveStatus("Solve complete.");
-    res.set_content(response.dump(), "application/json");
+    return response.dump();
   } catch (const std::exception &e) {
     LineFinder::SetSolveStatus("Idle");
-    LOG(ERROR) << "Exception in HandleSolve: " << e.what();
+    LOG(ERROR) << "Exception in SolveJson: " << e.what();
     response["success"] = false;
     response["error"] = e.what();
-    res.status = 400;
-    res.set_content(response.dump(), "application/json");
+    if (http_status_out) *http_status_out = 400;
+    return response.dump();
   }
 }
 
+#ifndef __EMSCRIPTEN__
 bool WebServer::Start(bool async) {
   if (running_) return true;
 
@@ -1964,3 +1989,4 @@ void WebServer::Stop() {
     running_ = false;
   }
 }
+#endif  // __EMSCRIPTEN__
