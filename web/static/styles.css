@@ -852,6 +852,7 @@ body.is-resizing * {
   overflow: hidden;
   position: relative;
   cursor: grab;
+  touch-action: none;
 }
 
 .tree-viewport:active {
