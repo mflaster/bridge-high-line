@@ -142,9 +142,9 @@ inline const char* INDEX_HTML = R"rawhtml(
           <div class="hand-inputs-header">
             <h3>Hand Text Inputs</h3>
             <div class="hand-inputs-actions">
-              <button id="recropPhotoBtn" type="button" class="btn btn-secondary-sm hidden" title="Re-open photo crop &amp; board scanner">Crop Photo</button>
-              <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm" title="Load from camera photo, image, or .txt/.deal file">Load</button>
-              <input type="file" id="fileInputTxt" accept="image/*,.txt,.deal" style="display: none;">
+              <button id="recropPhotoBtn" type="button" class="btn btn-secondary-sm hidden" title="Re-open photo/PDF crop &amp; board scanner">Crop Photo</button>
+              <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm" title="Load from camera photo, image, PDF, PBN, or .txt/.deal file">Load</button>
+              <input type="file" id="fileInputTxt" accept="image/*,.pdf,application/pdf,.pbn,.txt,.deal" style="display: none;">
             </div>
           </div>
           <div id="declarerRotateBar" class="declarer-rotate-bar">
@@ -466,10 +466,15 @@ inline const char* INDEX_HTML = R"rawhtml(
         <!-- Left / Top: Interactive Crop Canvas & Toolbar -->
         <div class="photo-crop-column">
           <div class="photo-crop-toolbar">
+            <div id="pdfPageBar" class="pdf-page-bar hidden">
+              <button id="pdfPrevPageBtn" type="button" class="btn btn-secondary-sm" title="Previous PDF page">◀</button>
+              <span id="pdfPageIndicator" class="pdf-page-indicator">Page 1 / 1</span>
+              <button id="pdfNextPageBtn" type="button" class="btn btn-secondary-sm" title="Next PDF page">▶</button>
+            </div>
             <button id="cropRotateBtn" type="button" class="btn btn-secondary-sm" title="Rotate photo 90° clockwise">↻ Rotate 90°</button>
             <button id="cropZoomToBoxBtn" type="button" class="btn btn-secondary-sm" title="Zoom view to current crop box">🔍 Zoom Crop</button>
-            <button id="cropResetViewBtn" type="button" class="btn btn-secondary-sm" title="Fit full photo in view">Fit Photo</button>
-            <button id="cropNewPhotoBtn" type="button" class="btn btn-secondary-sm" title="Select another photo">New Photo</button>
+            <button id="cropResetViewBtn" type="button" class="btn btn-secondary-sm" title="Fit full page/photo in view">Fit Page</button>
+            <button id="cropNewPhotoBtn" type="button" class="btn btn-secondary-sm" title="Select another file">New File</button>
           </div>
 
           <div id="detectedBoardsBar" class="detected-boards-bar hidden">
@@ -2845,6 +2850,28 @@ body.is-resizing * {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.pdf-page-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #0f172a;
+  border: 1px solid #38bdf8;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.pdf-page-bar.hidden {
+  display: none !important;
+}
+
+.pdf-page-indicator {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e0f2fe;
+  padding: 0 4px;
+  white-space: nowrap;
 }
 
 .detected-boards-bar {
@@ -5377,6 +5404,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = e.target.files[0];
       if (!file) return;
 
+      const isPdf = (file.type === 'application/pdf') ||
+                    /\.pdf$/i.test(file.name || '');
+      if (isPdf) {
+        openPhotoScanModalWithPdfFile(file);
+        return;
+      }
+
       const isImage = (file.type && file.type.startsWith('image/')) ||
                       /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name || '');
       if (isImage) {
@@ -5384,9 +5418,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const isPbnExt = /\.pbn$/i.test(file.name || '');
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target.result;
+        if (isPbnExt || (text && text.includes('[Deal "'))) {
+          const pbnBoards = parsePbnBoardsFromText(text);
+          if (pbnBoards.length > 0) {
+            openPhotoScanModalWithPbnBoards(pbnBoards);
+            return;
+          }
+        }
         parseAndApplyDealText(text);
       };
       reader.readAsText(file);
@@ -6194,6 +6236,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyPhotoModalBtn = document.getElementById('applyPhotoModalBtn');
   const cropCanvas = document.getElementById('cropCanvas');
   const cropCanvasViewport = document.getElementById('cropCanvasViewport');
+  const pdfPageBar = document.getElementById('pdfPageBar');
+  const pdfPrevPageBtn = document.getElementById('pdfPrevPageBtn');
+  const pdfNextPageBtn = document.getElementById('pdfNextPageBtn');
+  const pdfPageIndicator = document.getElementById('pdfPageIndicator');
   const cropRotateBtn = document.getElementById('cropRotateBtn');
   const cropZoomToBoxBtn = document.getElementById('cropZoomToBoxBtn');
   const cropResetViewBtn = document.getElementById('cropResetViewBtn');
@@ -6208,7 +6254,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanInputW = document.getElementById('scanInputW');
 
   let scanSourceCanvas = null; // Offscreen canvas holding current (possibly rotated) image
-  let detectedBoardBoxes = []; // Array of { x, y, w, h } in scanSourceCanvas coords
+  let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands? } in scanSourceCanvas coords
   let activeDetectedBoardIdx = -1;
   let cropBox = { x: 0, y: 0, w: 100, h: 100 }; // In scanSourceCanvas coords
   let lastDetectedAnchors = null; // In cropBox-relative coords
@@ -6222,7 +6268,370 @@ document.addEventListener('DOMContentLoaded', () => {
   let cropPinchDist = 0;
   let cropPinchStartZoom = 1.0;
 
+  // PDF & PBN Multi-Page State
+  let activePdfDoc = null;
+  let activePdfPbnBoards = [];
+  let activePdfPageNum = 1;
+  let activePdfTotalPages = 1;
+  let pdfPageBoardCounts = {};
+  let pdfJsLoadPromise = null;
+
+  function parsePbnDealString(dealStr) {
+    const m = (dealStr || '').trim().match(/^([NESW]):\s*(.+)$/i);
+    if (!m) return null;
+    const firstSeat = m[1].toUpperCase();
+    const handTokens = m[2].trim().split(/\s+/);
+    if (handTokens.length < 4) return null;
+    const order = ['N', 'E', 'S', 'W'];
+    const startIdx = order.indexOf(firstSeat);
+    if (startIdx === -1) return null;
+    const suitKeys = ['S', 'H', 'D', 'C'];
+    const hands = {};
+    for (let i = 0; i < 4; i++) {
+      const seat = order[(startIdx + i) % 4];
+      const suits = handTokens[i].split('.');
+      if (suits.length !== 4) return null;
+      hands[seat] = suitKeys.map((sk, sIdx) => {
+        const r = (suits[sIdx] || '').replace(/10/g, 'T').replace(/-/g, '').toUpperCase();
+        return `${sk} ${r.length > 0 ? r : '-'};`;
+      }).join(' ');
+    }
+    return hands;
+  }
+
+  function parsePbnBoardsFromText(text) {
+    if (!text || !text.includes('[Deal ')) return [];
+    const boards = [];
+    const lines = text.split(/\r?\n/);
+    let curBoard = null;
+    for (const line of lines) {
+      const bm = line.match(/^\[Board\s+"([^"]+)"\]/i);
+      if (bm) curBoard = bm[1].trim();
+      const dm = line.match(/^\[Deal\s+"([^"]+)"\]/i);
+      if (dm) {
+        const hands = parsePbnDealString(dm[1]);
+        if (hands) {
+          boards.push({
+            board: curBoard || String(boards.length + 1),
+            hands
+          });
+        }
+        curBoard = null;
+      }
+    }
+    return boards;
+  }
+
+  async function tryDecompressPdfStream(chunk, format) {
+    if (typeof DecompressionStream === 'undefined') return null;
+    try {
+      const ds = new DecompressionStream(format);
+      const writer = ds.writable.getWriter();
+      const writePromise = writer.write(chunk).then(() => writer.close()).catch(() => {});
+      const reader = ds.readable.getReader();
+      const out = [];
+      let total = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        out.push(value);
+        total += value.byteLength;
+        if (total > 2 * 1024 * 1024) break;
+      }
+      await writePromise;
+      const merged = new Uint8Array(total);
+      let offset = 0;
+      for (const part of out) {
+        merged.set(part, offset);
+        offset += part.byteLength;
+      }
+      return new TextDecoder('latin1').decode(merged);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function extractPbnBoardsFromPdfBuffer(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    const raw = new TextDecoder('latin1').decode(bytes);
+    const direct = parsePbnBoardsFromText(raw);
+    if (direct.length > 0) return direct;
+
+    let pos = 0;
+    while (true) {
+      const sIdx = raw.indexOf('stream', pos);
+      if (sIdx === -1) break;
+      let dataStart = sIdx + 6;
+      if (raw[dataStart] === '\r' && raw[dataStart + 1] === '\n') dataStart += 2;
+      else if (raw[dataStart] === '\n' || raw[dataStart] === '\r') dataStart += 1;
+      else { pos = sIdx + 6; continue; }
+
+      const endIdx = raw.indexOf('endstream', dataStart);
+      if (endIdx === -1) break;
+      let dataEnd = endIdx;
+      if (raw[dataEnd - 2] === '\r' && raw[dataEnd - 1] === '\n') dataEnd -= 2;
+      else if (raw[dataEnd - 1] === '\n' || raw[dataEnd - 1] === '\r') dataEnd -= 1;
+
+      const len = dataEnd - dataStart;
+      if (len > 16 && len < 1024 * 1024) {
+        const chunk = bytes.subarray(dataStart, dataEnd);
+        let inflated = await tryDecompressPdfStream(chunk, 'deflate');
+        if (!inflated) inflated = await tryDecompressPdfStream(chunk, 'deflate-raw');
+        if (inflated && inflated.includes('[Deal ')) {
+          const boards = parsePbnBoardsFromText(inflated);
+          if (boards.length > 0) return boards;
+        }
+      }
+      pos = endIdx + 9;
+    }
+    return [];
+  }
+
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfJsLoadPromise) return pdfJsLoadPromise;
+    pdfJsLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.async = true;
+      script.onload = () => {
+        if (window.pdfjsLib) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(window.pdfjsLib);
+        } else {
+          pdfJsLoadPromise = null;
+          reject(new Error('pdfjsLib unavailable'));
+        }
+      };
+      script.onerror = () => {
+        pdfJsLoadPromise = null;
+        reject(new Error('Failed to load pdf.js'));
+      };
+      document.head.appendChild(script);
+    });
+    return pdfJsLoadPromise;
+  }
+
+  function renderPbnBoardsSheetToCanvas(boards, pageNum) {
+    const perPage = 16;
+    const startIdx = (pageNum - 1) * perPage;
+    const pageBoards = boards.slice(startIdx, startIdx + perPage);
+    const cols = Math.min(4, Math.max(1, pageBoards.length));
+    const rows = Math.max(1, Math.ceil(pageBoards.length / cols));
+    const cellW = 420;
+    const cellH = 260;
+    const pad = 20;
+
+    const off = document.createElement('canvas');
+    off.width = cols * cellW + pad * 2;
+    off.height = rows * cellH + pad * 2;
+    const ctx = off.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, off.width, off.height);
+
+    const boxes = [];
+    const suitMeta = [
+      { key: 'S', sym: '♠', color: '#0f172a' },
+      { key: 'H', sym: '♥', color: '#dc2626' },
+      { key: 'D', sym: '♦', color: '#dc2626' },
+      { key: 'C', sym: '♣', color: '#0f172a' }
+    ];
+
+    pageBoards.forEach((b, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const bx = pad + col * cellW;
+      const by = pad + row * cellH;
+
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx + 4, by + 4, cellW - 8, cellH - 8);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(`Board ${b.board}`, bx + 14, by + 24);
+
+      const drawHandAt = (handStr, hx, hy) => {
+        const suits = parseHandToSuits(handStr || '');
+        suitMeta.forEach((sm, sIdx) => {
+          const y = hy + sIdx * 17;
+          ctx.fillStyle = sm.color;
+          ctx.font = 'bold 14px sans-serif';
+          ctx.fillText(sm.sym, hx, y);
+          ctx.fillStyle = '#0f172a';
+          ctx.font = '13.5px sans-serif';
+          const ranks = (suits[sm.key] || '-').replace(/T/g, '10');
+          ctx.fillText(ranks, hx + 16, y);
+        });
+      };
+
+      drawHandAt(b.hands.N, bx + 150, by + 26);
+      drawHandAt(b.hands.W, bx + 16, by + 104);
+      drawHandAt(b.hands.E, bx + 268, by + 104);
+      drawHandAt(b.hands.S, bx + 150, by + 184);
+
+      boxes.push({
+        x: bx + 4,
+        y: by + 4,
+        w: cellW - 8,
+        h: cellH - 8,
+        boardLabel: String(b.board),
+        pbnHands: b.hands
+      });
+    });
+
+    return { canvas: off, boxes };
+  }
+
+  function updatePdfPageBarUI() {
+    if (!pdfPageBar) return;
+    if (activePdfTotalPages > 1) {
+      pdfPageBar.classList.remove('hidden');
+      if (pdfPageIndicator) {
+        pdfPageIndicator.textContent = `Page ${activePdfPageNum} / ${activePdfTotalPages}`;
+      }
+      if (pdfPrevPageBtn) pdfPrevPageBtn.disabled = (activePdfPageNum <= 1);
+      if (pdfNextPageBtn) pdfNextPageBtn.disabled = (activePdfPageNum >= activePdfTotalPages);
+    } else {
+      pdfPageBar.classList.add('hidden');
+    }
+  }
+
+  async function renderActivePdfPage() {
+    updatePdfPageBarUI();
+    let pageBoardOffset = 0;
+    for (let p = 1; p < activePdfPageNum; p++) {
+      pageBoardOffset += (pdfPageBoardCounts[p] || 16);
+    }
+
+    if (activePdfDoc) {
+      if (scanStatusBadge) {
+        scanStatusBadge.className = 'scan-status-badge scan-status-pending';
+        scanStatusBadge.textContent = `Rendering PDF page ${activePdfPageNum} of ${activePdfTotalPages}...`;
+      }
+      const page = await activePdfDoc.getPage(activePdfPageNum);
+      const viewport = page.getViewport({ scale: 2.2 });
+      const off = document.createElement('canvas');
+      off.width = Math.round(viewport.width);
+      off.height = Math.round(viewport.height);
+      const ctx = off.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, off.width, off.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      scanSourceCanvas = off;
+      runFullPhotoBoardDetection(pageBoardOffset);
+      pdfPageBoardCounts[activePdfPageNum] = detectedBoardBoxes.length || 16;
+      return;
+    }
+
+    if (activePdfPbnBoards.length > 0) {
+      const { canvas, boxes } = renderPbnBoardsSheetToCanvas(activePdfPbnBoards, activePdfPageNum);
+      scanSourceCanvas = canvas;
+      detectedBoardBoxes = boxes;
+      pdfPageBoardCounts[activePdfPageNum] = boxes.length;
+      if (detectedBoardBoxes.length > 0) {
+        activeDetectedBoardIdx = 0;
+        cropBox = { ...detectedBoardBoxes[0] };
+      }
+      renderDetectedBoardsPills();
+      fitCropPhotoView();
+      if (detectedBoardBoxes.length > 1) {
+        zoomCropViewToBox();
+      }
+      scanCurrentCropRegion();
+    }
+  }
+
+  function openPhotoScanModalWithPbnBoards(pbnBoards) {
+    activePdfDoc = null;
+    activePdfPbnBoards = pbnBoards;
+    activePdfPageNum = 1;
+    activePdfTotalPages = Math.max(1, Math.ceil(pbnBoards.length / 16));
+    pdfPageBoardCounts = {};
+    if (recropPhotoBtn) recropPhotoBtn.classList.remove('hidden');
+    if (photoScanModal) photoScanModal.classList.remove('hidden');
+    updateDeclarerBarUI(currentDeclarerSeat);
+    requestAnimationFrame(() => {
+      renderActivePdfPage();
+    });
+  }
+
+  async function openPhotoScanModalWithPdfFile(file) {
+    activePdfDoc = null;
+    activePdfPbnBoards = [];
+    activePdfPageNum = 1;
+    activePdfTotalPages = 1;
+    pdfPageBoardCounts = {};
+
+    if (photoScanModal) photoScanModal.classList.remove('hidden');
+    if (recropPhotoBtn) recropPhotoBtn.classList.remove('hidden');
+    updateDeclarerBarUI(currentDeclarerSeat);
+    if (scanStatusBadge) {
+      scanStatusBadge.className = 'scan-status-badge scan-status-pending';
+      scanStatusBadge.textContent = 'Loading PDF hand record...';
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      activePdfPbnBoards = await extractPbnBoardsFromPdfBuffer(arrayBuffer);
+
+      // Immediately render embedded PBN boards if present so UI responds in <5ms,
+      // then upgrade to visual PDF rendering once pdf.js finishes loading.
+      if (activePdfPbnBoards.length > 0) {
+        activePdfTotalPages = Math.max(1, Math.ceil(activePdfPbnBoards.length / 16));
+        await renderActivePdfPage();
+      }
+
+      try {
+        const pdfjsLib = await loadPdfJs();
+        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+        activePdfDoc = await loadingTask.promise;
+        activePdfTotalPages = activePdfDoc.numPages;
+        activePdfPageNum = 1;
+        await renderActivePdfPage();
+      } catch (pdfErr) {
+        if (activePdfPbnBoards.length === 0) {
+          if (scanStatusBadge) {
+            scanStatusBadge.className = 'scan-status-badge scan-status-warn';
+            scanStatusBadge.textContent = '⚠ Could not render PDF offline and no embedded PBN deals were found.';
+          }
+        }
+      }
+    } catch (err) {
+      if (scanStatusBadge) {
+        scanStatusBadge.className = 'scan-status-badge scan-status-warn';
+        scanStatusBadge.textContent = '⚠ Failed to read PDF file.';
+      }
+    }
+  }
+
+  if (pdfPrevPageBtn) {
+    pdfPrevPageBtn.addEventListener('click', () => {
+      if (activePdfPageNum > 1) {
+        activePdfPageNum--;
+        renderActivePdfPage();
+      }
+    });
+  }
+
+  if (pdfNextPageBtn) {
+    pdfNextPageBtn.addEventListener('click', () => {
+      if (activePdfPageNum < activePdfTotalPages) {
+        activePdfPageNum++;
+        renderActivePdfPage();
+      }
+    });
+  }
+
   function openPhotoScanModalWithFile(file) {
+    activePdfDoc = null;
+    activePdfPbnBoards = [];
+    activePdfPageNum = 1;
+    activePdfTotalPages = 1;
+    pdfPageBoardCounts = {};
+    updatePdfPageBarUI();
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
@@ -6245,6 +6654,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!scanSourceCanvas || !photoScanModal) return;
     photoScanModal.classList.remove('hidden');
     updateDeclarerBarUI(currentDeclarerSeat);
+    updatePdfPageBarUI();
 
     requestAnimationFrame(() => {
       if (resetDetection) {
@@ -6260,11 +6670,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (photoScanModal) photoScanModal.classList.add('hidden');
   }
 
-  function runFullPhotoBoardDetection() {
+  function runFullPhotoBoardDetection(boardOffset = 0) {
     if (!scanSourceCanvas) return;
     const ctx = scanSourceCanvas.getContext('2d');
     const fullData = ctx.getImageData(0, 0, scanSourceCanvas.width, scanSourceCanvas.height);
-    detectedBoardBoxes = detectAllBoardsInImageData(fullData);
+    const rawBoxes = detectAllBoardsInImageData(fullData);
+    detectedBoardBoxes = rawBoxes.map((b, idx) => {
+      const pbnEntry = activePdfPbnBoards[boardOffset + idx];
+      return {
+        ...b,
+        boardLabel: pbnEntry ? String(pbnEntry.board) : String(boardOffset + idx + 1),
+        pbnHands: pbnEntry ? pbnEntry.hands : null
+      };
+    });
 
     if (detectedBoardBoxes.length > 0) {
       activeDetectedBoardIdx = 0;
@@ -6292,7 +6710,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDetectedBoardsPills() {
     if (!detectedBoardsBar || !detectedBoardsList) return;
     detectedBoardsList.innerHTML = '';
-    if (detectedBoardBoxes.length <= 1) {
+    if (detectedBoardBoxes.length <= 1 && activePdfTotalPages <= 1) {
       detectedBoardsBar.classList.add('hidden');
       return;
     }
@@ -6301,7 +6719,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `board-pill-btn${idx === activeDetectedBoardIdx ? ' active' : ''}`;
-      btn.textContent = `#${idx + 1}`;
+      const label = box.boardLabel || String(idx + 1);
+      btn.textContent = `#${label}`;
       btn.addEventListener('click', () => {
         activeDetectedBoardIdx = idx;
         cropBox = { ...detectedBoardBoxes[idx] };
@@ -6386,16 +6805,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const dy = cropViewOffsetY + db.y * cropViewZoom;
       const dw = db.w * cropViewZoom;
       const dh = db.h * cropViewZoom;
+      const label = db.boardLabel || String(idx + 1);
       ctx.save();
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([5, 4]);
       ctx.strokeRect(dx, dy, dw, dh);
       ctx.fillStyle = 'rgba(2, 132, 199, 0.85)';
-      ctx.fillRect(dx + 4, dy + 4, 24, 16);
+      ctx.fillRect(dx + 4, dy + 4, 28, 16);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 10px sans-serif';
-      ctx.fillText(`#${idx + 1}`, dx + 8, dy + 15);
+      ctx.fillText(`#${label}`, dx + 7, dy + 15);
       ctx.restore();
     });
 
@@ -6470,7 +6890,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const imgData = tCtx.getImageData(0, 0, tw, th);
 
     const res = recognizeBoardFromImageData(imgData);
-    if (!res) {
+    const activeBox = (activeDetectedBoardIdx >= 0 && detectedBoardBoxes[activeDetectedBoardIdx])
+      ? detectedBoardBoxes[activeDetectedBoardIdx]
+      : null;
+    const fallbackPbnHands = activeBox && activeBox.pbnHands ? activeBox.pbnHands : null;
+
+    if (!res && !fallbackPbnHands) {
       lastDetectedAnchors = null;
       if (scanStatusBadge) {
         scanStatusBadge.className = 'scan-status-badge scan-status-warn';
@@ -6480,18 +6905,26 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    lastDetectedAnchors = {};
-    ['N', 'W', 'E', 'S'].forEach(dir => {
-      lastDetectedAnchors[dir] = {
-        cx: res.anchors[dir].cx / scale,
-        cy: res.anchors[dir].cy / scale
-      };
-    });
+    if (res && res.anchors) {
+      lastDetectedAnchors = {};
+      ['N', 'W', 'E', 'S'].forEach(dir => {
+        lastDetectedAnchors[dir] = {
+          cx: res.anchors[dir].cx / scale,
+          cy: res.anchors[dir].cy / scale
+        };
+      });
+    } else {
+      lastDetectedAnchors = null;
+    }
 
-    if (scanInputN) scanInputN.value = res.hands.N;
-    if (scanInputE) scanInputE.value = res.hands.E;
-    if (scanInputS) scanInputS.value = res.hands.S;
-    if (scanInputW) scanInputW.value = res.hands.W;
+    const useHands = (fallbackPbnHands && (!res || !validateFourHandsDeck(res.hands).isExact52))
+      ? fallbackPbnHands
+      : (res ? res.hands : fallbackPbnHands);
+
+    if (scanInputN) scanInputN.value = useHands.N;
+    if (scanInputE) scanInputE.value = useHands.E;
+    if (scanInputS) scanInputS.value = useHands.S;
+    if (scanInputW) scanInputW.value = useHands.W;
 
     updateScanValidationBadge();
     renderCropCanvas();

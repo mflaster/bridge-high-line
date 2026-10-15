@@ -135,9 +135,9 @@
           <div class="hand-inputs-header">
             <h3>Hand Text Inputs</h3>
             <div class="hand-inputs-actions">
-              <button id="recropPhotoBtn" type="button" class="btn btn-secondary-sm hidden" title="Re-open photo crop &amp; board scanner">Crop Photo</button>
-              <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm" title="Load from camera photo, image, or .txt/.deal file">Load</button>
-              <input type="file" id="fileInputTxt" accept="image/*,.txt,.deal" style="display: none;">
+              <button id="recropPhotoBtn" type="button" class="btn btn-secondary-sm hidden" title="Re-open photo/PDF crop &amp; board scanner">Crop Photo</button>
+              <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm" title="Load from camera photo, image, PDF, PBN, or .txt/.deal file">Load</button>
+              <input type="file" id="fileInputTxt" accept="image/*,.pdf,application/pdf,.pbn,.txt,.deal" style="display: none;">
             </div>
           </div>
           <div id="declarerRotateBar" class="declarer-rotate-bar">
@@ -459,10 +459,15 @@
         <!-- Left / Top: Interactive Crop Canvas & Toolbar -->
         <div class="photo-crop-column">
           <div class="photo-crop-toolbar">
+            <div id="pdfPageBar" class="pdf-page-bar hidden">
+              <button id="pdfPrevPageBtn" type="button" class="btn btn-secondary-sm" title="Previous PDF page">◀</button>
+              <span id="pdfPageIndicator" class="pdf-page-indicator">Page 1 / 1</span>
+              <button id="pdfNextPageBtn" type="button" class="btn btn-secondary-sm" title="Next PDF page">▶</button>
+            </div>
             <button id="cropRotateBtn" type="button" class="btn btn-secondary-sm" title="Rotate photo 90° clockwise">↻ Rotate 90°</button>
             <button id="cropZoomToBoxBtn" type="button" class="btn btn-secondary-sm" title="Zoom view to current crop box">🔍 Zoom Crop</button>
-            <button id="cropResetViewBtn" type="button" class="btn btn-secondary-sm" title="Fit full photo in view">Fit Photo</button>
-            <button id="cropNewPhotoBtn" type="button" class="btn btn-secondary-sm" title="Select another photo">New Photo</button>
+            <button id="cropResetViewBtn" type="button" class="btn btn-secondary-sm" title="Fit full page/photo in view">Fit Page</button>
+            <button id="cropNewPhotoBtn" type="button" class="btn btn-secondary-sm" title="Select another file">New File</button>
           </div>
 
           <div id="detectedBoardsBar" class="detected-boards-bar hidden">
