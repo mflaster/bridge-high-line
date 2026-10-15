@@ -7339,13 +7339,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function submitSentryFeedback({ name, email, message, includeDeal }) {
-    const eventId = generateSentryEventId();
     const feedbackEventId = generateSentryEventId();
     const nowIso = new Date().toISOString();
     const dealSnapshot = includeDeal ? collectFeedbackDealSnapshot() : null;
     const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
 
-    const firstLine = message.split('\n')[0].trim().slice(0, 80) || 'Feedback';
     const dealSummaryText = dealSnapshot
       ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
       : '';
@@ -7355,34 +7353,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ...(email ? { email } : {})
     };
 
-    const eventPayload = {
-      event_id: eventId,
-      timestamp: nowIso,
-      platform: 'javascript',
-      level: 'info',
-      logger: 'user.feedback',
-      environment,
-      message: {
-        formatted: `[User Feedback] ${firstLine}\n\n${message}${dealSummaryText}`
-      },
-      fingerprint: ['user-feedback', eventId],
-      user: userObj,
-      tags: {
-        feedback: 'true',
-        preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
-        trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
-        leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
-        backend_mode: backendMode || 'unknown'
-      },
-      contexts: dealSnapshot ? { deal: dealSnapshot } : {},
-      extra: {
-        feedback_message: message,
-        deal_state: dealSnapshot,
-        url: window.location.href,
-        user_agent: navigator.userAgent
-      }
-    };
-
+    const feedbackMessage = `${message}${dealSummaryText}`.slice(0, 4096);
     const feedbackPayload = {
       event_id: feedbackEventId,
       timestamp: nowIso,
@@ -7392,36 +7363,39 @@ document.addEventListener('DOMContentLoaded', () => {
       user: userObj,
       tags: {
         preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+        trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
+        leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
         backend_mode: backendMode || 'unknown'
       },
       contexts: {
         feedback: {
           name: name || 'Anonymous',
           ...(email ? { contact_email: email } : {}),
-          message,
-          associated_event_id: eventId,
+          message: feedbackMessage,
           url: window.location.href
         },
         ...(dealSnapshot ? { deal: dealSnapshot } : {})
       }
     };
 
-    const envelopeBody = [
-      JSON.stringify({ event_id: eventId, sent_at: nowIso, dsn: SENTRY_DSN }),
-      JSON.stringify({ type: 'event' }),
-      JSON.stringify(eventPayload),
-      JSON.stringify({ type: 'feedback' }),
+    const feedbackEnvelope = [
+      JSON.stringify({ event_id: feedbackEventId, sent_at: nowIso, dsn: SENTRY_DSN }),
+      JSON.stringify({ type: 'feedback', content_type: 'application/json' }),
       JSON.stringify(feedbackPayload)
     ].join('\n') + '\n';
 
     const res = await fetch(SENTRY_ENVELOPE_URL, {
       method: 'POST',
-      body: envelopeBody
+      body: feedbackEnvelope
     });
+
     if (!res.ok) {
-      throw new Error(`Sentry returned HTTP ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      throw new Error(
+        `Sentry returned HTTP ${res.status}${errText ? ': ' + errText.slice(0, 120) : ''}`
+      );
     }
-    return eventId;
+    return feedbackEventId;
   }
 
   function openFeedbackModal() {
