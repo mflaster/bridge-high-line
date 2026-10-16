@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "=========================================================\n"
-            << " Bridge Deal Solver & Interactive Decision Tree Server\n"
+            << " Bridge High Line Solver & Interactive Decision Tree Server\n"
             << "=========================================================\n"
             << " Server listening at: http://localhost:" << port << "\n"
             << " Press Ctrl+C to stop.\n"
