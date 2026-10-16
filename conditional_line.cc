@@ -42,9 +42,6 @@ static std::set<int> CoveredFinalBoardsSetHelper(const ConditionalLine *line_ptr
   }
   visited.insert(line_ptr);
 
-  if (line_ptr->has_rescored_boards()) {
-    return line_ptr->rescored_covered_boards();
-  }
   if (!line_ptr->final_covered_boards().empty()) {
     return line_ptr->final_covered_boards();
   }
@@ -1553,7 +1550,7 @@ double BranchSuccessProbability(
       if (!child_line) continue;
       auto *winner_cond = dynamic_cast<const WinnerPlayCondition *>(cond.get());
       if (winner_cond && winner_cond->who() == winner) {
-        return static_cast<double>(child_line->CoveredFinalBoards()) /
+        return static_cast<double>(child_line->step1_covered_boards()) /
                static_cast<double>(total_for_winner);
       }
     }
@@ -1566,7 +1563,7 @@ double BranchSuccessProbability(
   int covered_boards = 0;
   for (const ConditionalLine *cand : top_matching) {
     fallback_boards += cand->do_first().NumBoards();
-    covered_boards += cand->CoveredFinalBoards();
+    covered_boards += cand->step1_covered_boards();
   }
   size_t total_boards = step1_denom > 0 ? step1_denom : fallback_boards;
   if (total_boards == 0) {
@@ -1636,13 +1633,21 @@ std::vector<std::vector<std::string>> ExtractTrickLines(
 
 int ResultsOnHandHelper(
     const ConditionalLine *line, BoardState copy, bool adversarial = false,
-    ConditionalLine::DefenderCardsCache *def_cache = nullptr) {
-  if (!line || copy.Finished()) {
+    ConditionalLine::DefenderCardsCache *def_cache = nullptr,
+    ConditionalLine::RescoreBoardTrace *out_trace = nullptr) {
+  if (!line) {
     return copy.tricks_won_even();
   }
 
   // Terminal leaf node
   if (line->do_first().Empty() && line->conditions().empty()) {
+    if (out_trace != nullptr) {
+      out_trace->leaf = line;
+    }
+    return copy.tricks_won_even();
+  }
+
+  if (copy.Finished()) {
     return copy.tricks_won_even();
   }
 
@@ -1657,7 +1662,7 @@ int ResultsOnHandHelper(
               dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
         if (good_cond->Evaluate(copy) == good_cond->is_good()) {
           return ResultsOnHandHelper(child_line.get(), copy, adversarial,
-                                     def_cache);
+                                     def_cache, out_trace);
         }
       }
     }
@@ -1669,17 +1674,22 @@ int ResultsOnHandHelper(
     if (candidates.empty()) {
       if (!line->conditions().empty() && line->conditions()[0].second) {
         return ResultsOnHandHelper(line->conditions()[0].second.get(), copy,
-                                   adversarial, def_cache);
+                                   adversarial, def_cache, out_trace);
       }
       return copy.tricks_won_even();
     }
   }
 
   int start_pos = copy.CardsPlayedThisTrick();
+  bool diverged_during_trick = false;
+  std::array<std::string, 4> played_cards;
   for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
     int pre_p = (copy.cur_trick_leader() + pre_pos) % 4;
     CardType pre_card = copy.trick_cards_played()[pre_pos];
     std::string pre_str = Card::PrintCard(pre_card);
+    if (out_trace != nullptr) {
+      played_cards[pre_pos] = pre_str;
+    }
     if (pre_p % 2 == 0) {
       if (candidates.size() > 1) {
         std::vector<const ConditionalLine *> matching;
@@ -1692,17 +1702,16 @@ int ResultsOnHandHelper(
           candidates = std::move(matching);
         }
       }
-    } else {
+    } else if (candidates.size() > 1) {
       Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
-      if (candidates.size() > 1) {
-        std::vector<const ConditionalLine *> matching =
-            FilterCandidatesByDefenderCard(
-                candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
-        if (!matching.empty()) {
-          candidates = std::move(matching);
-        } else {
-          candidates = {SelectMostSpecificCandidate(candidates, pre_pos)};
-        }
+      std::vector<const ConditionalLine *> matching =
+          FilterCandidatesByDefenderCard(
+              candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
+      if (!matching.empty()) {
+        candidates = std::move(matching);
+      } else {
+        diverged_during_trick = true;
+        candidates = {SelectMostSpecificCandidate(candidates, pre_pos)};
       }
     }
   }
@@ -1716,6 +1725,9 @@ int ResultsOnHandHelper(
           SelectMostSpecificCandidate(candidates, pos);
       std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
       CardType chosen_card = ChooseValidCard(copy, decl_card_str);
+      if (out_trace != nullptr) {
+        played_cards[pos] = Card::PrintCard(chosen_card);
+      }
       copy.PlayCard(p, chosen_card);
 
       if (candidates.size() > 1) {
@@ -1739,6 +1751,9 @@ int ResultsOnHandHelper(
       CardType def_card = Card::ParseStringCard(def_card_str);
       Suit suit_led =
           (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
+      if (out_trace != nullptr) {
+        played_cards[pos] = def_card_str;
+      }
       copy.PlayCard(p, def_card);
 
       if (candidates.size() > 1) {
@@ -1748,21 +1763,37 @@ int ResultsOnHandHelper(
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
+          diverged_during_trick = true;
           candidates = {SelectMostSpecificCandidate(candidates, pos)};
         }
       }
     }
   }
 
+  if (diverged_during_trick) {
+    return copy.tricks_won_even();
+  }
+
   const ConditionalLine *chosen_node =
       SelectMostSpecificCandidate(candidates, 4);
+  if (out_trace != nullptr && !played_cards[3].empty()) {
+    out_trace->node_tricks.emplace_back(
+        chosen_node, played_cards[0] + " " + played_cards[1] + " " +
+                         played_cards[2] + " " + played_cards[3]);
+  }
+  if (copy.Finished() && chosen_node->conditions().empty()) {
+    if (out_trace != nullptr) {
+      out_trace->leaf = chosen_node;
+    }
+    return copy.tricks_won_even();
+  }
   int winner = copy.CurPlayer();
   for (const auto &[cond, child_line] : chosen_node->conditions()) {
     if (!child_line) continue;
     auto *winner_cond = dynamic_cast<const WinnerPlayCondition *>(cond.get());
     if (winner_cond && winner_cond->who() == winner) {
       return ResultsOnHandHelper(child_line.get(), copy, adversarial,
-                                 def_cache);
+                                 def_cache, out_trace);
     }
   }
 
@@ -1772,12 +1803,64 @@ int ResultsOnHandHelper(
 }  // namespace
 
 int ConditionalLine::ResultsOnHand(const BoardState &bs) const {
-  return ResultsOnHandHelper(this, bs, /*adversarial=*/false, nullptr);
+  return ResultsOnHandHelper(this, bs, /*adversarial=*/false, nullptr, nullptr);
 }
 
 int ConditionalLine::ResultsOnHandAdversarial(
-    const BoardState &bs, DefenderCardsCache *def_cache) const {
-  return ResultsOnHandHelper(this, bs, /*adversarial=*/true, def_cache);
+    const BoardState &bs, DefenderCardsCache *def_cache,
+    RescoreBoardTrace *out_trace) const {
+  return ResultsOnHandHelper(this, bs, /*adversarial=*/true, def_cache,
+                             out_trace);
+}
+
+void ConditionalLine::DeepCloneChildren() {
+  for (auto &[cond, child] : conditions_) {
+    if (child) {
+      child = std::make_shared<ConditionalLine>(*child);
+      child->DeepCloneChildren();
+    }
+  }
+}
+
+void ConditionalLine::ApplyRescoredBoards(
+    const std::unordered_map<const ConditionalLine *, std::set<int>>
+        &leaf_boards,
+    const std::unordered_map<const ConditionalLine *,
+                             std::map<int, std::string>> &node_board_tricks) {
+  if (!has_rescored_boards_) {
+    step1_covered_count_ = covered_count_;
+  }
+  has_rescored_boards_ = true;
+
+  if (!do_first_.Empty()) {
+    auto nt_it = node_board_tricks.find(this);
+    if (nt_it != node_board_tricks.end()) {
+      for (const auto &[b, t] : nt_it->second) {
+        do_first_.demi2.board_to_trick[b] = t;
+      }
+    }
+  }
+
+  if (conditions_.empty()) {
+    auto it = leaf_boards.find(this);
+    if (it != leaf_boards.end()) {
+      final_covered_boards_ = it->second;
+    } else {
+      final_covered_boards_.clear();
+    }
+    covered_count_ = static_cast<int>(final_covered_boards_.size());
+    return;
+  }
+
+  final_covered_boards_.clear();
+  int sum = 0;
+  for (auto &[cond, child] : conditions_) {
+    if (child) {
+      child->ApplyRescoredBoards(leaf_boards, node_board_tricks);
+      sum += child->CoveredFinalBoards();
+    }
+  }
+  covered_count_ = sum;
 }
 
 int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
@@ -1798,7 +1881,8 @@ int ConditionalLine::ResultsOnHand(const PairedDeal &deal) const {
     }
     bs.PlayCard(bs.CurPlayer(), c);
   }
-  return ResultsOnHand(bs);
+  return has_rescored_boards_ ? ResultsOnHandAdversarial(bs)
+                              : ResultsOnHand(bs);
 }
 
 ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
@@ -1807,6 +1891,7 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
   trace.board_id = board_id;
   BoardState copy = bs;
   const ConditionalLine *cur_line = this;
+  bool adversarial = has_rescored_boards_;
 
   while (!copy.Finished() && cur_line != nullptr) {
     while (cur_line && cur_line->do_first().Empty()) {
@@ -1945,7 +2030,10 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
           }
         }
       } else {
-        std::string def_card_str = FindBestDefenderCard(copy);
+        std::string def_card_str =
+            adversarial ? ChooseAdversarialDefenderCard(copy, pos, candidates,
+                                                        nullptr)
+                        : FindBestDefenderCard(copy);
         CardType def_card = 0;
         if (!def_card_str.empty()) {
           def_card = Card::ParseStringCard(def_card_str);
