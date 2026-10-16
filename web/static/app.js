@@ -28,6 +28,81 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardStatFailure = document.getElementById('cardStatFailure');
   const cardStatActual = document.getElementById('cardStatActual');
   const statSuccess = document.getElementById('statSuccess');
+
+  // Active Hand Source & Header Badge State
+  const handSourceBadge = document.getElementById('handSourceBadge');
+  const handSourceText = document.getElementById('handSourceText');
+  const clearHandSourceBtn = document.getElementById('clearHandSourceBtn');
+
+  let loadedHandSource = null;
+  let activeLoadedFileInfo = null;
+  let pendingModalFileInfo = null;
+
+  function formatCleanBoardLabel(rawBoard) {
+    if (rawBoard === null || rawBoard === undefined || rawBoard === '') return '1';
+    const str = String(rawBoard).trim();
+    const clean = str.replace(/^(board\s*#?|hand\s*#?|#)/i, '').trim();
+    return clean || str || '1';
+  }
+
+  function setLoadedHandSource(sourceObj) {
+    if (!sourceObj) {
+      loadedHandSource = null;
+      if (handSourceBadge) handSourceBadge.classList.add('hidden');
+      if (handSourceText) {
+        handSourceText.textContent = '';
+        handSourceText.title = '';
+      }
+      return;
+    }
+
+    const fileName = sourceObj.fileName || sourceObj.file_name || 'file';
+    const rawBoard = sourceObj.boardLabel || sourceObj.board_label || '1';
+    const cleanBoard = formatCleanBoardLabel(rawBoard);
+    const fileFormat = sourceObj.fileFormat || sourceObj.file_format || 'pdf';
+    const loadType = sourceObj.loadType || sourceObj.load_type || fileFormat;
+
+    loadedHandSource = {
+      fileName,
+      boardLabel: cleanBoard,
+      fileFormat,
+      loadType,
+      file_name: fileName,
+      board_label: cleanBoard,
+      file_format: fileFormat,
+      load_type: loadType
+    };
+
+    const labelText = `Hand ${cleanBoard} from ${fileName}`;
+    if (handSourceText) {
+      handSourceText.textContent = labelText;
+      handSourceText.title = labelText;
+    }
+    if (handSourceBadge) {
+      handSourceBadge.classList.remove('hidden');
+    }
+    if (presetSelect) {
+      presetSelect.value = 'custom';
+    }
+  }
+
+  if (clearHandSourceBtn) {
+    clearHandSourceBtn.addEventListener('click', () => {
+      setLoadedHandSource(null);
+      if (presetSelect) {
+        let defaultPreset = 'finesse';
+        for (let i = 0; i < presetSelect.options.length; i++) {
+          const val = presetSelect.options[i].value;
+          if (val && val !== 'custom') {
+            defaultPreset = val;
+            break;
+          }
+        }
+        presetSelect.value = defaultPreset;
+        loadPreset(defaultPreset);
+      }
+    });
+  }
   const statFailure = document.getElementById('statFailure');
   const statActual = document.getElementById('statActual');
   const equivalentLinesBar = document.getElementById('equivalentLinesBar');
@@ -1422,18 +1497,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!presetSelect) return;
     const currentVal = presetSelect.value;
     presetSelect.innerHTML = '';
+
+    const customOpt = document.createElement('option');
+    customOpt.value = 'custom';
+    customOpt.textContent = 'Custom Deal';
+    customOpt.disabled = true;
+    customOpt.hidden = true;
+    presetSelect.appendChild(customOpt);
+
     for (const [key, p] of Object.entries(PRESETS)) {
       const opt = document.createElement('option');
       opt.value = key;
       opt.textContent = p.name || key;
       presetSelect.appendChild(opt);
     }
-    if (PRESETS[currentVal]) {
+    if (currentVal === 'custom' || PRESETS[currentVal]) {
       presetSelect.value = currentVal;
     } else if (presetSelect.options.length > 0) {
-      presetSelect.value = presetSelect.options[0].value;
+      let defaultVal = '';
+      for (let i = 0; i < presetSelect.options.length; i++) {
+        const val = presetSelect.options[i].value;
+        if (val && val !== 'custom') {
+          defaultVal = val;
+          break;
+        }
+      }
+      presetSelect.value = defaultVal || presetSelect.options[0].value;
     }
-    if (presetSelect.value) {
+    if (presetSelect.value && presetSelect.value !== 'custom') {
       loadPreset(presetSelect.value);
     }
   }
@@ -2422,6 +2513,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function loadPreset(key) {
+    if (key !== 'custom') {
+      setLoadedHandSource(null);
+    }
     const p = PRESETS[key];
     if (!p) return;
 
@@ -2452,6 +2546,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load Preset on Dropdown Selection
   if (presetSelect) {
     presetSelect.addEventListener('change', () => {
+      if (presetSelect.value !== 'custom') {
+        setLoadedHandSource(null);
+      }
       loadPreset(presetSelect.value);
     });
   }
@@ -2471,9 +2568,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = e.target.files[0];
       if (!file) return;
 
+      const ext = (file.name || '').split('.').pop().toLowerCase();
       const isPdf = (file.type === 'application/pdf') ||
                     /\.pdf$/i.test(file.name || '');
       if (isPdf) {
+        pendingModalFileInfo = { fileName: file.name, fileFormat: 'pdf', loadType: 'pdf' };
         openPhotoScanModalWithPdfFile(file);
         return;
       }
@@ -2481,6 +2580,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isImage = (file.type && file.type.startsWith('image/')) ||
                       /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name || '');
       if (isImage) {
+        pendingModalFileInfo = { fileName: file.name, fileFormat: 'image', loadType: 'image' };
         openPhotoScanModalWithFile(file);
         return;
       }
@@ -2490,13 +2590,16 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.onload = (event) => {
         const text = event.target.result;
         if (isPbnExt || (text && text.includes('[Deal "'))) {
+          pendingModalFileInfo = { fileName: file.name, fileFormat: 'pbn', loadType: 'pbn' };
           const pbnBoards = parsePbnBoardsFromText(text);
           if (pbnBoards.length > 0) {
             openPhotoScanModalWithPbnBoards(pbnBoards);
             return;
           }
         }
-        parseAndApplyDealText(text);
+        activeLoadedFileInfo = { fileName: file.name, fileFormat: ext || 'txt', loadType: 'txt' };
+        pendingModalFileInfo = null;
+        parseAndApplyDealText(text, file.name);
       };
       reader.readAsText(file);
     });
@@ -2508,7 +2611,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function parseAndApplyDealText(text) {
+  function parseAndApplyDealText(text, sourceFileName = null) {
     if (!text) return;
     loadedBoardHands = null;
     loadedActualDeal = null;
@@ -2587,6 +2690,17 @@ document.addEventListener('DOMContentLoaded', () => {
       inputEast.value = plainLines[1];
       inputSouth.value = plainLines[2];
       inputWest.value = plainLines[3];
+    }
+
+    const fileSource = sourceFileName ? { fileName: sourceFileName, fileFormat: 'txt', loadType: 'txt' } : activeLoadedFileInfo;
+    if (fileSource) {
+      const boardVal = keyValues.board || keyValues.board_number || keyValues.hand || '1';
+      setLoadedHandSource({
+        fileName: fileSource.fileName,
+        boardLabel: boardVal,
+        fileFormat: fileSource.fileFormat || 'txt',
+        loadType: fileSource.loadType || 'txt'
+      });
     }
 
     if (countHandCards(inputNorth.value) > 0 && countHandCards(inputEast.value) > 0 &&
@@ -3333,6 +3447,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let scanSourceCanvas = null; // Offscreen canvas holding current (possibly rotated) image
   let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands?, pbnDeclarer?, pbnContract? } in scanSourceCanvas coords
   let activeDetectedBoardIdx = -1;
+  let lastSelectedBoardLabel = '1';
   let cropBox = { x: 0, y: 0, w: 100, h: 100 }; // In scanSourceCanvas coords
   let lastDetectedAnchors = null; // In cropBox-relative coords
   let cropViewZoom = 1.0;
@@ -4167,6 +4282,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closePhotoScanModal() {
+    pendingModalFileInfo = null;
     if (photoScanModal) photoScanModal.classList.add('hidden');
   }
 
@@ -4188,10 +4304,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (detectedBoardBoxes.length > 0) {
       activeDetectedBoardIdx = 0;
+      lastSelectedBoardLabel = detectedBoardBoxes[0].boardLabel || '1';
       cropBox = { ...detectedBoardBoxes[0] };
       applyBoardMetadataToModal(detectedBoardBoxes[0]);
     } else {
       activeDetectedBoardIdx = -1;
+      lastSelectedBoardLabel = '1';
       const padX = Math.round(scanSourceCanvas.width * 0.06);
       const padY = Math.round(scanSourceCanvas.height * 0.06);
       cropBox = {
@@ -4229,6 +4347,8 @@ document.addEventListener('DOMContentLoaded', () => {
           scanInitialCardsInput.value = '';
         }
         activeDetectedBoardIdx = idx;
+        const selectedBox = detectedBoardBoxes[idx];
+        lastSelectedBoardLabel = (selectedBox && selectedBox.boardLabel) ? selectedBox.boardLabel : String(idx + 1);
         cropBox = { ...detectedBoardBoxes[idx] };
         applyBoardMetadataToModal(detectedBoardBoxes[idx]);
         renderDetectedBoardsPills();
@@ -4556,6 +4676,8 @@ document.addEventListener('DOMContentLoaded', () => {
             scanInitialCardsInput.value = '';
           }
           activeDetectedBoardIdx = hitIdx;
+          const hitBox = detectedBoardBoxes[hitIdx];
+          lastSelectedBoardLabel = (hitBox && hitBox.boardLabel) ? hitBox.boardLabel : String(hitIdx + 1);
           cropBox = { ...detectedBoardBoxes[hitIdx] };
           applyBoardMetadataToModal(detectedBoardBoxes[hitIdx]);
           renderDetectedBoardsPills();
@@ -4731,6 +4853,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (applyPhotoModalBtn) {
     applyPhotoModalBtn.addEventListener('click', () => {
+      if (pendingModalFileInfo) {
+        activeLoadedFileInfo = pendingModalFileInfo;
+        pendingModalFileInfo = null;
+      }
+
       loadedBoardHands = {
         N: (scanInputN ? scanInputN.value : '').trim(),
         E: (scanInputE ? scanInputE.value : '').trim(),
@@ -4738,6 +4865,53 @@ document.addEventListener('DOMContentLoaded', () => {
         W: (scanInputW ? scanInputW.value : '').trim()
       };
       closePhotoScanModal();
+
+      let activeBox = (activeDetectedBoardIdx >= 0 && detectedBoardBoxes[activeDetectedBoardIdx])
+        ? detectedBoardBoxes[activeDetectedBoardIdx]
+        : null;
+
+      if (!activeBox && cropBox && detectedBoardBoxes && detectedBoardBoxes.length > 0) {
+        let bestOverlap = 0;
+        let bestBox = null;
+        for (const box of detectedBoardBoxes) {
+          const overlapX = Math.max(0, Math.min(cropBox.x + cropBox.w, box.x + box.w) - Math.max(cropBox.x, box.x));
+          const overlapY = Math.max(0, Math.min(cropBox.y + cropBox.h, box.y + box.h) - Math.max(cropBox.y, box.y));
+          const overlapArea = overlapX * overlapY;
+          if (overlapArea > bestOverlap) {
+            bestOverlap = overlapArea;
+            bestBox = box;
+          }
+        }
+        if (bestBox && bestOverlap > 0) {
+          activeBox = bestBox;
+        }
+      }
+
+      const boardLabel = activeBox && activeBox.boardLabel
+        ? activeBox.boardLabel
+        : (lastSelectedBoardLabel || String(activeDetectedBoardIdx >= 0 ? activeDetectedBoardIdx + 1 : 1));
+
+      if (activeLoadedFileInfo) {
+        setLoadedHandSource({
+          fileName: activeLoadedFileInfo.fileName,
+          boardLabel: boardLabel,
+          fileFormat: activeLoadedFileInfo.fileFormat || 'pdf',
+          loadType: activeLoadedFileInfo.loadType || 'pdf'
+        });
+      } else if (loadedHandSource) {
+        setLoadedHandSource({
+          ...loadedHandSource,
+          boardLabel: boardLabel
+        });
+      } else {
+        setLoadedHandSource({
+          fileName: 'imported_deal',
+          boardLabel: boardLabel,
+          fileFormat: 'pdf',
+          loadType: 'file_import'
+        });
+      }
+
       applyDeclarerRotation(currentDeclarerSeat, true);
     });
   }
@@ -7451,6 +7625,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function collectFeedbackDealSnapshot() {
     const snap = {
       preset: presetSelect ? presetSelect.value : '',
+      loaded_hand_source: loadedHandSource ? {
+        file_name: loadedHandSource.fileName || loadedHandSource.file_name || '',
+        board_label: loadedHandSource.boardLabel || loadedHandSource.board_label || '',
+        file_format: loadedHandSource.fileFormat || loadedHandSource.file_format || '',
+        load_type: loadedHandSource.loadType || loadedHandSource.load_type || ''
+      } : null,
       hands: {
         N: inputNorth ? inputNorth.value : '',
         E: inputEast ? inputEast.value : '',
@@ -7492,7 +7672,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
 
     const dealSummaryText = dealSnapshot
-      ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
+      ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}${
+          dealSnapshot.loaded_hand_source
+            ? `\nSource File: ${dealSnapshot.loaded_hand_source.file_name} (Hand ${dealSnapshot.loaded_hand_source.board_label})`
+            : ''
+        }\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
       : '';
 
     const userObj = {
@@ -7510,6 +7694,8 @@ document.addEventListener('DOMContentLoaded', () => {
       user: userObj,
       tags: {
         preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+        file_name: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.file_name : '',
+        board_label: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.board_label : '',
         trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
         leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
         backend_mode: backendMode || 'unknown'
