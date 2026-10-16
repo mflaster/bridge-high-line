@@ -1105,6 +1105,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const entry = entries[idx];
     if (!entry) return;
 
+    emitSentryMetricCount('equivalent_line_switched', 1, {
+      line_kind: entry.kind,
+      line_index: idx
+    });
+
     if (entry.kind === 'alt' && entry.altData) {
       currentSolveData = JSON.parse(JSON.stringify(entry.altData));
       currentSolveData.active_line_index = idx;
@@ -1422,6 +1427,7 @@ document.addEventListener('DOMContentLoaded', () => {
     backendDetectPromise = (async () => {
       if (window.BRIDGE_FORCE_WASM === true) {
         backendMode = 'wasm';
+        setSentryGlobalAttribute('backend_mode', backendMode);
         configureWasmThreadsUI();
         initWasmWorker();
         return backendMode;
@@ -1432,11 +1438,13 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = await res.json();
           if (data && data.status === 'ok') {
             backendMode = 'server';
+            setSentryGlobalAttribute('backend_mode', backendMode);
             return backendMode;
           }
         }
       } catch (_) {}
       backendMode = 'wasm';
+      setSentryGlobalAttribute('backend_mode', backendMode);
       configureWasmThreadsUI();
       initWasmWorker();
       return backendMode;
@@ -2588,10 +2596,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  function loadPreset(key) {
+  function loadPreset(key, isInitialLoad = false) {
     const customEntry = sessionCustomHands.find(h => h.key === key);
     if (customEntry) {
       applySessionCustomHand(customEntry);
+      if (!isInitialLoad) {
+        emitSentryMetricCount('hand_loaded', 1, {
+          load_type: 'session_custom',
+          preset: customEntry.key
+        });
+      }
       return;
     }
     loadedHandSource = null;
@@ -2620,6 +2634,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateDealSvg();
+    if (!isInitialLoad) {
+      emitSentryMetricCount('hand_loaded', 1, {
+        load_type: 'preset',
+        preset: key
+      });
+    }
   }
 
   // Load Hand on Dropdown Selection
@@ -2789,12 +2809,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (['N', 'E', 'S', 'W'].includes(declKey)) {
         applyDeclarerRotation(declKey);
         if (sourceMeta) registerSessionCustomHand(sourceMeta);
+        emitSentryMetricCount('hand_loaded', 1, {
+          load_type: (sourceMeta && sourceMeta.loadType) || 'txt'
+        });
         return;
       }
     }
     updateDeclarerBarUI('N');
     updateDealSvg();
     if (sourceMeta) registerSessionCustomHand(sourceMeta);
+    emitSentryMetricCount('hand_loaded', 1, {
+      load_type: (sourceMeta && sourceMeta.loadType) || 'txt'
+    });
   }
 
   // =========================================================================
@@ -4256,6 +4282,7 @@ document.addEventListener('DOMContentLoaded', () => {
       scanStatusBadge.textContent = 'Loading PDF hand record...';
     }
 
+    const pdfStartMs = performance.now();
     try {
       const arrayBuffer = await file.arrayBuffer();
       activePdfPbnBoards = await extractPbnBoardsFromPdfBuffer(arrayBuffer);
@@ -4286,6 +4313,15 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       }
+      emitSentryMetricDistribution(
+        'pdf_parse_ms',
+        Number((performance.now() - pdfStartMs).toFixed(1)),
+        'millisecond',
+        {
+          has_pbn: activePdfPbnBoards.length > 0,
+          page_count: activePdfTotalPages
+        }
+      );
     } catch (err) {
       reportRuntimeErrorToSentry(err, {
         source: 'pdf_read_error',
@@ -4600,7 +4636,14 @@ document.addEventListener('DOMContentLoaded', () => {
     tCtx.drawImage(scanSourceCanvas, sx, sy, sw, sh, 0, 0, tw, th);
     const imgData = tCtx.getImageData(0, 0, tw, th);
 
+    const ocrStartMs = performance.now();
     const res = recognizeBoardFromImageData(imgData);
+    emitSentryMetricDistribution(
+      'ocr_scan_ms',
+      Number((performance.now() - ocrStartMs).toFixed(1)),
+      'millisecond',
+      { detected: Boolean(res) }
+    );
     const activeBox = (activeDetectedBoardIdx >= 0 && detectedBoardBoxes[activeDetectedBoardIdx])
       ? detectedBoardBoxes[activeDetectedBoardIdx]
       : null;
@@ -4999,6 +5042,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       applyDeclarerRotation(currentDeclarerSeat, true);
       registerSessionCustomHand(sourceMeta);
+      emitSentryMetricCount('hand_loaded', 1, {
+        load_type: (sourceMeta && sourceMeta.loadType) || 'file_import'
+      });
     });
   }
 
@@ -5086,6 +5132,11 @@ document.addEventListener('DOMContentLoaded', () => {
       payload.requirements = reqs;
     }
 
+    emitSentryMetricCount('solve_started', 1, {
+      solve_kind: 'main',
+      trump: payload.trump
+    });
+
     let isSolving = true;
     const statusPollTimer = setInterval(async () => {
       if (!isSolving || solveStoppedByUser) return;
@@ -5115,11 +5166,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (solveStoppedByUser || (data && data.stopped)) {
         setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+        emitSentryMetricCount('solve_stopped', 1, {
+          solve_kind: 'main',
+          backend_mode: backendMode || 'unknown'
+        });
         return;
       }
 
       if (!response.ok || !data.success) {
         setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
+        emitSentryMetricCount('solve_failed', 1, {
+          solve_kind: 'main',
+          backend_mode: backendMode || 'unknown'
+        });
         solveBtn.disabled = false;
         return;
       }
@@ -5178,6 +5237,29 @@ document.addEventListener('DOMContentLoaded', () => {
         traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
       }
 
+      const solveAttrs = {
+        solve_kind: 'main',
+        backend_mode: backendMode || 'unknown',
+        trump: payload.trump,
+        source_type: loadedHandSource
+          ? (loadedHandSource.loadType || 'custom')
+          : 'preset'
+      };
+      emitSentryMetricCount('solve_completed', 1, solveAttrs);
+      emitSentryMetricDistribution(
+        'solve_duration_ms',
+        Number(elapsed),
+        'millisecond',
+        solveAttrs
+      );
+      emitSentryMetricGauge('solve_num_iters', payload.num_iters, 'none', solveAttrs);
+      emitSentryMetricGauge(
+        'solve_success_pct',
+        Number(successPct),
+        'percent',
+        solveAttrs
+      );
+
       populateEquivalentLinesControls(data, 0);
 
       // Render the combined decision tree, then the Distribution Summary and
@@ -5191,9 +5273,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
       if (solveStoppedByUser || (err && err.name === 'AbortError')) {
         setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+        emitSentryMetricCount('solve_stopped', 1, {
+          solve_kind: 'main',
+          backend_mode: backendMode || 'unknown'
+        });
       } else {
         console.error(err);
         setStatus('error', 'Network or server error: ' + err.message);
+        emitSentryMetricCount('solve_failed', 1, {
+          solve_kind: 'main',
+          backend_mode: backendMode || 'unknown'
+        });
       }
     } finally {
       isSolving = false;
@@ -5633,6 +5723,14 @@ document.addEventListener('DOMContentLoaded', () => {
       computeNewLineBtn.disabled = true;
       solveBtn.disabled = true;
       const startTime = performance.now();
+      emitSentryMetricCount('propose_line_used', 1, {
+        trick_num: ctx.trickNum,
+        cards_count: proposedCards.length
+      });
+      emitSentryMetricCount('solve_started', 1, {
+        solve_kind: 'proposed_line',
+        trump: payload.trump
+      });
 
       let isSolving = true;
       const statusPollTimer = setInterval(async () => {
@@ -5661,11 +5759,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (solveStoppedByUser || (data && data.stopped)) {
           setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+          emitSentryMetricCount('solve_stopped', 1, {
+            solve_kind: 'proposed_line',
+            backend_mode: backendMode || 'unknown'
+          });
           return;
         }
 
         if (!response.ok || !data.success) {
           setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
+          emitSentryMetricCount('solve_failed', 1, {
+            solve_kind: 'proposed_line',
+            backend_mode: backendMode || 'unknown'
+          });
           computeNewLineBtn.disabled = false;
           solveBtn.disabled = false;
           return;
@@ -5751,6 +5857,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
         if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
 
+        const propSolveAttrs = {
+          solve_kind: 'proposed_line',
+          backend_mode: backendMode || 'unknown',
+          trump: payload.trump
+        };
+        emitSentryMetricCount('solve_completed', 1, propSolveAttrs);
+        emitSentryMetricDistribution(
+          'solve_duration_ms',
+          Number(elapsed),
+          'millisecond',
+          propSolveAttrs
+        );
+        emitSentryMetricGauge(
+          'solve_num_iters',
+          payload.num_iters,
+          'none',
+          propSolveAttrs
+        );
+        emitSentryMetricGauge(
+          'solve_success_pct',
+          Number(successPct),
+          'percent',
+          propSolveAttrs
+        );
+
         renderSolveTree();
         updateViewMode(activeViewMode);
       } catch (err) {
@@ -5759,9 +5890,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
         if (solveStoppedByUser || (err && err.name === 'AbortError')) {
           setStatus('idle', 'Solve stopped by user.', `${elapsedSec} s`);
+          emitSentryMetricCount('solve_stopped', 1, {
+            solve_kind: 'proposed_line',
+            backend_mode: backendMode || 'unknown'
+          });
         } else {
           console.error(err);
           setStatus('error', 'Network or server error: ' + err.message);
+          emitSentryMetricCount('solve_failed', 1, {
+            solve_kind: 'proposed_line',
+            backend_mode: backendMode || 'unknown'
+          });
         }
       } finally {
         isSolving = false;
@@ -5972,6 +6111,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    if (activeTracedBoardId !== boardId) {
+      emitSentryMetricCount('trace_board_used', 1, { hand_num: handNum });
+    }
     activeTracedBoardId = boardId;
     activeTracedDeal = findDealByBoardId(boardId);
     activeTracedNodeSet = new Set(pathToLeaf);
@@ -7680,9 +7822,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Sentry User Feedback & Error Reporting
+  // Sentry User Feedback, Error Reporting & Metrics
   const SENTRY_DSN = 'https://4f773fa337d8e6b1e559790da9ee1fb1@o4512261310709760.ingest.us.sentry.io/4512261325324288';
   const SENTRY_ENVELOPE_URL = 'https://o4512261310709760.ingest.us.sentry.io/api/4512261325324288/envelope/?sentry_key=4f773fa337d8e6b1e559790da9ee1fb1&sentry_version=7&sentry_client=bridge-high-line-web%2F1.0.0';
+  const ANON_USER_ID_STORAGE_KEY = 'bridge_anon_user_id';
+  let cachedAnonUserId = null;
 
   const openFeedbackBtn = document.getElementById('openFeedbackBtn');
   const feedbackModal = document.getElementById('feedbackModal');
@@ -7706,6 +7850,81 @@ document.addEventListener('DOMContentLoaded', () => {
       id += hex[Math.floor(Math.random() * 16)];
     }
     return id;
+  }
+
+  function getOrCreateAnonUserId() {
+    if (cachedAnonUserId) return cachedAnonUserId;
+    try {
+      const saved = localStorage.getItem(ANON_USER_ID_STORAGE_KEY);
+      if (saved && /^[0-9a-f-]{16,64}$/i.test(saved)) {
+        cachedAnonUserId = saved;
+        return cachedAnonUserId;
+      }
+    } catch (_) {}
+    cachedAnonUserId = generateSentryEventId();
+    try {
+      localStorage.setItem(ANON_USER_ID_STORAGE_KEY, cachedAnonUserId);
+    } catch (_) {}
+    return cachedAnonUserId;
+  }
+
+  function sanitizeSentryAttributes(attrs) {
+    if (!attrs || typeof attrs !== 'object') return undefined;
+    const clean = {};
+    for (const [k, v] of Object.entries(attrs)) {
+      if (typeof v === 'string' || typeof v === 'number' ||
+          typeof v === 'boolean') {
+        clean[k] = v;
+      }
+    }
+    return Object.keys(clean).length > 0 ? clean : undefined;
+  }
+
+  function setSentryGlobalAttribute(key, value) {
+    if (!window.Sentry || typeof window.Sentry.setAttribute !== 'function') {
+      return;
+    }
+    if (typeof value === 'string' || typeof value === 'number' ||
+        typeof value === 'boolean') {
+      window.Sentry.setAttribute(key, value);
+    }
+  }
+
+  function emitSentryMetricCount(name, value = 1, attributes = null) {
+    if (!window.Sentry || !window.Sentry.metrics ||
+        typeof window.Sentry.metrics.count !== 'function') {
+      return;
+    }
+    const cleanAttrs = sanitizeSentryAttributes(attributes);
+    window.Sentry.metrics.count(
+      name,
+      value,
+      cleanAttrs ? { attributes: cleanAttrs } : undefined
+    );
+  }
+
+  function emitSentryMetricDistribution(name, value, unit = 'none',
+                                        attributes = null) {
+    if (!window.Sentry || !window.Sentry.metrics ||
+        typeof window.Sentry.metrics.distribution !== 'function') {
+      return;
+    }
+    const cleanAttrs = sanitizeSentryAttributes(attributes);
+    const opts = { unit };
+    if (cleanAttrs) opts.attributes = cleanAttrs;
+    window.Sentry.metrics.distribution(name, value, opts);
+  }
+
+  function emitSentryMetricGauge(name, value, unit = 'none',
+                                 attributes = null) {
+    if (!window.Sentry || !window.Sentry.metrics ||
+        typeof window.Sentry.metrics.gauge !== 'function') {
+      return;
+    }
+    const cleanAttrs = sanitizeSentryAttributes(attributes);
+    const opts = { unit };
+    if (cleanAttrs) opts.attributes = cleanAttrs;
+    window.Sentry.metrics.gauge(name, value, opts);
   }
 
   function collectFeedbackDealSnapshot() {
@@ -7752,13 +7971,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function initSentryRuntimeErrorReporting() {
-    if (!window.Sentry || typeof window.Sentry.onLoad !== 'function') return;
-    window.Sentry.onLoad(() => {
+    if (!window.Sentry) return;
+    const runInit = () => {
       if (!window.Sentry || typeof window.Sentry.init !== 'function') return;
-      const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
+      const environment = window.location.hostname.includes('github.io')
+        ? 'github-pages'
+        : 'local';
+      const anonUserId = getOrCreateAnonUserId();
       window.Sentry.init({
         dsn: SENTRY_DSN,
         environment,
+        sendDefaultPii: true,
         beforeSend(event) {
           try {
             const dealSnapshot = collectFeedbackDealSnapshot();
@@ -7780,7 +8003,19 @@ document.addEventListener('DOMContentLoaded', () => {
           return event;
         }
       });
-    });
+      if (typeof window.Sentry.setUser === 'function') {
+        window.Sentry.setUser({ id: anonUserId, ip_address: '{{auto}}' });
+      }
+      if (typeof window.Sentry.setAttributes === 'function') {
+        window.Sentry.setAttributes({ browser_id: anonUserId, environment });
+      }
+      emitSentryMetricCount('page_loaded', 1, { environment });
+    };
+    if (typeof window.Sentry.onLoad === 'function') {
+      window.Sentry.onLoad(runInit);
+    } else {
+      runInit();
+    }
   }
 
   function reportRuntimeErrorToSentry(err, extra = {}) {
@@ -7809,6 +8044,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nowIso = new Date().toISOString();
     const dealSnapshot = includeDeal ? collectFeedbackDealSnapshot() : null;
     const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
+    const anonUserId = getOrCreateAnonUserId();
 
     const dealSummaryText = dealSnapshot
       ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}${
@@ -7819,6 +8055,8 @@ document.addEventListener('DOMContentLoaded', () => {
       : '';
 
     const userObj = {
+      id: anonUserId,
+      ip_address: '{{auto}}',
       name: name || 'Anonymous',
       ...(email ? { email } : {})
     };
@@ -7867,6 +8105,9 @@ document.addEventListener('DOMContentLoaded', () => {
         `Sentry returned HTTP ${res.status}${errText ? ': ' + errText.slice(0, 120) : ''}`
       );
     }
+    emitSentryMetricCount('feedback_submitted', 1, {
+      include_deal: Boolean(includeDeal)
+    });
     return feedbackEventId;
   }
 
@@ -7969,7 +8210,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial UI Render & Fetch Presets
   fetchPresets().then(() => {
     if (presetSelect && presetSelect.value) {
-      loadPreset(presetSelect.value);
+      loadPreset(presetSelect.value, true);
     } else {
       updateDealSvg();
     }
