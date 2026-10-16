@@ -25,15 +25,9 @@ inline const char* INDEX_HTML = R"rawhtml(
         <span class="spade-icon">♠</span>
         <h1>Bridge Deal Solver</h1>
       </div>
-      <div id="handSourceBadge" class="hand-source-badge hidden" aria-label="Active hand source">
-        <span class="hand-source-icon">📄</span>
-        <span id="handSourceText" class="hand-source-text" title=""></span>
-        <button id="clearHandSourceBtn" type="button" class="clear-source-btn" aria-label="Clear active hand source badge" title="Clear loaded file and reset to default preset">×</button>
-      </div>
       <div class="preset-selector">
-        <label for="presetSelect">Presets:</label>
+        <label for="presetSelect">Hand Selector:</label>
         <select id="presetSelect" class="select-input">
-          <option value="custom" disabled hidden>Custom Deal</option>
           <option value="finesse">Simple Finesse (Spades)</option>
           <option value="endplay">4-Card Endplay Deal</option>
           <option value="squeeze">Squeeze Deal (NT)</option>
@@ -702,63 +696,15 @@ body {
   letter-spacing: -0.5px;
 }
 
-/* Dedicated Active Hand Source Badge */
-.hand-source-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(30, 41, 59, 0.85);
-  border: 1px solid #334155;
-  border-radius: 20px;
-  padding: 4px 10px;
-  font-size: 0.85rem;
-  color: #38bdf8;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-  max-width: 320px;
-}
-
-.hand-source-badge.hidden {
-  display: none !important;
-}
-
-.hand-source-icon {
-  font-size: 0.9rem;
-  flex-shrink: 0;
-}
-
-.hand-source-text {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 220px;
-}
-
-.clear-source-btn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 2px;
-  cursor: pointer;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
-
-.clear-source-btn:hover {
-  color: #f87171;
-  background-color: rgba(248, 113, 113, 0.15);
-}
-
 .preset-selector {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.preset-selector .select-input {
+  max-width: 320px;
+  text-overflow: ellipsis;
 }
 
 .app-main {
@@ -2793,16 +2739,6 @@ body.is-resizing * {
     font-size: 17px;
   }
 
-  .hand-source-badge {
-    max-width: 100%;
-    padding: 3px 8px;
-    font-size: 0.8rem;
-  }
-
-  .hand-source-text {
-    max-width: 160px;
-  }
-
   .preset-selector {
     width: 100%;
     justify-content: space-between;
@@ -2811,6 +2747,7 @@ body.is-resizing * {
   .preset-selector .select-input {
     flex: 1;
     min-width: 0;
+    max-width: none;
   }
 
   .app-main {
@@ -3720,14 +3657,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardStatActual = document.getElementById('cardStatActual');
   const statSuccess = document.getElementById('statSuccess');
 
-  // Active Hand Source & Header Badge State
-  const handSourceBadge = document.getElementById('handSourceBadge');
-  const handSourceText = document.getElementById('handSourceText');
-  const clearHandSourceBtn = document.getElementById('clearHandSourceBtn');
-
+  // Session Custom Hands & Active Hand Source State
   let loadedHandSource = null;
   let activeLoadedFileInfo = null;
   let pendingModalFileInfo = null;
+  const sessionCustomHands = [];
 
   function formatCleanBoardLabel(rawBoard) {
     if (rawBoard === null || rawBoard === undefined || rawBoard === '') return '1';
@@ -3736,14 +3670,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return clean || str || '1';
   }
 
-  function setLoadedHandSource(sourceObj) {
+  function captureCurrentDealState() {
+    const wHcpLowEl = document.getElementById('wHcpLow');
+    const wHcpHighEl = document.getElementById('wHcpHigh');
+    return {
+      north: inputNorth ? inputNorth.value : '',
+      east: inputEast ? inputEast.value : '',
+      south: inputSouth ? inputSouth.value : '',
+      west: inputWest ? inputWest.value : '',
+      unknown_cards: inputUnknownCards ? inputUnknownCards.value : '',
+      trump: trumpSelect ? trumpSelect.value : 'SPADES',
+      leader: leaderSelect ? leaderSelect.value : 'EAST',
+      target: targetTricks ? targetTricks.value : '1',
+      iters: numIters ? numIters.value : '100',
+      cur_trick: Array.isArray(presetCurTrick) ? presetCurTrick.slice() : [],
+      loadedBoardHands: loadedBoardHands ? { ...loadedBoardHands } : null,
+      loadedActualDeal: loadedActualDeal ? { ...loadedActualDeal } : null,
+      importedSuitVoids: {
+        E: new Set(importedSuitVoids && importedSuitVoids.E ? importedSuitVoids.E : []),
+        W: new Set(importedSuitVoids && importedSuitVoids.W ? importedSuitVoids.W : [])
+      },
+      declarerSeat: currentDeclarerSeat || 'N',
+      wHcpLow: wHcpLowEl ? wHcpLowEl.value : '',
+      wHcpHigh: wHcpHighEl ? wHcpHighEl.value : ''
+    };
+  }
+
+  function registerSessionCustomHand(sourceObj) {
     if (!sourceObj) {
       loadedHandSource = null;
-      if (handSourceBadge) handSourceBadge.classList.add('hidden');
-      if (handSourceText) {
-        handSourceText.textContent = '';
-        handSourceText.title = '';
-      }
       return;
     }
 
@@ -3752,8 +3707,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleanBoard = formatCleanBoardLabel(rawBoard);
     const fileFormat = sourceObj.fileFormat || sourceObj.file_format || 'pdf';
     const loadType = sourceObj.loadType || sourceObj.load_type || fileFormat;
+    const label = `Hand ${cleanBoard} from ${fileName}`;
+    const key = `custom:${fileName}:${cleanBoard}`;
 
-    loadedHandSource = {
+    const source = {
       fileName,
       boardLabel: cleanBoard,
       fileFormat,
@@ -3764,35 +3721,64 @@ document.addEventListener('DOMContentLoaded', () => {
       load_type: loadType
     };
 
-    const labelText = `Hand ${cleanBoard} from ${fileName}`;
-    if (handSourceText) {
-      handSourceText.textContent = labelText;
-      handSourceText.title = labelText;
+    const entry = {
+      key,
+      label,
+      source,
+      state: captureCurrentDealState()
+    };
+
+    const existingIdx = sessionCustomHands.findIndex(h => h.key === key);
+    if (existingIdx >= 0) {
+      sessionCustomHands[existingIdx] = entry;
+    } else {
+      sessionCustomHands.push(entry);
     }
-    if (handSourceBadge) {
-      handSourceBadge.classList.remove('hidden');
-    }
-    if (presetSelect) {
-      presetSelect.value = 'custom';
+
+    loadedHandSource = source;
+    renderHandSelectorOptions(key);
+  }
+
+  function updateActiveSessionCustomHandState() {
+    if (!presetSelect || !presetSelect.value) return;
+    const entry = sessionCustomHands.find(h => h.key === presetSelect.value);
+    if (entry) {
+      entry.state = captureCurrentDealState();
     }
   }
 
-  if (clearHandSourceBtn) {
-    clearHandSourceBtn.addEventListener('click', () => {
-      setLoadedHandSource(null);
-      if (presetSelect) {
-        let defaultPreset = 'finesse';
-        for (let i = 0; i < presetSelect.options.length; i++) {
-          const val = presetSelect.options[i].value;
-          if (val && val !== 'custom') {
-            defaultPreset = val;
-            break;
-          }
-        }
-        presetSelect.value = defaultPreset;
-        loadPreset(defaultPreset);
-      }
-    });
+  function applySessionCustomHand(entry) {
+    if (!entry || !entry.state) return;
+    const s = entry.state;
+    loadedHandSource = entry.source;
+    loadedBoardHands = s.loadedBoardHands ? { ...s.loadedBoardHands } : null;
+    loadedActualDeal = s.loadedActualDeal ? { ...s.loadedActualDeal } : null;
+    importedSuitVoids = {
+      E: new Set(s.importedSuitVoids && s.importedSuitVoids.E ? s.importedSuitVoids.E : []),
+      W: new Set(s.importedSuitVoids && s.importedSuitVoids.W ? s.importedSuitVoids.W : [])
+    };
+    presetCurTrick = Array.isArray(s.cur_trick) ? s.cur_trick.slice() : [];
+    updateDeclarerBarUI(s.declarerSeat || 'N');
+    clearPanels();
+    setStatus('idle', `Loaded ${entry.label}. Configure hands and click "Solve Deal".`);
+
+    if (trumpSelect) trumpSelect.value = s.trump;
+    if (leaderSelect) leaderSelect.value = s.leader;
+    if (targetTricks) targetTricks.value = s.target;
+    if (numIters) numIters.value = s.iters;
+
+    if (inputNorth) inputNorth.value = s.north || '';
+    if (inputEast) inputEast.value = s.east || '';
+    if (inputSouth) inputSouth.value = s.south || '';
+    if (inputWest) inputWest.value = s.west || '';
+    if (inputUnknownCards) inputUnknownCards.value = s.unknown_cards || '';
+
+    const wHcpLowEl = document.getElementById('wHcpLow');
+    const wHcpHighEl = document.getElementById('wHcpHigh');
+    if (wHcpLowEl) wHcpLowEl.value = s.wHcpLow || '';
+    if (wHcpHighEl) wHcpHighEl.value = s.wHcpHigh || '';
+
+    updateDealSvg();
   }
   const statFailure = document.getElementById('statFailure');
   const statActual = document.getElementById('statActual');
@@ -5184,38 +5170,52 @@ document.addEventListener('DOMContentLoaded', () => {
     ensureBackendMode();
   }
 
-  function populatePresetSelect() {
+  function renderHandSelectorOptions(selectedVal) {
     if (!presetSelect) return;
-    const currentVal = presetSelect.value;
+    const targetVal = selectedVal !== undefined ? selectedVal : presetSelect.value;
     presetSelect.innerHTML = '';
 
-    const customOpt = document.createElement('option');
-    customOpt.value = 'custom';
-    customOpt.textContent = 'Custom Deal';
-    customOpt.disabled = true;
-    customOpt.hidden = true;
-    presetSelect.appendChild(customOpt);
-
-    for (const [key, p] of Object.entries(PRESETS)) {
-      const opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = p.name || key;
-      presetSelect.appendChild(opt);
-    }
-    if (currentVal === 'custom' || PRESETS[currentVal]) {
-      presetSelect.value = currentVal;
-    } else if (presetSelect.options.length > 0) {
-      let defaultVal = '';
-      for (let i = 0; i < presetSelect.options.length; i++) {
-        const val = presetSelect.options[i].value;
-        if (val && val !== 'custom') {
-          defaultVal = val;
-          break;
-        }
+    if (sessionCustomHands.length > 0) {
+      const customGroup = document.createElement('optgroup');
+      customGroup.label = 'Loaded Hands';
+      for (const h of sessionCustomHands) {
+        const opt = document.createElement('option');
+        opt.value = h.key;
+        opt.textContent = h.label;
+        customGroup.appendChild(opt);
       }
-      presetSelect.value = defaultVal || presetSelect.options[0].value;
+      presetSelect.appendChild(customGroup);
+
+      const presetGroup = document.createElement('optgroup');
+      presetGroup.label = 'Presets';
+      for (const [key, p] of Object.entries(PRESETS)) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = p.name || key;
+        presetGroup.appendChild(opt);
+      }
+      presetSelect.appendChild(presetGroup);
+    } else {
+      for (const [key, p] of Object.entries(PRESETS)) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = p.name || key;
+        presetSelect.appendChild(opt);
+      }
     }
-    if (presetSelect.value && presetSelect.value !== 'custom') {
+
+    const hasCustom = sessionCustomHands.some(h => h.key === targetVal);
+    if (hasCustom || PRESETS[targetVal]) {
+      presetSelect.value = targetVal;
+    } else if (presetSelect.options.length > 0) {
+      presetSelect.value = presetSelect.options[0].value;
+    }
+  }
+
+  function populatePresetSelect() {
+    if (!presetSelect) return;
+    renderHandSelectorOptions();
+    if (presetSelect.value && PRESETS[presetSelect.value]) {
       loadPreset(presetSelect.value);
     }
   }
@@ -6200,13 +6200,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.declarer-seat-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       applyDeclarerRotation(btn.dataset.seat, false);
+      updateActiveSessionCustomHandState();
     });
   });
 
   function loadPreset(key) {
-    if (key !== 'custom') {
-      setLoadedHandSource(null);
+    const customEntry = sessionCustomHands.find(h => h.key === key);
+    if (customEntry) {
+      applySessionCustomHand(customEntry);
+      return;
     }
+    loadedHandSource = null;
     const p = PRESETS[key];
     if (!p) return;
 
@@ -6234,12 +6238,9 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDealSvg();
   }
 
-  // Load Preset on Dropdown Selection
+  // Load Hand on Dropdown Selection
   if (presetSelect) {
     presetSelect.addEventListener('change', () => {
-      if (presetSelect.value !== 'custom') {
-        setLoadedHandSource(null);
-      }
       loadPreset(presetSelect.value);
     });
   }
@@ -6384,15 +6385,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const fileSource = sourceFileName ? { fileName: sourceFileName, fileFormat: 'txt', loadType: 'txt' } : activeLoadedFileInfo;
-    if (fileSource) {
-      const boardVal = keyValues.board || keyValues.board_number || keyValues.hand || '1';
-      setLoadedHandSource({
-        fileName: fileSource.fileName,
-        boardLabel: boardVal,
-        fileFormat: fileSource.fileFormat || 'txt',
-        loadType: fileSource.loadType || 'txt'
-      });
-    }
+    const boardVal = keyValues.board || keyValues.board_number || keyValues.hand || '1';
+    const sourceMeta = fileSource ? {
+      fileName: fileSource.fileName,
+      boardLabel: boardVal,
+      fileFormat: fileSource.fileFormat || 'txt',
+      loadType: fileSource.loadType || 'txt'
+    } : null;
 
     if (countHandCards(inputNorth.value) > 0 && countHandCards(inputEast.value) > 0 &&
         countHandCards(inputSouth.value) > 0 && countHandCards(inputWest.value) > 0) {
@@ -6405,11 +6404,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const declKey = (keyValues.declarer || '').trim().toUpperCase().charAt(0);
       if (['N', 'E', 'S', 'W'].includes(declKey)) {
         applyDeclarerRotation(declKey);
+        if (sourceMeta) registerSessionCustomHand(sourceMeta);
         return;
       }
     }
     updateDeclarerBarUI('N');
     updateDealSvg();
+    if (sourceMeta) registerSessionCustomHand(sourceMeta);
   }
 
   // =========================================================================
@@ -8582,28 +8583,30 @@ document.addEventListener('DOMContentLoaded', () => {
         ? activeBox.boardLabel
         : (lastSelectedBoardLabel || String(activeDetectedBoardIdx >= 0 ? activeDetectedBoardIdx + 1 : 1));
 
+      let sourceMeta = null;
       if (activeLoadedFileInfo) {
-        setLoadedHandSource({
+        sourceMeta = {
           fileName: activeLoadedFileInfo.fileName,
           boardLabel: boardLabel,
           fileFormat: activeLoadedFileInfo.fileFormat || 'pdf',
           loadType: activeLoadedFileInfo.loadType || 'pdf'
-        });
+        };
       } else if (loadedHandSource) {
-        setLoadedHandSource({
+        sourceMeta = {
           ...loadedHandSource,
           boardLabel: boardLabel
-        });
+        };
       } else {
-        setLoadedHandSource({
+        sourceMeta = {
           fileName: 'imported_deal',
           boardLabel: boardLabel,
           fileFormat: 'pdf',
           loadType: 'file_import'
-        });
+        };
       }
 
       applyDeclarerRotation(currentDeclarerSeat, true);
+      registerSessionCustomHand(sourceMeta);
     });
   }
 

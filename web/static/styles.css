@@ -64,63 +64,15 @@ body {
   letter-spacing: -0.5px;
 }
 
-/* Dedicated Active Hand Source Badge */
-.hand-source-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(30, 41, 59, 0.85);
-  border: 1px solid #334155;
-  border-radius: 20px;
-  padding: 4px 10px;
-  font-size: 0.85rem;
-  color: #38bdf8;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-  max-width: 320px;
-}
-
-.hand-source-badge.hidden {
-  display: none !important;
-}
-
-.hand-source-icon {
-  font-size: 0.9rem;
-  flex-shrink: 0;
-}
-
-.hand-source-text {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 220px;
-}
-
-.clear-source-btn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 2px;
-  cursor: pointer;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
-
-.clear-source-btn:hover {
-  color: #f87171;
-  background-color: rgba(248, 113, 113, 0.15);
-}
-
 .preset-selector {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.preset-selector .select-input {
+  max-width: 320px;
+  text-overflow: ellipsis;
 }
 
 .app-main {
@@ -2155,16 +2107,6 @@ body.is-resizing * {
     font-size: 17px;
   }
 
-  .hand-source-badge {
-    max-width: 100%;
-    padding: 3px 8px;
-    font-size: 0.8rem;
-  }
-
-  .hand-source-text {
-    max-width: 160px;
-  }
-
   .preset-selector {
     width: 100%;
     justify-content: space-between;
@@ -2173,6 +2115,7 @@ body.is-resizing * {
   .preset-selector .select-input {
     flex: 1;
     min-width: 0;
+    max-width: none;
   }
 
   .app-main {
