@@ -604,10 +604,16 @@
           <label for="feedbackMessageInput">Feedback / Issue Description *</label>
           <textarea id="feedbackMessageInput" class="text-input feedback-textarea" rows="4" required placeholder="What happened, or what would you like to see improved?"></textarea>
         </div>
-        <label class="feedback-checkbox-label">
-          <input type="checkbox" id="feedbackIncludeDealCheckbox" checked>
-          <span>Attach current deal &amp; solver state</span>
-        </label>
+        <div class="feedback-checkbox-group">
+          <label class="feedback-checkbox-label">
+            <input type="checkbox" id="feedbackIncludeDealCheckbox" checked>
+            <span>Attach current deal &amp; solver state</span>
+          </label>
+          <label class="feedback-checkbox-label">
+            <input type="checkbox" id="feedbackIncludeExplorerCheckbox" checked>
+            <span>Attach decision-tree &amp; line-explorer state</span>
+          </label>
+        </div>
         <div id="feedbackStatusMsg" class="feedback-status-msg hidden"></div>
         <div class="feedback-modal-actions">
           <button id="cancelFeedbackBtn" type="button" class="btn-secondary">Cancel</button>
