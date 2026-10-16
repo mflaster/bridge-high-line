@@ -285,23 +285,30 @@ class ConditionalLine {  // ConditionalLineBranch
   using DefenderCardsCache =
       std::unordered_map<DefenderStateKey, std::vector<std::string>,
                          DefenderStateKeyHash>;
-  int ResultsOnHandAdversarial(const BoardState &bs,
-                               DefenderCardsCache *def_cache = nullptr) const;
+  struct RescoreBoardTrace {
+    const ConditionalLine *leaf = nullptr;
+    std::vector<std::pair<const ConditionalLine *, std::string>> node_tricks;
+  };
+  int ResultsOnHandAdversarial(
+      const BoardState &bs, DefenderCardsCache *def_cache = nullptr,
+      RescoreBoardTrace *out_trace = nullptr) const;
 
-  void SetRescoredCoveredBoards(const std::set<int> &boards) {
-    if (!has_rescored_boards_) {
-      step1_covered_count_ = covered_count_;
-    }
-    rescored_covered_boards_ = boards;
-    covered_count_ = static_cast<int>(boards.size());
-    has_rescored_boards_ = true;
-  }
+  // Clones all child ConditionalLine pointers recursively so this tree does
+  // not share subtree nodes with other candidate lines.
+  void DeepCloneChildren();
+
+  // Updates leaf final_covered_boards_, action board_to_trick maps, and
+  // bottom-up covered_count_ from Step-2 rescored results while preserving
+  // step1_covered_count_.
+  void ApplyRescoredBoards(
+      const std::unordered_map<const ConditionalLine *, std::set<int>>
+          &leaf_boards,
+      const std::unordered_map<const ConditionalLine *,
+                               std::map<int, std::string>>
+          &node_board_tricks = {});
   bool has_rescored_boards() const { return has_rescored_boards_; }
   int step1_covered_boards() const {
     return has_rescored_boards_ ? step1_covered_count_ : covered_count_;
-  }
-  const std::set<int> &rescored_covered_boards() const {
-    return rescored_covered_boards_;
   }
 
   struct PlayedTrickStep {
@@ -377,7 +384,6 @@ class ConditionalLine {  // ConditionalLineBranch
   int covered_count_ = 0;
   int step1_covered_count_ = 0;
   bool has_rescored_boards_ = false;
-  std::set<int> rescored_covered_boards_;
 
   // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;

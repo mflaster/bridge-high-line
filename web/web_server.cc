@@ -452,26 +452,30 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     std::shared_ptr<DecisionTreeNode> child_node;
     if (is_final_trick) {
       // Failures also hang off this last trick, so the success outcome gets
-      // its own explicit leaf alongside them.
+      // its own explicit leaf alongside them when any board succeeded here.
       const std::set<int> &fb =
           (child_line_ptr && !child_line_ptr->final_covered_boards().empty())
               ? child_line_ptr->final_covered_boards()
               : boards_set;
-      child_node = std::make_shared<DecisionTreeNode>();
-      child_node->id = "node_" + std::to_string(++node_id);
-      child_node->type = "outcome";
-      child_node->ns_tricks = current_ns;
-      child_node->label = "Hand Succeeded (" + std::to_string(fb.size()) + "/" +
-                          std::to_string(total) + " boards) (" +
-                          std::to_string(current_ns) + " tricks won by N/S)";
-      child_node->success_boards = fb.size();
-      child_node->failure_boards = 0;
-      child_node->total_boards = total;
-      child_node->covered_boards = fb.size();
-      child_node->boards = std::vector<int>(fb.begin(), fb.end());
-      if (failures && failures->actual_succeeded &&
-          failures->actual_last_node == &line) {
-        child_node->boards.push_back(-1);
+      bool actual_here = failures && failures->actual_succeeded &&
+                         failures->actual_last_node == &line;
+      if (!fb.empty() || actual_here) {
+        child_node = std::make_shared<DecisionTreeNode>();
+        child_node->id = "node_" + std::to_string(++node_id);
+        child_node->type = "outcome";
+        child_node->ns_tricks = current_ns;
+        child_node->label =
+            "Hand Succeeded (" + std::to_string(fb.size()) + "/" +
+            std::to_string(total) + " boards) (" +
+            std::to_string(current_ns) + " tricks won by N/S)";
+        child_node->success_boards = fb.size();
+        child_node->failure_boards = 0;
+        child_node->total_boards = total;
+        child_node->covered_boards = fb.size();
+        child_node->boards = std::vector<int>(fb.begin(), fb.end());
+        if (actual_here) {
+          child_node->boards.push_back(-1);
+        }
       }
     } else {
       child_node = BuildTreeFromConditionalLine(*child_line_ptr, node_id,
@@ -956,6 +960,31 @@ bool PropagateActualBoardId(const std::shared_ptr<DecisionTreeNode> &node) {
   return has_actual;
 }
 
+void PruneEmptyBranches(const std::shared_ptr<DecisionTreeNode> &node) {
+  if (!node || node->children.empty()) return;
+  for (auto &child : node->children) {
+    PruneEmptyBranches(child);
+  }
+  auto is_empty_branch = [](const std::shared_ptr<DecisionTreeNode> &c) {
+    if (!c) return true;
+    if (c->success_boards > 0 || c->failure_boards > 0) return false;
+    return std::find(c->boards.begin(), c->boards.end(), -1) == c->boards.end();
+  };
+  bool any_non_empty = false;
+  for (const auto &c : node->children) {
+    if (!is_empty_branch(c)) {
+      any_non_empty = true;
+      break;
+    }
+  }
+  if (any_non_empty) {
+    node->children.erase(
+        std::remove_if(node->children.begin(), node->children.end(),
+                       is_empty_branch),
+        node->children.end());
+  }
+}
+
 ConditionalLine::BoardPlayTrace AttachActualBoardToFailures(
     const ConditionalLine &line, const BoardState &actual_bs, int min_tricks,
     FailureIndex *index) {
@@ -1097,7 +1126,8 @@ void to_json(nlohmann::json &j, const DecisionTreeNode &node) {
   if (!node.condition.empty()) {
     j["condition"] = node.condition;
   }
-  if (!node.boards.empty() || node.type == "action" || node.type == "condition") {
+  if (!node.boards.empty() || node.type == "action" ||
+      node.type == "condition" || node.type == "outcome") {
     j["boards"] = node.boards;
   }
   if (!node.board_to_trick.empty()) {
@@ -2008,10 +2038,11 @@ std::string WebServer::SolveJson(const std::string &req_body,
           }
           AccumulateFailureCounts(ltree);
           if (ltree) {
-            CollapseRedundantNodes(ltree);
             if (has_actual_deal) {
               PropagateActualBoardId(ltree);
             }
+            PruneEmptyBranches(ltree);
+            CollapseRedundantNodes(ltree);
             SetDefaultCollapsedState(ltree);
           }
           line_trees[i] = ltree;

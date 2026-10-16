@@ -746,5 +746,42 @@ TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
   // (100%) for C6 (Cx) CJ, adversarial East plays CT from C QT4 instead of
   // C4, forcing declarer to rise with CA and setting up East's CQ.
   REQUIRE(root.ResultsOnHandAdversarial(bs) == 2);
-}
 
+  // Before rescoring, Step-1 TraceOnBoard plays C4 and wins 3 tricks, and
+  // board 0 is in the Cx leaf.
+  REQUIRE(root.ResultsOnHand(bs) == 3);
+  REQUIRE(root.TraceOnBoard(bs, 0).final_ns_tricks == 3);
+  REQUIRE(root.CoveredFinalBoards() == 16);
+
+  // Board 1: East holds C 954 and West holds C 87 S A, so C6 (Cx) CJ makes
+  // 3 tricks even under adversarial defense.
+  BoardState bs_make = MakeBoardState(
+      {ParseHand("C 6 D 2 S 2"), ParseHand("C 954"),
+       ParseHand("C AKJ"), ParseHand("C 87 S A")},
+      0, NOTRUMP);
+
+  root.DeepCloneChildren();
+  ConditionalLine::RescoreBoardTrace trace0;
+  REQUIRE(root.ResultsOnHandAdversarial(bs, nullptr, &trace0) == 2);
+  ConditionalLine::RescoreBoardTrace trace1;
+  REQUIRE(root.ResultsOnHandAdversarial(bs_make, nullptr, &trace1) == 3);
+  REQUIRE(trace1.leaf != nullptr);
+
+  std::unordered_map<const ConditionalLine *, std::set<int>> leaf_boards;
+  leaf_boards[trace1.leaf] = {1};
+  root.ApplyRescoredBoards(leaf_boards);
+
+  REQUIRE(root.has_rescored_boards());
+  REQUIRE(root.step1_covered_boards() == 16);
+  REQUIRE(root.CoveredFinalBoards() == 1);
+  REQUIRE(root.CoveredBoardsSet() == std::set<int>{1});
+  REQUIRE(trace1.leaf->final_covered_boards() == std::set<int>{1});
+
+  // After rescoring, TraceOnBoard on failed board 0 must also use the
+  // adversarial defender (East plays CT, winning only 2 tricks), never
+  // replaying the Step-1 C4 path to 3 tricks.
+  auto trace_fail = root.TraceOnBoard(bs, 0);
+  REQUIRE(trace_fail.final_ns_tricks == 2);
+  REQUIRE(!trace_fail.steps.empty());
+  REQUIRE(trace_fail.steps[0].trick_str.rfind("C6 CT ", 0) == 0);
+}

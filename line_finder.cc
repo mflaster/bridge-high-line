@@ -531,8 +531,13 @@ void RescoreTopLinesAdversarial(const std::vector<BoardState> &boards,
   std::vector<int> active_boards(board_offsets.begin(), board_offsets.end());
   size_t num_boards = active_boards.size();
   size_t num_lines = lines->size();
+  for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+    (*lines)[l_i].DeepCloneChildren();
+  }
   std::vector<std::vector<uint8_t>> board_line_ok(
       num_boards, std::vector<uint8_t>(num_lines, 0));
+  std::vector<std::vector<ConditionalLine::RescoreBoardTrace>> board_line_trace(
+      num_boards, std::vector<ConditionalLine::RescoreBoardTrace>(num_lines));
 
   #pragma omp parallel for num_threads(num_threads) schedule(dynamic) \
       if (num_threads > 1)
@@ -541,22 +546,30 @@ void RescoreTopLinesAdversarial(const std::vector<BoardState> &boards,
     int b = active_boards[b_i];
     ConditionalLine::DefenderCardsCache def_cache;
     for (size_t l_i = 0; l_i < num_lines; ++l_i) {
-      int tricks =
-          (*lines)[l_i].ResultsOnHandAdversarial(boards[b], &def_cache);
-      if (tricks >= min_tricks) {
+      ConditionalLine::RescoreBoardTrace trace;
+      int tricks = (*lines)[l_i].ResultsOnHandAdversarial(
+          boards[b], &def_cache, &trace);
+      if (tricks >= min_tricks && trace.leaf != nullptr) {
         board_line_ok[b_i][l_i] = 1;
+        board_line_trace[b_i][l_i] = std::move(trace);
       }
     }
   }
 
   for (size_t l_i = 0; l_i < num_lines; ++l_i) {
-    std::set<int> step2_boards;
+    std::unordered_map<const ConditionalLine *, std::set<int>> leaf_boards;
+    std::unordered_map<const ConditionalLine *, std::map<int, std::string>>
+        node_board_tricks;
     for (size_t b_i = 0; b_i < num_boards; ++b_i) {
-      if (board_line_ok[b_i][l_i]) {
-        step2_boards.insert(step2_boards.end(), active_boards[b_i]);
+      if (!board_line_ok[b_i][l_i]) continue;
+      int b = active_boards[b_i];
+      const auto &tr = board_line_trace[b_i][l_i];
+      leaf_boards[tr.leaf].insert(b);
+      for (const auto &[node_ptr, trick_str] : tr.node_tricks) {
+        node_board_tricks[node_ptr][b] = trick_str;
       }
     }
-    (*lines)[l_i].SetRescoredCoveredBoards(step2_boards);
+    (*lines)[l_i].ApplyRescoredBoards(leaf_boards, node_board_tricks);
   }
 
   std::stable_sort(lines->begin(), lines->end(),
