@@ -1352,11 +1352,18 @@ document.addEventListener('DOMContentLoaded', () => {
           wasmActiveRequest = null;
           try {
             const parsed = JSON.parse(msg.resultJson || '{}');
+            if (parsed && parsed.success === false && typeof parsed.error === 'string' &&
+                parsed.error.startsWith('WebAssembly solver exception:')) {
+              reportRuntimeErrorToSentry(new Error(parsed.error), {
+                source: 'wasm_solver_exception'
+              });
+            }
             req.resolve({
               ok: parsed.success !== false,
               json: async () => parsed
             });
           } catch (err) {
+            reportRuntimeErrorToSentry(err, { source: 'wasm_invalid_json' });
             req.resolve({
               ok: false,
               json: async () => ({
@@ -1367,6 +1374,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       } else if (msg.type === 'error') {
+        const errMsg = msg.error || 'WebAssembly worker error';
+        reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -1374,13 +1383,16 @@ document.addEventListener('DOMContentLoaded', () => {
             ok: false,
             json: async () => ({
               success: false,
-              error: msg.error || 'WebAssembly worker error'
+              error: errMsg
             })
           });
         }
       }
     };
     wasmWorker.onerror = (err) => {
+      const errMsg = 'Web Worker error: ' +
+        (err && err.message ? err.message : 'failed to load solver_worker.js');
+      reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;
@@ -1388,7 +1400,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ok: false,
           json: async () => ({
             success: false,
-            error: 'Web Worker error: ' + (err && err.message ? err.message : 'failed to load solver_worker.js')
+            error: errMsg
           })
         });
       }
@@ -4264,6 +4276,10 @@ document.addEventListener('DOMContentLoaded', () => {
         await renderActivePdfPage();
       } catch (pdfErr) {
         if (activePdfPbnBoards.length === 0) {
+          reportRuntimeErrorToSentry(pdfErr, {
+            source: 'pdf_render_error',
+            file_name: file && file.name ? file.name : ''
+          });
           if (scanStatusBadge) {
             scanStatusBadge.className = 'scan-status-badge scan-status-warn';
             scanStatusBadge.textContent = '⚠ Could not render PDF offline and no embedded PBN deals were found.';
@@ -4271,6 +4287,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (err) {
+      reportRuntimeErrorToSentry(err, {
+        source: 'pdf_read_error',
+        file_name: file && file.name ? file.name : ''
+      });
       if (scanStatusBadge) {
         scanStatusBadge.className = 'scan-status-badge scan-status-warn';
         scanStatusBadge.textContent = '⚠ Failed to read PDF file.';
@@ -7730,6 +7750,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     return snap;
   }
+
+  function initSentryRuntimeErrorReporting() {
+    if (!window.Sentry || typeof window.Sentry.onLoad !== 'function') return;
+    window.Sentry.onLoad(() => {
+      if (!window.Sentry || typeof window.Sentry.init !== 'function') return;
+      const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
+      window.Sentry.init({
+        dsn: SENTRY_DSN,
+        environment,
+        beforeSend(event) {
+          try {
+            const dealSnapshot = collectFeedbackDealSnapshot();
+            event.contexts = {
+              ...(event.contexts || {}),
+              deal: dealSnapshot
+            };
+            const src = dealSnapshot.loaded_hand_source;
+            event.tags = {
+              ...(event.tags || {}),
+              preset: dealSnapshot.preset || 'custom',
+              backend_mode: backendMode || 'unknown',
+              trump: dealSnapshot.trump || '',
+              leader: dealSnapshot.leader || '',
+              ...(src && src.file_name ? { file_name: src.file_name } : {}),
+              ...(src && src.board_label ? { board_label: src.board_label } : {})
+            };
+          } catch (_) {}
+          return event;
+        }
+      });
+    });
+  }
+
+  function reportRuntimeErrorToSentry(err, extra = {}) {
+    if (!window.Sentry || typeof window.Sentry.captureException !== 'function') return;
+    const errorObj = (err instanceof Error)
+      ? err
+      : new Error(typeof err === 'string' ? err : JSON.stringify(err));
+    const tags = {};
+    const extraData = {};
+    if (extra && typeof extra === 'object') {
+      for (const [k, v] of Object.entries(extra)) {
+        if (k === 'source') {
+          tags.error_source = String(v);
+        } else {
+          extraData[k] = v;
+        }
+      }
+    }
+    window.Sentry.captureException(errorObj, { tags, extra: extraData });
+  }
+
+  initSentryRuntimeErrorReporting();
 
   async function submitSentryFeedback({ name, email, message, includeDeal }) {
     const feedbackEventId = generateSentryEventId();
