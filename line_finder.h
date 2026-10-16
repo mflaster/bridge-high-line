@@ -105,6 +105,18 @@ class LineFinder {
     if (cache) solver_cache_ = std::move(cache);
   }
 
+  void SetTopKLines(int k) { top_k_lines_ = std::max(1, k); }
+  int top_k_lines() const { return top_k_lines_; }
+
+  void SetTopKLvl1(int k) { top_k_lvl1_ = std::max(1, k); }
+  int top_k_lvl1() const { return top_k_lvl1_; }
+
+  void SetAdversarialRescore(bool v) { adversarial_rescore_ = v; }
+  bool adversarial_rescore() const { return adversarial_rescore_; }
+
+  void SetKeepAllTopK(bool v) { keep_all_top_k_ = v; }
+  bool keep_all_top_k() const { return keep_all_top_k_; }
+
   // Solves for optimal play lines to achieve min_tricks across simulated boards.
   //
   // Returns:
@@ -145,6 +157,7 @@ class LineFinder {
   static bool IsStopRequested();
 
   double solve_ms() const { return solve_ms_; }
+  double rescore_ms() const { return rescore_ms_; }
   double invariant_ms() const { return invariant_ms_; }
   const std::vector<BoardState> &boards() const { return boards_; }
   const std::vector<BoardState> &initial_boards() const {
@@ -165,6 +178,15 @@ class LineFinder {
   // branches ("when 0 wins", "if 1 wins") for each trick winner pointing to recursive SolveHelper subtrees.
   // `progress`, if set, is this trick's node in the search progress tree.
   ConditionalLine GetLineFromTrick(
+      const GeneralizedTrick &gen_trick,
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets,
+      int leader, int lvl, SearchProgress::Node *progress = nullptr,
+      int min_covered = 0);
+
+  std::vector<ConditionalLine> GetLinesFromTrick(
       const GeneralizedTrick &gen_trick,
       int min_tricks,
       SolverCache &cache,
@@ -238,10 +260,15 @@ class LineFinder {
     bool Lookup(const std::string &key, int min_covered,
                 std::vector<ConditionalLine> *out);
     void Insert(std::string key, int min_covered,
-                const std::vector<ConditionalLine> &res);
+                const std::vector<ConditionalLine> &res,
+                int top_k = 1);
   };
 
   int num_iters_;
+  int top_k_lines_ = 20;
+  int top_k_lvl1_ = 4;
+  bool adversarial_rescore_ = true;
+  bool keep_all_top_k_ = false;
   FuzzyBoardState fuzzy_state_;
   std::vector<BoardState> boards_;
   std::vector<BoardState> initial_boards_;
@@ -257,5 +284,6 @@ class LineFinder {
   std::shared_ptr<SolverCache> solver_cache_;
   std::unique_ptr<SolveMemo> solve_memo_;
   double solve_ms_ = 0.0;
+  double rescore_ms_ = 0.0;
   double invariant_ms_ = 0.0;
 };
