@@ -405,7 +405,17 @@ void RunLineFinderTestCase(const LineFinderTestCase &tc) {
     min_tricks = total_cards > 0 ? total_cards / 4 : 0;
   }
 
+  int prev_noise = GetDefenderNoisePct();
+  SetDefenderNoisePct(0);
+  struct RestoreNoise {
+    int prev;
+    ~RestoreNoise() { SetDefenderNoisePct(prev); }
+  } restore_noise{prev_noise};
+
   LineFinder lf(tc.num_iters);
+  lf.SetTopKLines(1);
+  lf.SetTopKLvl1(1);
+  lf.SetAdversarialRescore(false);
   if (!tc.reqs1.empty() || !tc.reqs3.empty()) {
     lf.SetRequirements(tc.reqs1, tc.reqs3);
   }
