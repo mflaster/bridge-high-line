@@ -126,7 +126,18 @@ TEST_CASE("PlayTree11", "[.slow]") {
   REQUIRE(all_plays->TotalCount() > 10);
 }
 
+namespace {
+struct ScopedDefenderNoise {
+  int prev;
+  explicit ScopedDefenderNoise(int pct) : prev(GetDefenderNoisePct()) {
+    SetDefenderNoisePct(pct);
+  }
+  ~ScopedDefenderNoise() { SetDefenderNoisePct(prev); }
+};
+}  // namespace
+
 TEST_CASE("DefenderSeatRules_SecondHandLowAndEquals") {
+  ScopedDefenderNoise no_noise(0);
   // Hand 1 holds touching QJ in 2nd seat (random 50/50 between SQ and SJ);
   // Hand 3 holds touching spot cards 54 in 4th seat (always lowest S4).
   std::vector<uint64_t> hands = {
@@ -183,6 +194,7 @@ TEST_CASE("DefenderSeatRules_SecondHandLowAndEquals") {
 }
 
 TEST_CASE("DefenderSeatRules_ThirdHandHighAndEquals") {
+  ScopedDefenderNoise no_noise(0);
   // Hand 1 leads a small spade (S3), Hand 2 plays low (S2), Hand 3 in 3rd seat
   // holds KQ5 with Hand 0 holding AT9 in 4th seat. Whether 3rd hand plays KQ
   // or 5 yields the same double-dummy trick count (1 trick for E/W), but 3rd
@@ -223,6 +235,7 @@ TEST_CASE("DefenderSeatRules_ThirdHandHighAndEquals") {
 }
 
 TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
+  ScopedDefenderNoise no_noise(0);
   SECTION("4th hand wins instead of ducking and randomizes touching honors") {
     // Hand 2 leads S8, Hand 3 plays S5, Hand 0 plays ST. Hand 1 in 4th seat
     // holds QJ4 while Hand 2 has SA2 remaining. Winning with SJ/SQ or ducking
@@ -310,6 +323,7 @@ TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
 }
 
 TEST_CASE("DefenderSeatRules_FirstHandLeadSelection") {
+  ScopedDefenderNoise no_noise(0);
   SECTION("Prefers leading touching honors over underleading into a tenace") {
     // West (Hand 3) is on lead in a 7-card ending (like Trick 3 of 9-Card
     // Hearts after DK holds at Trick 2). West holds touching honors DQJ in

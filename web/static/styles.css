@@ -70,6 +70,11 @@ body {
   gap: 10px;
 }
 
+.preset-selector .select-input {
+  max-width: 320px;
+  text-overflow: ellipsis;
+}
+
 .app-main {
   flex: 1;
   display: flex;
@@ -2110,6 +2115,7 @@ body.is-resizing * {
   .preset-selector .select-input {
     flex: 1;
     min-width: 0;
+    max-width: none;
   }
 
   .app-main {

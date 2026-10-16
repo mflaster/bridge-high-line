@@ -16,6 +16,7 @@ inline const char* INDEX_HTML = R"rawhtml(
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Bridge Solver">
   <title>Bridge High Line Solver & Decision Tree Explorer</title>
+  <script src="https://js.sentry-cdn.com/4f773fa337d8e6b1e559790da9ee1fb1.min.js" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -26,7 +27,7 @@ inline const char* INDEX_HTML = R"rawhtml(
         <h1>Bridge High Line Solver</h1>
       </div>
       <div class="preset-selector">
-        <label for="presetSelect">Presets:</label>
+        <label for="presetSelect">Hand Selector:</label>
         <select id="presetSelect" class="select-input">
           <option value="finesse">Simple Finesse (Spades)</option>
           <option value="endplay">4-Card Endplay Deal</option>
@@ -700,6 +701,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.preset-selector .select-input {
+  max-width: 320px;
+  text-overflow: ellipsis;
 }
 
 .app-main {
@@ -2742,6 +2748,7 @@ body.is-resizing * {
   .preset-selector .select-input {
     flex: 1;
     min-width: 0;
+    max-width: none;
   }
 
   .app-main {
@@ -3650,6 +3657,130 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardStatFailure = document.getElementById('cardStatFailure');
   const cardStatActual = document.getElementById('cardStatActual');
   const statSuccess = document.getElementById('statSuccess');
+
+  // Session Custom Hands & Active Hand Source State
+  let loadedHandSource = null;
+  let activeLoadedFileInfo = null;
+  let pendingModalFileInfo = null;
+  const sessionCustomHands = [];
+
+  function formatCleanBoardLabel(rawBoard) {
+    if (rawBoard === null || rawBoard === undefined || rawBoard === '') return '1';
+    const str = String(rawBoard).trim();
+    const clean = str.replace(/^(board\s*#?|hand\s*#?|#)/i, '').trim();
+    return clean || str || '1';
+  }
+
+  function captureCurrentDealState() {
+    const wHcpLowEl = document.getElementById('wHcpLow');
+    const wHcpHighEl = document.getElementById('wHcpHigh');
+    return {
+      north: inputNorth ? inputNorth.value : '',
+      east: inputEast ? inputEast.value : '',
+      south: inputSouth ? inputSouth.value : '',
+      west: inputWest ? inputWest.value : '',
+      unknown_cards: inputUnknownCards ? inputUnknownCards.value : '',
+      trump: trumpSelect ? trumpSelect.value : 'SPADES',
+      leader: leaderSelect ? leaderSelect.value : 'EAST',
+      target: targetTricks ? targetTricks.value : '1',
+      iters: numIters ? numIters.value : '100',
+      cur_trick: Array.isArray(presetCurTrick) ? presetCurTrick.slice() : [],
+      loadedBoardHands: loadedBoardHands ? { ...loadedBoardHands } : null,
+      loadedActualDeal: loadedActualDeal ? { ...loadedActualDeal } : null,
+      importedSuitVoids: {
+        E: new Set(importedSuitVoids && importedSuitVoids.E ? importedSuitVoids.E : []),
+        W: new Set(importedSuitVoids && importedSuitVoids.W ? importedSuitVoids.W : [])
+      },
+      declarerSeat: currentDeclarerSeat || 'N',
+      wHcpLow: wHcpLowEl ? wHcpLowEl.value : '',
+      wHcpHigh: wHcpHighEl ? wHcpHighEl.value : ''
+    };
+  }
+
+  function registerSessionCustomHand(sourceObj) {
+    if (!sourceObj) {
+      loadedHandSource = null;
+      return;
+    }
+
+    const fileName = sourceObj.fileName || sourceObj.file_name || 'file';
+    const rawBoard = sourceObj.boardLabel || sourceObj.board_label || '1';
+    const cleanBoard = formatCleanBoardLabel(rawBoard);
+    const fileFormat = sourceObj.fileFormat || sourceObj.file_format || 'pdf';
+    const loadType = sourceObj.loadType || sourceObj.load_type || fileFormat;
+    const label = `Hand ${cleanBoard} from ${fileName}`;
+    const key = `custom:${fileName}:${cleanBoard}`;
+
+    const source = {
+      fileName,
+      boardLabel: cleanBoard,
+      fileFormat,
+      loadType,
+      file_name: fileName,
+      board_label: cleanBoard,
+      file_format: fileFormat,
+      load_type: loadType
+    };
+
+    const entry = {
+      key,
+      label,
+      source,
+      state: captureCurrentDealState()
+    };
+
+    const existingIdx = sessionCustomHands.findIndex(h => h.key === key);
+    if (existingIdx >= 0) {
+      sessionCustomHands[existingIdx] = entry;
+    } else {
+      sessionCustomHands.push(entry);
+    }
+
+    loadedHandSource = source;
+    renderHandSelectorOptions(key);
+  }
+
+  function updateActiveSessionCustomHandState() {
+    if (!presetSelect || !presetSelect.value) return;
+    const entry = sessionCustomHands.find(h => h.key === presetSelect.value);
+    if (entry) {
+      entry.state = captureCurrentDealState();
+    }
+  }
+
+  function applySessionCustomHand(entry) {
+    if (!entry || !entry.state) return;
+    const s = entry.state;
+    loadedHandSource = entry.source;
+    loadedBoardHands = s.loadedBoardHands ? { ...s.loadedBoardHands } : null;
+    loadedActualDeal = s.loadedActualDeal ? { ...s.loadedActualDeal } : null;
+    importedSuitVoids = {
+      E: new Set(s.importedSuitVoids && s.importedSuitVoids.E ? s.importedSuitVoids.E : []),
+      W: new Set(s.importedSuitVoids && s.importedSuitVoids.W ? s.importedSuitVoids.W : [])
+    };
+    presetCurTrick = Array.isArray(s.cur_trick) ? s.cur_trick.slice() : [];
+    updateDeclarerBarUI(s.declarerSeat || 'N');
+    clearPanels();
+    setStatus('idle', `Loaded ${entry.label}. Configure hands and click "Solve Deal".`);
+
+    if (trumpSelect) trumpSelect.value = s.trump;
+    if (leaderSelect) leaderSelect.value = s.leader;
+    if (targetTricks) targetTricks.value = s.target;
+    if (numIters) numIters.value = s.iters;
+
+    if (inputNorth) inputNorth.value = s.north || '';
+    if (inputEast) inputEast.value = s.east || '';
+    if (inputSouth) inputSouth.value = s.south || '';
+    if (inputWest) inputWest.value = s.west || '';
+    if (inputUnknownCards) inputUnknownCards.value = s.unknown_cards || '';
+
+    const wHcpLowEl = document.getElementById('wHcpLow');
+    const wHcpHighEl = document.getElementById('wHcpHigh');
+    if (wHcpLowEl) wHcpLowEl.value = s.wHcpLow || '';
+    if (wHcpHighEl) wHcpHighEl.value = s.wHcpHigh || '';
+
+    updateDealSvg();
+  }
   const statFailure = document.getElementById('statFailure');
   const statActual = document.getElementById('statActual');
   const equivalentLinesBar = document.getElementById('equivalentLinesBar');
@@ -4850,11 +4981,18 @@ document.addEventListener('DOMContentLoaded', () => {
           wasmActiveRequest = null;
           try {
             const parsed = JSON.parse(msg.resultJson || '{}');
+            if (parsed && parsed.success === false && typeof parsed.error === 'string' &&
+                parsed.error.startsWith('WebAssembly solver exception:')) {
+              reportRuntimeErrorToSentry(new Error(parsed.error), {
+                source: 'wasm_solver_exception'
+              });
+            }
             req.resolve({
               ok: parsed.success !== false,
               json: async () => parsed
             });
           } catch (err) {
+            reportRuntimeErrorToSentry(err, { source: 'wasm_invalid_json' });
             req.resolve({
               ok: false,
               json: async () => ({
@@ -4865,6 +5003,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       } else if (msg.type === 'error') {
+        const errMsg = msg.error || 'WebAssembly worker error';
+        reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -4872,13 +5012,16 @@ document.addEventListener('DOMContentLoaded', () => {
             ok: false,
             json: async () => ({
               success: false,
-              error: msg.error || 'WebAssembly worker error'
+              error: errMsg
             })
           });
         }
       }
     };
     wasmWorker.onerror = (err) => {
+      const errMsg = 'Web Worker error: ' +
+        (err && err.message ? err.message : 'failed to load solver_worker.js');
+      reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;
@@ -4886,7 +5029,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ok: false,
           json: async () => ({
             success: false,
-            error: 'Web Worker error: ' + (err && err.message ? err.message : 'failed to load solver_worker.js')
+            error: errMsg
           })
         });
       }
@@ -5040,22 +5183,52 @@ document.addEventListener('DOMContentLoaded', () => {
     ensureBackendMode();
   }
 
-  function populatePresetSelect() {
+  function renderHandSelectorOptions(selectedVal) {
     if (!presetSelect) return;
-    const currentVal = presetSelect.value;
+    const targetVal = selectedVal !== undefined ? selectedVal : presetSelect.value;
     presetSelect.innerHTML = '';
-    for (const [key, p] of Object.entries(PRESETS)) {
-      const opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = p.name || key;
-      presetSelect.appendChild(opt);
+
+    if (sessionCustomHands.length > 0) {
+      const customGroup = document.createElement('optgroup');
+      customGroup.label = 'Loaded Hands';
+      for (const h of sessionCustomHands) {
+        const opt = document.createElement('option');
+        opt.value = h.key;
+        opt.textContent = h.label;
+        customGroup.appendChild(opt);
+      }
+      presetSelect.appendChild(customGroup);
+
+      const presetGroup = document.createElement('optgroup');
+      presetGroup.label = 'Presets';
+      for (const [key, p] of Object.entries(PRESETS)) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = p.name || key;
+        presetGroup.appendChild(opt);
+      }
+      presetSelect.appendChild(presetGroup);
+    } else {
+      for (const [key, p] of Object.entries(PRESETS)) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = p.name || key;
+        presetSelect.appendChild(opt);
+      }
     }
-    if (PRESETS[currentVal]) {
-      presetSelect.value = currentVal;
+
+    const hasCustom = sessionCustomHands.some(h => h.key === targetVal);
+    if (hasCustom || PRESETS[targetVal]) {
+      presetSelect.value = targetVal;
     } else if (presetSelect.options.length > 0) {
       presetSelect.value = presetSelect.options[0].value;
     }
-    if (presetSelect.value) {
+  }
+
+  function populatePresetSelect() {
+    if (!presetSelect) return;
+    renderHandSelectorOptions();
+    if (presetSelect.value && PRESETS[presetSelect.value]) {
       loadPreset(presetSelect.value);
     }
   }
@@ -6040,10 +6213,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.declarer-seat-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       applyDeclarerRotation(btn.dataset.seat, false);
+      updateActiveSessionCustomHandState();
     });
   });
 
   function loadPreset(key) {
+    const customEntry = sessionCustomHands.find(h => h.key === key);
+    if (customEntry) {
+      applySessionCustomHand(customEntry);
+      return;
+    }
+    loadedHandSource = null;
     const p = PRESETS[key];
     if (!p) return;
 
@@ -6071,7 +6251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDealSvg();
   }
 
-  // Load Preset on Dropdown Selection
+  // Load Hand on Dropdown Selection
   if (presetSelect) {
     presetSelect.addEventListener('change', () => {
       loadPreset(presetSelect.value);
@@ -6093,9 +6273,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = e.target.files[0];
       if (!file) return;
 
+      const ext = (file.name || '').split('.').pop().toLowerCase();
       const isPdf = (file.type === 'application/pdf') ||
                     /\.pdf$/i.test(file.name || '');
       if (isPdf) {
+        pendingModalFileInfo = { fileName: file.name, fileFormat: 'pdf', loadType: 'pdf' };
         openPhotoScanModalWithPdfFile(file);
         return;
       }
@@ -6103,6 +6285,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isImage = (file.type && file.type.startsWith('image/')) ||
                       /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name || '');
       if (isImage) {
+        pendingModalFileInfo = { fileName: file.name, fileFormat: 'image', loadType: 'image' };
         openPhotoScanModalWithFile(file);
         return;
       }
@@ -6112,13 +6295,16 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.onload = (event) => {
         const text = event.target.result;
         if (isPbnExt || (text && text.includes('[Deal "'))) {
+          pendingModalFileInfo = { fileName: file.name, fileFormat: 'pbn', loadType: 'pbn' };
           const pbnBoards = parsePbnBoardsFromText(text);
           if (pbnBoards.length > 0) {
             openPhotoScanModalWithPbnBoards(pbnBoards);
             return;
           }
         }
-        parseAndApplyDealText(text);
+        activeLoadedFileInfo = { fileName: file.name, fileFormat: ext || 'txt', loadType: 'txt' };
+        pendingModalFileInfo = null;
+        parseAndApplyDealText(text, file.name);
       };
       reader.readAsText(file);
     });
@@ -6130,7 +6316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function parseAndApplyDealText(text) {
+  function parseAndApplyDealText(text, sourceFileName = null) {
     if (!text) return;
     loadedBoardHands = null;
     loadedActualDeal = null;
@@ -6211,6 +6397,15 @@ document.addEventListener('DOMContentLoaded', () => {
       inputWest.value = plainLines[3];
     }
 
+    const fileSource = sourceFileName ? { fileName: sourceFileName, fileFormat: 'txt', loadType: 'txt' } : activeLoadedFileInfo;
+    const boardVal = keyValues.board || keyValues.board_number || keyValues.hand || '1';
+    const sourceMeta = fileSource ? {
+      fileName: fileSource.fileName,
+      boardLabel: boardVal,
+      fileFormat: fileSource.fileFormat || 'txt',
+      loadType: fileSource.loadType || 'txt'
+    } : null;
+
     if (countHandCards(inputNorth.value) > 0 && countHandCards(inputEast.value) > 0 &&
         countHandCards(inputSouth.value) > 0 && countHandCards(inputWest.value) > 0) {
       loadedBoardHands = {
@@ -6222,11 +6417,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const declKey = (keyValues.declarer || '').trim().toUpperCase().charAt(0);
       if (['N', 'E', 'S', 'W'].includes(declKey)) {
         applyDeclarerRotation(declKey);
+        if (sourceMeta) registerSessionCustomHand(sourceMeta);
         return;
       }
     }
     updateDeclarerBarUI('N');
     updateDealSvg();
+    if (sourceMeta) registerSessionCustomHand(sourceMeta);
   }
 
   // =========================================================================
@@ -6955,6 +7152,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let scanSourceCanvas = null; // Offscreen canvas holding current (possibly rotated) image
   let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands?, pbnDeclarer?, pbnContract? } in scanSourceCanvas coords
   let activeDetectedBoardIdx = -1;
+  let lastSelectedBoardLabel = '1';
   let cropBox = { x: 0, y: 0, w: 100, h: 100 }; // In scanSourceCanvas coords
   let lastDetectedAnchors = null; // In cropBox-relative coords
   let cropViewZoom = 1.0;
@@ -7707,6 +7905,10 @@ document.addEventListener('DOMContentLoaded', () => {
         await renderActivePdfPage();
       } catch (pdfErr) {
         if (activePdfPbnBoards.length === 0) {
+          reportRuntimeErrorToSentry(pdfErr, {
+            source: 'pdf_render_error',
+            file_name: file && file.name ? file.name : ''
+          });
           if (scanStatusBadge) {
             scanStatusBadge.className = 'scan-status-badge scan-status-warn';
             scanStatusBadge.textContent = '⚠ Could not render PDF offline and no embedded PBN deals were found.';
@@ -7714,6 +7916,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (err) {
+      reportRuntimeErrorToSentry(err, {
+        source: 'pdf_read_error',
+        file_name: file && file.name ? file.name : ''
+      });
       if (scanStatusBadge) {
         scanStatusBadge.className = 'scan-status-badge scan-status-warn';
         scanStatusBadge.textContent = '⚠ Failed to read PDF file.';
@@ -7789,6 +7995,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closePhotoScanModal() {
+    pendingModalFileInfo = null;
     if (photoScanModal) photoScanModal.classList.add('hidden');
   }
 
@@ -7810,10 +8017,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (detectedBoardBoxes.length > 0) {
       activeDetectedBoardIdx = 0;
+      lastSelectedBoardLabel = detectedBoardBoxes[0].boardLabel || '1';
       cropBox = { ...detectedBoardBoxes[0] };
       applyBoardMetadataToModal(detectedBoardBoxes[0]);
     } else {
       activeDetectedBoardIdx = -1;
+      lastSelectedBoardLabel = '1';
       const padX = Math.round(scanSourceCanvas.width * 0.06);
       const padY = Math.round(scanSourceCanvas.height * 0.06);
       cropBox = {
@@ -7851,6 +8060,8 @@ document.addEventListener('DOMContentLoaded', () => {
           scanInitialCardsInput.value = '';
         }
         activeDetectedBoardIdx = idx;
+        const selectedBox = detectedBoardBoxes[idx];
+        lastSelectedBoardLabel = (selectedBox && selectedBox.boardLabel) ? selectedBox.boardLabel : String(idx + 1);
         cropBox = { ...detectedBoardBoxes[idx] };
         applyBoardMetadataToModal(detectedBoardBoxes[idx]);
         renderDetectedBoardsPills();
@@ -8178,6 +8389,8 @@ document.addEventListener('DOMContentLoaded', () => {
             scanInitialCardsInput.value = '';
           }
           activeDetectedBoardIdx = hitIdx;
+          const hitBox = detectedBoardBoxes[hitIdx];
+          lastSelectedBoardLabel = (hitBox && hitBox.boardLabel) ? hitBox.boardLabel : String(hitIdx + 1);
           cropBox = { ...detectedBoardBoxes[hitIdx] };
           applyBoardMetadataToModal(detectedBoardBoxes[hitIdx]);
           renderDetectedBoardsPills();
@@ -8353,6 +8566,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (applyPhotoModalBtn) {
     applyPhotoModalBtn.addEventListener('click', () => {
+      if (pendingModalFileInfo) {
+        activeLoadedFileInfo = pendingModalFileInfo;
+        pendingModalFileInfo = null;
+      }
+
       loadedBoardHands = {
         N: (scanInputN ? scanInputN.value : '').trim(),
         E: (scanInputE ? scanInputE.value : '').trim(),
@@ -8360,7 +8578,56 @@ document.addEventListener('DOMContentLoaded', () => {
         W: (scanInputW ? scanInputW.value : '').trim()
       };
       closePhotoScanModal();
+
+      let activeBox = (activeDetectedBoardIdx >= 0 && detectedBoardBoxes[activeDetectedBoardIdx])
+        ? detectedBoardBoxes[activeDetectedBoardIdx]
+        : null;
+
+      if (!activeBox && cropBox && detectedBoardBoxes && detectedBoardBoxes.length > 0) {
+        let bestOverlap = 0;
+        let bestBox = null;
+        for (const box of detectedBoardBoxes) {
+          const overlapX = Math.max(0, Math.min(cropBox.x + cropBox.w, box.x + box.w) - Math.max(cropBox.x, box.x));
+          const overlapY = Math.max(0, Math.min(cropBox.y + cropBox.h, box.y + box.h) - Math.max(cropBox.y, box.y));
+          const overlapArea = overlapX * overlapY;
+          if (overlapArea > bestOverlap) {
+            bestOverlap = overlapArea;
+            bestBox = box;
+          }
+        }
+        if (bestBox && bestOverlap > 0) {
+          activeBox = bestBox;
+        }
+      }
+
+      const boardLabel = activeBox && activeBox.boardLabel
+        ? activeBox.boardLabel
+        : (lastSelectedBoardLabel || String(activeDetectedBoardIdx >= 0 ? activeDetectedBoardIdx + 1 : 1));
+
+      let sourceMeta = null;
+      if (activeLoadedFileInfo) {
+        sourceMeta = {
+          fileName: activeLoadedFileInfo.fileName,
+          boardLabel: boardLabel,
+          fileFormat: activeLoadedFileInfo.fileFormat || 'pdf',
+          loadType: activeLoadedFileInfo.loadType || 'pdf'
+        };
+      } else if (loadedHandSource) {
+        sourceMeta = {
+          ...loadedHandSource,
+          boardLabel: boardLabel
+        };
+      } else {
+        sourceMeta = {
+          fileName: 'imported_deal',
+          boardLabel: boardLabel,
+          fileFormat: 'pdf',
+          loadType: 'file_import'
+        };
+      }
+
       applyDeclarerRotation(currentDeclarerSeat, true);
+      registerSessionCustomHand(sourceMeta);
     });
   }
 
@@ -11073,6 +11340,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function collectFeedbackDealSnapshot() {
     const snap = {
       preset: presetSelect ? presetSelect.value : '',
+      loaded_hand_source: loadedHandSource ? {
+        file_name: loadedHandSource.fileName || loadedHandSource.file_name || '',
+        board_label: loadedHandSource.boardLabel || loadedHandSource.board_label || '',
+        file_format: loadedHandSource.fileFormat || loadedHandSource.file_format || '',
+        load_type: loadedHandSource.loadType || loadedHandSource.load_type || ''
+      } : null,
       hands: {
         N: inputNorth ? inputNorth.value : '',
         E: inputEast ? inputEast.value : '',
@@ -11107,6 +11380,59 @@ document.addEventListener('DOMContentLoaded', () => {
     return snap;
   }
 
+  function initSentryRuntimeErrorReporting() {
+    if (!window.Sentry || typeof window.Sentry.onLoad !== 'function') return;
+    window.Sentry.onLoad(() => {
+      if (!window.Sentry || typeof window.Sentry.init !== 'function') return;
+      const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
+      window.Sentry.init({
+        dsn: SENTRY_DSN,
+        environment,
+        beforeSend(event) {
+          try {
+            const dealSnapshot = collectFeedbackDealSnapshot();
+            event.contexts = {
+              ...(event.contexts || {}),
+              deal: dealSnapshot
+            };
+            const src = dealSnapshot.loaded_hand_source;
+            event.tags = {
+              ...(event.tags || {}),
+              preset: dealSnapshot.preset || 'custom',
+              backend_mode: backendMode || 'unknown',
+              trump: dealSnapshot.trump || '',
+              leader: dealSnapshot.leader || '',
+              ...(src && src.file_name ? { file_name: src.file_name } : {}),
+              ...(src && src.board_label ? { board_label: src.board_label } : {})
+            };
+          } catch (_) {}
+          return event;
+        }
+      });
+    });
+  }
+
+  function reportRuntimeErrorToSentry(err, extra = {}) {
+    if (!window.Sentry || typeof window.Sentry.captureException !== 'function') return;
+    const errorObj = (err instanceof Error)
+      ? err
+      : new Error(typeof err === 'string' ? err : JSON.stringify(err));
+    const tags = {};
+    const extraData = {};
+    if (extra && typeof extra === 'object') {
+      for (const [k, v] of Object.entries(extra)) {
+        if (k === 'source') {
+          tags.error_source = String(v);
+        } else {
+          extraData[k] = v;
+        }
+      }
+    }
+    window.Sentry.captureException(errorObj, { tags, extra: extraData });
+  }
+
+  initSentryRuntimeErrorReporting();
+
   async function submitSentryFeedback({ name, email, message, includeDeal }) {
     const feedbackEventId = generateSentryEventId();
     const nowIso = new Date().toISOString();
@@ -11114,7 +11440,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
 
     const dealSummaryText = dealSnapshot
-      ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
+      ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}${
+          dealSnapshot.loaded_hand_source
+            ? `\nSource File: ${dealSnapshot.loaded_hand_source.file_name} (Hand ${dealSnapshot.loaded_hand_source.board_label})`
+            : ''
+        }\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
       : '';
 
     const userObj = {
@@ -11132,6 +11462,8 @@ document.addEventListener('DOMContentLoaded', () => {
       user: userObj,
       tags: {
         preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+        file_name: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.file_name : '',
+        board_label: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.board_label : '',
         trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
         leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
         backend_mode: backendMode || 'unknown'

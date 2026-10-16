@@ -634,3 +634,154 @@ TEST_CASE("SecondSeatGeneralPatternNotPrunedBeforeFourthSeat") {
   REQUIRE(trace_make.steps[0].node->do_first().ToString(true) ==
           "SA (Sx) S6 (SJ)");
 }
+
+TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
+  // 3-card miniature of 9-Card Hearts club suit:
+  // South (0): C 6, D 2, S 2
+  // East  (1): C QT4
+  // North (2): C AKJ
+  // West  (3): C 98, S A
+  // Trump: NOTRUMP. Against omniscient declarer, C4, CT, and CQ all allow
+  // 3 tricks (0 for defense), so all three are DDS-optimal for East.
+  BoardState bs = MakeBoardState(
+      {ParseHand("C 6 D 2 S 2"), ParseHand("C QT4"),
+       ParseHand("C AKJ"), ParseHand("C 98 S A")},
+      0, NOTRUMP);
+
+  GeneralizedTrickFinder finder(NOTRUMP);
+  for (int b = 0; b < 10; ++b) {
+    finder.RecordOptimalTrick(0, "C6 C4 CJ C8", b);
+  }
+  for (int b = 10; b < 14; ++b) {
+    finder.RecordOptimalTrick(0, "C6 CT CA C8", b);
+    finder.RecordOptimalTrick(0, "C6 CT CJ C8", b);
+  }
+  for (int b = 14; b < 16; ++b) {
+    finder.RecordOptimalTrick(0, "C6 CT CJ C8", b);
+  }
+  for (int b = 16; b < 18; ++b) {
+    finder.RecordOptimalTrick(0, "C6 CQ CA C8", b);
+  }
+
+  GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(50, true);
+  GeneralizedTrick gt_cx_cj;
+  GeneralizedTrick gt_ct_ca;
+  GeneralizedTrick gt_cq_ca;
+  for (const auto &gt : tricks) {
+    if (gt.demi1.my_card == "C6" && gt.demi1.opp_card == "Cx" &&
+        gt.demi2.my_card == "CJ" && gt.demi2.opp_card == "C_") {
+      gt_cx_cj = gt;
+    } else if (gt.demi1.my_card == "C6" && gt.demi1.opp_card == "CT" &&
+               gt.demi2.my_card == "CA" && gt.demi2.opp_card == "C_") {
+      gt_ct_ca = gt;
+    } else if (gt.demi1.my_card == "C6" && gt.demi1.opp_card == "CQ" &&
+               gt.demi2.my_card == "CA" && gt.demi2.opp_card == "C_") {
+      gt_cq_ca = gt;
+    }
+  }
+  REQUIRE(gt_cx_cj.NumBoards() == 10);
+  REQUIRE(gt_cx_cj.opp1_step1_boards == 10);
+  REQUIRE(gt_ct_ca.NumBoards() == 4);
+  REQUIRE(gt_ct_ca.opp1_step1_boards == 6);
+  REQUIRE(gt_cq_ca.NumBoards() == 2);
+  REQUIRE(gt_cq_ca.opp1_step1_boards == 2);
+
+  std::set<int> b_cx = gt_cx_cj.boards;
+  std::set<int> b_ct = gt_ct_ca.boards;
+  std::set<int> b_cq = gt_cq_ca.boards;
+
+  ConditionalLine leaf_cx(b_cx);
+  ConditionalLine t3_cx;
+  t3_cx.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CK", b_cx),
+      GeneralizedDemiStruct("__", "D2", b_cx), b_cx, 2));
+  t3_cx.AddCondition(new WinnerPlayCondition(2), leaf_cx);
+  ConditionalLine t2_cx;
+  t2_cx.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CA", b_cx),
+      GeneralizedDemiStruct("__", "S2", b_cx), b_cx, 2));
+  t2_cx.AddCondition(new WinnerPlayCondition(2), t3_cx);
+  ConditionalLine t1_cx;
+  t1_cx.SetAction(gt_cx_cj);
+  t1_cx.AddCondition(new WinnerPlayCondition(2), t2_cx);
+
+  ConditionalLine leaf_ct(b_ct);
+  ConditionalLine t3_ct;
+  t3_ct.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CJ", b_ct),
+      GeneralizedDemiStruct("__", "D2", b_ct), b_ct, 2));
+  t3_ct.AddCondition(new WinnerPlayCondition(2), leaf_ct);
+  ConditionalLine t2_ct;
+  t2_ct.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CK", b_ct),
+      GeneralizedDemiStruct("__", "S2", b_ct), b_ct, 2));
+  t2_ct.AddCondition(new WinnerPlayCondition(2), t3_ct);
+  ConditionalLine t1_ct;
+  t1_ct.SetAction(gt_ct_ca);
+  t1_ct.AddCondition(new WinnerPlayCondition(2), t2_ct);
+
+  ConditionalLine leaf_cq(b_cq);
+  ConditionalLine t3_cq;
+  t3_cq.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CJ", b_cq),
+      GeneralizedDemiStruct("__", "D2", b_cq), b_cq, 2));
+  t3_cq.AddCondition(new WinnerPlayCondition(2), leaf_cq);
+  ConditionalLine t2_cq;
+  t2_cq.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CK", b_cq),
+      GeneralizedDemiStruct("__", "S2", b_cq), b_cq, 2));
+  t2_cq.AddCondition(new WinnerPlayCondition(2), t3_cq);
+  ConditionalLine t1_cq;
+  t1_cq.SetAction(gt_cq_ca);
+  t1_cq.AddCondition(new WinnerPlayCondition(2), t2_cq);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("C6 (Cx) CJ (C_)"), t1_cx);
+  root.AddCondition(new TrickPlayCondition("C6 (CT) CA (C_)"), t1_ct);
+  root.AddCondition(new TrickPlayCondition("C6 (CQ) CA (C_)"), t1_cq);
+  root.set_min_tricks(3);
+  root.set_sample_board(bs);
+
+  // Because C6 (CT) CA only solved 4/6 Step-1 CT boards (66.7%) vs 10/10
+  // (100%) for C6 (Cx) CJ, adversarial East plays CT from C QT4 instead of
+  // C4, forcing declarer to rise with CA and setting up East's CQ.
+  REQUIRE(root.ResultsOnHandAdversarial(bs) == 2);
+
+  // Before rescoring, Step-1 TraceOnBoard plays C4 and wins 3 tricks, and
+  // board 0 is in the Cx leaf.
+  REQUIRE(root.ResultsOnHand(bs) == 3);
+  REQUIRE(root.TraceOnBoard(bs, 0).final_ns_tricks == 3);
+  REQUIRE(root.CoveredFinalBoards() == 16);
+
+  // Board 1: East holds C 954 and West holds C 87 S A, so C6 (Cx) CJ makes
+  // 3 tricks even under adversarial defense.
+  BoardState bs_make = MakeBoardState(
+      {ParseHand("C 6 D 2 S 2"), ParseHand("C 954"),
+       ParseHand("C AKJ"), ParseHand("C 87 S A")},
+      0, NOTRUMP);
+
+  root.DeepCloneChildren();
+  ConditionalLine::RescoreBoardTrace trace0;
+  REQUIRE(root.ResultsOnHandAdversarial(bs, nullptr, &trace0) == 2);
+  ConditionalLine::RescoreBoardTrace trace1;
+  REQUIRE(root.ResultsOnHandAdversarial(bs_make, nullptr, &trace1) == 3);
+  REQUIRE(trace1.leaf != nullptr);
+
+  std::unordered_map<const ConditionalLine *, std::set<int>> leaf_boards;
+  leaf_boards[trace1.leaf] = {1};
+  root.ApplyRescoredBoards(leaf_boards);
+
+  REQUIRE(root.has_rescored_boards());
+  REQUIRE(root.step1_covered_boards() == 16);
+  REQUIRE(root.CoveredFinalBoards() == 1);
+  REQUIRE(root.CoveredBoardsSet() == std::set<int>{1});
+  REQUIRE(trace1.leaf->final_covered_boards() == std::set<int>{1});
+
+  // After rescoring, TraceOnBoard on failed board 0 must also use the
+  // adversarial defender (East plays CT, winning only 2 tricks), never
+  // replaying the Step-1 C4 path to 3 tricks.
+  auto trace_fail = root.TraceOnBoard(bs, 0);
+  REQUIRE(trace_fail.final_ns_tricks == 2);
+  REQUIRE(!trace_fail.steps.empty());
+  REQUIRE(trace_fail.steps[0].trick_str.rfind("C6 CT ", 0) == 0);
+}

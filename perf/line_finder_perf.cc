@@ -12,12 +12,51 @@
 #include "conditional_line.h"
 #include "deal.h"
 #include "hand.h"
+#include "interface_dds.h"
 #include "line_finder.h"
 #include "glog/logging.h"
 
 #include <functional>
 
 namespace {
+
+std::string SummarizeLineT1T2(const ConditionalLine& line) {
+  std::ostringstream os;
+  bool first_t1 = true;
+  for (const auto& [t1_cond, t1_child] : line.conditions()) {
+    if (!t1_child) continue;
+    if (!first_t1) os << " | ";
+    first_t1 = false;
+    const auto& gt1 = t1_child->do_first();
+    os << gt1.demi1.my_card << "(" << gt1.demi1.opp_card << ")->"
+       << gt1.demi2.my_card;
+    if (!t1_child->conditions().empty()) {
+      os << " [";
+      bool first_w = true;
+      for (const auto& [w_cond, t2_grp] : t1_child->conditions()) {
+        if (!t2_grp) continue;
+        if (!first_w) os << "; ";
+        first_w = false;
+        os << w_cond->Describe(false) << ": ";
+        bool first_t2 = true;
+        for (const auto& [t2_cond, t2_child] : t2_grp->conditions()) {
+          if (!t2_child) continue;
+          if (!first_t2) os << ", ";
+          first_t2 = false;
+          const auto& gt2 = t2_child->do_first();
+          if (gt2.leader % 2 == 1) {
+            os << gt2.demi1.opp_card << ":" << gt2.demi1.my_card << "->"
+               << gt2.demi2.my_card;
+          } else {
+            os << gt2.demi1.my_card << "->" << gt2.demi2.my_card;
+          }
+        }
+      }
+      os << "]";
+    }
+  }
+  return os.str();
+}
 
 void GetHandSuitDistribution(uint64_t hand, int dist[4]) {
   for (int suit = 0; suit < 4; ++suit) {
@@ -96,6 +135,11 @@ int main(int argc, char** argv) {
   int custom_9h_deals = 0;
   int custom_9h_threads = 16;
   bool custom_9h_warm = false;
+  int custom_9h_noise = 10;
+  int custom_9h_top_k = 20;
+  int custom_9h_top_k_lvl1 = 4;
+  bool custom_9h_rescore = true;
+  int custom_9h_print_lines = 0;
   std::string custom_9h_lead;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -109,16 +153,33 @@ int main(int argc, char** argv) {
       custom_9h_lead = arg.substr(10);
     } else if (arg == "--9h-warm") {
       custom_9h_warm = true;
+    } else if (arg.rfind("--9h-noise=", 0) == 0) {
+      custom_9h_noise = std::stoi(arg.substr(11));
+    } else if (arg.rfind("--9h-top-k=", 0) == 0) {
+      custom_9h_top_k = std::stoi(arg.substr(11));
+    } else if (arg.rfind("--9h-top-k-lvl1=", 0) == 0) {
+      custom_9h_top_k_lvl1 = std::stoi(arg.substr(16));
+    } else if (arg == "--9h-rescore") {
+      custom_9h_rescore = true;
+    } else if (arg == "--9h-no-rescore") {
+      custom_9h_rescore = false;
+    } else if (arg.rfind("--9h-print-lines=", 0) == 0) {
+      custom_9h_print_lines = std::stoi(arg.substr(17));
     }
   }
 
   if (custom_9h_deals > 0) {
+    SetDefenderNoisePct(custom_9h_noise);
     srand48(0);
     std::vector<uint64_t> hands(4, 0);
     hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
     hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
     uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
     LineFinder lf(custom_9h_deals);
+    lf.SetTopKLines(custom_9h_top_k);
+    lf.SetTopKLvl1(custom_9h_top_k_lvl1);
+    lf.SetAdversarialRescore(custom_9h_rescore);
+    lf.SetKeepAllTopK(custom_9h_top_k > 1);
     auto run_solve = [&](const std::string& lead_str) {
       if (!custom_9h_warm) {
         srand48(0);
@@ -137,14 +198,40 @@ int main(int argc, char** argv) {
       int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
       std::cout << "9H bench deals=" << custom_9h_deals
                 << " threads=" << custom_9h_threads
+                << " noise=" << custom_9h_noise << "%"
+                << " top_k=" << custom_9h_top_k
+                << " top_k_lvl1=" << custom_9h_top_k_lvl1
+                << " rescore=" << (custom_9h_rescore ? 1 : 0)
                 << " warm=" << (custom_9h_warm ? 1 : 0)
                 << " lead=\"" << lead_str << "\""
                 << " time=" << std::fixed << std::setprecision(3)
                 << elapsed.count() << "s"
-                << " (solve=" << lf.solve_ms() << "ms, invariant="
+                << " (solve=" << lf.solve_ms() << "ms, rescore="
+                << lf.rescore_ms() << "ms, invariant="
                 << lf.invariant_ms() << "ms)"
                 << " covered=" << covered << "/" << custom_9h_deals
                 << " lines=" << lines.size() << std::endl;
+      if (custom_9h_top_k > 1 || custom_9h_rescore) {
+        std::cout << "Rank  Step1  Step2  Delta  Trick1 & Trick2 summary\n";
+        for (size_t idx = 0; idx < lines.size(); ++idx) {
+          int s1 = lines[idx].step1_covered_boards();
+          int s2 = lines[idx].CoveredFinalBoards();
+          int delta = s2 - s1;
+          std::cout << std::setw(4) << (idx + 1) << "  "
+                    << std::setw(5) << s1 << "  "
+                    << std::setw(5) << s2 << "  "
+                    << std::setw(5) << std::showpos << delta << std::noshowpos
+                    << "  " << SummarizeLineT1T2(lines[idx]) << "\n";
+        }
+      }
+      for (int idx = 0;
+           idx < custom_9h_print_lines && idx < static_cast<int>(lines.size());
+           ++idx) {
+        std::cout << "\n--- Line #" << (idx + 1)
+                  << " (Step1=" << lines[idx].step1_covered_boards()
+                  << ", Step2=" << lines[idx].CoveredFinalBoards() << ") ---\n"
+                  << lines[idx].Describe() << std::endl;
+      }
     };
     if (custom_9h_warm) {
       run_solve("");

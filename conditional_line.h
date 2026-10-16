@@ -5,6 +5,7 @@
 #include <memory>
 #include <map>
 #include <set>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include "board_state.h"
@@ -77,6 +78,8 @@ struct GeneralizedTrick {
   std::set<int> boards;
   std::vector<BoardTrickEntry> board_entries;
   int leader = 0;
+  size_t opp1_step1_boards = 0;
+  size_t opp2_step1_boards = 0;
   GeneralizedTrick(const GeneralizedDemiStruct &d1,
                    const GeneralizedDemiStruct &d2,
                    const std::set<int> &b,
@@ -126,6 +129,7 @@ class GeneralizedTrickFinder {
       const GeneralizedDemiStruct &d1,
       const GeneralizedDemiStruct &d2,
       const std::vector<unsigned int> *d1_trick_indices,
+      size_t opp1_step1_boards,
       bool populate_boards_set) const;
 
   std::vector<RecordedTrick> tricks_;
@@ -261,6 +265,52 @@ class ConditionalLine {  // ConditionalLineBranch
   int ResultsOnHand(const BoardState &bs) const;
   int ResultsOnHand(const PairedDeal &deal) const;
 
+  // Replays this line on `bs` where defenders pick among DDS-optimal plays to
+  // minimize declarer's branch success probability in this line.
+  struct DefenderStateKey {
+    uint64_t played_cards = 0;
+    uint64_t cur_trick_bits = 0;
+    bool operator==(const DefenderStateKey &o) const {
+      return played_cards == o.played_cards &&
+             cur_trick_bits == o.cur_trick_bits;
+    }
+  };
+  struct DefenderStateKeyHash {
+    size_t operator()(const DefenderStateKey &k) const {
+      size_t h1 = std::hash<uint64_t>{}(k.played_cards);
+      size_t h2 = std::hash<uint64_t>{}(k.cur_trick_bits);
+      return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
+    }
+  };
+  using DefenderCardsCache =
+      std::unordered_map<DefenderStateKey, std::vector<std::string>,
+                         DefenderStateKeyHash>;
+  struct RescoreBoardTrace {
+    const ConditionalLine *leaf = nullptr;
+    std::vector<std::pair<const ConditionalLine *, std::string>> node_tricks;
+  };
+  int ResultsOnHandAdversarial(
+      const BoardState &bs, DefenderCardsCache *def_cache = nullptr,
+      RescoreBoardTrace *out_trace = nullptr) const;
+
+  // Clones all child ConditionalLine pointers recursively so this tree does
+  // not share subtree nodes with other candidate lines.
+  void DeepCloneChildren();
+
+  // Updates leaf final_covered_boards_, action board_to_trick maps, and
+  // bottom-up covered_count_ from Step-2 rescored results while preserving
+  // step1_covered_count_.
+  void ApplyRescoredBoards(
+      const std::unordered_map<const ConditionalLine *, std::set<int>>
+          &leaf_boards,
+      const std::unordered_map<const ConditionalLine *,
+                               std::map<int, std::string>>
+          &node_board_tricks = {});
+  bool has_rescored_boards() const { return has_rescored_boards_; }
+  int step1_covered_boards() const {
+    return has_rescored_boards_ ? step1_covered_count_ : covered_count_;
+  }
+
   struct PlayedTrickStep {
     int leader = 0;
     std::string trick_str;
@@ -332,6 +382,8 @@ class ConditionalLine {  // ConditionalLineBranch
 
   // Cached count of covered boards across this node and its subtrees.
   int covered_count_ = 0;
+  int step1_covered_count_ = 0;
+  bool has_rescored_boards_ = false;
 
   // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;

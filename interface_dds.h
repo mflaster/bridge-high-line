@@ -24,6 +24,11 @@ int FindOptimalTricks(const BoardState &bs);
 
 std::string FindBestDefenderCard(const BoardState &bs);
 
+std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs);
+
+void SetDefenderNoisePct(int pct);
+int GetDefenderNoisePct();
+
 class OptimalPlayTree {
  public:
   OptimalPlayTree() = default;
