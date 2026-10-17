@@ -80,6 +80,7 @@ struct GeneralizedTrick {
   int leader = 0;
   size_t opp1_step1_boards = 0;
   size_t opp2_step1_boards = 0;
+  std::array<size_t, 4> winner_step1_boards = {};
   size_t opp1_unmakeable_boards = 0;
   size_t opp2_unmakeable_boards = 0;
   std::array<size_t, 4> winner_unmakeable_boards = {};
@@ -99,7 +100,8 @@ struct GeneralizedTrick {
   }
   bool Empty() const { return boards.empty() && demi2.boards_vec.empty(); }
   void PopulateLegacyMaps();
-  void StripBoardsAtOrAbove(int max_board_id);
+  void StripBoardsAtOrAbove(int max_board_id, Suit trump_suit = NOTRUMP,
+                            bool preserve_step1_counts = false);
   void TightenToEntries(Suit trump_suit);
   std::string ToString(bool compact = false) const;
 
@@ -323,6 +325,16 @@ class ConditionalLine {  // ConditionalLineBranch
   // not share subtree nodes with other candidate lines.
   void DeepCloneChildren();
 
+  // Recomputes covered_count_ bottom-up as the unweighted count of boards in
+  // final_covered_boards_ (1 per real or synthetic board) so Step-1 branch
+  // probabilities on splintered subtrees match unweighted board counts.
+  void NormalizeSplinterStep1Counts();
+  void SetSplinterScale(double scale);
+  double splinter_scale() const { return splinter_scale_; }
+
+  // Returns true if any leaf under this node covers a board ID < max_board_id.
+  bool HasBoardBelow(int max_board_id) const;
+
   // Removes all board IDs >= max_board_id from this subtree and recomputes
   // covered_count_ on the remaining boards.
   void StripBoardsAtOrAbove(int max_board_id, Suit trump_suit = NOTRUMP);
@@ -422,6 +434,7 @@ class ConditionalLine {  // ConditionalLineBranch
   int covered_count_ = 0;
   int step1_covered_count_ = 0;
   bool has_rescored_boards_ = false;
+  double splinter_scale_ = 1.0;
 
   // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;

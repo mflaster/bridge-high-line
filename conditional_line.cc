@@ -430,7 +430,8 @@ void GeneralizedTrick::PopulateLegacyMaps() {
   }
 }
 
-void GeneralizedTrick::StripBoardsAtOrAbove(int max_board_id) {
+void GeneralizedTrick::StripBoardsAtOrAbove(int max_board_id, Suit trump_suit,
+                                            bool preserve_step1_counts) {
   size_t orig_entries = board_entries.size();
   boards.erase(boards.lower_bound(max_board_id), boards.end());
   demi1.boards.erase(demi1.boards.lower_bound(max_board_id),
@@ -455,6 +456,84 @@ void GeneralizedTrick::StripBoardsAtOrAbove(int max_board_id) {
                        return e.board >= max_board_id;
                      }),
       board_entries.end());
+  if (preserve_step1_counts) {
+    bool added_entry = false;
+    for (const auto &[b, ts] : demi2.board_to_trick) {
+      if (b >= max_board_id) continue;
+      bool exists = false;
+      for (const auto &e : board_entries) {
+        if (e.board == b) {
+          exists = true;
+          break;
+        }
+      }
+      if (exists) continue;
+      std::array<std::string, 4> cards;
+      size_t pos = 0;
+      int idx = 0;
+      while (pos < ts.size() && idx < 4) {
+        while (pos < ts.size() && ts[pos] == ' ') ++pos;
+        if (pos >= ts.size()) break;
+        size_t end = pos;
+        while (end < ts.size() && ts[end] != ' ') ++end;
+        cards[idx++] = ts.substr(pos, end - pos);
+        pos = end;
+      }
+      if (idx != 4) continue;
+      Suit cur_win_suit = NOTRUMP;
+      int cur_win_val = -1;
+      int win_idx = 0;
+      uint64_t mask = 0;
+      for (int c = 0; c < 4; ++c) {
+        CardType ct = Card::ParseStringCard(cards[c]);
+        mask |= ct;
+        auto [s, v] = Card::DecodeCard(ct);
+        if (c == 0) {
+          cur_win_suit = s;
+          cur_win_val = v;
+          win_idx = 0;
+        } else if (s == cur_win_suit) {
+          if (v > cur_win_val) {
+            cur_win_val = v;
+            win_idx = c;
+          }
+        } else if (s == trump_suit) {
+          cur_win_suit = s;
+          cur_win_val = v;
+          win_idx = c;
+        }
+      }
+      BoardTrickEntry entry;
+      entry.board = b;
+      entry.winner = static_cast<uint8_t>((leader + win_idx) % 4);
+      const std::string &wc = cards[win_idx];
+      entry.win_card[0] = wc.size() > 0 ? wc[0] : '\0';
+      entry.win_card[1] = wc.size() > 1 ? wc[1] : '\0';
+      entry.win_card[2] = '\0';
+      entry.trick_mask = mask;
+      entry.trick_str = ts;
+      board_entries.push_back(std::move(entry));
+      boards.insert(b);
+      demi1.boards_vec.push_back(b);
+      demi2.boards_vec.push_back(b);
+      added_entry = true;
+    }
+    if (added_entry) {
+      std::sort(board_entries.begin(), board_entries.end(),
+                [](const BoardTrickEntry &a, const BoardTrickEntry &b_ent) {
+                  return a.board < b_ent.board;
+                });
+      std::sort(demi1.boards_vec.begin(), demi1.boards_vec.end());
+      demi1.boards_vec.erase(
+          std::unique(demi1.boards_vec.begin(), demi1.boards_vec.end()),
+          demi1.boards_vec.end());
+      std::sort(demi2.boards_vec.begin(), demi2.boards_vec.end());
+      demi2.boards_vec.erase(
+          std::unique(demi2.boards_vec.begin(), demi2.boards_vec.end()),
+          demi2.boards_vec.end());
+    }
+    return;
+  }
   size_t new_entries = board_entries.size();
   if (leader % 2 == 0) {
     if (!demi1.boards_vec.empty() || orig_entries > 0) {
@@ -466,6 +545,12 @@ void GeneralizedTrick::StripBoardsAtOrAbove(int max_board_id) {
         (opp1_step1_boards * new_entries + orig_entries / 2) / orig_entries;
     opp2_step1_boards =
         (opp2_step1_boards * new_entries + orig_entries / 2) / orig_entries;
+  }
+  winner_step1_boards = {0, 0, 0, 0};
+  for (const auto &e : board_entries) {
+    if (e.winner < 4) {
+      ++winner_step1_boards[e.winner];
+    }
   }
 }
 
@@ -909,6 +994,9 @@ GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
         GeneralizedTrick::BoardTrickEntry entry;
         entry.board = rt.board;
         entry.winner = rt.winner;
+        if (rt.winner < 4) {
+          ++gt.winner_step1_boards[rt.winner];
+        }
         const std::string &wc = rt.cards[rt.win_card_idx];
         entry.win_card[0] = wc.size() > 0 ? wc[0] : '\0';
         entry.win_card[1] = wc.size() > 1 ? wc[1] : '\0';
@@ -1634,51 +1722,65 @@ double BranchSuccessProbability(
     BoardState next_bs = copy;
     next_bs.PlayCard(copy.CurPlayer(), card_val);
     int winner = next_bs.CurPlayer();
-    size_t total_for_winner = 0;
-    const auto &entries = chosen->do_first().board_entries;
-    if (!entries.empty()) {
-      for (const auto &entry : entries) {
-        if (entry.winner == winner) {
-          ++total_for_winner;
-        }
-      }
+    double step1_winner = 0.0;
+    if (winner >= 0 && winner < 4 &&
+        chosen->do_first().winner_step1_boards[winner] > 0) {
+      step1_winner =
+          static_cast<double>(chosen->do_first().winner_step1_boards[winner]);
     } else {
-      total_for_winner = chosen->do_first().NumBoards();
+      const auto &entries = chosen->do_first().board_entries;
+      if (!entries.empty()) {
+        for (const auto &entry : entries) {
+          if (entry.winner == winner) {
+            step1_winner += 1.0;
+          }
+        }
+      } else {
+        step1_winner = static_cast<double>(chosen->do_first().NumBoards());
+      }
     }
+    step1_winner /= chosen->splinter_scale();
+    double total_for_winner = step1_winner;
     if (winner >= 0 && winner < 4) {
-      total_for_winner += chosen->do_first().winner_unmakeable_boards[winner];
+      total_for_winner += static_cast<double>(
+          chosen->do_first().winner_unmakeable_boards[winner]);
     }
-    if (total_for_winner == 0) {
+    if (total_for_winner <= 0.0) {
       return -1.0;
     }
     for (const auto &[cond, child_line] : chosen->conditions()) {
       if (!child_line) continue;
       auto *winner_cond = dynamic_cast<const WinnerPlayCondition *>(cond.get());
       if (winner_cond && winner_cond->who() == winner) {
-        return static_cast<double>(child_line->step1_covered_boards()) /
-               static_cast<double>(total_for_winner);
+        return (static_cast<double>(child_line->step1_covered_boards()) /
+                child_line->splinter_scale()) /
+               total_for_winner;
       }
     }
     return 0.0;
   }
   const GeneralizedTrick &gt0 = top_matching[0]->do_first();
+  double scale0 = top_matching[0]->splinter_scale();
   size_t step1_denom =
       (pos < 2) ? gt0.opp1_step1_boards : gt0.opp2_step1_boards;
-  size_t unmakeable_denom =
-      (pos < 2) ? gt0.opp1_unmakeable_boards : gt0.opp2_unmakeable_boards;
-  size_t fallback_boards = 0;
-  int covered_boards = 0;
+  double unmakeable_denom = static_cast<double>(
+      (pos < 2) ? gt0.opp1_unmakeable_boards : gt0.opp2_unmakeable_boards);
+  double fallback_boards = 0.0;
+  double covered_boards = 0.0;
   for (const ConditionalLine *cand : top_matching) {
-    fallback_boards += cand->do_first().NumBoards();
-    covered_boards += cand->step1_covered_boards();
+    fallback_boards += static_cast<double>(cand->do_first().NumBoards()) /
+                       cand->splinter_scale();
+    covered_boards += static_cast<double>(cand->step1_covered_boards()) /
+                      cand->splinter_scale();
   }
-  size_t total_boards =
-      (step1_denom > 0 ? step1_denom : fallback_boards) + unmakeable_denom;
-  if (total_boards == 0) {
+  double total_boards =
+      (step1_denom > 0 ? static_cast<double>(step1_denom) / scale0
+                       : fallback_boards) +
+      unmakeable_denom;
+  if (total_boards <= 0.0) {
     return -1.0;
   }
-  return static_cast<double>(covered_boards) /
-         static_cast<double>(total_boards);
+  return covered_boards / total_boards;
 }
 
 std::string ChooseAdversarialDefenderCard(
@@ -1878,12 +1980,50 @@ int ResultsOnHandHelper(
     }
   }
 
-  if (diverged_during_trick) {
-    return copy.tricks_won_even();
-  }
-
   const ConditionalLine *chosen_node =
       SelectMostSpecificCandidate(candidates, 4);
+  auto finish_forced_final_trick = [&](const ConditionalLine *sub) -> int {
+    if (copy.Finished()) return copy.tricks_won_even();
+    if (CountCardsInHand(copy.GetHand(0) & ~copy.played_cards()) != 1) {
+      return copy.tricks_won_even();
+    }
+    std::array<std::string, 4> last_cards;
+    for (int i = 0; i < 4; ++i) {
+      if (copy.Finished()) break;
+      int p = copy.CurPlayer();
+      std::vector<CardType> valid = copy.ValidCardsToPlay();
+      if (valid.size() != 1) return copy.tricks_won_even();
+      last_cards[i] = Card::PrintCard(valid[0]);
+      copy.PlayCard(p, valid[0]);
+    }
+    if (sub != nullptr && out_trace != nullptr) {
+      const ConditionalLine *act = nullptr;
+      if (!sub->do_first().Empty()) {
+        act = sub;
+      } else if (sub->conditions().size() == 1 && sub->conditions()[0].second &&
+                 !sub->conditions()[0].second->do_first().Empty()) {
+        act = sub->conditions()[0].second.get();
+      }
+      if (act != nullptr) {
+        if (!last_cards[3].empty()) {
+          out_trace->node_tricks.emplace_back(
+              act, last_cards[0] + " " + last_cards[1] + " " + last_cards[2] +
+                       " " + last_cards[3]);
+        }
+        for (const auto &[_c, lf] : act->conditions()) {
+          if (lf && lf->do_first().Empty() && lf->conditions().empty()) {
+            out_trace->leaf = lf.get();
+            break;
+          }
+        }
+      }
+    }
+    return copy.tricks_won_even();
+  };
+
+  if (diverged_during_trick && !copy.Finished()) {
+    return copy.tricks_won_even();
+  }
   if (out_trace != nullptr && !played_cards[3].empty()) {
     out_trace->node_tricks.emplace_back(
         chosen_node, played_cards[0] + " " + played_cards[1] + " " +
@@ -1902,6 +2042,17 @@ int ResultsOnHandHelper(
     if (winner_cond && winner_cond->who() == winner) {
       return ResultsOnHandHelper(child_line.get(), copy, adversarial,
                                  def_cache, out_trace);
+    }
+  }
+  if (!copy.Finished() && (winner % 2 == 1) &&
+      CountCardsInHand(copy.GetHand(0) & ~copy.played_cards()) == 1 &&
+      chosen_node->conditions().size() == 1 &&
+      chosen_node->conditions()[0].second) {
+    auto *only_w = dynamic_cast<const WinnerPlayCondition *>(
+        chosen_node->conditions()[0].first.get());
+    if (only_w && (only_w->who() % 2 == 1)) {
+      return finish_forced_final_trick(
+          chosen_node->conditions()[0].second.get());
     }
   }
 
@@ -2226,8 +2377,131 @@ void ConditionalLine::DeepCloneChildren() {
   }
 }
 
+void ConditionalLine::NormalizeSplinterStep1Counts() {
+  if (conditions_.empty()) {
+    covered_count_ = static_cast<int>(final_covered_boards_.size());
+    return;
+  }
+  int sum = 0;
+  for (auto &[_cond, child] : conditions_) {
+    if (child) {
+      child->NormalizeSplinterStep1Counts();
+      sum += child->CoveredFinalBoards();
+    }
+  }
+  covered_count_ = sum;
+}
+
+void ConditionalLine::SetSplinterScale(double scale) {
+  splinter_scale_ = scale;
+  for (auto &[_cond, child] : conditions_) {
+    if (child) {
+      child->SetSplinterScale(scale);
+    }
+  }
+}
+
+bool ConditionalLine::HasBoardBelow(int max_board_id) const {
+  if (conditions_.empty()) {
+    return !final_covered_boards_.empty() &&
+           *final_covered_boards_.begin() < max_board_id;
+  }
+  for (const auto &[_cond, child] : conditions_) {
+    if (child && child->HasBoardBelow(max_board_id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void ConditionalLine::StripBoardsAtOrAbove(int max_board_id, Suit trump_suit) {
-  if (!final_covered_boards_.empty()) {
+  if (has_rescored_boards_) {
+    if (conditions_.empty()) {
+      final_covered_boards_.erase(
+          final_covered_boards_.lower_bound(max_board_id),
+          final_covered_boards_.end());
+      covered_count_ = static_cast<int>(final_covered_boards_.size());
+      return;
+    }
+    if (splinter_scale_ <= 1.0) {
+      int sum = 0;
+      for (auto &[_cond, child] : conditions_) {
+        if (child) {
+          child->StripBoardsAtOrAbove(max_board_id, trump_suit);
+          sum += child->CoveredFinalBoards();
+        }
+      }
+      covered_count_ = sum;
+      return;
+    }
+    if (!do_first_.Empty()) {
+      do_first_.StripBoardsAtOrAbove(max_board_id, trump_suit,
+                                     /*preserve_step1_counts=*/true);
+    }
+    std::vector<std::pair<std::shared_ptr<PlayCondition>,
+                          std::shared_ptr<ConditionalLine>>>
+        kept;
+    kept.reserve(conditions_.size());
+    int sum = 0;
+    for (auto &[cond, child] : conditions_) {
+      if (!child) continue;
+      bool had_real_step1 = child->HasBoardBelow(max_board_id);
+      child->StripBoardsAtOrAbove(max_board_id, trump_suit);
+      if (!had_real_step1 && child->CoveredFinalBoards() <= 0) {
+        continue;
+      }
+      if (!do_first_.Empty()) {
+        if (auto *win_cond = dynamic_cast<WinnerPlayCondition *>(cond.get())) {
+          std::set<std::string> real_win_cards;
+          for (const auto &entry : do_first_.board_entries) {
+            if (entry.winner == win_cond->who()) {
+              real_win_cards.emplace(entry.win_card);
+            }
+          }
+          if (!real_win_cards.empty()) {
+            cond = std::make_shared<WinnerPlayCondition>(win_cond->who(),
+                                                         real_win_cards);
+          }
+        }
+      }
+      sum += child->CoveredFinalBoards();
+      kept.emplace_back(std::move(cond), std::move(child));
+    }
+    for (size_t i = 0; i < kept.size(); ++i) {
+      if (!kept[i].second || kept[i].second->do_first_.Empty() ||
+          dynamic_cast<TrickPlayCondition *>(kept[i].first.get()) == nullptr) {
+        continue;
+      }
+      GeneralizedTrick &gt = kept[i].second->do_first_;
+      std::string old_opp1 = gt.demi1.opp_card;
+      std::string old_opp2 = gt.demi2.opp_card;
+      gt.TightenToEntries(trump_suit);
+      if (gt.demi1.opp_card == old_opp1 && gt.demi2.opp_card == old_opp2) {
+        continue;
+      }
+      std::string new_str = gt.ToString(true);
+      bool collides = false;
+      for (size_t j = 0; j < kept.size(); ++j) {
+        if (j != i && kept[j].second && !kept[j].second->do_first_.Empty() &&
+            kept[j].second->do_first_.ToString(true) == new_str) {
+          collides = true;
+          break;
+        }
+      }
+      if (collides) {
+        gt.demi1.opp_card = std::move(old_opp1);
+        gt.demi2.opp_card = std::move(old_opp2);
+      } else {
+        kept[i].first =
+            std::make_shared<TrickPlayCondition>(std::move(new_str));
+      }
+    }
+    conditions_ = std::move(kept);
+    covered_count_ = sum;
+    return;
+  }
+
+  if (conditions_.empty()) {
     final_covered_boards_.erase(final_covered_boards_.lower_bound(max_board_id),
                                 final_covered_boards_.end());
     covered_count_ = static_cast<int>(final_covered_boards_.size());
@@ -2235,7 +2509,7 @@ void ConditionalLine::StripBoardsAtOrAbove(int max_board_id, Suit trump_suit) {
   }
 
   if (!do_first_.Empty()) {
-    do_first_.StripBoardsAtOrAbove(max_board_id);
+    do_first_.StripBoardsAtOrAbove(max_board_id, trump_suit);
   }
 
   std::vector<std::pair<std::shared_ptr<PlayCondition>,
@@ -2318,7 +2592,7 @@ void ConditionalLine::ApplyRescoredBoards(
   }
   has_rescored_boards_ = true;
 
-  if (!do_first_.Empty()) {
+  if (!do_first_.Empty() && !node_board_tricks.empty()) {
     auto nt_it = node_board_tricks.find(this);
     if (nt_it != node_board_tricks.end()) {
       for (const auto &[b, t] : nt_it->second) {

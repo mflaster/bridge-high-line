@@ -943,33 +943,31 @@ std::vector<ConditionalLine> LineFinder::Solve(
       line.DeepCloneChildren();
     }
     std::unordered_map<std::string, ConditionalLine> thin_memo;
-    if (effective_threads > 1) {
-      #pragma omp parallel num_threads(effective_threads)
-      {
-        #pragma omp single
-        {
-          for (auto &line : ans) {
-            if (IsStopRequested()) break;
-            RefineThinNodesOnNode(&line, min_tricks, cache, board_trees,
-                                  board_offsets, leader, 0, 0, &thin_memo);
-          }
-        }
-      }
-    } else {
+    ParallelRegion(effective_threads, [&]() {
       for (auto &line : ans) {
         if (IsStopRequested()) break;
         RefineThinNodesOnNode(&line, min_tricks, cache, board_trees,
                               board_offsets, leader, 0, 0, &thin_memo);
       }
-    }
+    });
     if (adversarial_rescore_ && !IsStopRequested()) {
       RescoreTopLinesAdversarial(boards, board_offsets, board_trees, min_tricks,
                                  effective_threads, &ans);
-    } else {
+    }
+    if (!IsStopRequested()) {
+      for (auto &line : ans) {
+        line.StripBoardsAtOrAbove(static_cast<int>(boards.size()), trump);
+      }
       std::stable_sort(
           ans.begin(), ans.end(),
           [](const ConditionalLine &a, const ConditionalLine &b) {
-            return a.CoveredFinalBoards() > b.CoveredFinalBoards();
+            if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
+              return a.CoveredFinalBoards() > b.CoveredFinalBoards();
+            }
+            if (a.step1_covered_boards() != b.step1_covered_boards()) {
+              return a.step1_covered_boards() > b.step1_covered_boards();
+            }
+            return a.conditions().size() < b.conditions().size();
           });
     }
   }
@@ -2744,26 +2742,11 @@ void LineFinder::RefineThinNodesOnNode(
           if (!splinter_bs_list.empty() && !IsStopRequested()) {
             std::vector<std::shared_ptr<OptimalPlayTree>> sp_trees(
                 splinter_bs_list.size());
-            if (omp_in_parallel() && splinter_bs_list.size() > 1) {
-              for (size_t s_idx = 0; s_idx < splinter_bs_list.size(); ++s_idx) {
-                if (IsStopRequested()) break;
-                #pragma omp task firstprivate(s_idx) \
-                    shared(splinter_bs_list, sp_trees, cache, min_tricks)
-                {
-                  if (!IsStopRequested()) {
-                    sp_trees[s_idx] = OptimalPlayTree::FindOptimalPlayTree(
-                        splinter_bs_list[s_idx], min_tricks, &cache);
-                  }
-                }
-              }
-              #pragma omp taskwait
-            } else {
-              for (size_t s_idx = 0; s_idx < splinter_bs_list.size(); ++s_idx) {
-                if (IsStopRequested()) break;
-                sp_trees[s_idx] = OptimalPlayTree::FindOptimalPlayTree(
-                    splinter_bs_list[s_idx], min_tricks, &cache);
-              }
-            }
+            ParallelTaskBatch(splinter_bs_list.size(), [&](size_t s_idx) {
+              if (IsStopRequested()) return;
+              sp_trees[s_idx] = OptimalPlayTree::FindOptimalPlayTree(
+                  splinter_bs_list[s_idx], min_tricks, &cache);
+            });
             if (IsStopRequested()) return;
 
             std::map<int, std::shared_ptr<OptimalPlayTree>> splinter_trees;
@@ -2797,47 +2780,20 @@ void LineFinder::RefineThinNodesOnNode(
                 size_t nl = sp_ans.size();
                 std::vector<std::vector<uint8_t>> b_ok(
                     nb, std::vector<uint8_t>(nl, 0));
-                if (omp_in_parallel() && nb > 1) {
-                  for (size_t b_i = 0; b_i < nb; ++b_i) {
-                    if (IsStopRequested()) break;
-                    #pragma omp task firstprivate(b_i) \
-                        shared(active_b, splinter_trees, sp_ans, b_ok, \
-                               min_tricks, nl)
-                    {
-                      if (!IsStopRequested()) {
-                        int b = active_b[b_i];
-                        const BoardState &bs =
-                            *splinter_trees.at(b)->MyBoard();
-                        int base_even = bs.tricks_won_even();
-                        ConditionalLine::DefenderCardsCache def_cache;
-                        for (size_t l_i = 0; l_i < nl; ++l_i) {
-                          int tot_even =
-                              sp_ans[l_i].ResultsOnHandAdversarial(
-                                  bs, &def_cache, nullptr);
-                          if (tot_even - base_even >= min_tricks) {
-                            b_ok[b_i][l_i] = 1;
-                          }
-                        }
-                      }
+                ParallelTaskBatch(nb, [&](size_t b_i) {
+                  if (IsStopRequested()) return;
+                  int b = active_b[b_i];
+                  const BoardState &bs = *splinter_trees.at(b)->MyBoard();
+                  int base_even = bs.tricks_won_even();
+                  ConditionalLine::DefenderCardsCache def_cache;
+                  for (size_t l_i = 0; l_i < nl; ++l_i) {
+                    int tot_even = sp_ans[l_i].ResultsOnHandAdversarial(
+                        bs, &def_cache, nullptr);
+                    if (tot_even - base_even >= min_tricks) {
+                      b_ok[b_i][l_i] = 1;
                     }
                   }
-                  #pragma omp taskwait
-                } else {
-                  for (size_t b_i = 0; b_i < nb; ++b_i) {
-                    if (IsStopRequested()) break;
-                    int b = active_b[b_i];
-                    const BoardState &bs = *splinter_trees.at(b)->MyBoard();
-                    int base_even = bs.tricks_won_even();
-                    ConditionalLine::DefenderCardsCache def_cache;
-                    for (size_t l_i = 0; l_i < nl; ++l_i) {
-                      int tot_even = sp_ans[l_i].ResultsOnHandAdversarial(
-                          bs, &def_cache, nullptr);
-                      if (tot_even - base_even >= min_tricks) {
-                        b_ok[b_i][l_i] = 1;
-                      }
-                    }
-                  }
-                }
+                });
                 if (!IsStopRequested()) {
                   std::vector<int> adv_score(nl, 0);
                   std::vector<int> adv_real_cnt(nl, 0);
@@ -2961,6 +2917,8 @@ void LineFinder::RefineThinNodesOnNode(
     std::vector<std::shared_ptr<OptimalPlayTree>> played_trees(
         entries_for_w.size());
     if (omp_in_parallel() && entries_for_w.size() > 1) {
+      std::vector<size_t> pending_entries;
+      pending_entries.reserve(entries_for_w.size());
       for (size_t e_idx = 0; e_idx < entries_for_w.size(); ++e_idx) {
         if (IsStopRequested()) break;
         const auto *entry = entries_for_w[e_idx];
@@ -2969,18 +2927,16 @@ void LineFinder::RefineThinNodesOnNode(
         if (deepened) {
           played_trees[e_idx] = std::move(deepened);
         } else {
-          #pragma omp task firstprivate(e_idx) \
-              shared(entries_for_w, board_trees, played_trees, cache)
-          {
-            if (!IsStopRequested()) {
-              const auto *ent = entries_for_w[e_idx];
-              played_trees[e_idx] =
-                  board_trees.at(ent->board)->PlayTrick(ent->trick_str, &cache);
-            }
-          }
+          pending_entries.push_back(e_idx);
         }
       }
-      #pragma omp taskwait
+      ParallelTaskBatch(pending_entries.size(), [&](size_t p_idx) {
+        if (IsStopRequested()) return;
+        size_t e_idx = pending_entries[p_idx];
+        const auto *ent = entries_for_w[e_idx];
+        played_trees[e_idx] =
+            board_trees.at(ent->board)->PlayTrick(ent->trick_str, &cache);
+      });
     } else {
       for (size_t e_idx = 0; e_idx < entries_for_w.size(); ++e_idx) {
         if (IsStopRequested()) break;
@@ -2995,11 +2951,13 @@ void LineFinder::RefineThinNodesOnNode(
     std::set<int> wb_boards;
     for (size_t e_idx = 0; e_idx < entries_for_w.size(); ++e_idx) {
       if (!played_trees[e_idx]) continue;
+      if (played_trees[e_idx]->MyBoard()->CurPlayer() != w) continue;
       int b = entries_for_w[e_idx]->board;
       after_play_trees.emplace_hint(after_play_trees.end(), b,
                                     std::move(played_trees[e_idx]));
       wb_boards.insert(wb_boards.end(), b);
     }
+    if (wb_boards.empty()) continue;
     int next_min_tricks = min_tricks - ((w % 2 == 0) ? 1 : 0);
     RefineThinNodesOnNode(w_child_ptr.get(), next_min_tricks, cache,
                           after_play_trees, wb_boards, w, lvl + 1,
