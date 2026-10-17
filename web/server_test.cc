@@ -42,6 +42,14 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index->body.find("openFeedbackBtn") != std::string::npos);
   REQUIRE(res_index->body.find("feedbackModal") != std::string::npos);
 
+  auto res_help_html = client.Get("/help.html");
+  REQUIRE(res_help_html);
+  REQUIRE(res_help_html->status == 200);
+  REQUIRE(res_help_html->body.find("helpPageTopicsNav") != std::string::npos);
+  REQUIRE(res_help_html->body.find(
+              "Bridge Deal Solver — Help &amp; Strategy Guide") !=
+          std::string::npos);
+
   auto res_strategy = client.Get("/bridge-strategy.md");
   REQUIRE(res_strategy);
   REQUIRE(res_strategy->status == 200);
@@ -52,6 +60,14 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_guide);
   REQUIRE(res_guide->status == 200);
   REQUIRE(res_guide->body.find("Loading Hands & Setting Up a Deal") !=
+          std::string::npos);
+  REQUIRE(res_guide->body.find("images/hand-record-scanner.png") !=
+          std::string::npos);
+  REQUIRE(res_guide->body.find("images/decision-tree-inspector.png") !=
+          std::string::npos);
+  REQUIRE(res_guide->body.find("images/propose-and-compare-lines.png") !=
+          std::string::npos);
+  REQUIRE(res_guide->body.find("images/distribution-summary.png") !=
           std::string::npos);
 
   // Test CSS serving

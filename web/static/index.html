@@ -32,9 +32,9 @@
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
         </select>
-        <button id="openHelpBtn" type="button" class="feedback-header-btn" title="User guide and how the solver thinks about bridge">
-          ❓ Help
-        </button>
+        <a id="openHelpBtn" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn" title="Open Help &amp; Strategy Guide in a new tab">
+          ❓ Help ↗
+        </a>
         <button id="openFeedbackBtn" type="button" class="feedback-header-btn" title="Send feedback or report an issue">
           💬 Feedback
         </button>
@@ -632,7 +632,10 @@
     <div class="feedback-modal-card help-modal-card">
       <div class="feedback-modal-header">
         <h3 id="helpModalTitle">Help &amp; Strategy Guide</h3>
-        <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close help dialog">&times;</button>
+        <div class="help-modal-header-actions">
+          <a id="helpOpenNewTabLink" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn">Open in New Tab ↗</a>
+          <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close help dialog">&times;</button>
+        </div>
       </div>
       <nav id="helpTopicsNav" class="help-topics-nav" aria-label="Help topics">
         <button type="button" class="help-topic-btn active" data-topic="loading">📥 Loading Hands</button>

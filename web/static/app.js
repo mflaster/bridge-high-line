@@ -8518,6 +8518,7 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
   const helpTopicsNav = document.getElementById('helpTopicsNav');
   const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
   const helpModalBody = document.getElementById('helpModalBody');
+  const helpOpenNewTabLink = document.getElementById('helpOpenNewTabLink');
   let helpGuideLoaded = false;
   let activeHelpTopic = 'loading';
   const helpTopicsHtml = {
@@ -8551,6 +8552,9 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
       return `\u0000CODE${idx}\u0000`;
     });
     s = escapeHelpHtml(s);
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+      return `<img src="${src}" alt="${alt}" class="help-inline-img" loading="lazy">`;
+    });
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
       let url = href;
       if (url.startsWith('../')) {
@@ -8584,6 +8588,19 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     while (i < lines.length) {
       const line = lines[i];
       if (!line.trim()) {
+        i++;
+        continue;
+      }
+      const imgMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imgMatch) {
+        const alt = escapeHelpHtml(imgMatch[1]);
+        const src = escapeHelpHtml(imgMatch[2]);
+        out.push(
+          `<figure class="help-figure">` +
+          `<img src="${src}" alt="${alt}" loading="lazy" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='../docs/'+this.getAttribute('src');}">` +
+          (alt ? `<figcaption>${alt}</figcaption>` : '') +
+          `</figure>`
+        );
         i++;
         continue;
       }
@@ -8716,6 +8733,7 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
       while (
         i < lines.length &&
         lines[i].trim() &&
+        !lines[i].trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/) &&
         !lines[i].startsWith('#') &&
         !lines[i].startsWith('---') &&
         !lines[i].startsWith('```') &&
@@ -8766,6 +8784,9 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     if (helpModalTitle && helpTopicTitles[targetTopic]) {
       helpModalTitle.textContent = helpTopicTitles[targetTopic];
     }
+    if (helpOpenNewTabLink) {
+      helpOpenNewTabLink.href = `help.html#${targetTopic}`;
+    }
     if (helpModalBody && helpGuideLoaded) {
       helpModalBody.innerHTML = helpTopicsHtml[targetTopic] || '<p>No content available.</p>';
       helpModalBody.scrollTop = 0;
@@ -8799,7 +8820,7 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     helpModal.classList.add('hidden');
   }
 
-  if (openHelpBtn) {
+  if (openHelpBtn && openHelpBtn.tagName !== 'A') {
     openHelpBtn.addEventListener('click', () => openHelpModal());
   }
   if (helpTopicsNav) {
