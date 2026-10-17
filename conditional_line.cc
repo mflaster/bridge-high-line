@@ -209,7 +209,6 @@ Suit GetSuitOfCard(const std::string &c) {
   return Card::ParseSuit(c[0]);
 }
 
-#define CONSIDER_INDIVIDUAL_LOW_CARDS 0
 #define CONSIDER_DISCARDS 1
 
 std::vector<std::string> GeneralizeOppCard(const std::string &card,
@@ -226,19 +225,13 @@ std::vector<std::string> GeneralizeOppCard(const std::string &card,
       (suit_led != NOTRUMP && card_suit != suit_led && card_suit != trump);
 
   if (!is_discard) {
-#if CONSIDER_INDIVIDUAL_LOW_CARDS
-    cards.push_back(card);
-#endif
-
     std::string honor_or_not = card;
     if (isdigit(honor_or_not[1])) {
       honor_or_not[1] = 'x';
     } else {
       honor_or_not[1] = 'X';
-#if !CONSIDER_INDIVIDUAL_LOW_CARDS
       // Only record raw card if it's an honor
       cards.push_back(card);
-#endif
     }
     cards.push_back(honor_or_not);
 
@@ -285,9 +278,6 @@ bool GeneralizesTo(const std::string& actual_card,
   }
   return false;
 }
-
-// If 1, it's faster, but doesn't seem to work as well.
-#define TRY_GENERAL_CARDS_FIRST 0
 
 using std::pair;
 using std::set;
@@ -338,9 +328,6 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
     std::sort(vec.begin(), vec.end());
     vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
   }
-#if TRY_GENERAL_CARDS_FIRST
-  std::reverse(generalized.begin(), generalized.end());
-#endif
   std::stable_sort(generalized.begin(), generalized.end(),
                    [](const GenBucket &a, const GenBucket &b) {
                      return a.boards.size() > b.boards.size();

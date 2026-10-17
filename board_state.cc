@@ -179,17 +179,6 @@ std::pair<uint64_t, uint64_t> BoardState::RemainingHandsKey() const {
   return ans;
 }
 
-std::string StrJoin(const std::set<int> &board_offsets, const char *sep) {
-  std::string ans;
-  for (const auto &x : board_offsets) {
-    if (!ans.empty()) {
-      ans += sep;
-    }
-    ans += std::to_string(x);
-  }
-  return ans;
-}
-
 std::string BoardState::ConvertHandToPBN(uint64_t hand) const {
   std::string ans;
   for (int suit = 0; suit < 4; suit++) {

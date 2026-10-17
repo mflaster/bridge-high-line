@@ -20,10 +20,6 @@ std::string SuitToString(Suit s) {
   }
 }
 
-Suit ParseSuitString(const std::string &s) {
-  return Card::ParseSuit(s);
-}
-
 std::vector<std::string> SplitTopLevelArgs(const std::string &args_str) {
   std::vector<std::string> args;
   std::string current;
@@ -170,14 +166,14 @@ std::shared_ptr<HandRequirements> HandRequirements::FromString(
   if (class_lower == "suitatleast") {
     auto args = SplitTopLevelArgs(args_str);
     if (args.size() >= 2) {
-      Suit s = ParseSuitString(args[0]);
+      Suit s = Card::ParseSuit(args[0]);
       int count = std::stoi(args[1]);
       return std::make_shared<SuitAtLeast>(s, count);
     }
   } else if (class_lower == "suitlength") {
     auto args = SplitTopLevelArgs(args_str);
     if (args.size() >= 3) {
-      Suit s = ParseSuitString(args[0]);
+      Suit s = Card::ParseSuit(args[0]);
       int low = std::stoi(args[1]);
       int high = std::stoi(args[2]);
       return std::make_shared<SuitLength>(s, low, high);

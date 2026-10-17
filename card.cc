@@ -1,6 +1,7 @@
 #include "card.h"
 
 #include <iostream>
+#include <stdexcept>
 
 #include "assert.h"
 #include "glog/logging.h"
@@ -30,6 +31,61 @@ std::string SuitDebugString(Suit s) {
     case NOTRUMP: return "NT";
     default: return "UNKNOWN";
   }
+}
+
+std::string PlayerDirectionDebugString(PlayerDirection dir) {
+  return PlayerDirectionDebugString(static_cast<int>(dir));
+}
+
+std::string PlayerDirectionDebugString(int dir) {
+  switch ((dir % 4 + 4) % 4) {
+    case NORTH: return "North";
+    case EAST:  return "East";
+    case SOUTH: return "South";
+    case WEST:  return "West";
+    default:    return "Unknown";
+  }
+}
+
+/* static */
+std::string Card::PlayerDirectionDebugString(PlayerDirection dir) {
+  return ::PlayerDirectionDebugString(dir);
+}
+
+/* static */
+std::string Card::PlayerDirectionDebugString(int dir) {
+  return ::PlayerDirectionDebugString(dir);
+}
+
+/* static */
+PlayerDirection Card::ParsePlayerDirection(char c) {
+  switch (c) {
+    case 'N': case 'n': case '0': return NORTH;
+    case 'E': case 'e': case '1': return EAST;
+    case 'S': case 's': case '2': return SOUTH;
+    case 'W': case 'w': case '3': return WEST;
+    default:
+      LOG(ERROR) << "Unrecognized player direction char: " << c;
+      throw std::runtime_error("Unrecognized player direction: " +
+                               std::string(1, c));
+  }
+}
+
+/* static */
+PlayerDirection Card::ParsePlayerDirection(const std::string &s) {
+  std::string lower = ToLower(Trim(s));
+  if (lower.empty()) {
+    LOG(ERROR) << "Unrecognized player direction: " << s;
+    throw std::runtime_error("Unrecognized player direction: " + s);
+  }
+
+  if (lower == "north" || lower == "n" || lower == "0") return NORTH;
+  if (lower == "east"  || lower == "e" || lower == "1") return EAST;
+  if (lower == "south" || lower == "s" || lower == "2") return SOUTH;
+  if (lower == "west"  || lower == "w" || lower == "3") return WEST;
+
+  LOG(ERROR) << "Unrecognized player direction: " << s;
+  throw std::runtime_error("Unrecognized player direction: " + s);
 }
 
 /* static */
