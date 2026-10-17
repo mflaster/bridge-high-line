@@ -27,6 +27,8 @@ time.
 Click **Load** in the **Hand Text Inputs** header to import a deal from your
 device:
 
+![Scan Hand Record Modal](images/hand-record-scanner.png)
+
 1. **PDF Hand Records (`.pdf`)**
    - Supports multi-page tournament hand record sheets (such as ACBL/Common
      Game PDFs).
@@ -98,6 +100,8 @@ context before clicking **Apply to Deal**:
 
 Clicking **⚡ Solve Deal** computes declarer's optimal conditional play tree and
 displays it in the **Decision Tree** tab.
+
+![Decision Tree & Line Inspector](images/decision-tree-inspector.png)
 
 ### Reading Nodes, Colors & Edge Conditions
 
@@ -224,6 +228,8 @@ solve or one or more proposed **Alt lines**), click the **Compare Lines** tab:
    Makes**. Click any deal card to immediately switch to that line and trace
    that exact hand in the **Decision Tree**!
 
+![Compare Lines Tab](images/propose-and-compare-lines.png)
+
 ---
 
 ## 4. Distribution Summaries, Sample Hands & Actual Deal (`#0`)
@@ -256,6 +262,8 @@ deals into bridge table takeaways:
   their combined holding.
 - **Honor Card Possession Stats**: The exact percentage of deals in which East,
   West, both, or neither holds each key honor (`A`, `K`, `Q`, `J`, `T`).
+
+![Distribution Summary Tab](images/distribution-summary.png)
 
 ### The `Sample Hands` Tab
 

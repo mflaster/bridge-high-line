@@ -39,9 +39,9 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
         </select>
-        <button id="openHelpBtn" type="button" class="feedback-header-btn" title="User guide and how the solver thinks about bridge">
-          ❓ Help
-        </button>
+        <a id="openHelpBtn" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn" title="Open Help &amp; Strategy Guide in a new tab">
+          ❓ Help ↗
+        </a>
         <button id="openFeedbackBtn" type="button" class="feedback-header-btn" title="Send feedback or report an issue">
           💬 Feedback
         </button>
@@ -639,7 +639,10 @@ inline const char* INDEX_HTML = R"rawhtml(
     <div class="feedback-modal-card help-modal-card">
       <div class="feedback-modal-header">
         <h3 id="helpModalTitle">Help &amp; Strategy Guide</h3>
-        <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close help dialog">&times;</button>
+        <div class="help-modal-header-actions">
+          <a id="helpOpenNewTabLink" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn">Open in New Tab ↗</a>
+          <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close help dialog">&times;</button>
+        </div>
       </div>
       <nav id="helpTopicsNav" class="help-topics-nav" aria-label="Help topics">
         <button type="button" class="help-topic-btn active" data-topic="loading">📥 Loading Hands</button>
@@ -655,6 +658,379 @@ inline const char* INDEX_HTML = R"rawhtml(
   </div>
 
   <script src="app.js"></script>
+</body>
+</html>
+
+)rawhtml";
+
+inline const char* HELP_HTML = R"rawhtml(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#0b1120">
+  <title>Help &amp; Strategy Guide — Bridge Deal Solver</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="help-page-body">
+  <header class="app-header">
+    <div class="header-content">
+      <div class="logo">
+        <a href="index.html" class="help-logo-link" title="Back to Bridge Deal Solver">
+          <span class="spade-icon">♠</span>
+          <h1>Bridge Deal Solver — Help &amp; Strategy Guide</h1>
+        </a>
+      </div>
+      <div class="preset-selector">
+        <a href="index.html" class="feedback-header-btn help-back-btn">
+          ♠ Open Solver
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="help-page-main">
+    <div class="card-panel help-page-card">
+      <div class="help-page-top">
+        <h2 id="helpPageTitle" class="help-page-title">Loading Hands &amp; Deal Setup</h2>
+        <nav id="helpPageTopicsNav" class="help-topics-nav" aria-label="Help topics">
+          <button type="button" class="help-topic-btn active" data-topic="loading">📥 Loading Hands</button>
+          <button type="button" class="help-topic-btn" data-topic="tree">🌳 Decision Tree &amp; Inspector</button>
+          <button type="button" class="help-topic-btn" data-topic="lines">🔀 Alternative Lines &amp; Compare</button>
+          <button type="button" class="help-topic-btn" data-topic="summaries">📊 Summaries &amp; Sample Hands</button>
+          <button type="button" class="help-topic-btn" data-topic="strategy">🧠 How the Solver Thinks</button>
+          <button type="button" class="help-topic-btn" data-topic="all">📑 All Topics</button>
+        </nav>
+      </div>
+      <div id="helpPageContent" class="help-markdown-body help-page-markdown">
+        <p class="help-loading">Loading guide...</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const helpPageTitle = document.getElementById('helpPageTitle');
+      const helpPageTopicsNav = document.getElementById('helpPageTopicsNav');
+      const helpPageContent = document.getElementById('helpPageContent');
+
+      const helpTopicsHtml = {
+        loading: '',
+        tree: '',
+        lines: '',
+        summaries: '',
+        strategy: '',
+        all: ''
+      };
+
+      const helpTopicTitles = {
+        loading: 'Loading Hands & Deal Setup',
+        tree: 'Decision Tree & Line Inspector',
+        lines: 'Trying & Comparing Alternative Lines',
+        summaries: 'Summaries, Sample Hands & Actual Deal (#0)',
+        strategy: 'How the Solver Thinks About Bridge',
+        all: 'Complete User Guide & Bridge Strategy'
+      };
+
+      function escapeHelpHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function formatHelpInline(text) {
+        const codeSlots = [];
+        let s = String(text).replace(/`([^`]+)`/g, (_, code) => {
+          const idx = codeSlots.length;
+          codeSlots.push(`<code>${escapeHelpHtml(code)}</code>`);
+          return `\u0000CODE${idx}\u0000`;
+        });
+        s = escapeHelpHtml(s);
+        s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+          return `<img src="${src}" alt="${alt}" class="help-inline-img" loading="lazy">`;
+        });
+        s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+          let url = href;
+          if (url.startsWith('../')) {
+            url = 'https://github.com/mflaster/bridge-high-line/blob/main/' + url.slice(3);
+          }
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+        s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        s = s.replace(/\u0000CODE(\d+)\u0000/g, (_, idx) => codeSlots[Number(idx)] || '');
+        return s;
+      }
+
+      function renderHelpListItems(items) {
+        return items.map(it => {
+          let inner = formatHelpInline(it.text);
+          if (it.subItems && it.subItems.length > 0) {
+            const tag = it.subType === 'ol' ? 'ol' : 'ul';
+            inner += `<${tag}>` +
+              it.subItems.map(sub => `<li>${formatHelpInline(sub)}</li>`).join('') +
+              `</${tag}>`;
+          }
+          return `<li>${inner}</li>`;
+        }).join('');
+      }
+
+      function renderHelpMarkdown(md) {
+        const lines = String(md).split(/\r?\n/);
+        const out = [];
+        let i = 0;
+        while (i < lines.length) {
+          const line = lines[i];
+          if (!line.trim()) {
+            i++;
+            continue;
+          }
+          const imgMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+          if (imgMatch) {
+            const alt = escapeHelpHtml(imgMatch[1]);
+            const src = escapeHelpHtml(imgMatch[2]);
+            out.push(
+              `<figure class="help-figure">` +
+              `<img src="${src}" alt="${alt}" loading="lazy" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='../docs/'+this.getAttribute('src');}">` +
+              (alt ? `<figcaption>${alt}</figcaption>` : '') +
+              `</figure>`
+            );
+            i++;
+            continue;
+          }
+          if (line.startsWith('```mermaid')) {
+            i++;
+            const steps = [];
+            while (i < lines.length && !lines[i].startsWith('```')) {
+              const matches = lines[i].matchAll(/\["([^"]+)"\]/g);
+              for (const m of matches) {
+                steps.push(m[1]);
+              }
+              i++;
+            }
+            if (i < lines.length) i++;
+            if (steps.length > 0) {
+              out.push('<div class="help-pipeline">' + steps.map(st => {
+                const parts = st.split(/<br\s*\/?>/i).map(p => escapeHelpHtml(p));
+                return `<div class="help-pipeline-step">${parts.join('<br>')}</div>`;
+              }).join('') + '</div>');
+            }
+            continue;
+          }
+          if (line.startsWith('```')) {
+            i++;
+            const codeLines = [];
+            while (i < lines.length && !lines[i].startsWith('```')) {
+              codeLines.push(escapeHelpHtml(lines[i]));
+              i++;
+            }
+            if (i < lines.length) i++;
+            out.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+            continue;
+          }
+          if (line.startsWith('---')) {
+            out.push('<hr>');
+            i++;
+            continue;
+          }
+          const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
+          if (hMatch) {
+            const lvl = hMatch[1].length;
+            if (lvl === 1 && out.length === 0) {
+              i++;
+              continue;
+            }
+            out.push(`<h${lvl}>${formatHelpInline(hMatch[2])}</h${lvl}>`);
+            i++;
+            continue;
+          }
+          if (line.startsWith('|')) {
+            const tableLines = [];
+            while (i < lines.length && lines[i].startsWith('|')) {
+              tableLines.push(lines[i]);
+              i++;
+            }
+            if (tableLines.length >= 2) {
+              const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+              const headers = parseRow(tableLines[0]);
+              const bodyRows = tableLines.slice(2).map(parseRow);
+              out.push('<table><thead><tr>' +
+                headers.map(h => `<th>${formatHelpInline(h)}</th>`).join('') +
+                '</tr></thead><tbody>' +
+                bodyRows.map(r => '<tr>' + r.map(c => `<td>${formatHelpInline(c)}</td>`).join('') + '</tr>').join('') +
+                '</tbody></table>');
+            }
+            continue;
+          }
+          if (line.startsWith('> ')) {
+            const qLines = [];
+            while (i < lines.length && lines[i].startsWith('> ')) {
+              qLines.push(lines[i].slice(2).trim());
+              i++;
+            }
+            out.push(`<blockquote>${formatHelpInline(qLines.join(' '))}</blockquote>`);
+            continue;
+          }
+          if (line.startsWith('- ')) {
+            const items = [];
+            while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('  '))) {
+              const cur = lines[i];
+              if (cur.startsWith('- ')) {
+                items.push({ text: cur.slice(2).trim(), subType: null, subItems: [] });
+              } else if (items.length > 0) {
+                const last = items[items.length - 1];
+                const trimmed = cur.trim();
+                if (trimmed.startsWith('- ')) {
+                  last.subType = 'ul';
+                  last.subItems.push(trimmed.slice(2).trim());
+                } else if (/^\d+\.\s+/.test(trimmed)) {
+                  last.subType = 'ol';
+                  last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+                } else if (last.subItems.length > 0) {
+                  last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+                } else {
+                  last.text += ' ' + trimmed;
+                }
+              }
+              i++;
+            }
+            out.push('<ul>' + renderHelpListItems(items) + '</ul>');
+            continue;
+          }
+          if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || lines[i].startsWith('  '))) {
+              const cur = lines[i];
+              if (/^\d+\.\s+/.test(cur)) {
+                items.push({ text: cur.replace(/^\d+\.\s+/, '').trim(), subType: null, subItems: [] });
+              } else if (items.length > 0) {
+                const last = items[items.length - 1];
+                const trimmed = cur.trim();
+                if (trimmed.startsWith('- ')) {
+                  last.subType = 'ul';
+                  last.subItems.push(trimmed.slice(2).trim());
+                } else if (/^\d+\.\s+/.test(trimmed)) {
+                  last.subType = 'ol';
+                  last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+                } else if (last.subItems.length > 0) {
+                  last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+                } else {
+                  last.text += ' ' + trimmed;
+                }
+              }
+              i++;
+            }
+            out.push('<ol>' + renderHelpListItems(items) + '</ol>');
+            continue;
+          }
+          const pLines = [];
+          while (
+            i < lines.length &&
+            lines[i].trim() &&
+            !lines[i].trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/) &&
+            !lines[i].startsWith('#') &&
+            !lines[i].startsWith('---') &&
+            !lines[i].startsWith('```') &&
+            !lines[i].startsWith('|') &&
+            !lines[i].startsWith('> ') &&
+            !lines[i].startsWith('- ') &&
+            !/^\d+\.\s+/.test(lines[i])
+          ) {
+            pLines.push(lines[i].trim());
+            i++;
+          }
+          out.push(`<p>${formatHelpInline(pLines.join(' '))}</p>`);
+        }
+        return out.join('\n');
+      }
+
+      async function fetchHelpMarkdown(fileName) {
+        let res = await fetch(fileName, { cache: 'no-cache' });
+        if (!res.ok) {
+          res = await fetch(`../docs/${fileName}`, { cache: 'no-cache' });
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      }
+
+      function resolveTopicFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const qTopic = params.get('topic') || params.get('help');
+        if (qTopic && helpTopicsHtml[qTopic] !== undefined) return qTopic;
+        const hash = window.location.hash.replace(/^#/, '');
+        if (hash === 'how-it-works') return 'strategy';
+        if (hash.startsWith('help=')) {
+          const h = hash.slice(5);
+          if (helpTopicsHtml[h] !== undefined) return h;
+        }
+        if (helpTopicsHtml[hash] !== undefined) return hash;
+        return 'loading';
+      }
+
+      function selectTopic(topic, updateHash = true) {
+        const target = helpTopicsHtml[topic] !== undefined ? topic : 'loading';
+        if (helpPageTopicsNav) {
+          helpPageTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.topic === target);
+          });
+        }
+        if (helpPageTitle && helpTopicTitles[target]) {
+          helpPageTitle.textContent = helpTopicTitles[target];
+        }
+        if (helpPageContent) {
+          helpPageContent.innerHTML = helpTopicsHtml[target] || '<p>No content available.</p>';
+        }
+        if (updateHash) {
+          history.replaceState(null, '', `#${target}`);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      if (helpPageTopicsNav) {
+        helpPageTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (btn.dataset.topic) {
+              selectTopic(btn.dataset.topic, true);
+            }
+          });
+        });
+      }
+
+      window.addEventListener('hashchange', () => {
+        selectTopic(resolveTopicFromUrl(), false);
+      });
+
+      Promise.all([
+        fetchHelpMarkdown('user-guide.md'),
+        fetchHelpMarkdown('bridge-strategy.md')
+      ]).then(([userGuideMd, strategyMd]) => {
+        const sections = String(userGuideMd).split(/\n(?=##\s+)/);
+        const topicKeys = ['loading', 'tree', 'lines', 'summaries'];
+        let topicIdx = 0;
+        for (const sec of sections) {
+          const trimmed = sec.trim().replace(/\n---\s*$/, '').trim();
+          if (!trimmed.startsWith('## ')) continue;
+          if (topicIdx < topicKeys.length) {
+            helpTopicsHtml[topicKeys[topicIdx]] = renderHelpMarkdown(trimmed);
+            topicIdx++;
+          }
+        }
+        helpTopicsHtml.strategy = renderHelpMarkdown(strategyMd);
+        helpTopicsHtml.all =
+          renderHelpMarkdown(userGuideMd) +
+          '<hr><h1>How the Solver Thinks About Bridge</h1>' +
+          helpTopicsHtml.strategy;
+        selectTopic(resolveTopicFromUrl(), false);
+      }).catch(err => {
+        if (helpPageContent) {
+          helpPageContent.innerHTML = `<p>Could not load guide (${escapeHelpHtml(err.message || err)}).</p>`;
+        }
+      });
+    });
+  </script>
 </body>
 </html>
 
@@ -3842,6 +4218,98 @@ body.is-resizing * {
   color: var(--text-muted);
   font-style: italic;
 }
+
+.help-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Standalone Help Page (help.html) & Screenshot Figures */
+.help-page-body {
+  height: auto;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+.help-logo-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.help-logo-link:hover h1 {
+  color: #93c5fd;
+}
+
+.help-back-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.help-page-main {
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px 18px 48px 18px;
+}
+
+.help-page-card {
+  padding: 22px 28px 32px 28px;
+  height: auto;
+  overflow: visible;
+}
+
+.help-page-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.help-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.help-page-markdown {
+  overflow: visible;
+  padding-right: 0;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.help-figure {
+  margin: 16px 0 20px 0;
+  background-color: #0b1120;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.help-figure img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.help-figure figcaption {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 
 )rawcss";
 
@@ -12366,6 +12834,7 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
   const helpTopicsNav = document.getElementById('helpTopicsNav');
   const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
   const helpModalBody = document.getElementById('helpModalBody');
+  const helpOpenNewTabLink = document.getElementById('helpOpenNewTabLink');
   let helpGuideLoaded = false;
   let activeHelpTopic = 'loading';
   const helpTopicsHtml = {
@@ -12399,6 +12868,9 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
       return `\u0000CODE${idx}\u0000`;
     });
     s = escapeHelpHtml(s);
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+      return `<img src="${src}" alt="${alt}" class="help-inline-img" loading="lazy">`;
+    });
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
       let url = href;
       if (url.startsWith('../')) {
@@ -12432,6 +12904,19 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     while (i < lines.length) {
       const line = lines[i];
       if (!line.trim()) {
+        i++;
+        continue;
+      }
+      const imgMatch = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imgMatch) {
+        const alt = escapeHelpHtml(imgMatch[1]);
+        const src = escapeHelpHtml(imgMatch[2]);
+        out.push(
+          `<figure class="help-figure">` +
+          `<img src="${src}" alt="${alt}" loading="lazy" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='../docs/'+this.getAttribute('src');}">` +
+          (alt ? `<figcaption>${alt}</figcaption>` : '') +
+          `</figure>`
+        );
         i++;
         continue;
       }
@@ -12564,6 +13049,7 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
       while (
         i < lines.length &&
         lines[i].trim() &&
+        !lines[i].trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/) &&
         !lines[i].startsWith('#') &&
         !lines[i].startsWith('---') &&
         !lines[i].startsWith('```') &&
@@ -12614,6 +13100,9 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     if (helpModalTitle && helpTopicTitles[targetTopic]) {
       helpModalTitle.textContent = helpTopicTitles[targetTopic];
     }
+    if (helpOpenNewTabLink) {
+      helpOpenNewTabLink.href = `help.html#${targetTopic}`;
+    }
     if (helpModalBody && helpGuideLoaded) {
       helpModalBody.innerHTML = helpTopicsHtml[targetTopic] || '<p>No content available.</p>';
       helpModalBody.scrollTop = 0;
@@ -12647,7 +13136,7 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     helpModal.classList.add('hidden');
   }
 
-  if (openHelpBtn) {
+  if (openHelpBtn && openHelpBtn.tagName !== 'A') {
     openHelpBtn.addEventListener('click', () => openHelpModal());
   }
   if (helpTopicsNav) {
@@ -13142,6 +13631,8 @@ time.
 Click **Load** in the **Hand Text Inputs** header to import a deal from your
 device:
 
+![Scan Hand Record Modal](images/hand-record-scanner.png)
+
 1. **PDF Hand Records (`.pdf`)**
    - Supports multi-page tournament hand record sheets (such as ACBL/Common
      Game PDFs).
@@ -13213,6 +13704,8 @@ context before clicking **Apply to Deal**:
 
 Clicking **⚡ Solve Deal** computes declarer's optimal conditional play tree and
 displays it in the **Decision Tree** tab.
+
+![Decision Tree & Line Inspector](images/decision-tree-inspector.png)
 
 ### Reading Nodes, Colors & Edge Conditions
 
@@ -13339,6 +13832,8 @@ solve or one or more proposed **Alt lines**), click the **Compare Lines** tab:
    Makes**. Click any deal card to immediately switch to that line and trace
    that exact hand in the **Decision Tree**!
 
+![Compare Lines Tab](images/propose-and-compare-lines.png)
+
 ---
 
 ## 4. Distribution Summaries, Sample Hands & Actual Deal (`#0`)
@@ -13371,6 +13866,8 @@ deals into bridge table takeaways:
   their combined holding.
 - **Honor Card Possession Stats**: The exact percentage of deals in which East,
   West, both, or neither holds each key honor (`A`, `K`, `Q`, `J`, `T`).
+
+![Distribution Summary Tab](images/distribution-summary.png)
 
 ### The `Sample Hands` Tab
 
