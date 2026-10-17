@@ -21,6 +21,8 @@ enum PlayerDirection {
 };
 
 std::string SuitDebugString(Suit s);
+std::string PlayerDirectionDebugString(PlayerDirection dir);
+std::string PlayerDirectionDebugString(int dir);
 
 using CardType = uint64_t;
 
@@ -34,6 +36,10 @@ class Card {
   static uint64_t ParseStringCard(std::string c);
   static Suit ParseSuit(char c);
   static Suit ParseSuit(const std::string &s);
+  static PlayerDirection ParsePlayerDirection(char c);
+  static PlayerDirection ParsePlayerDirection(const std::string &s);
+  static std::string PlayerDirectionDebugString(PlayerDirection dir);
+  static std::string PlayerDirectionDebugString(int dir);
 
   static std::string PrintDDSCard(Suit s, int dds_val);
   static std::string PrintCard(CardType c);
