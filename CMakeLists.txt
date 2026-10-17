@@ -168,6 +168,7 @@ else()
       ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
       ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
       ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
+      ${CMAKE_CURRENT_SOURCE_DIR}/docs/bridge-strategy.md
     COMMENT "Generating web/web_assets.h from static web assets"
   )
 

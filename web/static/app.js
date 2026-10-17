@@ -8512,6 +8512,218 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     });
   }
 
+  const openHelpBtn = document.getElementById('openHelpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
+  const helpModalBody = document.getElementById('helpModalBody');
+  let helpGuideLoaded = false;
+
+  function escapeHelpHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatHelpInline(text) {
+    const codeSlots = [];
+    let s = String(text).replace(/`([^`]+)`/g, (_, code) => {
+      const idx = codeSlots.length;
+      codeSlots.push(`<code>${escapeHelpHtml(code)}</code>`);
+      return `\u0000CODE${idx}\u0000`;
+    });
+    s = escapeHelpHtml(s);
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+      let url = href;
+      if (url.startsWith('../')) {
+        url = 'https://github.com/mflaster/bridge-high-line/blob/main/' + url.slice(3);
+      }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    s = s.replace(/\u0000CODE(\d+)\u0000/g, (_, idx) => codeSlots[Number(idx)] || '');
+    return s;
+  }
+
+  function renderBridgeStrategyMarkdown(md) {
+    const lines = String(md).split(/\r?\n/);
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) {
+        i++;
+        continue;
+      }
+      if (line.startsWith('```mermaid')) {
+        i++;
+        const steps = [];
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          const matches = lines[i].matchAll(/\["([^"]+)"\]/g);
+          for (const m of matches) {
+            steps.push(m[1]);
+          }
+          i++;
+        }
+        if (i < lines.length) i++;
+        if (steps.length > 0) {
+          out.push('<div class="help-pipeline">' + steps.map(st => {
+            const parts = st.split(/<br\s*\/?>/i).map(p => escapeHelpHtml(p));
+            return `<div class="help-pipeline-step">${parts.join('<br>')}</div>`;
+          }).join('') + '</div>');
+        }
+        continue;
+      }
+      if (line.startsWith('```')) {
+        i++;
+        const codeLines = [];
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          codeLines.push(escapeHelpHtml(lines[i]));
+          i++;
+        }
+        if (i < lines.length) i++;
+        out.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+        continue;
+      }
+      if (line.startsWith('---')) {
+        out.push('<hr>');
+        i++;
+        continue;
+      }
+      const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
+      if (hMatch) {
+        const lvl = hMatch[1].length;
+        if (lvl === 1 && out.length === 0) {
+          i++;
+          continue;
+        }
+        out.push(`<h${lvl}>${formatHelpInline(hMatch[2])}</h${lvl}>`);
+        i++;
+        continue;
+      }
+      if (line.startsWith('|')) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].startsWith('|')) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        if (tableLines.length >= 2) {
+          const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+          const headers = parseRow(tableLines[0]);
+          const bodyRows = tableLines.slice(2).map(parseRow);
+          out.push('<table><thead><tr>' +
+            headers.map(h => `<th>${formatHelpInline(h)}</th>`).join('') +
+            '</tr></thead><tbody>' +
+            bodyRows.map(r => '<tr>' + r.map(c => `<td>${formatHelpInline(c)}</td>`).join('') + '</tr>').join('') +
+            '</tbody></table>');
+        }
+        continue;
+      }
+      if (line.startsWith('> ')) {
+        const qLines = [];
+        while (i < lines.length && lines[i].startsWith('> ')) {
+          qLines.push(lines[i].slice(2).trim());
+          i++;
+        }
+        out.push(`<blockquote>${formatHelpInline(qLines.join(' '))}</blockquote>`);
+        continue;
+      }
+      if (line.startsWith('- ')) {
+        const items = [];
+        while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('  '))) {
+          if (lines[i].startsWith('- ')) {
+            items.push(lines[i].slice(2).trim());
+          } else if (items.length > 0) {
+            items[items.length - 1] += ' ' + lines[i].trim();
+          }
+          i++;
+        }
+        out.push('<ul>' + items.map(it => `<li>${formatHelpInline(it)}</li>`).join('') + '</ul>');
+        continue;
+      }
+      if (/^\d+\.\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || lines[i].startsWith('   '))) {
+          if (/^\d+\.\s+/.test(lines[i])) {
+            items.push(lines[i].replace(/^\d+\.\s+/, '').trim());
+          } else if (items.length > 0) {
+            items[items.length - 1] += ' ' + lines[i].trim();
+          }
+          i++;
+        }
+        out.push('<ol>' + items.map(it => `<li>${formatHelpInline(it)}</li>`).join('') + '</ol>');
+        continue;
+      }
+      const pLines = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() &&
+        !lines[i].startsWith('#') &&
+        !lines[i].startsWith('---') &&
+        !lines[i].startsWith('```') &&
+        !lines[i].startsWith('|') &&
+        !lines[i].startsWith('> ') &&
+        !lines[i].startsWith('- ') &&
+        !/^\d+\.\s+/.test(lines[i])
+      ) {
+        pLines.push(lines[i].trim());
+        i++;
+      }
+      out.push(`<p>${formatHelpInline(pLines.join(' '))}</p>`);
+    }
+    return out.join('\n');
+  }
+
+  async function openHelpModal() {
+    if (!helpModal) return;
+    helpModal.classList.remove('hidden');
+    if (helpGuideLoaded || !helpModalBody) return;
+    try {
+      let res = await fetch('bridge-strategy.md', { cache: 'no-cache' });
+      if (!res.ok) {
+        res = await fetch('../docs/bridge-strategy.md', { cache: 'no-cache' });
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const md = await res.text();
+      helpModalBody.innerHTML = renderBridgeStrategyMarkdown(md);
+      helpGuideLoaded = true;
+    } catch (err) {
+      helpModalBody.innerHTML = `<p>Could not load guide (${escapeHelpHtml(err.message || err)}).</p>`;
+    }
+  }
+
+  function closeHelpModal() {
+    if (!helpModal) return;
+    helpModal.classList.add('hidden');
+  }
+
+  if (openHelpBtn) {
+    openHelpBtn.addEventListener('click', openHelpModal);
+  }
+  if (closeHelpModalBtn) {
+    closeHelpModalBtn.addEventListener('click', closeHelpModal);
+  }
+  if (helpModal) {
+    helpModal.addEventListener('click', (e) => {
+      if (e.target === helpModal) {
+        closeHelpModal();
+      }
+    });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpModal && !helpModal.classList.contains('hidden')) {
+      closeHelpModal();
+    }
+  });
+  if (
+    window.location.hash === '#how-it-works' ||
+    new URLSearchParams(window.location.search).get('help') === '1'
+  ) {
+    openHelpModal();
+  }
+
   // Initial UI Render & Fetch Presets
   fetchPresets().then(() => {
     if (presetSelect && presetSelect.value) {
