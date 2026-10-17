@@ -1418,12 +1418,44 @@ document.addEventListener('DOMContentLoaded', () => {
     return wasmWorker;
   }
 
+  const WASM_NUM_THREADS = 4;
+
+  async function ensureCrossOriginIsolation() {
+    if (window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') {
+      try {
+        sessionStorage.removeItem('bridge_coi_reloaded');
+      } catch (_) {}
+      return true;
+    }
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) {
+      return false;
+    }
+    try {
+      const reg = await navigator.serviceWorker.register('coi_serviceworker.js');
+      if (reg && (reg.installing || reg.waiting || reg.active)) {
+        if (!sessionStorage.getItem('bridge_coi_reloaded')) {
+          sessionStorage.setItem('bridge_coi_reloaded', '1');
+          if (navigator.serviceWorker.controller) {
+            window.location.reload();
+          } else {
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              window.location.reload();
+            }, { once: true });
+          }
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+    } catch (_) {}
+    return typeof SharedArrayBuffer !== 'undefined';
+  }
+
   function configureWasmThreadsUI() {
     const numThreadsSelect = document.getElementById('numThreads');
     if (!numThreadsSelect) return;
-    numThreadsSelect.value = '1';
+    numThreadsSelect.value = String(WASM_NUM_THREADS);
     numThreadsSelect.disabled = true;
-    numThreadsSelect.title = 'Running client-side in WebAssembly Web Worker (1 worker thread)';
+    numThreadsSelect.title =
+      'Running client-side in WebAssembly (' + WASM_NUM_THREADS + ' worker threads)';
   }
 
   async function ensureBackendMode() {
@@ -1434,6 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         backendMode = 'wasm';
         setSentryGlobalAttribute('backend_mode', backendMode);
         configureWasmThreadsUI();
+        await ensureCrossOriginIsolation();
         initWasmWorker();
         return backendMode;
       }
@@ -1451,6 +1484,7 @@ document.addEventListener('DOMContentLoaded', () => {
       backendMode = 'wasm';
       setSentryGlobalAttribute('backend_mode', backendMode);
       configureWasmThreadsUI();
+      await ensureCrossOriginIsolation();
       initWasmWorker();
       return backendMode;
     })();
@@ -1490,7 +1524,9 @@ document.addEventListener('DOMContentLoaded', () => {
       worker.postMessage({
         type: 'solve',
         id: reqId,
-        payloadJson: JSON.stringify(Object.assign({}, payload, { num_threads: 1 }))
+        payloadJson: JSON.stringify(
+          Object.assign({}, payload, { num_threads: WASM_NUM_THREADS })
+        )
       });
     });
   }
@@ -1558,6 +1594,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
           PRESETS = loaded;
           populatePresetSelect();
+          ensureBackendMode();
           return;
         }
       }

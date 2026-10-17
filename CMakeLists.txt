@@ -59,6 +59,8 @@ FetchContent_Declare(
 )
 
 if(EMSCRIPTEN)
+  add_compile_options(-pthread)
+  add_link_options(-pthread)
   FetchContent_MakeAvailable(boost_headers glog)
 else()
   FetchContent_MakeAvailable(boost_headers glog Catch2)
@@ -95,7 +97,8 @@ if(NOT dds_POPULATED)
     "${dds_SOURCE_DIR}/src"
   )
   if(EMSCRIPTEN)
-    target_compile_options(dds PRIVATE -O3 -msimd128 -fexceptions)
+    target_compile_definitions(dds PRIVATE DDS_THREADS_STL)
+    target_compile_options(dds PRIVATE -O3 -msimd128 -fexceptions -pthread)
     target_link_libraries(dds PUBLIC boost_headers)
   else()
     target_compile_definitions(dds PRIVATE DDS_THREADS_OPENMP)
@@ -132,6 +135,7 @@ if(EMSCRIPTEN)
     -O3
     -msimd128
     -fexceptions
+    -pthread
     -Wno-unknown-pragmas
   )
   target_link_libraries(bridge_lib PUBLIC
@@ -145,8 +149,10 @@ if(EMSCRIPTEN)
   target_link_options(bridge_wasm PRIVATE
     "-O3"
     "-fexceptions"
+    "-pthread"
+    "-sPTHREAD_POOL_SIZE=4"
     "-sALLOW_MEMORY_GROWTH=1"
-    "-sINITIAL_MEMORY=67108864"
+    "-sINITIAL_MEMORY=134217728"
     "-sMAXIMUM_MEMORY=2147483648"
     "-sSTACK_SIZE=8388608"
     "-sENVIRONMENT=worker,web,node"
