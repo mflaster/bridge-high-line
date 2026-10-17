@@ -411,6 +411,8 @@ double LineFinder::GetSolveProgress() {
   }
   return progress ? progress->Fraction() : -1.0;
 }
+bool WonEnoughTricks(int mini_max, int min_tricks, int leader,
+                     int cards_left);
 
 namespace {
 
@@ -521,18 +523,80 @@ void DeduplicateTopLevelLines(std::vector<ConditionalLine> *lines,
   *lines = std::move(distinct);
 }
 
-void RescoreTopLinesAdversarial(const std::vector<BoardState> &boards,
-                                const std::set<int> &board_offsets,
-                                int min_tricks, int num_threads,
-                                std::vector<ConditionalLine> *lines) {
+void RescoreTopLinesAdversarial(
+    const std::vector<BoardState> &boards,
+    const std::set<int> &board_offsets,
+    const std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+    int min_tricks, int num_threads, std::vector<ConditionalLine> *lines) {
   if (lines->empty() || board_offsets.empty()) {
     return;
   }
-  std::vector<int> active_boards(board_offsets.begin(), board_offsets.end());
+  std::vector<int> all_boards(board_offsets.begin(), board_offsets.end());
+  std::vector<uint8_t> makeable_at_root(all_boards.size(), 1);
+  std::vector<int> active_boards;
+  active_boards.reserve(all_boards.size());
+  for (size_t i = 0; i < all_boards.size(); ++i) {
+    int b = all_boards[i];
+    auto it = board_trees.find(b);
+    if (it != board_trees.end() && it->second != nullptr) {
+      const auto &pt = it->second;
+      if (!WonEnoughTricks(pt->MiniMax(), min_tricks,
+                           pt->MyBoard()->CurPlayer(), pt->CardsLeft())) {
+        makeable_at_root[i] = 0;
+        continue;
+      }
+    }
+    active_boards.push_back(b);
+  }
   size_t num_boards = active_boards.size();
+  size_t num_all = all_boards.size();
   size_t num_lines = lines->size();
   for (size_t l_i = 0; l_i < num_lines; ++l_i) {
     (*lines)[l_i].DeepCloneChildren();
+  }
+  {
+    std::vector<std::vector<ConditionalLine::UnmakeableBoardTrace>>
+        unmakeable_traces(
+            num_all,
+            std::vector<ConditionalLine::UnmakeableBoardTrace>(num_lines));
+    #pragma omp parallel for num_threads(num_threads) schedule(dynamic) \
+        if (num_threads > 1)
+    for (size_t u_i = 0; u_i < num_all; ++u_i) {
+      if (LineFinder::IsStopRequested()) continue;
+      int b = all_boards[u_i];
+      bool in_step1_set = (makeable_at_root[u_i] != 0);
+      ConditionalLine::Step1DefenderCardCache step1_cache;
+      for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+        (*lines)[l_i].TraceUnmakeableBoard(boards[b], b, in_step1_set,
+                                           &step1_cache,
+                                           &unmakeable_traces[u_i][l_i]);
+      }
+    }
+    for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+      std::unordered_map<const ConditionalLine *, size_t> opp1_counts;
+      std::unordered_map<const ConditionalLine *, size_t> opp2_counts;
+      std::unordered_map<const ConditionalLine *, std::array<size_t, 4>>
+          winner_counts;
+      for (size_t u_i = 0; u_i < num_all; ++u_i) {
+        const auto &tr = unmakeable_traces[u_i][l_i];
+        for (const ConditionalLine *node : tr.opp1_nodes) {
+          ++opp1_counts[node];
+        }
+        for (const ConditionalLine *node : tr.opp2_nodes) {
+          ++opp2_counts[node];
+        }
+        for (const auto &[node, w] : tr.winner_nodes) {
+          if (w >= 0 && w < 4) {
+            ++winner_counts[node][w];
+          }
+        }
+      }
+      if (!opp1_counts.empty() || !opp2_counts.empty() ||
+          !winner_counts.empty()) {
+        (*lines)[l_i].ApplyUnmakeableBoardCounts(opp1_counts, opp2_counts,
+                                                 winner_counts);
+      }
+    }
   }
   std::vector<std::vector<uint8_t>> board_line_ok(
       num_boards, std::vector<uint8_t>(num_lines, 0));
@@ -855,7 +919,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
     SetSolveStatus("Re-scoring top " + std::to_string(ans.size()) +
                    " lines against adversarial defense...");
     auto start_rescore = std::chrono::high_resolution_clock::now();
-    RescoreTopLinesAdversarial(boards, board_offsets, min_tricks,
+    RescoreTopLinesAdversarial(boards, board_offsets, board_trees, min_tricks,
                                effective_threads, &ans);
     auto end_rescore = std::chrono::high_resolution_clock::now();
     rescore_ms_ = std::chrono::duration<double, std::milli>(

@@ -785,3 +785,93 @@ TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
   REQUIRE(!trace_fail.steps.empty());
   REQUIRE(trace_fail.steps[0].trick_str.rfind("C6 CT ", 0) == 0);
 }
+
+TEST_CASE("AdversarialDefenderCountsUnmakeableBoards") {
+  // 5-card Trick-2 position from simple_9_card_hearts (West = 3 on lead, H
+  // trump, N/S need 4 tricks).
+  // North (0): S 5432, H A
+  // South (2): S K6, C AK2
+  // On bs_make (East has SA, West has SQJ and C T98), both C8 and SJ are
+  // DDS-optimal for West (each holds N/S to 4 tricks).
+  // On bs_unmakeable (West has SA and C T98, East has SQJ9), only a club lead
+  // holds N/S to 3 tricks; a spade lead lets N/S win 4 tricks.
+  BoardState bs_make = MakeBoardState(
+      {ParseHand("S 5432 H A"), ParseHand("S AT9 C 76"),
+       ParseHand("S K6 C AK2"), ParseHand("S QJ C T98")},
+      3, HEARTS);
+  BoardState bs_unmakeable = MakeBoardState(
+      {ParseHand("S 5432 H A"), ParseHand("S QJ9 C 76"),
+       ParseHand("S K6 C AK2"), ParseHand("S AT C T98")},
+      3, HEARTS);
+
+  GeneralizedTrickFinder finder(HEARTS);
+  for (int b = 0; b < 2; ++b) {
+    finder.RecordOptimalTrick(3, "C8 S2 C6 CA", b);
+  }
+  for (int b = 2; b < 5; ++b) {
+    finder.RecordOptimalTrick(3, "CT S2 C6 CA", b);
+  }
+  for (int b = 5; b < 7; ++b) {
+    finder.RecordOptimalTrick(3, "SJ S2 SA S6", b);
+  }
+  for (int b = 7; b < 10; ++b) {
+    finder.RecordOptimalTrick(3, "S9 S2 SA S6", b);
+  }
+  GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(50, true);
+  GeneralizedTrick gt_club;
+  GeneralizedTrick gt_spade;
+  for (const auto &gt : tricks) {
+    if (gt.demi1.opp_card == "C_" && gt.demi1.my_card == "S2") {
+      gt_club = gt;
+    } else if (gt.demi1.opp_card == "S_" && gt.demi1.my_card == "S2") {
+      gt_spade = gt;
+    }
+  }
+  REQUIRE(gt_club.opp1_step1_boards == 5);
+  REQUIRE(gt_spade.opp1_step1_boards == 5);
+
+  ConditionalLine leaf_club(gt_club.boards);
+  ConditionalLine node_club;
+  node_club.SetAction(gt_club);
+  node_club.AddCondition(new WinnerPlayCondition(2), leaf_club);
+
+  ConditionalLine leaf_spade(gt_spade.boards);
+  ConditionalLine node_spade;
+  node_spade.SetAction(gt_spade);
+  node_spade.AddCondition(new WinnerPlayCondition(1), leaf_spade);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("(C_) S2 (C_) CA"), node_club);
+  root.AddCondition(new TrickPlayCondition("(S_) S2 (SA) S6"), node_spade);
+  root.set_min_tricks(4);
+  root.set_sample_board(bs_make);
+  root.DeepCloneChildren();
+
+  // Trace the unmakeable board (not in Step 1's solvable set) and apply its
+  // Step-1 defender choices to the denominator counts.
+  ConditionalLine::Step1DefenderCardCache step1_cache;
+  ConditionalLine::UnmakeableBoardTrace unmakeable_trace;
+  root.TraceUnmakeableBoard(bs_unmakeable, /*board_num=*/99,
+                            /*in_step1_set=*/false, &step1_cache,
+                            &unmakeable_trace);
+  REQUIRE(unmakeable_trace.opp1_nodes.size() == 1);
+
+  std::unordered_map<const ConditionalLine *, size_t> opp1_counts;
+  std::unordered_map<const ConditionalLine *, size_t> opp2_counts;
+  std::unordered_map<const ConditionalLine *, std::array<size_t, 4>>
+      winner_counts;
+  for (const ConditionalLine *n : unmakeable_trace.opp1_nodes) {
+    ++opp1_counts[n];
+  }
+  root.ApplyUnmakeableBoardCounts(opp1_counts, opp2_counts, winner_counts);
+
+  // With the unmakeable board counted on (C_), (C_) has 5/6 success vs 5/5 on
+  // (S_), so adversarial West leads a club on bs_make and reaches leaf_club.
+  ConditionalLine::RescoreBoardTrace rescore_trace;
+  root.ResultsOnHandAdversarial(bs_make, nullptr, &rescore_trace);
+  REQUIRE(rescore_trace.leaf != nullptr);
+  REQUIRE(rescore_trace.leaf->step1_covered_boards() == 5);
+  REQUIRE(opp1_counts.begin()->first->do_first().demi1.opp_card == "C_");
+  REQUIRE(rescore_trace.leaf ==
+          opp1_counts.begin()->first->conditions()[0].second.get());
+}
