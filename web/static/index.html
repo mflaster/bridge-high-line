@@ -274,9 +274,10 @@
         </div>
 
         <!-- Progress / Status Bar -->
-        <div id="statusBox" class="status-box status-idle">
+        <div id="statusBox" class="status-box status-idle" role="status" aria-live="polite">
           <div class="status-indicator"></div>
           <span id="statusMessage">Ready to solve. Configure hands and click "Solve Deal".</span>
+          <button id="statusFeedbackBtn" type="button" class="btn btn-secondary-sm status-feedback-btn hidden" title="Report issue with current error">Report Issue</button>
           <div id="statusProgress" class="status-progress hidden" role="progressbar"
                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="statusProgressFill" class="status-progress-fill"></div>
