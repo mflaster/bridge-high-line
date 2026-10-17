@@ -8,6 +8,22 @@
 #include "hand.h"
 #include "solver.h"
 
+TEST_CASE("StrJoin") {
+  std::vector<std::string> words = {"apple", "banana", "cherry"};
+  REQUIRE(StrJoin(words) == "apple, banana, cherry");
+  REQUIRE(StrJoin(words, " - ") == "apple - banana - cherry");
+
+  std::set<int> numbers = {1, 2, 5, 10};
+  REQUIRE(StrJoin(numbers) == "1, 2, 5, 10");
+  REQUIRE(StrJoin(numbers, ";") == "1;2;5;10");
+
+  std::vector<int> empty_vec;
+  REQUIRE(StrJoin(empty_vec) == "");
+
+  std::vector<int> single_vec = {42};
+  REQUIRE(StrJoin(single_vec) == "42");
+}
+
 TEST_CASE("Cards") {
   REQUIRE(Card::GetSuitedCard(SPADES, 0) == 1);
   REQUIRE(Card::GetSuitedCard(SPADES, 1) == 2);

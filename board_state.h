@@ -90,5 +90,3 @@ class BoardState {
   uint8_t tricks_won_even_ = 0;
   uint32_t board_id_ = 0;
 };
-
-std::string StrJoin(const std::set<int> &board_offsets, const char *sep = ", ");
