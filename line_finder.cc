@@ -900,13 +900,52 @@ std::vector<ConditionalLine> LineFinder::Solve(
 
   DeduplicateTopLevelLines(&ans, top_k_lines_ <= 1);
 
+  if (!ans.empty() && boards.size() >= 50 && unknown_cards != 0 &&
+      !IsStopRequested()) {
+    SetSolveStatus("Refining thin branches on top " +
+                   std::to_string(ans.size()) +
+                   (ans.size() == 1 ? " line..." : " lines..."));
+    for (auto &line : ans) {
+      line.DeepCloneChildren();
+    }
+    std::unordered_map<std::string, ConditionalLine> thin_memo;
+    ParallelRegion(effective_threads, [&]() {
+      for (auto &line : ans) {
+        if (IsStopRequested()) break;
+        RefineThinNodesOnNode(&line, min_tricks, cache, board_trees,
+                              board_offsets, leader, 0, 0, &thin_memo);
+      }
+    });
+  }
+  if (IsStopRequested()) {
+    SetSolveStatus("Solve stopped.");
+    return {};
+  }
+
   rescore_ms_ = 0.0;
   if (adversarial_rescore_ && !ans.empty()) {
     SetSolveStatus("Re-scoring top " + std::to_string(ans.size()) +
-                   " lines against adversarial defense...");
+                   (ans.size() == 1 ? " line" : " lines") +
+                   " against adversarial defense...");
     auto start_rescore = std::chrono::high_resolution_clock::now();
     RescoreTopLinesAdversarial(boards, board_offsets, board_trees, min_tricks,
                                effective_threads, &ans);
+    if (boards.size() >= 50 && unknown_cards != 0) {
+      for (auto &line : ans) {
+        line.StripBoardsAtOrAbove(static_cast<int>(boards.size()), trump);
+      }
+      std::stable_sort(
+          ans.begin(), ans.end(),
+          [](const ConditionalLine &a, const ConditionalLine &b) {
+            if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
+              return a.CoveredFinalBoards() > b.CoveredFinalBoards();
+            }
+            if (a.step1_covered_boards() != b.step1_covered_boards()) {
+              return a.step1_covered_boards() > b.step1_covered_boards();
+            }
+            return a.conditions().size() < b.conditions().size();
+          });
+    }
     auto end_rescore = std::chrono::high_resolution_clock::now();
     rescore_ms_ = std::chrono::duration<double, std::milli>(
                       end_rescore - start_rescore)
@@ -924,37 +963,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
       ans.resize(keep_n);
       DeduplicateTopLevelLines(&ans, /*collapse_same_t1=*/true);
     }
-  } else if (!keep_all_top_k_ && top_k_lines_ > 1 && !ans.empty()) {
-    int best_step1 = ans[0].CoveredFinalBoards();
-    size_t keep_n = 1;
-    while (keep_n < ans.size() &&
-           ans[keep_n].CoveredFinalBoards() == best_step1) {
-      ++keep_n;
-    }
-    ans.resize(keep_n);
-    DeduplicateTopLevelLines(&ans, /*collapse_same_t1=*/true);
-  }
-
-  if (!ans.empty() && boards.size() >= 50 && unknown_cards != 0 &&
-      !IsStopRequested()) {
-    SetSolveStatus("Refining thin branches on top " +
-                   std::to_string(ans.size()) + " lines...");
-    for (auto &line : ans) {
-      line.DeepCloneChildren();
-    }
-    std::unordered_map<std::string, ConditionalLine> thin_memo;
-    ParallelRegion(effective_threads, [&]() {
-      for (auto &line : ans) {
-        if (IsStopRequested()) break;
-        RefineThinNodesOnNode(&line, min_tricks, cache, board_trees,
-                              board_offsets, leader, 0, 0, &thin_memo);
-      }
-    });
-    if (adversarial_rescore_ && !IsStopRequested()) {
-      RescoreTopLinesAdversarial(boards, board_offsets, board_trees, min_tricks,
-                                 effective_threads, &ans);
-    }
-    if (!IsStopRequested()) {
+  } else if (!ans.empty()) {
+    if (boards.size() >= 50 && unknown_cards != 0) {
       for (auto &line : ans) {
         line.StripBoardsAtOrAbove(static_cast<int>(boards.size()), trump);
       }
@@ -964,11 +974,18 @@ std::vector<ConditionalLine> LineFinder::Solve(
             if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
               return a.CoveredFinalBoards() > b.CoveredFinalBoards();
             }
-            if (a.step1_covered_boards() != b.step1_covered_boards()) {
-              return a.step1_covered_boards() > b.step1_covered_boards();
-            }
             return a.conditions().size() < b.conditions().size();
           });
+    }
+    if (!keep_all_top_k_ && top_k_lines_ > 1) {
+      int best_step1 = ans[0].CoveredFinalBoards();
+      size_t keep_n = 1;
+      while (keep_n < ans.size() &&
+             ans[keep_n].CoveredFinalBoards() == best_step1) {
+        ++keep_n;
+      }
+      ans.resize(keep_n);
+      DeduplicateTopLevelLines(&ans, /*collapse_same_t1=*/true);
     }
   }
 
