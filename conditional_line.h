@@ -99,6 +99,8 @@ struct GeneralizedTrick {
   }
   bool Empty() const { return boards.empty() && demi2.boards_vec.empty(); }
   void PopulateLegacyMaps();
+  void StripBoardsAtOrAbove(int max_board_id);
+  void TightenToEntries(Suit trump_suit);
   std::string ToString(bool compact = false) const;
 
   std::string GetTrickForBoard(int b) const;
@@ -202,6 +204,10 @@ class ConditionalLine {  // ConditionalLineBranch
   explicit ConditionalLine(const std::set<int> &boards)
       : final_covered_boards_(boards),
         covered_count_(static_cast<int>(boards.size())) {}
+
+  ConditionalLine(const std::set<int> &boards, int covered_count)
+      : final_covered_boards_(boards),
+        covered_count_(covered_count) {}
 
   // Adds a conditional branch linking a PlayCondition (e.g. WinnerPlayCondition or TrickPlayCondition)
   // to a child ConditionalLine continuation node.
@@ -317,6 +323,10 @@ class ConditionalLine {  // ConditionalLineBranch
   // not share subtree nodes with other candidate lines.
   void DeepCloneChildren();
 
+  // Removes all board IDs >= max_board_id from this subtree and recomputes
+  // covered_count_ on the remaining boards.
+  void StripBoardsAtOrAbove(int max_board_id, Suit trump_suit = NOTRUMP);
+
   // Updates leaf final_covered_boards_, action board_to_trick maps, and
   // bottom-up covered_count_ from Step-2 rescored results while preserving
   // step1_covered_count_.
@@ -379,6 +389,14 @@ class ConditionalLine {  // ConditionalLineBranch
   conditions() const {
     return conditions_;
   }
+
+  std::vector<std::pair<std::shared_ptr<PlayCondition>,
+                       std::shared_ptr<ConditionalLine>>> &
+  mutable_conditions() {
+    return conditions_;
+  }
+
+  void RecomputeCoveredCount();
 
   // Returns set of board IDs directly covered at this terminal leaf node.
   const std::set<int> &final_covered_boards() const {

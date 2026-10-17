@@ -956,3 +956,104 @@ TEST_CASE("LineFinder_StopSolve") {
   REQUIRE(resumed_lines[0].CoveredFinalBoards() > 0);
 }
 
+TEST_CASE("LineFinder_SplinterThinNodesNoReneg") {
+  // Verify BoardState tracks suit voids when a player discards on a lead.
+  BoardState bs;
+  std::vector<uint64_t> init_hands = {
+      ParseHand("C K; D 2;"),
+      ParseHand("D A9;"),
+      ParseHand("C 5; D 3;"),
+      ParseHand("C J; D 4;"),
+  };
+  bs.SetHands(init_hands);
+  bs.SetTrump(HEARTS);
+  bs.SetLead(3);
+  bs.PlayCard(3, Card::ParseStringCard("CJ"));
+  bs.PlayCard(0, Card::ParseStringCard("CK"));
+  bs.PlayCard(1, Card::ParseStringCard("D9"));
+  bs.PlayCard(2, Card::ParseStringCard("C5"));
+  REQUIRE(bs.HasShownOut(1, CLUBS));
+  REQUIRE(!bs.HasShownOut(1, DIAMONDS));
+  REQUIRE(!bs.HasShownOut(3, CLUBS));
+
+  uint16_t mask_before = bs.shown_out_mask();
+  uint64_t played_before = bs.played_cards();
+  bs.SetPlayerHand(1, ParseHand("D QT;"));
+  REQUIRE(bs.GetHand(1) == ParseHand("D QT;"));
+  REQUIRE(bs.shown_out_mask() == mask_before);
+  REQUIRE(bs.played_cards() == played_before);
+
+  // 7-card deal with 60 root boards (>= 50 triggers thin-node splintering on
+  // interior branches with < 50 solvable boards). West leads CJ (fixed in W);
+  // East holds CT on ~half the boards and shows out of clubs on the rest.
+  srand48(0);
+  std::vector<uint64_t> hands = {
+      ParseHand("S -; H KJT52; D J; C K;"),
+      0,
+      ParseHand("S KQT; H A9; D K; C 5;"),
+      ParseHand("C J;"),
+  };
+  uint64_t unknown = ParseHand("S AJ86 H Q864 D AQT9 C T");
+  LineFinder lf(60);
+  std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
+  reqs[1].push_back(std::make_shared<SuitLength>(SPADES, 1, 4));
+  lf.SetRequirements(reqs);
+
+  std::vector<CardType> cur_trick = {Card::ParseStringCard("CJ")};
+  std::vector<ConditionalLine> lines =
+      lf.Solve(6, hands, unknown, /*leader=*/3, HEARTS, cur_trick,
+               /*num_threads=*/4);
+  REQUIRE(!lines.empty());
+  REQUIRE(lines[0].CoveredFinalBoards() > 0);
+
+  // Synthetic splinter board IDs (>= 60) must be stripped from the result.
+  std::set<int> cov_set = lines[0].CoveredBoardsSet();
+  REQUIRE(static_cast<int>(cov_set.size()) == lines[0].CoveredFinalBoards());
+  for (int b_id : cov_set) {
+    REQUIRE(b_id >= 0);
+    REQUIRE(b_id < 60);
+  }
+
+  // Replaying on all root boards with strict legality checks enabled must
+  // never reneg, and adversarial trick counts must match CoveredFinalBoards.
+  int adv_wins = 0;
+  for (BoardState b : lf.boards()) {
+    b.set_check_card_play(true);
+    int base_even = b.tricks_won_even();
+    ConditionalLine::RescoreBoardTrace trace;
+    int tot_even = lines[0].ResultsOnHandAdversarial(b, nullptr, &trace);
+    if (tot_even - base_even >= 6 && trace.leaf != nullptr) {
+      ++adv_wins;
+    }
+  }
+  REQUIRE(adv_wins == lines[0].CoveredFinalBoards());
+
+  // When North wins CK at Trick 1, North is on lead at Trick 2 (opp_card is
+  // empty) and should draw trumps (H).
+  bool checked_trick2 = false;
+  std::vector<const ConditionalLine *> t1_nodes;
+  if (!lines[0].do_first().Empty()) {
+    t1_nodes.push_back(&lines[0]);
+  } else {
+    for (const auto &[t1_cond, t1_node] : lines[0].conditions()) {
+      if (t1_node && t1_node->CoveredFinalBoards() > 0) {
+        t1_nodes.push_back(t1_node.get());
+      }
+    }
+  }
+  for (const ConditionalLine *t1_node : t1_nodes) {
+    for (const auto &[w_cond, t2_node] : t1_node->conditions()) {
+      if (!t2_node || t2_node->CoveredFinalBoards() == 0) continue;
+      const GeneralizedTrick *gt2 = &t2_node->do_first();
+      if (gt2->Empty() && !t2_node->conditions().empty()) {
+        const auto &first_t2 = t2_node->conditions().front().second;
+        if (first_t2) gt2 = &first_t2->do_first();
+      }
+      if (!gt2->Empty() && gt2->leader % 2 == 0) {
+        REQUIRE(gt2->demi1.my_card[0] == 'H');
+        checked_trick2 = true;
+      }
+    }
+  }
+  REQUIRE(checked_trick2);
+}
