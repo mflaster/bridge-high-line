@@ -32,8 +32,8 @@
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
         </select>
-        <button id="openHelpBtn" type="button" class="feedback-header-btn" title="How the solver thinks about bridge">
-          📖 How It Works
+        <button id="openHelpBtn" type="button" class="feedback-header-btn" title="User guide and how the solver thinks about bridge">
+          ❓ Help
         </button>
         <button id="openFeedbackBtn" type="button" class="feedback-header-btn" title="Send feedback or report an issue">
           💬 Feedback
@@ -627,13 +627,20 @@
     </div>
   </div>
 
-  <!-- How It Works / Strategy Guide Modal -->
+  <!-- Help & Strategy Guide Modal -->
   <div id="helpModal" class="feedback-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
     <div class="feedback-modal-card help-modal-card">
       <div class="feedback-modal-header">
-        <h3 id="helpModalTitle">How the Solver Thinks About Bridge</h3>
-        <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close guide dialog">&times;</button>
+        <h3 id="helpModalTitle">Help &amp; Strategy Guide</h3>
+        <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close help dialog">&times;</button>
       </div>
+      <nav id="helpTopicsNav" class="help-topics-nav" aria-label="Help topics">
+        <button type="button" class="help-topic-btn active" data-topic="loading">📥 Loading Hands</button>
+        <button type="button" class="help-topic-btn" data-topic="tree">🌳 Decision Tree &amp; Inspector</button>
+        <button type="button" class="help-topic-btn" data-topic="lines">🔀 Alternative Lines &amp; Compare</button>
+        <button type="button" class="help-topic-btn" data-topic="summaries">📊 Summaries &amp; Sample Hands</button>
+        <button type="button" class="help-topic-btn" data-topic="strategy">🧠 How the Solver Thinks</button>
+      </nav>
       <div id="helpModalBody" class="help-markdown-body">
         <p class="help-loading">Loading guide...</p>
       </div>
