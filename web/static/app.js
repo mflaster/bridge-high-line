@@ -223,7 +223,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const undoProposedCardBtn = document.getElementById('undoProposedCardBtn');
   const resetLineBtn = document.getElementById('resetLineBtn');
 
+  let activeTabName = 'tree';
+  let currentInspectedState = null;
+
   function activateTab(tabName) {
+    activeTabName = tabName;
     if (tabDecisionTreeBtn) tabDecisionTreeBtn.classList.toggle('active', tabName === 'tree');
     if (tabSummaryBtn) tabSummaryBtn.classList.toggle('active', tabName === 'summary');
     if (tabSampleHandsBtn) tabSampleHandsBtn.classList.toggle('active', tabName === 'sample_hands');
@@ -389,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (currentSolveData) {
       currentTreeData = null;
       currentCenteredNode = null;
+      currentInspectedState = null;
       activeTrickCardStates = null;
       updateDealSvg();
       if (treeRootGroup) {
@@ -2297,6 +2302,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentTreeData = null;
     currentSolveData = null;
     currentCenteredNode = null;
+    currentInspectedState = null;
     activeTrickCardStates = null;
     activeProposalContext = null;
     if (!keepOriginalSnapshot) {
@@ -6913,6 +6919,17 @@ document.addEventListener('DOMContentLoaded', () => {
       currentLeader = winnerCard.seatIdx;
     });
 
+    currentInspectedState = {
+      leafLabel: node ? (node.label || '') : '',
+      selectedTrickNum: null,
+      trickSummaries: trickRows.map(tr => {
+        const cardsStr = tr.cards
+          .map(c => `${c.seatName}:${c.suit || ''}${c.rankStr || ''}`)
+          .join(' ');
+        return `#${tr.trickNum} (${tr.leadSeatName}): ${cardsStr} -> ${tr.winnerSeat} wins`;
+      })
+    };
+
     // Render Inspector Panel HTML
     inspectorContent.innerHTML = '';
 
@@ -6960,6 +6977,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper to update Deal SVG card states for a selected trick index
     function selectTrickInInspector(selectedIdx, rowElements, updateTreeHighlight = true) {
       if (selectedIdx === null || selectedIdx < 0 || selectedIdx >= trickRows.length) {
+        if (currentInspectedState) currentInspectedState.selectedTrickNum = null;
         activeTrickCardStates = null;
         activeProposalContext = null;
         updateProposeLineBarUI();
@@ -6976,6 +6994,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      if (currentInspectedState) {
+        currentInspectedState.selectedTrickNum = trickRows[selectedIdx].trickNum;
+      }
       if (updateTreeHighlight && trickRows[selectedIdx].node) {
         currentCenteredNode = trickRows[selectedIdx].node;
         updateCenteredNodeHighlight();
@@ -7837,6 +7858,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const feedbackEmailInput = document.getElementById('feedbackEmailInput');
   const feedbackMessageInput = document.getElementById('feedbackMessageInput');
   const feedbackIncludeDealCheckbox = document.getElementById('feedbackIncludeDealCheckbox');
+  const feedbackIncludeExplorerCheckbox = document.getElementById('feedbackIncludeExplorerCheckbox');
   const feedbackStatusMsg = document.getElementById('feedbackStatusMsg');
   const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
 
@@ -7970,6 +7992,179 @@ document.addEventListener('DOMContentLoaded', () => {
     return snap;
   }
 
+  function countDecisionTreeNodes(root) {
+    let total = 0;
+    let visible = 0;
+    function walk(node, parentCollapsed) {
+      if (!node) return;
+      total++;
+      if (!parentCollapsed) visible++;
+      const nextCollapsed = parentCollapsed || Boolean(node._collapsed);
+      if (Array.isArray(node.children)) {
+        node.children.forEach(ch => walk(ch, nextCollapsed));
+      }
+    }
+    walk(root, false);
+    return { total, visible };
+  }
+
+  function collectFeedbackExplorerSnapshot() {
+    if (currentTreeData) {
+      attachParentPointers(currentTreeData);
+    }
+    const { total: totalNodes, visible: visibleNodes } =
+      countDecisionTreeNodes(currentTreeData);
+
+    let selectedNodeInfo = null;
+    if (currentCenteredNode) {
+      const pathNodes = [];
+      let curr = currentCenteredNode;
+      while (curr) {
+        pathNodes.unshift(curr);
+        curr = curr._parent;
+      }
+      const pathFromRoot = [];
+      pathNodes.forEach((pn, idx) => {
+        const tr = extractTrickString(pn) || '';
+        const cond = pn.condition || '';
+        const lbl = pn.label || '';
+        if (tr || cond || lbl) {
+          pathFromRoot.push(
+            `#${idx}${cond ? ' (' + cond + ')' : ''}: ${tr || lbl}`
+          );
+        }
+      });
+      selectedNodeInfo = {
+        label: currentCenteredNode.label || '',
+        trick: extractTrickString(currentCenteredNode) || '',
+        condition: currentCenteredNode.condition || '',
+        depth: Math.max(0, pathNodes.length - 1),
+        is_leaf: Boolean(!currentCenteredNode.children ||
+                         currentCenteredNode.children.length === 0),
+        failure: Boolean(currentCenteredNode.failure),
+        deals: formatNodeDeals(currentCenteredNode),
+        path_from_root: pathFromRoot
+      };
+    }
+
+    const decisionTree = {
+      has_tree: Boolean(currentTreeData),
+      active_tab: activeTabName || 'tree',
+      view_mode: activeViewMode || 'success',
+      zoom_level: typeof zoomLevel === 'number'
+        ? Number(zoomLevel.toFixed(2))
+        : 1.0,
+      pan: {
+        x: typeof panX === 'number' ? Math.round(panX) : 0,
+        y: typeof panY === 'number' ? Math.round(panY) : 0
+      },
+      total_nodes: totalNodes,
+      visible_nodes: visibleNodes,
+      selected_node: selectedNodeInfo
+    };
+
+    const selectableLines = currentSolveData ? buildSelectableLinesList() : [];
+    const activeLineIdx = (currentSolveData &&
+                           typeof currentSolveData.active_line_index === 'number')
+      ? currentSolveData.active_line_index
+      : 0;
+    const activeLineEntry = selectableLines[activeLineIdx] || null;
+    const inspectorOpen = Boolean(
+      treeInspectorPanel && !treeInspectorPanel.classList.contains('collapsed')
+    );
+    const tracedHandNum = activeTracedBoardId !== null
+      ? (activeTracedBoardId + 1)
+      : null;
+
+    const lineExplorer = {
+      inspector_open: inspectorOpen,
+      active_line_index: activeLineIdx,
+      active_line_label: activeLineEntry
+        ? (activeLineEntry.rawTitle || activeLineEntry.label || '')
+        : '',
+      total_selectable_lines: selectableLines.length,
+      proposed_alt_lines_count: Array.isArray(proposedAltLines)
+        ? proposedAltLines.length
+        : 0,
+      traced_hand: tracedHandNum,
+      traced_hand_makes: activeTracedDeal
+        ? Boolean(activeTracedDeal.succeeded)
+        : null,
+      inspected_leaf_label: (currentInspectedState &&
+                             currentInspectedState.leafLabel) || '',
+      selected_trick_num: currentInspectedState
+        ? currentInspectedState.selectedTrickNum
+        : null,
+      trick_line: (currentInspectedState &&
+                   Array.isArray(currentInspectedState.trickSummaries))
+        ? currentInspectedState.trickSummaries.slice()
+        : [],
+      propose_line: activeProposalContext ? {
+        trick_num: activeProposalContext.trickNum,
+        leader: getSeatName(activeProposalContext.leaderIdx),
+        proposed_cards: (activeProposalContext.proposedCards || []).map(
+          c => `${c.seatName}:${c.suit || ''}${c.rankStr || ''}`
+        )
+      } : null,
+      compare_lines_selected: Array.from(selectedCompareLineIndices || [])
+        .sort((a, b) => a - b)
+    };
+
+    return {
+      decision_tree: decisionTree,
+      line_explorer: lineExplorer
+    };
+  }
+
+  function formatExplorerSnapshotSummary(explorerSnapshot) {
+    if (!explorerSnapshot) return '';
+    const dt = explorerSnapshot.decision_tree || {};
+    const le = explorerSnapshot.line_explorer || {};
+    const lines = [
+      '',
+      '--- Explorer State ---',
+      `Tab: ${dt.active_tab}, View: ${dt.view_mode}, Tree nodes: ${dt.visible_nodes}/${dt.total_nodes} visible (zoom ${dt.zoom_level}x)`
+    ];
+    if (dt.selected_node) {
+      const sn = dt.selected_node;
+      const nodeDesc = sn.trick || sn.label || 'root';
+      const condDesc = sn.condition ? ` (${sn.condition})` : '';
+      const dealsDesc = sn.deals ? ` [${sn.deals}]` : '';
+      lines.push(
+        `Selected Node (depth ${sn.depth}${sn.is_leaf ? ', leaf' : ''}${sn.failure ? ', failure' : ''}): ${nodeDesc}${condDesc}${dealsDesc}`
+      );
+      if (Array.isArray(sn.path_from_root) && sn.path_from_root.length > 0) {
+        lines.push(`Node Path: ${sn.path_from_root.join(' -> ')}`);
+      }
+    } else {
+      lines.push('Selected Node: none');
+    }
+    if (le.active_line_label) {
+      lines.push(
+        `Active Line (${le.active_line_index + 1}/${le.total_selectable_lines}): ${le.active_line_label}`
+      );
+    }
+    lines.push(
+      `Inspector: ${le.inspector_open ? 'open' : 'closed'}, Selected Trick: ${
+        le.selected_trick_num !== null ? '#' + le.selected_trick_num : 'none'
+      }, Traced Hand: ${
+        le.traced_hand !== null
+          ? '#' + le.traced_hand + (le.traced_hand_makes === false ? ' (FAILS)' : ' (MAKES)')
+          : 'none'
+      }`
+    );
+    if (Array.isArray(le.trick_line) && le.trick_line.length > 0) {
+      lines.push(`Line Tricks: ${le.trick_line.join(' | ')}`);
+    }
+    if (le.propose_line && Array.isArray(le.propose_line.proposed_cards) &&
+        le.propose_line.proposed_cards.length > 0) {
+      lines.push(
+        `Proposed Trick #${le.propose_line.trick_num}: ${le.propose_line.proposed_cards.join(' ')}`
+      );
+    }
+    return '\n' + lines.join('\n');
+  }
+
   function initSentryRuntimeErrorReporting() {
     if (!window.Sentry) return;
     const runInit = () => {
@@ -7985,9 +8180,12 @@ document.addEventListener('DOMContentLoaded', () => {
         beforeSend(event) {
           try {
             const dealSnapshot = collectFeedbackDealSnapshot();
+            const explorerSnapshot = collectFeedbackExplorerSnapshot();
             event.contexts = {
               ...(event.contexts || {}),
-              deal: dealSnapshot
+              deal: dealSnapshot,
+              decision_tree: explorerSnapshot.decision_tree,
+              line_explorer: explorerSnapshot.line_explorer
             };
             const src = dealSnapshot.loaded_hand_source;
             event.tags = {
@@ -7996,6 +8194,8 @@ document.addEventListener('DOMContentLoaded', () => {
               backend_mode: backendMode || 'unknown',
               trump: dealSnapshot.trump || '',
               leader: dealSnapshot.leader || '',
+              active_tab: explorerSnapshot.decision_tree.active_tab,
+              view_mode: explorerSnapshot.decision_tree.view_mode,
               ...(src && src.file_name ? { file_name: src.file_name } : {}),
               ...(src && src.board_label ? { board_label: src.board_label } : {})
             };
@@ -8039,10 +8239,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initSentryRuntimeErrorReporting();
 
-  async function submitSentryFeedback({ name, email, message, includeDeal }) {
+  async function submitSentryFeedback({
+    name,
+    email,
+    message,
+    includeDeal,
+    includeExplorer
+  }) {
     const feedbackEventId = generateSentryEventId();
     const nowIso = new Date().toISOString();
     const dealSnapshot = includeDeal ? collectFeedbackDealSnapshot() : null;
+    const explorerSnapshot = includeExplorer
+      ? collectFeedbackExplorerSnapshot()
+      : null;
     const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
     const anonUserId = getOrCreateAnonUserId();
 
@@ -8053,6 +8262,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : ''
         }\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
       : '';
+    const explorerSummaryText = formatExplorerSnapshotSummary(explorerSnapshot);
 
     const userObj = {
       id: anonUserId,
@@ -8061,7 +8271,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ...(email ? { email } : {})
     };
 
-    const feedbackMessage = `${message}${dealSummaryText}`.slice(0, 4096);
+    const feedbackMessage =
+      `${message}${dealSummaryText}${explorerSummaryText}`.slice(0, 4096);
     const feedbackPayload = {
       event_id: feedbackEventId,
       timestamp: nowIso,
@@ -8075,7 +8286,11 @@ document.addEventListener('DOMContentLoaded', () => {
         board_label: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.board_label : '',
         trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
         leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
-        backend_mode: backendMode || 'unknown'
+        backend_mode: backendMode || 'unknown',
+        ...(explorerSnapshot ? {
+          active_tab: explorerSnapshot.decision_tree.active_tab,
+          view_mode: explorerSnapshot.decision_tree.view_mode
+        } : {})
       },
       contexts: {
         feedback: {
@@ -8084,7 +8299,11 @@ document.addEventListener('DOMContentLoaded', () => {
           message: feedbackMessage,
           url: window.location.href
         },
-        ...(dealSnapshot ? { deal: dealSnapshot } : {})
+        ...(dealSnapshot ? { deal: dealSnapshot } : {}),
+        ...(explorerSnapshot ? {
+          decision_tree: explorerSnapshot.decision_tree,
+          line_explorer: explorerSnapshot.line_explorer
+        } : {})
       }
     };
 
@@ -8106,7 +8325,8 @@ document.addEventListener('DOMContentLoaded', () => {
       );
     }
     emitSentryMetricCount('feedback_submitted', 1, {
-      include_deal: Boolean(includeDeal)
+      include_deal: Boolean(includeDeal),
+      include_explorer: Boolean(includeExplorer)
     });
     return feedbackEventId;
   }
@@ -8167,6 +8387,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const email = feedbackEmailInput ? feedbackEmailInput.value.trim() : '';
       const message = feedbackMessageInput ? feedbackMessageInput.value.trim() : '';
       const includeDeal = feedbackIncludeDealCheckbox ? feedbackIncludeDealCheckbox.checked : true;
+      const includeExplorer = feedbackIncludeExplorerCheckbox
+        ? feedbackIncludeExplorerCheckbox.checked
+        : true;
 
       if (!message) return;
 
@@ -8184,7 +8407,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        await submitSentryFeedback({ name, email, message, includeDeal });
+        await submitSentryFeedback({
+          name,
+          email,
+          message,
+          includeDeal,
+          includeExplorer
+        });
         if (feedbackMessageInput) feedbackMessageInput.value = '';
         if (feedbackStatusMsg) {
           feedbackStatusMsg.textContent = 'Thank you! Your feedback has been recorded.';
