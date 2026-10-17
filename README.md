@@ -4,6 +4,9 @@ A C++17 library and test suite for double-dummy bridge analysis, deal generation
 
 ## System Architecture & Documentation
 
+- **[User Guide](docs/user-guide.md)**: How to load hand records (PDFs, photos, PBNs, text files), explore the interactive decision tree, propose alternative lines, and compare competing strategies.
+- **[Bridge Strategy Guide](docs/bridge-strategy.md)**: High-level explanation for bridge players of how single-dummy sampling, conditional decision trees, and the adversarial defense pass work.
+
 Comprehensive architectural documentation, interactive Mermaid diagrams, sequence diagrams, and component layer descriptions are available in [docs/architecture.md](docs/architecture.md):
 
 - **[Component Topology Diagram](docs/architecture.md#1-top-level-component-topology)**: Visual map of analytical engines (including `CrossHandDealSetSummarizer`), performance utilities (`line_finder_perf`), solvers, state management, and core data primitives.

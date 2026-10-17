@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
+  }
+
   // DOM Elements
   const trumpSelect = document.getElementById('trumpSelect');
   const leaderSelect = document.getElementById('leaderSelect');
@@ -17,9 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
+  const statusFeedbackBtn = document.getElementById('statusFeedbackBtn');
   const statusProgress = document.getElementById('statusProgress');
   const statusProgressFill = document.getElementById('statusProgressFill');
   const execTime = document.getElementById('execTime');
+  let lastStatusErrorText = '';
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLeadLabel = document.getElementById('statLeadLabel');
@@ -1399,6 +1407,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (msg.type === 'error') {
         const errMsg = msg.error || 'WebAssembly worker error';
         reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
+        setStatus('error', 'WebAssembly worker error: ' + errMsg);
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -1416,6 +1425,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const errMsg = 'Web Worker error: ' +
         (err && err.message ? err.message : 'failed to load solver_worker.js');
       reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
+      setStatus('error', errMsg);
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;
@@ -1431,12 +1441,44 @@ document.addEventListener('DOMContentLoaded', () => {
     return wasmWorker;
   }
 
+  const WASM_NUM_THREADS = 4;
+
+  async function ensureCrossOriginIsolation() {
+    if (window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') {
+      try {
+        sessionStorage.removeItem('bridge_coi_reloaded');
+      } catch (_) {}
+      return true;
+    }
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) {
+      return false;
+    }
+    try {
+      const reg = await navigator.serviceWorker.register('coi_serviceworker.js');
+      if (reg && (reg.installing || reg.waiting || reg.active)) {
+        if (!sessionStorage.getItem('bridge_coi_reloaded')) {
+          sessionStorage.setItem('bridge_coi_reloaded', '1');
+          if (navigator.serviceWorker.controller) {
+            window.location.reload();
+          } else {
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              window.location.reload();
+            }, { once: true });
+          }
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+    } catch (_) {}
+    return typeof SharedArrayBuffer !== 'undefined';
+  }
+
   function configureWasmThreadsUI() {
     const numThreadsSelect = document.getElementById('numThreads');
     if (!numThreadsSelect) return;
-    numThreadsSelect.value = '1';
+    numThreadsSelect.value = String(WASM_NUM_THREADS);
     numThreadsSelect.disabled = true;
-    numThreadsSelect.title = 'Running client-side in WebAssembly Web Worker (1 worker thread)';
+    numThreadsSelect.title =
+      'Running client-side in WebAssembly (' + WASM_NUM_THREADS + ' worker threads)';
   }
 
   async function ensureBackendMode() {
@@ -1447,6 +1489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         backendMode = 'wasm';
         setSentryGlobalAttribute('backend_mode', backendMode);
         configureWasmThreadsUI();
+        await ensureCrossOriginIsolation();
         initWasmWorker();
         return backendMode;
       }
@@ -1464,6 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
       backendMode = 'wasm';
       setSentryGlobalAttribute('backend_mode', backendMode);
       configureWasmThreadsUI();
+      await ensureCrossOriginIsolation();
       initWasmWorker();
       return backendMode;
     })();
@@ -1503,7 +1547,9 @@ document.addEventListener('DOMContentLoaded', () => {
       worker.postMessage({
         type: 'solve',
         id: reqId,
-        payloadJson: JSON.stringify(Object.assign({}, payload, { num_threads: 1 }))
+        payloadJson: JSON.stringify(
+          Object.assign({}, payload, { num_threads: WASM_NUM_THREADS })
+        )
       });
     });
   }
@@ -1571,6 +1617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
           PRESETS = loaded;
           populatePresetSelect();
+          ensureBackendMode();
           return;
         }
       }
@@ -5936,6 +5983,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function setStatus(type, msg, timeStr = '', progress = null) {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
+    if (type === 'error') {
+      lastStatusErrorText = msg;
+    }
+    if (statusFeedbackBtn) {
+      statusFeedbackBtn.classList.toggle('hidden', type !== 'error');
+    }
     if (timeStr) execTime.textContent = timeStr;
     const isRunning = (type === 'running');
     if (stopSolveBtn) {
@@ -7352,6 +7405,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
     window._getCurrentTreeData = () => currentTreeData;
     window._showNodeInspector = showNodeInspector;
     window._expandAndInspectNode = expandAndInspectNode;
@@ -8344,7 +8400,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return feedbackEventId;
   }
 
-  function openFeedbackModal() {
+  function openFeedbackModal(initialMessage) {
     if (!feedbackModal) return;
     try {
       const savedName = localStorage.getItem('bridge_feedback_name');
@@ -8356,6 +8412,9 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackEmailInput.value = savedEmail;
       }
     } catch (_) {}
+    if (typeof initialMessage === 'string' && feedbackMessageInput) {
+      feedbackMessageInput.value = initialMessage;
+    }
     if (feedbackStatusMsg) {
       feedbackStatusMsg.className = 'feedback-status-msg hidden';
       feedbackStatusMsg.textContent = '';
@@ -8373,6 +8432,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (openFeedbackBtn) {
     openFeedbackBtn.addEventListener('click', openFeedbackModal);
+  }
+  if (statusFeedbackBtn) {
+    statusFeedbackBtn.addEventListener('click', () => {
+      const errorMsg = lastStatusErrorText || (statusMessage ? statusMessage.textContent : 'Status Error');
+      const trumpVal = trumpSelect ? trumpSelect.value : 'SPADES';
+      const leaderVal = leaderSelect ? leaderSelect.value : 'NORTH';
+      const targetVal = targetTricks ? targetTricks.value : '1';
+      const itersVal = numIters ? numIters.value : '100';
+      const backendVal = backendMode || 'unknown';
+
+      const reportText = `[Status Error Report]
+Error: ${errorMsg}
+Backend: ${backendVal}
+Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`;
+
+      openFeedbackModal(reportText);
+    });
   }
   if (closeFeedbackModalBtn) {
     closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);
@@ -8447,6 +8523,329 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+  }
+
+  const openHelpBtn = document.getElementById('openHelpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const helpModalTitle = document.getElementById('helpModalTitle');
+  const helpTopicsNav = document.getElementById('helpTopicsNav');
+  const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
+  const helpModalBody = document.getElementById('helpModalBody');
+  let helpGuideLoaded = false;
+  let activeHelpTopic = 'loading';
+  const helpTopicsHtml = {
+    loading: '',
+    tree: '',
+    lines: '',
+    summaries: '',
+    strategy: ''
+  };
+  const helpTopicTitles = {
+    loading: 'Help — Loading Hands & Deal Setup',
+    tree: 'Help — Decision Tree & Line Inspector',
+    lines: 'Help — Trying & Comparing Alternative Lines',
+    summaries: 'Help — Summaries, Sample Hands & Actual Deal (#0)',
+    strategy: 'Help — How the Solver Thinks About Bridge'
+  };
+
+  function escapeHelpHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatHelpInline(text) {
+    const codeSlots = [];
+    let s = String(text).replace(/`([^`]+)`/g, (_, code) => {
+      const idx = codeSlots.length;
+      codeSlots.push(`<code>${escapeHelpHtml(code)}</code>`);
+      return `\u0000CODE${idx}\u0000`;
+    });
+    s = escapeHelpHtml(s);
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+      let url = href;
+      if (url.startsWith('../')) {
+        url = 'https://github.com/mflaster/bridge-high-line/blob/main/' + url.slice(3);
+      }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    s = s.replace(/\u0000CODE(\d+)\u0000/g, (_, idx) => codeSlots[Number(idx)] || '');
+    return s;
+  }
+
+  function renderHelpListItems(items) {
+    return items.map(it => {
+      let inner = formatHelpInline(it.text);
+      if (it.subItems && it.subItems.length > 0) {
+        const tag = it.subType === 'ol' ? 'ol' : 'ul';
+        inner += `<${tag}>` +
+          it.subItems.map(sub => `<li>${formatHelpInline(sub)}</li>`).join('') +
+          `</${tag}>`;
+      }
+      return `<li>${inner}</li>`;
+    }).join('');
+  }
+
+  function renderBridgeStrategyMarkdown(md) {
+    const lines = String(md).split(/\r?\n/);
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) {
+        i++;
+        continue;
+      }
+      if (line.startsWith('```mermaid')) {
+        i++;
+        const steps = [];
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          const matches = lines[i].matchAll(/\["([^"]+)"\]/g);
+          for (const m of matches) {
+            steps.push(m[1]);
+          }
+          i++;
+        }
+        if (i < lines.length) i++;
+        if (steps.length > 0) {
+          out.push('<div class="help-pipeline">' + steps.map(st => {
+            const parts = st.split(/<br\s*\/?>/i).map(p => escapeHelpHtml(p));
+            return `<div class="help-pipeline-step">${parts.join('<br>')}</div>`;
+          }).join('') + '</div>');
+        }
+        continue;
+      }
+      if (line.startsWith('```')) {
+        i++;
+        const codeLines = [];
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          codeLines.push(escapeHelpHtml(lines[i]));
+          i++;
+        }
+        if (i < lines.length) i++;
+        out.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+        continue;
+      }
+      if (line.startsWith('---')) {
+        out.push('<hr>');
+        i++;
+        continue;
+      }
+      const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
+      if (hMatch) {
+        const lvl = hMatch[1].length;
+        if (lvl === 1 && out.length === 0) {
+          i++;
+          continue;
+        }
+        out.push(`<h${lvl}>${formatHelpInline(hMatch[2])}</h${lvl}>`);
+        i++;
+        continue;
+      }
+      if (line.startsWith('|')) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].startsWith('|')) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        if (tableLines.length >= 2) {
+          const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+          const headers = parseRow(tableLines[0]);
+          const bodyRows = tableLines.slice(2).map(parseRow);
+          out.push('<table><thead><tr>' +
+            headers.map(h => `<th>${formatHelpInline(h)}</th>`).join('') +
+            '</tr></thead><tbody>' +
+            bodyRows.map(r => '<tr>' + r.map(c => `<td>${formatHelpInline(c)}</td>`).join('') + '</tr>').join('') +
+            '</tbody></table>');
+        }
+        continue;
+      }
+      if (line.startsWith('> ')) {
+        const qLines = [];
+        while (i < lines.length && lines[i].startsWith('> ')) {
+          qLines.push(lines[i].slice(2).trim());
+          i++;
+        }
+        out.push(`<blockquote>${formatHelpInline(qLines.join(' '))}</blockquote>`);
+        continue;
+      }
+      if (line.startsWith('- ')) {
+        const items = [];
+        while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('  '))) {
+          const cur = lines[i];
+          if (cur.startsWith('- ')) {
+            items.push({ text: cur.slice(2).trim(), subType: null, subItems: [] });
+          } else if (items.length > 0) {
+            const last = items[items.length - 1];
+            const trimmed = cur.trim();
+            if (trimmed.startsWith('- ')) {
+              last.subType = 'ul';
+              last.subItems.push(trimmed.slice(2).trim());
+            } else if (/^\d+\.\s+/.test(trimmed)) {
+              last.subType = 'ol';
+              last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+            } else if (last.subItems.length > 0) {
+              last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+            } else {
+              last.text += ' ' + trimmed;
+            }
+          }
+          i++;
+        }
+        out.push('<ul>' + renderHelpListItems(items) + '</ul>');
+        continue;
+      }
+      if (/^\d+\.\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || lines[i].startsWith('  '))) {
+          const cur = lines[i];
+          if (/^\d+\.\s+/.test(cur)) {
+            items.push({ text: cur.replace(/^\d+\.\s+/, '').trim(), subType: null, subItems: [] });
+          } else if (items.length > 0) {
+            const last = items[items.length - 1];
+            const trimmed = cur.trim();
+            if (trimmed.startsWith('- ')) {
+              last.subType = 'ul';
+              last.subItems.push(trimmed.slice(2).trim());
+            } else if (/^\d+\.\s+/.test(trimmed)) {
+              last.subType = 'ol';
+              last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+            } else if (last.subItems.length > 0) {
+              last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+            } else {
+              last.text += ' ' + trimmed;
+            }
+          }
+          i++;
+        }
+        out.push('<ol>' + renderHelpListItems(items) + '</ol>');
+        continue;
+      }
+      const pLines = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() &&
+        !lines[i].startsWith('#') &&
+        !lines[i].startsWith('---') &&
+        !lines[i].startsWith('```') &&
+        !lines[i].startsWith('|') &&
+        !lines[i].startsWith('> ') &&
+        !lines[i].startsWith('- ') &&
+        !/^\d+\.\s+/.test(lines[i])
+      ) {
+        pLines.push(lines[i].trim());
+        i++;
+      }
+      out.push(`<p>${formatHelpInline(pLines.join(' '))}</p>`);
+    }
+    return out.join('\n');
+  }
+
+  function parseUserGuideIntoTopics(md) {
+    const sections = String(md).split(/\n(?=##\s+)/);
+    const topicKeys = ['loading', 'tree', 'lines', 'summaries'];
+    let topicIdx = 0;
+    for (const sec of sections) {
+      const trimmed = sec.trim().replace(/\n---\s*$/, '').trim();
+      if (!trimmed.startsWith('## ')) continue;
+      if (topicIdx < topicKeys.length) {
+        helpTopicsHtml[topicKeys[topicIdx]] = renderBridgeStrategyMarkdown(trimmed);
+        topicIdx++;
+      }
+    }
+  }
+
+  async function fetchHelpMarkdown(fileName) {
+    let res = await fetch(fileName, { cache: 'no-cache' });
+    if (!res.ok) {
+      res = await fetch(`../docs/${fileName}`, { cache: 'no-cache' });
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  }
+
+  function selectHelpTopic(topic) {
+    const targetTopic = helpTopicsHtml[topic] !== undefined ? topic : 'loading';
+    activeHelpTopic = targetTopic;
+    if (helpTopicsNav) {
+      helpTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.topic === targetTopic);
+      });
+    }
+    if (helpModalTitle && helpTopicTitles[targetTopic]) {
+      helpModalTitle.textContent = helpTopicTitles[targetTopic];
+    }
+    if (helpModalBody && helpGuideLoaded) {
+      helpModalBody.innerHTML = helpTopicsHtml[targetTopic] || '<p>No content available.</p>';
+      helpModalBody.scrollTop = 0;
+    }
+  }
+
+  async function openHelpModal(initialTopic = null) {
+    if (!helpModal) return;
+    if (typeof initialTopic === 'string' && helpTopicsHtml[initialTopic] !== undefined) {
+      activeHelpTopic = initialTopic;
+    }
+    helpModal.classList.remove('hidden');
+    selectHelpTopic(activeHelpTopic);
+    if (helpGuideLoaded || !helpModalBody) return;
+    try {
+      const [userGuideMd, strategyMd] = await Promise.all([
+        fetchHelpMarkdown('user-guide.md'),
+        fetchHelpMarkdown('bridge-strategy.md')
+      ]);
+      parseUserGuideIntoTopics(userGuideMd);
+      helpTopicsHtml.strategy = renderBridgeStrategyMarkdown(strategyMd);
+      helpGuideLoaded = true;
+      selectHelpTopic(activeHelpTopic);
+    } catch (err) {
+      helpModalBody.innerHTML = `<p>Could not load guide (${escapeHelpHtml(err.message || err)}).</p>`;
+    }
+  }
+
+  function closeHelpModal() {
+    if (!helpModal) return;
+    helpModal.classList.add('hidden');
+  }
+
+  if (openHelpBtn) {
+    openHelpBtn.addEventListener('click', () => openHelpModal());
+  }
+  if (helpTopicsNav) {
+    helpTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.topic) {
+          selectHelpTopic(btn.dataset.topic);
+        }
+      });
+    });
+  }
+  if (closeHelpModalBtn) {
+    closeHelpModalBtn.addEventListener('click', closeHelpModal);
+  }
+  if (helpModal) {
+    helpModal.addEventListener('click', (e) => {
+      if (e.target === helpModal) {
+        closeHelpModal();
+      }
+    });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpModal && !helpModal.classList.contains('hidden')) {
+      closeHelpModal();
+    }
+  });
+  const urlHelpParam = new URLSearchParams(window.location.search).get('help');
+  if (window.location.hash === '#how-it-works') {
+    openHelpModal('strategy');
+  } else if (window.location.hash.startsWith('#help=')) {
+    openHelpModal(window.location.hash.slice(6));
+  } else if (window.location.hash === '#help' || urlHelpParam) {
+    openHelpModal(urlHelpParam && helpTopicsHtml[urlHelpParam] !== undefined ? urlHelpParam : 'loading');
   }
 
   // Initial UI Render & Fetch Presets

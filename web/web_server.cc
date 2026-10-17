@@ -16,6 +16,7 @@
 #include "hand.h"
 #include "hand_requirements.h"
 #include "line_finder.h"
+#include "omp_compat.h"
 #include "solver.h"
 #include "string_util.h"
 #ifndef __EMSCRIPTEN__
@@ -532,15 +533,14 @@ FailureIndex IndexFailures(const ConditionalLine &line,
   if (failed_board_ids.empty()) {
     return index;
   }
-  EnsureDDSInitialized();
-  int effective_threads = std::max(1, num_threads);
+  int max_dds_threads = EnsureDDSInitialized();
+  int effective_threads = std::clamp(num_threads, 1, max_dds_threads);
   std::vector<ConditionalLine::BoardPlayTrace> traces(failed_board_ids.size());
-  #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
-      if (effective_threads > 1 && failed_board_ids.size() > 1)
-  for (size_t i = 0; i < failed_board_ids.size(); ++i) {
-    int b_idx = failed_board_ids[i];
-    traces[i] = line.TraceOnBoard(boards[b_idx], b_idx);
-  }
+  ParallelForDynamic(failed_board_ids.size(), effective_threads,
+                     [&](size_t i) {
+                       int b_idx = failed_board_ids[i];
+                       traces[i] = line.TraceOnBoard(boards[b_idx], b_idx);
+                     });
 
   auto add_to_group = [](FailureIndex::Group &group, int board_id,
                          int ns_tricks) {
@@ -1462,6 +1462,18 @@ void WebServer::RegisterRoutes() {
 
   svr_.Get("/api/presets", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::PRESETS_JSON, "application/json");
+  });
+
+  svr_.Get("/bridge-strategy.md", [](const httplib::Request &,
+                                     httplib::Response &res) {
+    res.set_content(web_assets::BRIDGE_STRATEGY_MD,
+                    "text/markdown; charset=utf-8");
+  });
+
+  svr_.Get("/user-guide.md", [](const httplib::Request &,
+                                httplib::Response &res) {
+    res.set_content(web_assets::USER_GUIDE_MD,
+                    "text/markdown; charset=utf-8");
   });
 
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {

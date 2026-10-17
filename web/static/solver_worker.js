@@ -13,6 +13,7 @@ self.onBridgeSolverProgress = function(status, progress) {
 };
 
 self.Module = {
+  mainScriptUrlOrBlob: new URL('bridge_wasm.js', self.location.href).href,
   onRuntimeInitialized: function() {
     wasmReady = true;
     self.postMessage({ type: 'ready' });
@@ -77,10 +78,17 @@ self.onmessage = function(e) {
   handleWorkerMessage(msg);
 };
 
-try {
-  importScripts('bridge_wasm.js');
-} catch (err) {
+if (typeof SharedArrayBuffer === 'undefined') {
   wasmLoadError =
-    'Failed to load bridge_wasm.js: ' + (err && err.message ? err.message : String(err));
+    'WebAssembly multithreading requires SharedArrayBuffer (Cross-Origin Isolation). ' +
+    'Please reload the page after the service worker activates.';
   self.postMessage({ type: 'error', error: wasmLoadError });
+} else {
+  try {
+    importScripts('bridge_wasm.js');
+  } catch (err) {
+    wasmLoadError =
+      'Failed to load bridge_wasm.js: ' + (err && err.message ? err.message : String(err));
+    self.postMessage({ type: 'error', error: wasmLoadError });
+  }
 }

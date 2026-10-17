@@ -40,6 +40,9 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="two_way_finesse">2-Way Finesse</option>
           <option value="hand_8_261014">Hand 8 from 261014</option>
         </select>
+        <button id="openHelpBtn" type="button" class="feedback-header-btn" title="User guide and how the solver thinks about bridge">
+          ❓ Help
+        </button>
         <button id="openFeedbackBtn" type="button" class="feedback-header-btn" title="Send feedback or report an issue">
           💬 Feedback
         </button>
@@ -282,9 +285,10 @@ inline const char* INDEX_HTML = R"rawhtml(
         </div>
 
         <!-- Progress / Status Bar -->
-        <div id="statusBox" class="status-box status-idle">
+        <div id="statusBox" class="status-box status-idle" role="status" aria-live="polite">
           <div class="status-indicator"></div>
           <span id="statusMessage">Ready to solve. Configure hands and click "Solve Deal".</span>
+          <button id="statusFeedbackBtn" type="button" class="btn btn-secondary-sm status-feedback-btn hidden" title="Report issue with current error">Report Issue</button>
           <div id="statusProgress" class="status-progress hidden" role="progressbar"
                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="statusProgressFill" class="status-progress-fill"></div>
@@ -628,6 +632,26 @@ inline const char* INDEX_HTML = R"rawhtml(
           <button id="submitFeedbackBtn" type="submit" class="btn-primary">Send Feedback</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Help & Strategy Guide Modal -->
+  <div id="helpModal" class="feedback-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <div class="feedback-modal-card help-modal-card">
+      <div class="feedback-modal-header">
+        <h3 id="helpModalTitle">Help &amp; Strategy Guide</h3>
+        <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close help dialog">&times;</button>
+      </div>
+      <nav id="helpTopicsNav" class="help-topics-nav" aria-label="Help topics">
+        <button type="button" class="help-topic-btn active" data-topic="loading">📥 Loading Hands</button>
+        <button type="button" class="help-topic-btn" data-topic="tree">🌳 Decision Tree &amp; Inspector</button>
+        <button type="button" class="help-topic-btn" data-topic="lines">🔀 Alternative Lines &amp; Compare</button>
+        <button type="button" class="help-topic-btn" data-topic="summaries">📊 Summaries &amp; Sample Hands</button>
+        <button type="button" class="help-topic-btn" data-topic="strategy">🧠 How the Solver Thinks</button>
+      </nav>
+      <div id="helpModalBody" class="help-markdown-body">
+        <p class="help-loading">Loading guide...</p>
+      </div>
     </div>
   </div>
 
@@ -1272,6 +1296,24 @@ body.is-resizing * {
 .status-running { background-color: rgba(245, 158, 11, 0.15); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
 .status-success { background-color: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
 .status-error { background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+.status-feedback-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 10px;
+  background-color: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.status-feedback-btn:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.35);
+  border-color: #f87171;
+  color: #ffffff;
+}
 
 .status-indicator {
   width: 10px;
@@ -3637,10 +3679,181 @@ body.is-resizing * {
   background-color: rgba(255, 255, 255, 0.06);
 }
 
+/* Help & Strategy Guide Modal */
+.help-modal-card {
+  max-width: 940px;
+  max-height: 88vh;
+  padding: 20px 24px;
+}
+
+.help-topics-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.help-topic-btn {
+  background-color: #0f172a;
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.help-topic-btn:hover {
+  color: var(--text-main);
+  border-color: #60a5fa;
+  background-color: #1e293b;
+}
+
+.help-topic-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.help-markdown-body {
+  overflow-y: auto;
+  padding-right: 8px;
+  color: #e2e8f0;
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.help-markdown-body > h2:first-child {
+  margin-top: 4px;
+}
+
+.help-markdown-body h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 10px 0;
+}
+
+.help-markdown-body h2 {
+  font-size: 17.5px;
+  font-weight: 700;
+  color: #93c5fd;
+  margin: 20px 0 8px 0;
+}
+
+.help-markdown-body h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin: 16px 0 6px 0;
+}
+
+.help-markdown-body p {
+  margin: 0 0 12px 0;
+}
+
+.help-markdown-body ul,
+.help-markdown-body ol {
+  margin: 0 0 12px 22px;
+  padding: 0;
+}
+
+.help-markdown-body li {
+  margin-bottom: 6px;
+}
+
+.help-markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--panel-border);
+  margin: 18px 0;
+}
+
+.help-markdown-body blockquote {
+  margin: 10px 0 14px 0;
+  padding: 10px 14px;
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  color: #f1f5f9;
+}
+
+.help-markdown-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  background-color: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #bae6fd;
+}
+
+.help-markdown-body a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.help-markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.help-pipeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 12px 0 16px 0;
+}
+
+.help-pipeline-step {
+  background-color: #0f172a;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.help-markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 8px 0;
+  font-size: 13px;
+}
+
+.help-markdown-body th,
+.help-markdown-body td {
+  border: 1px solid var(--panel-border);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.help-markdown-body th {
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.help-loading {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 )rawcss";
 
 inline const char* APP_JS = R"rawjs(
 document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
+  }
+
   // DOM Elements
   const trumpSelect = document.getElementById('trumpSelect');
   const leaderSelect = document.getElementById('leaderSelect');
@@ -3659,9 +3872,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
+  const statusFeedbackBtn = document.getElementById('statusFeedbackBtn');
   const statusProgress = document.getElementById('statusProgress');
   const statusProgressFill = document.getElementById('statusProgressFill');
   const execTime = document.getElementById('execTime');
+  let lastStatusErrorText = '';
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLeadLabel = document.getElementById('statLeadLabel');
@@ -5041,6 +5256,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (msg.type === 'error') {
         const errMsg = msg.error || 'WebAssembly worker error';
         reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
+        setStatus('error', 'WebAssembly worker error: ' + errMsg);
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -5058,6 +5274,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const errMsg = 'Web Worker error: ' +
         (err && err.message ? err.message : 'failed to load solver_worker.js');
       reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
+      setStatus('error', errMsg);
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;
@@ -5073,12 +5290,44 @@ document.addEventListener('DOMContentLoaded', () => {
     return wasmWorker;
   }
 
+  const WASM_NUM_THREADS = 4;
+
+  async function ensureCrossOriginIsolation() {
+    if (window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') {
+      try {
+        sessionStorage.removeItem('bridge_coi_reloaded');
+      } catch (_) {}
+      return true;
+    }
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) {
+      return false;
+    }
+    try {
+      const reg = await navigator.serviceWorker.register('coi_serviceworker.js');
+      if (reg && (reg.installing || reg.waiting || reg.active)) {
+        if (!sessionStorage.getItem('bridge_coi_reloaded')) {
+          sessionStorage.setItem('bridge_coi_reloaded', '1');
+          if (navigator.serviceWorker.controller) {
+            window.location.reload();
+          } else {
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              window.location.reload();
+            }, { once: true });
+          }
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+    } catch (_) {}
+    return typeof SharedArrayBuffer !== 'undefined';
+  }
+
   function configureWasmThreadsUI() {
     const numThreadsSelect = document.getElementById('numThreads');
     if (!numThreadsSelect) return;
-    numThreadsSelect.value = '1';
+    numThreadsSelect.value = String(WASM_NUM_THREADS);
     numThreadsSelect.disabled = true;
-    numThreadsSelect.title = 'Running client-side in WebAssembly Web Worker (1 worker thread)';
+    numThreadsSelect.title =
+      'Running client-side in WebAssembly (' + WASM_NUM_THREADS + ' worker threads)';
   }
 
   async function ensureBackendMode() {
@@ -5089,6 +5338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         backendMode = 'wasm';
         setSentryGlobalAttribute('backend_mode', backendMode);
         configureWasmThreadsUI();
+        await ensureCrossOriginIsolation();
         initWasmWorker();
         return backendMode;
       }
@@ -5106,6 +5356,7 @@ document.addEventListener('DOMContentLoaded', () => {
       backendMode = 'wasm';
       setSentryGlobalAttribute('backend_mode', backendMode);
       configureWasmThreadsUI();
+      await ensureCrossOriginIsolation();
       initWasmWorker();
       return backendMode;
     })();
@@ -5145,7 +5396,9 @@ document.addEventListener('DOMContentLoaded', () => {
       worker.postMessage({
         type: 'solve',
         id: reqId,
-        payloadJson: JSON.stringify(Object.assign({}, payload, { num_threads: 1 }))
+        payloadJson: JSON.stringify(
+          Object.assign({}, payload, { num_threads: WASM_NUM_THREADS })
+        )
       });
     });
   }
@@ -5213,6 +5466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
           PRESETS = loaded;
           populatePresetSelect();
+          ensureBackendMode();
           return;
         }
       }
@@ -9578,6 +9832,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function setStatus(type, msg, timeStr = '', progress = null) {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
+    if (type === 'error') {
+      lastStatusErrorText = msg;
+    }
+    if (statusFeedbackBtn) {
+      statusFeedbackBtn.classList.toggle('hidden', type !== 'error');
+    }
     if (timeStr) execTime.textContent = timeStr;
     const isRunning = (type === 'running');
     if (stopSolveBtn) {
@@ -10994,6 +11254,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
     window._getCurrentTreeData = () => currentTreeData;
     window._showNodeInspector = showNodeInspector;
     window._expandAndInspectNode = expandAndInspectNode;
@@ -11986,7 +12249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return feedbackEventId;
   }
 
-  function openFeedbackModal() {
+  function openFeedbackModal(initialMessage) {
     if (!feedbackModal) return;
     try {
       const savedName = localStorage.getItem('bridge_feedback_name');
@@ -11998,6 +12261,9 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackEmailInput.value = savedEmail;
       }
     } catch (_) {}
+    if (typeof initialMessage === 'string' && feedbackMessageInput) {
+      feedbackMessageInput.value = initialMessage;
+    }
     if (feedbackStatusMsg) {
       feedbackStatusMsg.className = 'feedback-status-msg hidden';
       feedbackStatusMsg.textContent = '';
@@ -12015,6 +12281,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (openFeedbackBtn) {
     openFeedbackBtn.addEventListener('click', openFeedbackModal);
+  }
+  if (statusFeedbackBtn) {
+    statusFeedbackBtn.addEventListener('click', () => {
+      const errorMsg = lastStatusErrorText || (statusMessage ? statusMessage.textContent : 'Status Error');
+      const trumpVal = trumpSelect ? trumpSelect.value : 'SPADES';
+      const leaderVal = leaderSelect ? leaderSelect.value : 'NORTH';
+      const targetVal = targetTricks ? targetTricks.value : '1';
+      const itersVal = numIters ? numIters.value : '100';
+      const backendVal = backendMode || 'unknown';
+
+      const reportText = `[Status Error Report]
+Error: ${errorMsg}
+Backend: ${backendVal}
+Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`;
+
+      openFeedbackModal(reportText);
+    });
   }
   if (closeFeedbackModalBtn) {
     closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);
@@ -12089,6 +12372,329 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+  }
+
+  const openHelpBtn = document.getElementById('openHelpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const helpModalTitle = document.getElementById('helpModalTitle');
+  const helpTopicsNav = document.getElementById('helpTopicsNav');
+  const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
+  const helpModalBody = document.getElementById('helpModalBody');
+  let helpGuideLoaded = false;
+  let activeHelpTopic = 'loading';
+  const helpTopicsHtml = {
+    loading: '',
+    tree: '',
+    lines: '',
+    summaries: '',
+    strategy: ''
+  };
+  const helpTopicTitles = {
+    loading: 'Help — Loading Hands & Deal Setup',
+    tree: 'Help — Decision Tree & Line Inspector',
+    lines: 'Help — Trying & Comparing Alternative Lines',
+    summaries: 'Help — Summaries, Sample Hands & Actual Deal (#0)',
+    strategy: 'Help — How the Solver Thinks About Bridge'
+  };
+
+  function escapeHelpHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatHelpInline(text) {
+    const codeSlots = [];
+    let s = String(text).replace(/`([^`]+)`/g, (_, code) => {
+      const idx = codeSlots.length;
+      codeSlots.push(`<code>${escapeHelpHtml(code)}</code>`);
+      return `\u0000CODE${idx}\u0000`;
+    });
+    s = escapeHelpHtml(s);
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+      let url = href;
+      if (url.startsWith('../')) {
+        url = 'https://github.com/mflaster/bridge-high-line/blob/main/' + url.slice(3);
+      }
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    s = s.replace(/\u0000CODE(\d+)\u0000/g, (_, idx) => codeSlots[Number(idx)] || '');
+    return s;
+  }
+
+  function renderHelpListItems(items) {
+    return items.map(it => {
+      let inner = formatHelpInline(it.text);
+      if (it.subItems && it.subItems.length > 0) {
+        const tag = it.subType === 'ol' ? 'ol' : 'ul';
+        inner += `<${tag}>` +
+          it.subItems.map(sub => `<li>${formatHelpInline(sub)}</li>`).join('') +
+          `</${tag}>`;
+      }
+      return `<li>${inner}</li>`;
+    }).join('');
+  }
+
+  function renderBridgeStrategyMarkdown(md) {
+    const lines = String(md).split(/\r?\n/);
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) {
+        i++;
+        continue;
+      }
+      if (line.startsWith('```mermaid')) {
+        i++;
+        const steps = [];
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          const matches = lines[i].matchAll(/\["([^"]+)"\]/g);
+          for (const m of matches) {
+            steps.push(m[1]);
+          }
+          i++;
+        }
+        if (i < lines.length) i++;
+        if (steps.length > 0) {
+          out.push('<div class="help-pipeline">' + steps.map(st => {
+            const parts = st.split(/<br\s*\/?>/i).map(p => escapeHelpHtml(p));
+            return `<div class="help-pipeline-step">${parts.join('<br>')}</div>`;
+          }).join('') + '</div>');
+        }
+        continue;
+      }
+      if (line.startsWith('```')) {
+        i++;
+        const codeLines = [];
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          codeLines.push(escapeHelpHtml(lines[i]));
+          i++;
+        }
+        if (i < lines.length) i++;
+        out.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+        continue;
+      }
+      if (line.startsWith('---')) {
+        out.push('<hr>');
+        i++;
+        continue;
+      }
+      const hMatch = line.match(/^(#{1,3})\s+(.*)$/);
+      if (hMatch) {
+        const lvl = hMatch[1].length;
+        if (lvl === 1 && out.length === 0) {
+          i++;
+          continue;
+        }
+        out.push(`<h${lvl}>${formatHelpInline(hMatch[2])}</h${lvl}>`);
+        i++;
+        continue;
+      }
+      if (line.startsWith('|')) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].startsWith('|')) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        if (tableLines.length >= 2) {
+          const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+          const headers = parseRow(tableLines[0]);
+          const bodyRows = tableLines.slice(2).map(parseRow);
+          out.push('<table><thead><tr>' +
+            headers.map(h => `<th>${formatHelpInline(h)}</th>`).join('') +
+            '</tr></thead><tbody>' +
+            bodyRows.map(r => '<tr>' + r.map(c => `<td>${formatHelpInline(c)}</td>`).join('') + '</tr>').join('') +
+            '</tbody></table>');
+        }
+        continue;
+      }
+      if (line.startsWith('> ')) {
+        const qLines = [];
+        while (i < lines.length && lines[i].startsWith('> ')) {
+          qLines.push(lines[i].slice(2).trim());
+          i++;
+        }
+        out.push(`<blockquote>${formatHelpInline(qLines.join(' '))}</blockquote>`);
+        continue;
+      }
+      if (line.startsWith('- ')) {
+        const items = [];
+        while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('  '))) {
+          const cur = lines[i];
+          if (cur.startsWith('- ')) {
+            items.push({ text: cur.slice(2).trim(), subType: null, subItems: [] });
+          } else if (items.length > 0) {
+            const last = items[items.length - 1];
+            const trimmed = cur.trim();
+            if (trimmed.startsWith('- ')) {
+              last.subType = 'ul';
+              last.subItems.push(trimmed.slice(2).trim());
+            } else if (/^\d+\.\s+/.test(trimmed)) {
+              last.subType = 'ol';
+              last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+            } else if (last.subItems.length > 0) {
+              last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+            } else {
+              last.text += ' ' + trimmed;
+            }
+          }
+          i++;
+        }
+        out.push('<ul>' + renderHelpListItems(items) + '</ul>');
+        continue;
+      }
+      if (/^\d+\.\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || lines[i].startsWith('  '))) {
+          const cur = lines[i];
+          if (/^\d+\.\s+/.test(cur)) {
+            items.push({ text: cur.replace(/^\d+\.\s+/, '').trim(), subType: null, subItems: [] });
+          } else if (items.length > 0) {
+            const last = items[items.length - 1];
+            const trimmed = cur.trim();
+            if (trimmed.startsWith('- ')) {
+              last.subType = 'ul';
+              last.subItems.push(trimmed.slice(2).trim());
+            } else if (/^\d+\.\s+/.test(trimmed)) {
+              last.subType = 'ol';
+              last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+            } else if (last.subItems.length > 0) {
+              last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+            } else {
+              last.text += ' ' + trimmed;
+            }
+          }
+          i++;
+        }
+        out.push('<ol>' + renderHelpListItems(items) + '</ol>');
+        continue;
+      }
+      const pLines = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() &&
+        !lines[i].startsWith('#') &&
+        !lines[i].startsWith('---') &&
+        !lines[i].startsWith('```') &&
+        !lines[i].startsWith('|') &&
+        !lines[i].startsWith('> ') &&
+        !lines[i].startsWith('- ') &&
+        !/^\d+\.\s+/.test(lines[i])
+      ) {
+        pLines.push(lines[i].trim());
+        i++;
+      }
+      out.push(`<p>${formatHelpInline(pLines.join(' '))}</p>`);
+    }
+    return out.join('\n');
+  }
+
+  function parseUserGuideIntoTopics(md) {
+    const sections = String(md).split(/\n(?=##\s+)/);
+    const topicKeys = ['loading', 'tree', 'lines', 'summaries'];
+    let topicIdx = 0;
+    for (const sec of sections) {
+      const trimmed = sec.trim().replace(/\n---\s*$/, '').trim();
+      if (!trimmed.startsWith('## ')) continue;
+      if (topicIdx < topicKeys.length) {
+        helpTopicsHtml[topicKeys[topicIdx]] = renderBridgeStrategyMarkdown(trimmed);
+        topicIdx++;
+      }
+    }
+  }
+
+  async function fetchHelpMarkdown(fileName) {
+    let res = await fetch(fileName, { cache: 'no-cache' });
+    if (!res.ok) {
+      res = await fetch(`../docs/${fileName}`, { cache: 'no-cache' });
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  }
+
+  function selectHelpTopic(topic) {
+    const targetTopic = helpTopicsHtml[topic] !== undefined ? topic : 'loading';
+    activeHelpTopic = targetTopic;
+    if (helpTopicsNav) {
+      helpTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.topic === targetTopic);
+      });
+    }
+    if (helpModalTitle && helpTopicTitles[targetTopic]) {
+      helpModalTitle.textContent = helpTopicTitles[targetTopic];
+    }
+    if (helpModalBody && helpGuideLoaded) {
+      helpModalBody.innerHTML = helpTopicsHtml[targetTopic] || '<p>No content available.</p>';
+      helpModalBody.scrollTop = 0;
+    }
+  }
+
+  async function openHelpModal(initialTopic = null) {
+    if (!helpModal) return;
+    if (typeof initialTopic === 'string' && helpTopicsHtml[initialTopic] !== undefined) {
+      activeHelpTopic = initialTopic;
+    }
+    helpModal.classList.remove('hidden');
+    selectHelpTopic(activeHelpTopic);
+    if (helpGuideLoaded || !helpModalBody) return;
+    try {
+      const [userGuideMd, strategyMd] = await Promise.all([
+        fetchHelpMarkdown('user-guide.md'),
+        fetchHelpMarkdown('bridge-strategy.md')
+      ]);
+      parseUserGuideIntoTopics(userGuideMd);
+      helpTopicsHtml.strategy = renderBridgeStrategyMarkdown(strategyMd);
+      helpGuideLoaded = true;
+      selectHelpTopic(activeHelpTopic);
+    } catch (err) {
+      helpModalBody.innerHTML = `<p>Could not load guide (${escapeHelpHtml(err.message || err)}).</p>`;
+    }
+  }
+
+  function closeHelpModal() {
+    if (!helpModal) return;
+    helpModal.classList.add('hidden');
+  }
+
+  if (openHelpBtn) {
+    openHelpBtn.addEventListener('click', () => openHelpModal());
+  }
+  if (helpTopicsNav) {
+    helpTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.topic) {
+          selectHelpTopic(btn.dataset.topic);
+        }
+      });
+    });
+  }
+  if (closeHelpModalBtn) {
+    closeHelpModalBtn.addEventListener('click', closeHelpModal);
+  }
+  if (helpModal) {
+    helpModal.addEventListener('click', (e) => {
+      if (e.target === helpModal) {
+        closeHelpModal();
+      }
+    });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpModal && !helpModal.classList.contains('hidden')) {
+      closeHelpModal();
+    }
+  });
+  const urlHelpParam = new URLSearchParams(window.location.search).get('help');
+  if (window.location.hash === '#how-it-works') {
+    openHelpModal('strategy');
+  } else if (window.location.hash.startsWith('#help=')) {
+    openHelpModal(window.location.hash.slice(6));
+  } else if (window.location.hash === '#help' || urlHelpParam) {
+    openHelpModal(urlHelpParam && helpTopicsHtml[urlHelpParam] !== undefined ? urlHelpParam : 'loading');
   }
 
   // Initial UI Render & Fetch Presets
@@ -12230,5 +12836,579 @@ inline const char* PRESETS_JSON = R"rawjson(
 }
 
 )rawjson";
+
+inline const char* BRIDGE_STRATEGY_MD = R"rawmd(
+# How the Solver Thinks About Bridge
+
+This guide explains how the Bridge Line Finder works from a card-play
+perspective. Standard computer bridge solvers tell you what happens when all 52
+cards are face up. This solver answers the question declarer actually faces at
+the table: **given only my hand, dummy, and the clues from the auction, what is
+the single best plan to make my contract?**
+
+---
+
+## Why Double-Dummy Isn't Bridge
+
+A traditional double-dummy solver (such as Deep Finesse or Bo Haglund's DDS)
+solves one layout at a time with all four hands visible. That produces
+superhuman plays that no real declarer can find:
+- On Deal #1, where East holds a singleton Queen, double-dummy plays the Ace to
+  drop it.
+- On Deal #2, where East holds Queen-third, double-dummy leads to the Jack to
+  finesse.
+- If a defender holds a two-way guess, double-dummy always picks the right suit
+  to attack.
+
+At the table, you only see 26 cards—North and South—plus whatever you can infer
+from the bidding and the cards played so far. You cannot play one way on Deal #1
+and a different way on Deal #2 unless **something visible happens during the
+play** (such as an honor appearing or a defender showing out of a suit) that
+tells you which layout you are in.
+
+Instead of solving each layout in isolation, this solver builds a **single
+conditional plan**—a decision tree of tricks and visible branches—that makes
+your contract across the largest possible share of hidden East/West layouts.
+
+---
+
+## Overview of a Solve
+
+Every solve runs in six main stages:
+
+```mermaid
+flowchart LR
+    A["1. Deal E/W Hands<br/>(Matching Bidding Clues)"] --> B["2. Find Contract-Making<br/>Plays on Each Deal"]
+    B --> C["3. Group Plays into<br/>Bridge Decisions"]
+    C --> D["4. Build One Playable<br/>Decision Tree"]
+    D --> E["5. Adversarial<br/>Defense Pass"]
+    E --> F["6. Summarize Winning<br/>& Losing Layouts"]
+```
+
+1. **Sample unseen hands**: Deal out hundreds of random East/West layouts that
+   fit any bidding or play clues.
+2. **Solve for the contract**: On each layout, find all plays that still make
+   your trick target (including safety plays that give up overtricks).
+3. **Generalize defender cards**: Group identical bridge situations together
+   ("West follows low" vs. "West covers with an honor" vs. "West shows out").
+4. **Build a legal decision tree**: Construct a declarer plan that only branches
+   on cards seen at the table.
+5. **Test against adversarial defense**: Re-score the top candidate plans
+   against defenders who actively choose the toughest legal defense against your
+   exact line.
+6. **Explain the layouts**: Summarize in plain bridge terms which suit breaks
+   and honor locations make or break the plan.
+
+---
+
+## 1. Simulating Possible East/West Layouts
+
+The solver starts with the cards you can see (North and South, plus any cards
+already played to earlier tricks) and deals the remaining unseen cards randomly
+between East and West, typically 100 to 300 times.
+
+Real bridge hands rarely treat every unseen layout as equally likely. If West
+opened a weak two-bid or East overcalled 1NT, you know quite a bit about their
+shapes and high cards. Before dealing, the solver lets you attach constraints to
+East and West (implemented in [`hand_requirements.h`](../hand_requirements.h)):
+- **High Card Points (HCP)**: e.g., East holds 12–14 HCP, or West holds at most
+  7 HCP.
+- **Suit lengths**: e.g., West has at least 5 spades, or East has 2–3 hearts.
+- **Hand pattern**: e.g., a balanced hand, a void, or possession of a specific
+  honor like the ♠K.
+
+Every simulated deal is checked against those rules before the play search
+begins, so the percentages reflect the auction rather than raw 52-card odds.
+
+---
+
+## 2. Aiming for the Contract, Not Overtricks
+
+When a double-dummy engine analyzes a deal, its default mode asks: *"Which card
+wins the maximum possible number of tricks?"* In rubber bridge or IMPs,
+maximizing tricks on one layout can actually hurt your chance of making the
+contract across all layouts.
+
+Consider a classic safety play in trumps. Cashing the Ace first might hold you
+to five trump tricks when the suit breaks 3-2, whereas finessing immediately
+wins six trump tricks on a friendly 3-2 split—but goes down when an honor is
+singleton offside. If the solver only kept plays that won the *maximum* tricks
+on each deal, it would throw away the safety play on every 3-2 deal!
+
+To prevent that, the solver asks DDS a different question on declarer's turn (in
+[`interface_dds.cc`](../interface_dds.cc)): **"Which cards still make at least
+the contract (`min_tricks`)?"**
+- Any play that makes the contract stays alive as a candidate on that deal, even
+  if a riskier peek-dependent play could win an overtrick.
+- Once the contract is already locked up (`min_tricks <= 0`), the solver
+  switches to maximizing the remaining tricks to keep the end-of-hand play
+  clean.
+
+---
+
+## 3. How Defenders Play During the Initial Search (Step 1)
+
+On any single deal, double-dummy analysis often reports that several defensive
+cards tie. Suppose dummy leads a small card toward **A Q** in South, and East
+(sitting in front of South) holds **K 2**. Double-dummy, East's **K** and **2**
+tie: South wins both the **A** and the **Q** either way.
+
+If East popped up with the **K** from **K 2** half the time, declarer would
+never face a real finesse guess, and the decision tree would learn unnatural
+habits based on defense no human plays at the table.
+
+During the initial search (`ChooseDefenderPlay` in
+[`interface_dds.cc`](../interface_dds.cc)), whenever multiple cards tie for best
+double-dummy defense, defenders break ties using normal human carding rules:
+- **Opening lead / 1st hand**: Defenders lead the bottom of touching honors
+  (such as the Queen from **Q J 10**), avoid leading away from an unsupported
+  honor into declarer's tenace (for instance, refusing to lead from **J x x**
+  into **A Q**), and otherwise make a low lead.
+- **2nd hand**: Defenders play **2nd hand low**, playing their lowest optimal
+  spot card.
+- **3rd hand**: Defenders play **3rd hand high** (the cheapest of touching high
+  cards), unless partner led an honor (Jack or higher) that is currently winning
+  the trick and they have a lower optimal card that avoids overtaking partner.
+- **4th hand**: If declarer or dummy is currently winning the trick, 4th hand
+  wins as cheaply as possible; if partner is already winning, 4th hand plays low
+  unless forced to overtake.
+- **Touching honors**: When a defender holds touching equals (like **K Q** or
+  **Q J 10**), the solver randomizes uniformly among those touching honors using
+  a deterministic seed per board. That stops declarer from inferring that
+  "playing the King guarantees the defender does not hold the Queen."
+- **Defensive noise**: A small configurable noise setting (default 10%)
+  occasionally selects an alternative double-dummy-optimal play so declarer's
+  line does not become brittle against slightly unusual but still sound defense.
+
+---
+
+## 4. Grouping Cards into Bridge Decisions
+
+As the solver looks across hundreds of simulated deals, it cannot tell declarer
+*"play the ♠2 on Deal #4 and the ♠Q on Deal #9."* Declarer's own plays must be
+concrete cards chosen before seeing the next defender's card.
+
+Defender cards, however, vary from deal to deal even in the exact same bridge
+situation: on one deal West follows low with the **♠3**, on another with the
+**♠5**, and on a third with the **♠8**. To a bridge player, all three mean the
+same thing: **West followed with a small spade**.
+
+The solver groups defender plays into bridge categories (`GeneralizeOppCard` and
+`GeneralizedTrickFinder` in [`conditional_line.cc`](../conditional_line.cc)):
+- **Specific honor** (`SK`, `SQ`, `HJ`): Used when covering, splitting, or
+  dropping an honor changes declarer's play.
+- **Small spot card** (`Sx`, `Hx`): Any spot card (`2` through `9`) in the suit.
+- **Any honor** (`SX`): Any honor (`10` through `A`) in the suit.
+- **Any card in the suit** (`S_`): Following suit when the rank does not matter.
+- **Discard / show-out** (`R_`): Pitching another suit when void (which tells
+  declarer the suit broke badly).
+- **Any card at all** (`__`): When declarer's play is unconditional.
+
+By combining declarer's exact card with these defender buckets, the solver turns
+hundreds of raw deal records into clear instructions like:
+> Lead **♠2** from South. If West plays a small spade (`Sx`), play **♠Q** from
+> North; if West puts up the **♠K** (`SK`), win the **♠A** in North.
+
+---
+
+## 5. Building a Single Playable Decision Tree
+
+The heart of the solver (`LineFinder::Solve` in
+[`line_finder.cc`](../line_finder.cc)) searches for the decision tree
+(`ConditionalLine`) that succeeds on the highest number of simulated layouts.
+
+To keep the line 100% legal at the table, the tree is only allowed to branch on
+**information visible to declarer**:
+1. **A defender's card during a trick** (`TrickPlayCondition`): Declarer leads
+   toward dummy, watches whether Left-Hand Opponent follows low, splits honors,
+   or shows out, and then chooses dummy's play.
+2. **Who won the trick** (`WinnerPlayCondition`): After a finesse or a hold-up
+   play, one branch continues when North or South wins the trick, and another
+   branch handles what to do when East or West wins and shifts.
+3. **Whether declarer's top card in a suit is now high** (`IsCardGoodCondition`,
+   `TryBranchOnGoodCards`): After playing one or two rounds of a suit, a bridge
+   player checks whether an opposing honor dropped or the suit split evenly. For
+   example, after cashing **♥A** and **♥K**, declarer can see whether dummy's
+   **♥J** is now the highest heart left in the deck. If the **♥J** is good,
+   declarer cashes it; if an opponent still holds the **♥Q**, declarer switches
+   to a ruffing or side-suit plan.
+
+---
+
+## 6. The Adversarial Defense Pass (Step 2 Re-scoring)
+
+When Step 1 searches for the tree that wins the most sample deals, it can
+sometimes invent **jagged, overfitted lines of play** that exploit quirks in the
+sample or in Step 1's standard carding rather than playing sound bridge.
+
+### Why Step 1 Can Produce Jagged Lines
+
+Suppose on the sample deals in Step 1, whenever East played the **10** on the
+first round of a suit, East happened not to hold the **Queen** (for instance,
+dropping the **10** from **10 x** or singleton **10**). A greedy tree search
+might build a jagged rule:
+- If East plays a small spot card, finesse.
+- If East drops the **10**, refuse the finesse and play for the drop!
+
+No real declarer should play that way. If declarer adopts a rule like *"don't
+finesse when East drops the 10,"* a defender holding **Q 10 x** can simply
+falsecard with the **10**—which costs nothing double-dummy—and bamboozle
+declarer into rising with the Ace. Likewise, a line might look great in Step 1
+only because a defender with two double-dummy-tied returns happened to pick the
+passive return instead of the attacking shift that puts declarer to an early
+guess.
+
+The purpose of the **Adversarial Defense Pass** is to superhumanly punish flaws
+and fragile branches in declarer's line of play, preventing jagged lines that a
+human declarer shouldn't actually take.
+
+### How Step 2 Adversarial Defense Works
+
+Once Step 1 finishes, the solver takes the top candidate decision trees (up to
+20 candidate plans) and runs a second, adversarial pass
+(`RescoreTopLinesAdversarial` in [`line_finder.cc`](../line_finder.cc) and
+`ChooseAdversarialDefenderCard` in
+[`conditional_line.cc`](../conditional_line.cc)):
+
+1. **List all double-dummy-optimal defensive cards**: At every defensive turn on
+   a deal, DDS finds all cards that do not give away a trick double-dummy
+   (`FindOptimalDefenderCards`). Defenders will never intentionally blow a trick
+   just to trick declarer, but any cost-free falsecard or alternative switch is
+   on the table.
+2. **Check declarer's branch success rate for each card**: If two or more
+   defensive cards tie double-dummy on that deal (such as playing the **10** vs.
+   a small spot from **Q 10 x**, or shifting suits), the defender looks at
+   declarer's decision tree and checks what fraction of deals declarer makes
+   down each corresponding branch (`BranchSuccessProbability`).
+3. **Include unmakeable deals in the branch odds**: Before scoring, the solver
+   also traces deals that were unmakeable from the start or became unmakeable
+   after an earlier play (`TraceUnmakeableBoard`). Including those losing
+   layouts in each branch's denominator prevents a dangerous switch from looking
+   like a "100% declarer branch" just because Step 1 had already dropped the
+   layouts where that switch beat the contract.
+4. **Steer declarer into the worst branch**: The defender plays the
+   double-dummy-optimal card that **minimizes** declarer's success rate on that
+   branch—dropping the **10** from **Q 10 x** if declarer's tree goes wrong over
+   the **10**, or finding the killing shift.
+5. **Re-rank declarer's plans**: Every candidate line is re-scored by how many
+   deals it actually makes against this superhumanly tough defense, so clean,
+   sound percentage lines beat jagged lines that rely on defenders cooperating.
+
+---
+
+## 7. Explaining When a Plan Wins or Fails
+
+Knowing that a line works on 76% of simulated layouts is useful, but a bridge
+player also wants to know *why* it works on those 76% and *what goes wrong* on
+the other 24%.
+
+After choosing the top line, the solver inspects the East/West hands on all
+winning deals and all losing deals (`CrossHandDealSetSummarizer` in
+[`cross_hand_summarizer.h`](../cross_hand_summarizer.h) and
+[`unknown_cards_invariant.h`](../unknown_cards_invariant.h)) and extracts
+human-readable rules:
+- **Suit splits**: e.g., *"Spades break 3-2"* or *"Neither defender holds more
+  than 4 clubs."*
+- **Honor locations**: e.g., *"West holds the ♥K"* or *"East holds at least one
+  diamond honor."*
+- **Compound conditions**: e.g., *"Either hearts are 3-3, or the defender with
+  4+ hearts also holds the ♠Q"*—the exact condition for a trump-and-spade
+  squeeze or a drop-else-finesse line.
+
+To keep the summary clean, the solver tests candidate rules against random
+splits of the unseen cards (`FilterUninterestingInvariants`) and filters out
+trivial statements that are true on almost every deal anyway. What remains is a
+concise bridge explanation of the layouts your line beats and the layouts that
+defeat it.
+
+---
+
+## Quick Reference: Bridge Concepts in the Code
+
+| Bridge Concept | Where It Lives | Key Function / Class |
+| :--- | :--- | :--- |
+| Bidding clues (HCP, length, shape) | [`hand_requirements.h`](../hand_requirements.h) | `HandRequirements`, `HighCardRange`, `SuitLength` |
+| Dealing unseen E/W hands | [`line_finder.h`](../line_finder.h), [`deal.cc`](../deal.cc) | `FuzzyBoardState::Randomize`, `DealMissingCards` |
+| Solving for contract vs. overtricks | [`interface_dds.cc`](../interface_dds.cc) | `DDSSolveHelper` (`use_min_tricks_target`) |
+| Human defensive leads & carding | [`interface_dds.cc`](../interface_dds.cc) | `ChooseDefenderPlay`, `RandomizeTouchingHonorRank` |
+| Grouping spot cards, honors, show-outs | [`conditional_line.cc`](../conditional_line.cc) | `GeneralizeOppCard`, `GeneralizedTrickFinder` |
+| Checking if a card is now high | [`conditional_line.cc`](../conditional_line.cc), [`line_finder.cc`](../line_finder.cc) | `IsCardGoodCondition`, `LineFinder::TryBranchOnGoodCards` |
+| Adversarial defense re-scoring (Step 2) | [`line_finder.cc`](../line_finder.cc), [`conditional_line.cc`](../conditional_line.cc) | `RescoreTopLinesAdversarial`, `ChooseAdversarialDefenderCard` |
+| Counting unmakeable layouts on branches | [`conditional_line.cc`](../conditional_line.cc) | `TraceUnmakeableBoard`, `BranchSuccessProbability` |
+| Summarizing winning & losing layouts | [`cross_hand_summarizer.cc`](../cross_hand_summarizer.cc) | `CrossHandDealSetSummarizer::Summarize` |
+
+)rawmd";
+
+inline const char* USER_GUIDE_MD = R"rawmd(
+# Bridge Deal Solver User Guide
+
+Welcome to the **Bridge Deal Solver & Decision Tree Explorer**. This guide walks
+through how to load deals from hand records or files, explore the interactive
+decision tree, test your own lines of play, and compare competing strategies.
+
+---
+
+## 1. Loading Hands & Setting Up a Deal
+
+You can start from a built-in classic problem, scan a tournament hand record
+(PDF, photo, or PBN), import a text deal file, or type cards directly.
+
+### Built-In Presets & Session History
+
+Use the **Hand Selector** dropdown in the top header to load built-in deals
+such as *Simple Finesse*, *4-Card Endplay*, *Squeeze Deal (NT)*, *9-Card
+Hearts*, *Safety Play*, *Restricted Choice*, *Mollo 6S*, or *2-Way Finesse*.
+
+Whenever you load a board from a PDF, photo, PBN, or text file during your
+session, it is automatically added to the **Hand Selector** dropdown (for
+example, `Hand 14 from club_game.pdf`) so you can switch back to it at any
+time.
+
+### The `Load` Button: PDFs, Photos, PBNs & Text Files
+
+Click **Load** in the **Hand Text Inputs** header to import a deal from your
+device:
+
+1. **PDF Hand Records (`.pdf`)**
+   - Supports multi-page tournament hand record sheets (such as ACBL/Common
+     Game PDFs).
+   - If the PDF contains embedded PBN deal records, all boards are extracted
+     instantly; the visual PDF page is also rendered so you can browse pages
+     with **`◀ Page 1 / N ▶`** and click any detected board pill (**`#1`**,
+     **`#2`**, ..., **`#16`**) or tap a board diagram directly on the page.
+2. **Camera Photos & Screenshots (`.png`, `.jpg`, `.webp`, etc.)**
+   - Runs **on-device optical character recognition (OCR)** directly in your
+     browser.
+   - Automatically detects all 4-hand compass diagrams in the image. Drag the
+     crop handles around any board, use **`↻ Rotate 90°`** or **`🔍 Zoom
+     Crop`**, and edit any scanned suit holding if needed before applying.
+3. **Portable Bridge Notation Files (`.pbn`)**
+   - Parses all `[Deal "..."]` records (along with `[Board "..."]`,
+     `[Declarer "..."]`, and `[Contract "..."]` tags when present) and renders
+     an interactive multi-board sheet in the scanner modal.
+4. **Plain-Text Deal Files (`.txt`, `.deal`)**
+   - Supports key-value files (`north = S AQ...`, `south = ...`,
+     `unknown_cards = ...`, `trump = SPADES`, `leader = EAST`, `target = 10`,
+     `iters = 100`, `declarer = S`, `cur_trick = ...`) as well as 4-line
+     plain-text files (North, East, South, West on consecutive lines).
+
+After loading a PDF, photo, or PBN, a **Crop Photo** button appears next to
+**Load** so you can re-open the board sheet and pick another board or adjust
+the settings without re-uploading the file.
+
+### Scanner Modal: Declarer Rotation, Contract & Opening Lead
+
+When you load a 4-hand board in the scanner modal, you can configure the table
+context before clicking **Apply to Deal**:
+
+- **Who is Declarer? (`N`, `E`, `S`, `W`)**: The solver always normalizes the
+  table so **Declarer sits at North** and **Dummy sits at South**. Selecting
+  who declared the hand at the table automatically rotates the four hands so
+  Declarer becomes North and Dummy becomes South, pools the two defenders'
+  cards into **Unknown Cards**, and saves the real East/West layout as
+  **Actual Deal (`#0`)**. You can also rotate Declarer at any time from the
+  main **`Declarer (→ N)`** bar.
+- **Contract (`1`–`7`, `♣`/`♦`/`♥`/`♠`/`NT`)**: Sets the trump strain and
+  automatically computes the required tricks (`6 + level`).
+- **Opening Lead / Initial Play**: Type or tap cards played at the start of the
+  deal (for example, the opening lead `DQ`, or the first trick `DQ D2 DA DK`
+  followed by a shift `S7`). Completed tricks automatically adjust the target
+  tricks and next leader, partial tricks pre-populate the current trick on the
+  table, and any defender show-out automatically records a void constraint for
+  that defender.
+
+### Manual Deal Configuration & Constraints
+
+- **Single-Dummy vs. Double-Dummy**:
+  - For **single-dummy** analysis (realistic declarer play), put Declarer's
+    hand in **N**, Dummy's hand in **S**, leave **E** and **W** empty (or only
+    enter known cards), and list the remaining unseen cards in **Unknown Cards
+    (Defender Pool)** under *Hand Requirements*. You can use specific ranks
+    (`S KJT9`) or `x` for indistinguishable small spot cards (`S Kxxx`).
+  - For **double-dummy** analysis (all 4 hands visible), fill in **N**, **E**,
+    **S**, and **W** and leave **Unknown Cards** empty.
+- **Center Table Controls**: Set **Trump** (`♠`, `♥`, `♦`, `♣`, `NT`),
+  **Leader** (`N`, `E`, `S`, `W`), **Tricks** (target tricks for N/S), and
+  **Rand deals** (number of random East/West layouts to sample).
+- **Hand Requirements (Fuzzy Search Constraints)**: Expand *Hand Requirements*
+  to restrict **West** or **East** by **HCP Range** (Min–Max) or minimum suit
+  lengths when the auction gives you inferences about the defenders' hands.
+
+---
+
+## 2. Exploring the Decision Tree & Line Inspector
+
+Clicking **⚡ Solve Deal** computes declarer's optimal conditional play tree and
+displays it in the **Decision Tree** tab.
+
+### Reading Nodes, Colors & Edge Conditions
+
+Each card in the tree represents a trick or final outcome:
+
+- **Blue Nodes (`Play`)**: A trick played along the line (for example,
+  `Trick 1: SA, S4, S7, SJ`). Shows how many sampled deals reach and make along
+  this branch. When some deals reaching a node go on to fail, the node
+  background splits proportionally between blue and red and displays both
+  `Makes:` and `Fails:` counts.
+- **Green Leaf Nodes (`Makes`)**: The contract succeeds on all deals reaching
+  this leaf (`N/S Won: X`).
+- **Red Leaf Nodes (`Fails`)**: The defense defeats the line on the deals
+  reaching this leaf.
+- **Edge Condition Badges**: Arrows between tricks show *why* the play branches
+  —such as `if E plays SQ`, `when W wins SK`, or `when E discards`.
+- **Card Wildcard Notation**: When the specific spot card doesn't change the
+  strategy, the tree groups cards using shorthand:
+  - `Sx`: Any low spot card (`2`–`9`) in spades.
+  - `SX`: Any honor (`T`, `J`, `Q`, `K`, `A`) in spades.
+  - `S_`: Any spade of any rank.
+  - `R_`: Any discard or ruff in another suit.
+
+### What Happens When You Click Around the Tree
+
+- **Clicking Any Node**:
+  1. Expands the path from the root to the clicked node and continues down its
+     primary continuation to a leaf, while collapsing other branches to keep
+     the view clean.
+  2. Smoothly centers the clicked node in the tree viewport.
+  3. Opens the **Line Inspector** side panel on the right with the complete
+     trick-by-trick sequence and highlights the clicked trick.
+  4. Updates the **Deal Configuration** SVG diagram on the left to show the
+     exact board state at that trick and opens the **Propose Trick** bar.
+- **Panning & Zooming**: Drag the tree background to pan, scroll/pinch or use
+  **`+`** / **`-`** / **`Reset View`** to zoom, and use **`Expand All`** or
+  **`Collapse All`** to open or fold the entire tree. Drag the vertical divider
+  between the left and right panels to resize them.
+
+### Using the Line Inspector & Diagram Sync
+
+The **Line Inspector** lists every trick along the currently inspected path in
+fixed **N / E / S / W** columns:
+
+- The **led card** has a highlighted border, and the **winning card** is badged
+  in green (if won by N/S) or red/amber (if won by E/W).
+- **Clicking a Trick Row (or `#K` badge)** in the Inspector selects that trick:
+  - Earlier tricks' cards are shown **dimmed and struck through** on the left
+    SVG deal diagram so you can see exactly which cards remain at Trick `#K`.
+  - Clicking the selected trick row a second time clears the selection and
+    restores the full starting hands.
+
+### Tracing a Specific Hand (`Hand #`)
+
+At the top of the Line Inspector, enter a deal number in **`Hand #`** (`1..N`,
+or `0` when an Actual Deal from a hand record is loaded) and click **Trace**:
+
+- The exact path taken by that deal through the decision tree is highlighted in
+  **glowing cyan**.
+- A **Traced Hand Banner** at the top of the Inspector displays West's and
+  East's exact 4-suit holdings and whether the deal **MAKES** or **FAILS**.
+- Every generalized wildcard in the trick list is replaced with the **actual
+  cards** played on that specific deal, and the left SVG diagram displays East
+  and West's concrete hands.
+- Click **Clear** to exit trace mode and return to the aggregate tree view.
+
+---
+
+## 3. Trying & Comparing Alternative Lines
+
+Bridge players constantly ask *"What if I cash the Ace first?"* or *"What if I
+play clubs before drawing the last trump?"* The solver lets you test any line of
+play against the exact same random deals and compare them head-to-head.
+
+### Cycling Through Equivalent Optimal Lines
+
+When two or more different lines of play tie for the highest success rate, the
+**Multiple Equivalent Lines** bar appears above the tree. Use the **`◀`** /
+**`▶`** buttons or the dropdown menu to switch between them.
+
+### Proposing an Alternative Line (`Propose Trick #K`)
+
+You can branch off and force your own play at any trick:
+
+1. **Select a Trick**: Click a node in the Decision Tree or click any trick row
+   `#K` in the **Line Inspector**.
+2. **Pick Cards on the Deal Diagram**:
+   - The **Propose Trick #K** bar appears in the left panel showing whose turn
+     it is to play (`N to play (0/4)`, `E to play (1/4)`, etc.).
+   - Legal cards for the active player glow **bright yellow** on the SVG deal
+     diagram (for defenders in a single-dummy solve, click cards directly in the
+     **UNKNOWN CARDS** box).
+   - You can click **1 card** (for example, forcing declarer's lead to the trick
+     and letting the solver handle the defenders' replies) or up to **all 4
+     cards** of the trick.
+3. **Compute the Continuation**: Click **Compute new line** (or use **Undo** to
+   step back one card, or **Reset** to return to the original solve).
+   - The solver replays Tricks `1..K-1`, forces your proposed card(s) at Trick
+     `#K`, and solves the remainder of the deal across the **exact same sampled
+     deals** (`reuse_deals`).
+   - If a defender shows out on a proposed trick, the solver automatically
+     constrains that defender to be void in the led suit for the continuation.
+   - Your new line is added to the line selector dropdown as
+     **`Alt line 1: Trick #K ...`** with its overall success percentage, so you
+     can switch freely between the **Original line** and every **Alt line** you
+     have explored.
+
+### Comparing Lines Head-to-Head (`Compare Lines` Tab)
+
+Once you have multiple lines (either multiple optimal lines from the initial
+solve or one or more proposed **Alt lines**), click the **Compare Lines** tab:
+
+1. **Select Lines**: Check the boxes next to **2 or more lines** in the
+   *Computed Lines* list.
+2. **Stacked Bar Breakdown**: For each pair of selected lines (**Line A vs. Line
+   B**), a color-coded bar chart breaks all sampled deals into four buckets:
+   - **Both Make (Green)**: Deals where either line succeeds.
+   - **Only Line A Makes (Blue)**: Deals where Line A succeeds and Line B fails.
+   - **Only Line B Makes (Amber)**: Deals where Line B succeeds and Line A
+     fails.
+   - **Both Fail (Slate)**: Unmakeable layouts where neither line succeeds.
+3. **Inspect Disagreement Deals**: Below the chart, side-by-side columns list
+   the specific sample deals where **Only Line A Makes** vs. **Only Line B
+   Makes**. Click any deal card to immediately switch to that line and trace
+   that exact hand in the **Decision Tree**!
+
+---
+
+## 4. Distribution Summaries, Sample Hands & Actual Deal (`#0`)
+
+Above the main tabs, the **Result Summary Cards** show **Tricks Won**, **Optimal
+Lead** (or **Card Led**), **Success Rate**, **Failure Rate**, and—when loaded
+from a 4-hand record—**Actual (`#0`)**.
+
+### Filtering by Success, Failure, or Actual Deal (`#0`)
+
+The **Success Rate**, **Failure Rate**, and **Actual (`#0`)** stat cards are
+interactive toggle buttons:
+
+- Click **Success Rate** to inspect the layouts where declarer's line **makes**
+  the contract.
+- Click **Failure Rate** to inspect the layouts where the defense **beats** the
+  contract.
+- Click **Actual (`#0`)** (when present) to isolate and trace the real table
+  layout from your loaded hand record.
+
+### The `Distribution Summary` Tab
+
+The **Distribution Summary** tab translates the raw set of making (or failing)
+deals into bridge table takeaways:
+
+- **Invariant Rules**: Automatically discovered rules that hold true across the
+  selected deals—such as *"East holds the King of Spades"*, *"Hearts split
+  3-2"*, or *"West has at most 1 diamond"*.
+- **Suit Length Bounds**: Minimum and maximum suit lengths for East, West, and
+  their combined holding.
+- **Honor Card Possession Stats**: The exact percentage of deals in which East,
+  West, both, or neither holds each key honor (`A`, `K`, `Q`, `J`, `T`).
+
+### The `Sample Hands` Tab
+
+The **Sample Hands** tab displays miniature 4-hand compass diagrams for the
+sampled deals (`#1..#N`, plus `#0 Actual` when available) matching your active
+filter (**Covered Deals**, **Non-Covered Deals**, or **Actual Deal `#0`**):
+
+- Each card shows the board number (`#1`, `#2`, ...) and full 4-hand layout.
+- **Click any sample deal card** to jump straight to the **Decision Tree** tab
+  with that hand traced from Trick 1 to the end of play.
+
+)rawmd";
 
 } // namespace web_assets

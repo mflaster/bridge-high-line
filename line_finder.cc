@@ -561,10 +561,8 @@ void RescoreTopLinesAdversarial(
         unmakeable_traces(
             num_all,
             std::vector<ConditionalLine::UnmakeableBoardTrace>(num_lines));
-    #pragma omp parallel for num_threads(num_threads) schedule(dynamic) \
-        if (num_threads > 1)
-    for (size_t u_i = 0; u_i < num_all; ++u_i) {
-      if (LineFinder::IsStopRequested()) continue;
+    ParallelForDynamic(num_all, num_threads, [&](size_t u_i) {
+      if (LineFinder::IsStopRequested()) return;
       int b = all_boards[u_i];
       bool in_step1_set = (makeable_at_root[u_i] != 0);
       ConditionalLine::Step1DefenderCardCache step1_cache;
@@ -573,7 +571,7 @@ void RescoreTopLinesAdversarial(
                                            &step1_cache,
                                            &unmakeable_traces[u_i][l_i]);
       }
-    }
+    });
     for (size_t l_i = 0; l_i < num_lines; ++l_i) {
       std::unordered_map<const ConditionalLine *, size_t> opp1_counts;
       std::unordered_map<const ConditionalLine *, size_t> opp2_counts;
@@ -602,10 +600,8 @@ void RescoreTopLinesAdversarial(
   std::vector<std::vector<ConditionalLine::RescoreBoardTrace>> board_line_trace(
       num_boards, std::vector<ConditionalLine::RescoreBoardTrace>(num_lines));
 
-  #pragma omp parallel for num_threads(num_threads) schedule(dynamic) \
-      if (num_threads > 1)
-  for (size_t b_i = 0; b_i < num_boards; ++b_i) {
-    if (LineFinder::IsStopRequested()) continue;
+  ParallelForDynamic(num_boards, num_threads, [&](size_t b_i) {
+    if (LineFinder::IsStopRequested()) return;
     int b = active_boards[b_i];
     ConditionalLine::DefenderCardsCache def_cache;
     for (size_t l_i = 0; l_i < num_lines; ++l_i) {
@@ -617,7 +613,7 @@ void RescoreTopLinesAdversarial(
         board_line_trace[b_i][l_i] = std::move(trace);
       }
     }
-  }
+  });
 
   for (size_t l_i = 0; l_i < num_lines; ++l_i) {
     std::unordered_map<const ConditionalLine *, std::set<int>> leaf_boards;
@@ -809,12 +805,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
                             : std::make_pair(NOTRUMP, -1);
 
   std::atomic<int> init_done{0};
-  #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
-      if (effective_threads > 1)
-  for (size_t i = 0; i < boards.size(); i++) {
+  ParallelForDynamic(boards.size(), effective_threads, [&](size_t i) {
     if (IsStopRequested() || board_offsets.count(static_cast<int>(i)) == 0) {
       ++init_done;
-      continue;
+      return;
     }
     if (can_derive_init_trees && base_init_trees_[i] != nullptr) {
       init_trees[i] = DerivePlayTreeForForcedLead(
@@ -832,7 +826,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
     }
     VLOG(1) << "Finished computing tree for board " << i
             << " with mini_max " << init_trees[i]->MiniMax();
-  }
+  });
   if (IsStopRequested()) {
     SetSolveStatus("Solve stopped.");
     return {};
@@ -860,19 +854,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
   auto progress = std::make_shared<SearchProgress>();
   SetActiveProgress(progress);
   std::vector<ConditionalLine> ans;
-  if (effective_threads > 1) {
-    #pragma omp parallel num_threads(effective_threads)
-    {
-      #pragma omp single
-      {
-        ans = SolveHelper(min_tricks, cache, board_trees,
-                          board_offsets, leader, 0, progress->root());
-      }
-    }
-  } else {
+  ParallelRegion(effective_threads, [&]() {
     ans = SolveHelper(min_tricks, cache, board_trees,
                       board_offsets, leader, 0, progress->root());
-  }
+  });
   SetActiveProgress(nullptr);
   if (IsStopRequested()) {
     SetSolveStatus("Solve stopped.");
@@ -1304,6 +1289,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
     std::vector<std::shared_ptr<OptimalPlayTree>> played_trees(
         wb.entries.size());
     if (omp_in_parallel() && wb.entries.size() > 1) {
+      std::vector<size_t> pending_entries;
+      pending_entries.reserve(wb.entries.size());
       for (size_t e_idx = 0; e_idx < wb.entries.size(); ++e_idx) {
         if (IsStopRequested()) break;
         const auto *entry = wb.entries[e_idx];
@@ -1312,19 +1299,16 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
         if (deepened) {
           played_trees[e_idx] = std::move(deepened);
         } else {
-          #pragma omp task firstprivate(e_idx) \
-              shared(wb, board_trees, played_trees, cache)
-          {
-            if (!IsStopRequested()) {
-              const auto *ent = wb.entries[e_idx];
-              played_trees[e_idx] =
-                  board_trees.at(ent->board)->PlayTrick(ent->trick_str,
-                                                        &cache);
-            }
-          }
+          pending_entries.push_back(e_idx);
         }
       }
-      #pragma omp taskwait
+      ParallelTaskBatch(pending_entries.size(), [&](size_t p_idx) {
+        if (IsStopRequested()) return;
+        size_t e_idx = pending_entries[p_idx];
+        const auto *ent = wb.entries[e_idx];
+        played_trees[e_idx] =
+            board_trees.at(ent->board)->PlayTrick(ent->trick_str, &cache);
+      });
     } else {
       for (size_t e_idx = 0; e_idx < wb.entries.size(); ++e_idx) {
         if (IsStopRequested()) break;
@@ -1357,16 +1341,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
   };
 
   if (omp_in_parallel() && entries.size() > 1 && min_covered <= 0 && lvl <= 2) {
-    for (size_t idx = 0; idx < entries.size(); ++idx) {
+    ParallelTaskBatch(entries.size(), [&](size_t idx) {
       int branch_size = entries[idx].weight;
       int branch_min_cov =
           (min_covered > 0) ? std::max(0, branch_size - max_losses) : 0;
-      #pragma omp task firstprivate(idx, branch_min_cov) shared(eval_branch)
-      {
-        eval_branch(idx, branch_min_cov);
-      }
-    }
-    #pragma omp taskwait
+      eval_branch(idx, branch_min_cov);
+    });
   } else {
     int rem_losses = max_losses;
     bool failed_low = false;
@@ -1945,19 +1925,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         }
       }
     };
-    if (omp_in_parallel() && batch.size() > 1) {
-      for (size_t b_idx = 0; b_idx < batch.size(); ++b_idx) {
-        #pragma omp task firstprivate(b_idx) shared(evaluate)
-        {
-          evaluate(b_idx);
-        }
-      }
-      #pragma omp taskwait
-    } else {
-      for (size_t b_idx = 0; b_idx < batch.size(); ++b_idx) {
-        evaluate(b_idx);
-      }
-    }
+    ParallelTaskBatch(batch.size(), [&](size_t b_idx) {
+      evaluate(b_idx);
+    });
     for (size_t b_idx = 0; b_idx < batch.size(); ++b_idx) {
       const std::string &key = batch[b_idx].first;
       saved_covered[key] = batch_covered[b_idx];

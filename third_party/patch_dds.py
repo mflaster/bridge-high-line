@@ -137,8 +137,13 @@ def patch_system_cpp(system_cpp: pathlib.Path) -> None:
   replacement = (
       "  (void) System::GetCores(ncores);" + nl + nl +
       "#ifdef __EMSCRIPTEN__" + nl +
+      "#ifdef __EMSCRIPTEN_PTHREADS__" + nl +
+      "  kilobytesFree = 1024ULL * 1024ULL;" + nl +
+      "  ncores = 4;" + nl +
+      "#else" + nl +
       "  kilobytesFree = 512ULL * 1024ULL;" + nl +
       "  ncores = 1;" + nl +
+      "#endif" + nl +
       "  return;" + nl +
       "#endif"
   )

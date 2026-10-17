@@ -1,11 +1,13 @@
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <thread>
 #include <catch2/catch_all.hpp>
 
+#include "deal.h"
 #include "golden_serializer.h"
 #include "line_finder.h"
-#include "deal.h"
+#include "omp_compat.h"
 
 TEST_CASE("GeneralizedDemiPlay1") {
   GeneralizedDemiPlay line(HEARTS);
@@ -1056,4 +1058,40 @@ TEST_CASE("LineFinder_SplinterThinNodesNoReneg") {
     }
   }
   REQUIRE(checked_trick2);
+}
+
+TEST_CASE("OmpCompatPool_FourThreadsNestedTasks") {
+  auto &pool = OmpCompatPool::Instance();
+  std::atomic<int> sum{0};
+  std::atomic<int> thread_mask{0};
+
+  pool.RunRegion(4, [&]() {
+    REQUIRE(OmpCompatPool::InParallel() == 1);
+    REQUIRE(OmpCompatPool::MaxThreads() == 4);
+    pool.RunTaskBatch(8, [&](size_t outer) {
+      int tid_outer = OmpCompatPool::ThreadNum();
+      REQUIRE(tid_outer >= 0);
+      REQUIRE(tid_outer < 4);
+      thread_mask.fetch_or(1 << tid_outer, std::memory_order_relaxed);
+      pool.RunTaskBatch(4, [&](size_t inner) {
+        int tid_inner = OmpCompatPool::ThreadNum();
+        REQUIRE(tid_inner >= 0);
+        REQUIRE(tid_inner < 4);
+        thread_mask.fetch_or(1 << tid_inner, std::memory_order_relaxed);
+        sum.fetch_add(static_cast<int>(outer * 10 + inner + 1),
+                      std::memory_order_relaxed);
+      });
+    });
+  });
+
+  int expected = 0;
+  for (size_t outer = 0; outer < 8; ++outer) {
+    for (size_t inner = 0; inner < 4; ++inner) {
+      expected += static_cast<int>(outer * 10 + inner + 1);
+    }
+  }
+  REQUIRE(sum.load() == expected);
+  REQUIRE(OmpCompatPool::InParallel() == 0);
+  REQUIRE((thread_mask.load() & 1) != 0);
+  REQUIRE((thread_mask.load() & ~0xF) == 0);
 }

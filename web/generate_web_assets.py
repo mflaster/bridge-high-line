@@ -10,6 +10,8 @@ def main():
     css_path = os.path.join(static_dir, "styles.css")
     js_path = os.path.join(static_dir, "app.js")
     presets_path = os.path.join(script_dir, "presets.json")
+    strategy_doc_path = os.path.join(script_dir, "..", "docs", "bridge-strategy.md")
+    user_guide_path = os.path.join(script_dir, "..", "docs", "user-guide.md")
     out_path = os.path.join(script_dir, "web_assets.h")
 
     with open(html_path, "r", encoding="utf-8") as f:
@@ -23,6 +25,12 @@ def main():
 
     with open(presets_path, "r", encoding="utf-8") as f:
         presets_content = f.read()
+
+    with open(strategy_doc_path, "r", encoding="utf-8") as f:
+        strategy_doc_content = f.read()
+
+    with open(user_guide_path, "r", encoding="utf-8") as f:
+        user_guide_content = f.read()
 
     header_content = f"""#pragma once
 
@@ -45,6 +53,14 @@ inline const char* APP_JS = R"rawjs(
 inline const char* PRESETS_JSON = R"rawjson(
 {presets_content}
 )rawjson";
+
+inline const char* BRIDGE_STRATEGY_MD = R"rawmd(
+{strategy_doc_content}
+)rawmd";
+
+inline const char* USER_GUIDE_MD = R"rawmd(
+{user_guide_content}
+)rawmd";
 
 }} // namespace web_assets
 """

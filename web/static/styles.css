@@ -633,6 +633,24 @@ body.is-resizing * {
 .status-success { background-color: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
 .status-error { background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
 
+.status-feedback-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 10px;
+  background-color: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.status-feedback-btn:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.35);
+  border-color: #f87171;
+  color: #ffffff;
+}
+
 .status-indicator {
   width: 10px;
   height: 10px;
@@ -2995,4 +3013,169 @@ body.is-resizing * {
 .btn-secondary:hover {
   color: var(--text-main);
   background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Help & Strategy Guide Modal */
+.help-modal-card {
+  max-width: 940px;
+  max-height: 88vh;
+  padding: 20px 24px;
+}
+
+.help-topics-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.help-topic-btn {
+  background-color: #0f172a;
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.help-topic-btn:hover {
+  color: var(--text-main);
+  border-color: #60a5fa;
+  background-color: #1e293b;
+}
+
+.help-topic-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.help-markdown-body {
+  overflow-y: auto;
+  padding-right: 8px;
+  color: #e2e8f0;
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.help-markdown-body > h2:first-child {
+  margin-top: 4px;
+}
+
+.help-markdown-body h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 10px 0;
+}
+
+.help-markdown-body h2 {
+  font-size: 17.5px;
+  font-weight: 700;
+  color: #93c5fd;
+  margin: 20px 0 8px 0;
+}
+
+.help-markdown-body h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin: 16px 0 6px 0;
+}
+
+.help-markdown-body p {
+  margin: 0 0 12px 0;
+}
+
+.help-markdown-body ul,
+.help-markdown-body ol {
+  margin: 0 0 12px 22px;
+  padding: 0;
+}
+
+.help-markdown-body li {
+  margin-bottom: 6px;
+}
+
+.help-markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--panel-border);
+  margin: 18px 0;
+}
+
+.help-markdown-body blockquote {
+  margin: 10px 0 14px 0;
+  padding: 10px 14px;
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  color: #f1f5f9;
+}
+
+.help-markdown-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  background-color: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #bae6fd;
+}
+
+.help-markdown-body a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.help-markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.help-pipeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 12px 0 16px 0;
+}
+
+.help-pipeline-step {
+  background-color: #0f172a;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: #e2e8f0;
+  text-align: center;
+}
+
+.help-markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 8px 0;
+  font-size: 13px;
+}
+
+.help-markdown-body th,
+.help-markdown-body td {
+  border: 1px solid var(--panel-border);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.help-markdown-body th {
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.help-loading {
+  color: var(--text-muted);
+  font-style: italic;
 }
