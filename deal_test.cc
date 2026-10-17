@@ -165,6 +165,29 @@ east  = S jt9 H 8762 D 543 C akq
     REQUIRE(bs.GetHand(SOUTH) == ParseHand("S 876 H AKQ D AKQ2 C 876"));
     REQUIRE(bs.GetHand(WEST)  == ParseHand("S 543 H 543 D JT9 C JT92"));
   }
+
+  SECTION("Leader formats and invalid direction handling") {
+    std::string deal_str = R"(
+n = S AKQ2 H J109 D 876 C 543
+e = S JT9 H 8762 D 543 C AKQ
+s = S 876 H AKQ D AKQ2 C 876
+w = S 543 H 543 D JT9 C JT92
+trump = NT
+leader = 1
+)";
+    BoardState bs = LoadDealFromKeyValueString(deal_str);
+    REQUIRE(bs.cur_trick_leader() == EAST);
+
+    std::string bad_leader_str = R"(
+north = S AKQ2 H J109 D 876 C 543
+east  = S JT9 H 8762 D 543 C AKQ
+south = S 876 H AKQ D AKQ2 C 876
+west  = S 543 H 543 D JT9 C JT92
+leader = INVALID_DIRECTION
+)";
+    REQUIRE_THROWS_AS(LoadDealFromKeyValueString(bad_leader_str),
+                      std::runtime_error);
+  }
 }
 
 

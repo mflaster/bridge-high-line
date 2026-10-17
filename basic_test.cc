@@ -54,6 +54,63 @@ TEST_CASE("ParseSuit") {
   REQUIRE(Card::ParseSuit("NT") == NOTRUMP);
 }
 
+TEST_CASE("ParsePlayerDirection") {
+  REQUIRE(Card::ParsePlayerDirection("north") == NORTH);
+  REQUIRE(Card::ParsePlayerDirection("NORTH") == NORTH);
+  REQUIRE(Card::ParsePlayerDirection("North") == NORTH);
+  REQUIRE(Card::ParsePlayerDirection("  N  ") == NORTH);
+  REQUIRE(Card::ParsePlayerDirection("0") == NORTH);
+  REQUIRE(Card::ParsePlayerDirection('N') == NORTH);
+  REQUIRE(Card::ParsePlayerDirection('n') == NORTH);
+  REQUIRE(Card::ParsePlayerDirection('0') == NORTH);
+
+  REQUIRE(Card::ParsePlayerDirection("east") == EAST);
+  REQUIRE(Card::ParsePlayerDirection("EAST") == EAST);
+  REQUIRE(Card::ParsePlayerDirection("East") == EAST);
+  REQUIRE(Card::ParsePlayerDirection("e") == EAST);
+  REQUIRE(Card::ParsePlayerDirection("1") == EAST);
+  REQUIRE(Card::ParsePlayerDirection('E') == EAST);
+  REQUIRE(Card::ParsePlayerDirection('e') == EAST);
+  REQUIRE(Card::ParsePlayerDirection('1') == EAST);
+
+  REQUIRE(Card::ParsePlayerDirection("south") == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection("SOUTH") == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection("South") == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection("s") == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection("2") == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection('S') == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection('s') == SOUTH);
+  REQUIRE(Card::ParsePlayerDirection('2') == SOUTH);
+
+  REQUIRE(Card::ParsePlayerDirection("west") == WEST);
+  REQUIRE(Card::ParsePlayerDirection("WEST") == WEST);
+  REQUIRE(Card::ParsePlayerDirection("West") == WEST);
+  REQUIRE(Card::ParsePlayerDirection("w") == WEST);
+  REQUIRE(Card::ParsePlayerDirection("3") == WEST);
+  REQUIRE(Card::ParsePlayerDirection('W') == WEST);
+  REQUIRE(Card::ParsePlayerDirection('w') == WEST);
+  REQUIRE(Card::ParsePlayerDirection('3') == WEST);
+
+  REQUIRE_THROWS_AS(Card::ParsePlayerDirection("invalid"), std::runtime_error);
+  REQUIRE_THROWS_AS(Card::ParsePlayerDirection("4"), std::runtime_error);
+  REQUIRE_THROWS_AS(Card::ParsePlayerDirection(""), std::runtime_error);
+  REQUIRE_THROWS_AS(Card::ParsePlayerDirection('X'), std::runtime_error);
+}
+
+TEST_CASE("PlayerDirectionDebugString") {
+  REQUIRE(PlayerDirectionDebugString(NORTH) == "North");
+  REQUIRE(PlayerDirectionDebugString(EAST) == "East");
+  REQUIRE(PlayerDirectionDebugString(SOUTH) == "South");
+  REQUIRE(PlayerDirectionDebugString(WEST) == "West");
+
+  REQUIRE(Card::PlayerDirectionDebugString(NORTH) == "North");
+  REQUIRE(Card::PlayerDirectionDebugString(EAST) == "East");
+  REQUIRE(Card::PlayerDirectionDebugString(SOUTH) == "South");
+  REQUIRE(Card::PlayerDirectionDebugString(WEST) == "West");
+
+  REQUIRE(Card::PlayerDirectionDebugString(4) == "North");
+}
+
 TEST_CASE("PrintCards") {
   REQUIRE(Card::PrintCard(Card::GetSuitedCard(SPADES, 0)) == "S2");
   REQUIRE(Card::PrintCard(Card::GetSuitedCard(DIAMONDS, 12)) == "DA");
