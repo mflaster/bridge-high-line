@@ -167,6 +167,9 @@ class LineFinder {
     return solver_cache_;
   }
 
+ private:
+  struct SolveMemo;
+
  protected:
   std::vector<BoardState> SetupBoards(
       Suit trump, int leader, std::set<int> &board_offsets,
@@ -184,7 +187,8 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int splinter_weight = 0,
+      SolveMemo *splinter_memo = nullptr);
 
   std::vector<ConditionalLine> GetLinesFromTrick(
       const GeneralizedTrick &gen_trick,
@@ -193,7 +197,8 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int splinter_weight = 0,
+      SolveMemo *splinter_memo = nullptr);
 
   // Evaluates groups of generalized tricks and constructs top-level or branch ConditionalLine nodes.
   // Filters and returns all ConditionalLine options that achieve the maximum board coverage count.
@@ -205,7 +210,8 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int splinter_weight = 0,
+      int min_real_covered = 0, SolveMemo *splinter_memo = nullptr);
 
   // Attempts to improve board coverage when single-trick groupings do not
   // cover all solvable boards by branching on IsCardGoodCondition for the
@@ -218,7 +224,8 @@ class LineFinder {
       int cards_left, int leader, int lvl,
       std::vector<ConditionalLine> &ans,
       SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int splinter_weight = 0,
+      SolveMemo *splinter_memo = nullptr);
 
   // Recursive workhorse for finding optimal play lines.
   // - Base case (cards_left == 0): returns empty vector if min_tricks > 0 (failure), or a single leaf
@@ -233,7 +240,8 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int splinter_weight = 0,
+      SolveMemo *splinter_memo = nullptr);
 
   std::vector<ConditionalLine> SolveHelperUncached(
       int min_tricks,
@@ -241,7 +249,15 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int splinter_weight = 0,
+      int min_real_covered = 0, SolveMemo *splinter_memo = nullptr);
+
+  void RefineThinNodesOnNode(
+      ConditionalLine *node, int min_tricks, SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets, int leader, int lvl,
+      int last_n_splinters,
+      std::unordered_map<std::string, ConditionalLine> *thin_memo);
 
  private:
   static constexpr size_t kMemoShards = 64;
@@ -278,6 +294,8 @@ class LineFinder {
   std::vector<std::shared_ptr<OptimalPlayTree>> base_init_trees_;
   std::vector<uint64_t> base_hands_;
   uint64_t base_unknown_cards_ = 0;
+  std::vector<uint64_t> solve_known_hands_;
+  uint64_t solve_unknown_cards_ = 0;
   Suit base_trump_ = NOTRUMP;
   int base_leader_ = -1;
   int base_min_tricks_ = -1;
