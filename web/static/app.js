@@ -8514,9 +8514,26 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
 
   const openHelpBtn = document.getElementById('openHelpBtn');
   const helpModal = document.getElementById('helpModal');
+  const helpModalTitle = document.getElementById('helpModalTitle');
+  const helpTopicsNav = document.getElementById('helpTopicsNav');
   const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
   const helpModalBody = document.getElementById('helpModalBody');
   let helpGuideLoaded = false;
+  let activeHelpTopic = 'loading';
+  const helpTopicsHtml = {
+    loading: '',
+    tree: '',
+    lines: '',
+    summaries: '',
+    strategy: ''
+  };
+  const helpTopicTitles = {
+    loading: 'Help — Loading Hands & Deal Setup',
+    tree: 'Help — Decision Tree & Line Inspector',
+    lines: 'Help — Trying & Comparing Alternative Lines',
+    summaries: 'Help — Summaries, Sample Hands & Actual Deal (#0)',
+    strategy: 'Help — How the Solver Thinks About Bridge'
+  };
 
   function escapeHelpHtml(str) {
     return String(str)
@@ -8545,6 +8562,19 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     s = s.replace(/\u0000CODE(\d+)\u0000/g, (_, idx) => codeSlots[Number(idx)] || '');
     return s;
+  }
+
+  function renderHelpListItems(items) {
+    return items.map(it => {
+      let inner = formatHelpInline(it.text);
+      if (it.subItems && it.subItems.length > 0) {
+        const tag = it.subType === 'ol' ? 'ol' : 'ul';
+        inner += `<${tag}>` +
+          it.subItems.map(sub => `<li>${formatHelpInline(sub)}</li>`).join('') +
+          `</${tag}>`;
+      }
+      return `<li>${inner}</li>`;
+    }).join('');
   }
 
   function renderBridgeStrategyMarkdown(md) {
@@ -8633,27 +8663,53 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
       if (line.startsWith('- ')) {
         const items = [];
         while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('  '))) {
-          if (lines[i].startsWith('- ')) {
-            items.push(lines[i].slice(2).trim());
+          const cur = lines[i];
+          if (cur.startsWith('- ')) {
+            items.push({ text: cur.slice(2).trim(), subType: null, subItems: [] });
           } else if (items.length > 0) {
-            items[items.length - 1] += ' ' + lines[i].trim();
+            const last = items[items.length - 1];
+            const trimmed = cur.trim();
+            if (trimmed.startsWith('- ')) {
+              last.subType = 'ul';
+              last.subItems.push(trimmed.slice(2).trim());
+            } else if (/^\d+\.\s+/.test(trimmed)) {
+              last.subType = 'ol';
+              last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+            } else if (last.subItems.length > 0) {
+              last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+            } else {
+              last.text += ' ' + trimmed;
+            }
           }
           i++;
         }
-        out.push('<ul>' + items.map(it => `<li>${formatHelpInline(it)}</li>`).join('') + '</ul>');
+        out.push('<ul>' + renderHelpListItems(items) + '</ul>');
         continue;
       }
       if (/^\d+\.\s+/.test(line)) {
         const items = [];
-        while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || lines[i].startsWith('   '))) {
-          if (/^\d+\.\s+/.test(lines[i])) {
-            items.push(lines[i].replace(/^\d+\.\s+/, '').trim());
+        while (i < lines.length && (/^\d+\.\s+/.test(lines[i]) || lines[i].startsWith('  '))) {
+          const cur = lines[i];
+          if (/^\d+\.\s+/.test(cur)) {
+            items.push({ text: cur.replace(/^\d+\.\s+/, '').trim(), subType: null, subItems: [] });
           } else if (items.length > 0) {
-            items[items.length - 1] += ' ' + lines[i].trim();
+            const last = items[items.length - 1];
+            const trimmed = cur.trim();
+            if (trimmed.startsWith('- ')) {
+              last.subType = 'ul';
+              last.subItems.push(trimmed.slice(2).trim());
+            } else if (/^\d+\.\s+/.test(trimmed)) {
+              last.subType = 'ol';
+              last.subItems.push(trimmed.replace(/^\d+\.\s+/, '').trim());
+            } else if (last.subItems.length > 0) {
+              last.subItems[last.subItems.length - 1] += ' ' + trimmed;
+            } else {
+              last.text += ' ' + trimmed;
+            }
           }
           i++;
         }
-        out.push('<ol>' + items.map(it => `<li>${formatHelpInline(it)}</li>`).join('') + '</ol>');
+        out.push('<ol>' + renderHelpListItems(items) + '</ol>');
         continue;
       }
       const pLines = [];
@@ -8676,19 +8732,63 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
     return out.join('\n');
   }
 
-  async function openHelpModal() {
+  function parseUserGuideIntoTopics(md) {
+    const sections = String(md).split(/\n(?=##\s+)/);
+    const topicKeys = ['loading', 'tree', 'lines', 'summaries'];
+    let topicIdx = 0;
+    for (const sec of sections) {
+      const trimmed = sec.trim().replace(/\n---\s*$/, '').trim();
+      if (!trimmed.startsWith('## ')) continue;
+      if (topicIdx < topicKeys.length) {
+        helpTopicsHtml[topicKeys[topicIdx]] = renderBridgeStrategyMarkdown(trimmed);
+        topicIdx++;
+      }
+    }
+  }
+
+  async function fetchHelpMarkdown(fileName) {
+    let res = await fetch(fileName, { cache: 'no-cache' });
+    if (!res.ok) {
+      res = await fetch(`../docs/${fileName}`, { cache: 'no-cache' });
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  }
+
+  function selectHelpTopic(topic) {
+    const targetTopic = helpTopicsHtml[topic] !== undefined ? topic : 'loading';
+    activeHelpTopic = targetTopic;
+    if (helpTopicsNav) {
+      helpTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.topic === targetTopic);
+      });
+    }
+    if (helpModalTitle && helpTopicTitles[targetTopic]) {
+      helpModalTitle.textContent = helpTopicTitles[targetTopic];
+    }
+    if (helpModalBody && helpGuideLoaded) {
+      helpModalBody.innerHTML = helpTopicsHtml[targetTopic] || '<p>No content available.</p>';
+      helpModalBody.scrollTop = 0;
+    }
+  }
+
+  async function openHelpModal(initialTopic = null) {
     if (!helpModal) return;
+    if (typeof initialTopic === 'string' && helpTopicsHtml[initialTopic] !== undefined) {
+      activeHelpTopic = initialTopic;
+    }
     helpModal.classList.remove('hidden');
+    selectHelpTopic(activeHelpTopic);
     if (helpGuideLoaded || !helpModalBody) return;
     try {
-      let res = await fetch('bridge-strategy.md', { cache: 'no-cache' });
-      if (!res.ok) {
-        res = await fetch('../docs/bridge-strategy.md', { cache: 'no-cache' });
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const md = await res.text();
-      helpModalBody.innerHTML = renderBridgeStrategyMarkdown(md);
+      const [userGuideMd, strategyMd] = await Promise.all([
+        fetchHelpMarkdown('user-guide.md'),
+        fetchHelpMarkdown('bridge-strategy.md')
+      ]);
+      parseUserGuideIntoTopics(userGuideMd);
+      helpTopicsHtml.strategy = renderBridgeStrategyMarkdown(strategyMd);
       helpGuideLoaded = true;
+      selectHelpTopic(activeHelpTopic);
     } catch (err) {
       helpModalBody.innerHTML = `<p>Could not load guide (${escapeHelpHtml(err.message || err)}).</p>`;
     }
@@ -8700,7 +8800,16 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
   }
 
   if (openHelpBtn) {
-    openHelpBtn.addEventListener('click', openHelpModal);
+    openHelpBtn.addEventListener('click', () => openHelpModal());
+  }
+  if (helpTopicsNav) {
+    helpTopicsNav.querySelectorAll('.help-topic-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.topic) {
+          selectHelpTopic(btn.dataset.topic);
+        }
+      });
+    });
   }
   if (closeHelpModalBtn) {
     closeHelpModalBtn.addEventListener('click', closeHelpModal);
@@ -8717,11 +8826,13 @@ Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Itera
       closeHelpModal();
     }
   });
-  if (
-    window.location.hash === '#how-it-works' ||
-    new URLSearchParams(window.location.search).get('help') === '1'
-  ) {
-    openHelpModal();
+  const urlHelpParam = new URLSearchParams(window.location.search).get('help');
+  if (window.location.hash === '#how-it-works') {
+    openHelpModal('strategy');
+  } else if (window.location.hash.startsWith('#help=')) {
+    openHelpModal(window.location.hash.slice(6));
+  } else if (window.location.hash === '#help' || urlHelpParam) {
+    openHelpModal(urlHelpParam && helpTopicsHtml[urlHelpParam] !== undefined ? urlHelpParam : 'loading');
   }
 
   // Initial UI Render & Fetch Presets

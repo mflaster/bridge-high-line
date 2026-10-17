@@ -1470,6 +1470,12 @@ void WebServer::RegisterRoutes() {
                     "text/markdown; charset=utf-8");
   });
 
+  svr_.Get("/user-guide.md", [](const httplib::Request &,
+                                httplib::Response &res) {
+    res.set_content(web_assets::USER_GUIDE_MD,
+                    "text/markdown; charset=utf-8");
+  });
+
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {
     HandleHealth(req, res);
   });
