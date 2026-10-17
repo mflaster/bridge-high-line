@@ -3,6 +3,7 @@
 #include "card.h"
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 
@@ -55,13 +56,17 @@ struct HonorPossessionMatrix {
 HonorPossessionMatrix ClassifyHonorPossession(uint64_t hand1, uint64_t hand2);
 
 template <typename T>
-std::string StrJoin(const T &v, std::string delim) {
+std::string StrJoin(const T &v, const std::string &delim = ", ") {
   std::string ans;
-  for (auto x : v) {
+  for (const auto &x : v) {
     if (!ans.empty()) {
       ans += delim;
-    };
-    ans += x;
+    }
+    if constexpr (std::is_convertible_v<decltype(x), std::string>) {
+      ans += x;
+    } else {
+      ans += std::to_string(x);
+    }
   }
   return ans;
 }
