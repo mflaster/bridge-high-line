@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
+  }
+
   // DOM Elements
   const trumpSelect = document.getElementById('trumpSelect');
   const leaderSelect = document.getElementById('leaderSelect');
@@ -17,9 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
+  const statusFeedbackBtn = document.getElementById('statusFeedbackBtn');
   const statusProgress = document.getElementById('statusProgress');
   const statusProgressFill = document.getElementById('statusProgressFill');
   const execTime = document.getElementById('execTime');
+  let lastStatusErrorText = '';
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLeadLabel = document.getElementById('statLeadLabel');
@@ -1386,6 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (msg.type === 'error') {
         const errMsg = msg.error || 'WebAssembly worker error';
         reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
+        setStatus('error', 'WebAssembly worker error: ' + errMsg);
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -1403,6 +1412,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const errMsg = 'Web Worker error: ' +
         (err && err.message ? err.message : 'failed to load solver_worker.js');
       reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
+      setStatus('error', errMsg);
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;
@@ -5923,6 +5933,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function setStatus(type, msg, timeStr = '', progress = null) {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
+    if (type === 'error') {
+      lastStatusErrorText = msg;
+    }
+    if (statusFeedbackBtn) {
+      statusFeedbackBtn.classList.toggle('hidden', type !== 'error');
+    }
     if (timeStr) execTime.textContent = timeStr;
     const isRunning = (type === 'running');
     if (stopSolveBtn) {
@@ -7339,6 +7355,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
     window._getCurrentTreeData = () => currentTreeData;
     window._showNodeInspector = showNodeInspector;
     window._expandAndInspectNode = expandAndInspectNode;
@@ -8331,7 +8350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return feedbackEventId;
   }
 
-  function openFeedbackModal() {
+  function openFeedbackModal(initialMessage) {
     if (!feedbackModal) return;
     try {
       const savedName = localStorage.getItem('bridge_feedback_name');
@@ -8343,6 +8362,9 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackEmailInput.value = savedEmail;
       }
     } catch (_) {}
+    if (typeof initialMessage === 'string' && feedbackMessageInput) {
+      feedbackMessageInput.value = initialMessage;
+    }
     if (feedbackStatusMsg) {
       feedbackStatusMsg.className = 'feedback-status-msg hidden';
       feedbackStatusMsg.textContent = '';
@@ -8360,6 +8382,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (openFeedbackBtn) {
     openFeedbackBtn.addEventListener('click', openFeedbackModal);
+  }
+  if (statusFeedbackBtn) {
+    statusFeedbackBtn.addEventListener('click', () => {
+      const errorMsg = lastStatusErrorText || (statusMessage ? statusMessage.textContent : 'Status Error');
+      const trumpVal = trumpSelect ? trumpSelect.value : 'SPADES';
+      const leaderVal = leaderSelect ? leaderSelect.value : 'NORTH';
+      const targetVal = targetTricks ? targetTricks.value : '1';
+      const itersVal = numIters ? numIters.value : '100';
+      const backendVal = backendMode || 'unknown';
+
+      const reportText = `[Status Error Report]
+Error: ${errorMsg}
+Backend: ${backendVal}
+Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`;
+
+      openFeedbackModal(reportText);
+    });
   }
   if (closeFeedbackModalBtn) {
     closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);

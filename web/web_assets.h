@@ -281,9 +281,10 @@ inline const char* INDEX_HTML = R"rawhtml(
         </div>
 
         <!-- Progress / Status Bar -->
-        <div id="statusBox" class="status-box status-idle">
+        <div id="statusBox" class="status-box status-idle" role="status" aria-live="polite">
           <div class="status-indicator"></div>
           <span id="statusMessage">Ready to solve. Configure hands and click "Solve Deal".</span>
+          <button id="statusFeedbackBtn" type="button" class="btn btn-secondary-sm status-feedback-btn hidden" title="Report issue with current error">Report Issue</button>
           <div id="statusProgress" class="status-progress hidden" role="progressbar"
                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="statusProgressFill" class="status-progress-fill"></div>
@@ -1271,6 +1272,24 @@ body.is-resizing * {
 .status-running { background-color: rgba(245, 158, 11, 0.15); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
 .status-success { background-color: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
 .status-error { background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+.status-feedback-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 10px;
+  background-color: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.status-feedback-btn:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.35);
+  border-color: #f87171;
+  color: #ffffff;
+}
 
 .status-indicator {
   width: 10px;
@@ -3640,6 +3659,12 @@ body.is-resizing * {
 
 inline const char* APP_JS = R"rawjs(
 document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
+  }
+
   // DOM Elements
   const trumpSelect = document.getElementById('trumpSelect');
   const leaderSelect = document.getElementById('leaderSelect');
@@ -3658,9 +3683,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const statusBox = document.getElementById('statusBox');
   const statusMessage = document.getElementById('statusMessage');
+  const statusFeedbackBtn = document.getElementById('statusFeedbackBtn');
   const statusProgress = document.getElementById('statusProgress');
   const statusProgressFill = document.getElementById('statusProgressFill');
   const execTime = document.getElementById('execTime');
+  let lastStatusErrorText = '';
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLeadLabel = document.getElementById('statLeadLabel');
@@ -5027,6 +5054,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (msg.type === 'error') {
         const errMsg = msg.error || 'WebAssembly worker error';
         reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
+        setStatus('error', 'WebAssembly worker error: ' + errMsg);
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -5044,6 +5072,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const errMsg = 'Web Worker error: ' +
         (err && err.message ? err.message : 'failed to load solver_worker.js');
       reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
+      setStatus('error', errMsg);
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;
@@ -9564,6 +9593,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function setStatus(type, msg, timeStr = '', progress = null) {
     statusBox.className = `status-box status-${type}`;
     statusMessage.textContent = msg;
+    if (type === 'error') {
+      lastStatusErrorText = msg;
+    }
+    if (statusFeedbackBtn) {
+      statusFeedbackBtn.classList.toggle('hidden', type !== 'error');
+    }
     if (timeStr) execTime.textContent = timeStr;
     const isRunning = (type === 'running');
     if (stopSolveBtn) {
@@ -10980,6 +11015,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (typeof window !== 'undefined') {
+    window.setStatus = setStatus;
+    window.openFeedbackModal = openFeedbackModal;
+    window.initWasmWorker = initWasmWorker;
     window._getCurrentTreeData = () => currentTreeData;
     window._showNodeInspector = showNodeInspector;
     window._expandAndInspectNode = expandAndInspectNode;
@@ -11972,7 +12010,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return feedbackEventId;
   }
 
-  function openFeedbackModal() {
+  function openFeedbackModal(initialMessage) {
     if (!feedbackModal) return;
     try {
       const savedName = localStorage.getItem('bridge_feedback_name');
@@ -11984,6 +12022,9 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackEmailInput.value = savedEmail;
       }
     } catch (_) {}
+    if (typeof initialMessage === 'string' && feedbackMessageInput) {
+      feedbackMessageInput.value = initialMessage;
+    }
     if (feedbackStatusMsg) {
       feedbackStatusMsg.className = 'feedback-status-msg hidden';
       feedbackStatusMsg.textContent = '';
@@ -12001,6 +12042,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (openFeedbackBtn) {
     openFeedbackBtn.addEventListener('click', openFeedbackModal);
+  }
+  if (statusFeedbackBtn) {
+    statusFeedbackBtn.addEventListener('click', () => {
+      const errorMsg = lastStatusErrorText || (statusMessage ? statusMessage.textContent : 'Status Error');
+      const trumpVal = trumpSelect ? trumpSelect.value : 'SPADES';
+      const leaderVal = leaderSelect ? leaderSelect.value : 'NORTH';
+      const targetVal = targetTricks ? targetTricks.value : '1';
+      const itersVal = numIters ? numIters.value : '100';
+      const backendVal = backendMode || 'unknown';
+
+      const reportText = `[Status Error Report]
+Error: ${errorMsg}
+Backend: ${backendVal}
+Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`;
+
+      openFeedbackModal(reportText);
+    });
   }
   if (closeFeedbackModalBtn) {
     closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);
