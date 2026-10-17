@@ -1464,6 +1464,12 @@ void WebServer::RegisterRoutes() {
     res.set_content(web_assets::PRESETS_JSON, "application/json");
   });
 
+  svr_.Get("/bridge-strategy.md", [](const httplib::Request &,
+                                     httplib::Response &res) {
+    res.set_content(web_assets::BRIDGE_STRATEGY_MD,
+                    "text/markdown; charset=utf-8");
+  });
+
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {
     HandleHealth(req, res);
   });

@@ -36,8 +36,16 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_index->body.find("compareLinesList") != std::string::npos);
   REQUIRE(res_index->body.find("compareLinesResults") != std::string::npos);
   REQUIRE(res_index->body.find("Rand deals:") != std::string::npos);
+  REQUIRE(res_index->body.find("openHelpBtn") != std::string::npos);
+  REQUIRE(res_index->body.find("helpModal") != std::string::npos);
   REQUIRE(res_index->body.find("openFeedbackBtn") != std::string::npos);
   REQUIRE(res_index->body.find("feedbackModal") != std::string::npos);
+
+  auto res_strategy = client.Get("/bridge-strategy.md");
+  REQUIRE(res_strategy);
+  REQUIRE(res_strategy->status == 200);
+  REQUIRE(res_strategy->body.find("How the Solver Thinks About Bridge") !=
+          std::string::npos);
 
   // Test CSS serving
   auto res_css = client.Get("/styles.css");

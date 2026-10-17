@@ -90,6 +90,7 @@ jobs:
           cp web/static/solver_worker.js _site/
           cp web/static/coi_serviceworker.js _site/
           cp web/presets.json _site/
+          cp docs/bridge-strategy.md _site/bridge-strategy.md
           cp build-wasm/bridge_wasm.js _site/
           cp build-wasm/bridge_wasm.wasm _site/
           if [ -f build-wasm/bridge_wasm.worker.js ]; then
@@ -97,7 +98,7 @@ jobs:
           fi
           VER="${GITHUB_SHA::8}"
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|src=\"app.js\"|src=\"app.js?v=${VER}\"|g" _site/index.html
-          sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g" _site/app.js
+          sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g" _site/app.js
           touch _site/.nojekyll
           ls -lh _site/
 

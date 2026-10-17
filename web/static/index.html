@@ -32,6 +32,9 @@
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
         </select>
+        <button id="openHelpBtn" type="button" class="feedback-header-btn" title="How the solver thinks about bridge">
+          📖 How It Works
+        </button>
         <button id="openFeedbackBtn" type="button" class="feedback-header-btn" title="Send feedback or report an issue">
           💬 Feedback
         </button>
@@ -621,6 +624,19 @@
           <button id="submitFeedbackBtn" type="submit" class="btn-primary">Send Feedback</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- How It Works / Strategy Guide Modal -->
+  <div id="helpModal" class="feedback-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <div class="feedback-modal-card help-modal-card">
+      <div class="feedback-modal-header">
+        <h3 id="helpModalTitle">How the Solver Thinks About Bridge</h3>
+        <button id="closeHelpModalBtn" type="button" class="feedback-modal-close" aria-label="Close guide dialog">&times;</button>
+      </div>
+      <div id="helpModalBody" class="help-markdown-body">
+        <p class="help-loading">Loading guide...</p>
+      </div>
     </div>
   </div>
 
