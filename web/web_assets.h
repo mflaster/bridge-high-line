@@ -12855,26 +12855,30 @@ To keep the line 100% legal at the table, the tree is only allowed to branch on
 
 ## 6. The Adversarial Defense Pass (Step 2 Re-scoring)
 
-Solving each deal in Step 1 has one subtle blind spot: in Step 1, the defenders
-on Deal #42 do not yet know what decision tree declarer is going to adopt across
-all 300 deals.
+When Step 1 searches for the tree that wins the most sample deals, it can
+sometimes invent **jagged, overfitted lines of play** that exploit quirks in the
+sample or in Step 1's standard carding rather than playing sound bridge.
 
-### Why Step 1 Can Be Too Optimistic
+### Why Step 1 Can Produce Jagged Lines
 
-Imagine East wins Trick 1 with the **♣Q**. On Deal #42, East looks at all four
-hands double-dummy and sees that returning a **club** or returning a **spade**
-both hold declarer to nine tricks if declarer plays double-dummy. So DDS
-considers a club return and a spade return tied.
+Suppose on the sample deals in Step 1, whenever East played the **10** on the
+first round of a suit, East happened not to hold the **Queen** (for instance,
+dropping the **10** from **10 x** or singleton **10**). A greedy tree search
+might build a jagged rule:
+- If East plays a small spot card, finesse.
+- If East drops the **10**, refuse the finesse and play for the drop!
 
-Now suppose declarer's chosen plan across the 300 deals has a weakness:
-- When East returns a **club**, declarer's plan makes the contract on 85% of
-  layouts.
-- When East shifts to a **spade**, declarer's plan is put to an immediate guess
-  before trumps are drawn and only makes on 45% of layouts.
+No real declarer should play that way. If declarer adopts a rule like *"don't
+finesse when East drops the 10,"* a defender holding **Q 10 x** can simply
+falsecard with the **10**—which costs nothing double-dummy—and bamboozle
+declarer into rising with the Ace. Likewise, a line might look great in Step 1
+only because a defender with two double-dummy-tied returns happened to pick the
+passive return instead of the attacking shift that puts declarer to an early
+guess.
 
-Against a real expert defender, East will shift to a spade! If the solver relied
-only on Step 1's neutral tie-breaker, it might score Deal #42 as a win because
-East happened to return a passive club in Step 1.
+The purpose of the **Adversarial Defense Pass** is to superhumanly punish flaws
+and fragile branches in declarer's line of play, preventing jagged lines that a
+human declarer shouldn't actually take.
 
 ### How Step 2 Adversarial Defense Works
 
@@ -12887,27 +12891,26 @@ Once Step 1 finishes, the solver takes the top candidate decision trees (up to
 1. **List all double-dummy-optimal defensive cards**: At every defensive turn on
    a deal, DDS finds all cards that do not give away a trick double-dummy
    (`FindOptimalDefenderCards`). Defenders will never intentionally blow a trick
-   just to confuse declarer.
+   just to trick declarer, but any cost-free falsecard or alternative switch is
+   on the table.
 2. **Check declarer's branch success rate for each card**: If two or more
-   defensive cards tie double-dummy on that deal, the defender looks at
+   defensive cards tie double-dummy on that deal (such as playing the **10** vs.
+   a small spot from **Q 10 x**, or shifting suits), the defender looks at
    declarer's decision tree and checks what fraction of deals declarer makes
    down each corresponding branch (`BranchSuccessProbability`).
 3. **Include unmakeable deals in the branch odds**: Before scoring, the solver
    also traces deals that were unmakeable from the start or became unmakeable
    after an earlier play (`TraceUnmakeableBoard`). Including those losing
-   layouts in each branch's denominator prevents a risky switch from looking
+   layouts in each branch's denominator prevents a dangerous switch from looking
    like a "100% declarer branch" just because Step 1 had already dropped the
    layouts where that switch beat the contract.
-4. **Pick the toughest defense**: The defender plays the double-dummy-optimal
-   card that **minimizes** declarer's success rate on that branch.
+4. **Steer declarer into the worst branch**: The defender plays the
+   double-dummy-optimal card that **minimizes** declarer's success rate on that
+   branch—dropping the **10** from **Q 10 x** if declarer's tree goes wrong over
+   the **10**, or finding the killing shift.
 5. **Re-rank declarer's plans**: Every candidate line is re-scored by how many
-   deals it actually makes against this tough defense, and the plan that
-   survives the most deals wins.
-
-In bridge terms, Step 1 finds promising declarer plans against normal defense,
-and Step 2 stress-tests those plans against defenders who know how to find the
-killing shift or deceptive honor split whenever it costs them nothing
-double-dummy.
+   deals it actually makes against this superhumanly tough defense, so clean,
+   sound percentage lines beat jagged lines that rely on defenders cooperating.
 
 ---
 
