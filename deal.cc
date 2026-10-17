@@ -238,20 +238,6 @@ std::vector<uint64_t> DealMissingCards(
   LOG(FATAL) << "Couldn't meet requirements";
 }
 
-static Suit ParseSuitName(const std::string &val_str) {
-  return Card::ParseSuit(val_str);
-}
-
-static PlayerDirection ParseDirectionName(const std::string &val_str) {
-  std::string s = ToLower(Trim(val_str));
-  if (s == "north" || s == "n") return NORTH;
-  if (s == "east" || s == "e") return EAST;
-  if (s == "south" || s == "s") return SOUTH;
-  if (s == "west" || s == "w") return WEST;
-  LOG(ERROR) << "Unrecognized player direction: " << val_str;
-  throw std::runtime_error("Unrecognized player direction: " + val_str);
-}
-
 BoardState LoadDealFromKeyValueString(const std::string &content) {
   std::istringstream stream(content);
   std::string line;
@@ -286,81 +272,46 @@ BoardState LoadDealFromKeyValueString(const std::string &content) {
     std::string key = ToLower(Trim(trimmed.substr(0, eq_pos)));
     std::string val = Trim(trimmed.substr(eq_pos + 1));
 
-    if (key == "north" || key == "n") {
-      if (val.empty()) {
-        LOG(ERROR) << "Empty hand string provided for north";
-        throw std::runtime_error("Empty hand string provided for north");
+    bool handled_hand = false;
+    for (PlayerDirection dir : {NORTH, EAST, SOUTH, WEST}) {
+      std::string dir_name = ToLower(Card::PlayerDirectionDebugString(dir));
+      if (key == dir_name || (key.length() == 1 && key[0] == dir_name[0])) {
+        if (val.empty()) {
+          LOG(ERROR) << "Empty hand string provided for " << dir_name;
+          throw std::runtime_error(
+              "Empty hand string provided for " + dir_name);
+        }
+        std::vector<std::string> words = SplitWords(val);
+        std::string hand_str = StrJoin(words, " ");
+        uint64_t parsed = ParseHand(hand_str);
+        if (parsed == 0) {
+          LOG(ERROR) << "Unparseable hand string for " << dir_name
+                     << ": " << val;
+          throw std::runtime_error(
+              "Unparseable hand string for " + dir_name + ": " + val);
+        }
+        hands[dir] = parsed;
+        hand_set[dir] = true;
+        handled_hand = true;
+        break;
       }
-      std::vector<std::string> words = SplitWords(val);
-      std::string hand_str = StrJoin(words, " ");
-      uint64_t parsed = ParseHand(hand_str);
-      if (parsed == 0) {
-        LOG(ERROR) << "Unparseable hand string for north: " << val;
-        throw std::runtime_error("Unparseable hand string for north: " + val);
+    }
+
+    if (!handled_hand) {
+      if (key == "trump" || key == "trumps") {
+        trump = Card::ParseSuit(val);
+      } else if (key == "leader" || key == "lead") {
+        leader = Card::ParsePlayerDirection(val);
+      } else {
+        LOG(ERROR) << "Unrecognized key '" << key << "' on line " << line_num;
+        throw std::runtime_error("Unrecognized key in deal file: " + key);
       }
-      hands[NORTH] = parsed;
-      hand_set[NORTH] = true;
-    } else if (key == "east" || key == "e") {
-      if (val.empty()) {
-        LOG(ERROR) << "Empty hand string provided for east";
-        throw std::runtime_error("Empty hand string provided for east");
-      }
-      std::vector<std::string> words = SplitWords(val);
-      std::string hand_str = StrJoin(words, " ");
-      uint64_t parsed = ParseHand(hand_str);
-      if (parsed == 0) {
-        LOG(ERROR) << "Unparseable hand string for east: " << val;
-        throw std::runtime_error("Unparseable hand string for east: " + val);
-      }
-      hands[EAST] = parsed;
-      hand_set[EAST] = true;
-    } else if (key == "south" || key == "s") {
-      if (val.empty()) {
-        LOG(ERROR) << "Empty hand string provided for south";
-        throw std::runtime_error("Empty hand string provided for south");
-      }
-      std::vector<std::string> words = SplitWords(val);
-      std::string hand_str = StrJoin(words, " ");
-      uint64_t parsed = ParseHand(hand_str);
-      if (parsed == 0) {
-        LOG(ERROR) << "Unparseable hand string for south: " << val;
-        throw std::runtime_error("Unparseable hand string for south: " + val);
-      }
-      hands[SOUTH] = parsed;
-      hand_set[SOUTH] = true;
-    } else if (key == "west" || key == "w") {
-      if (val.empty()) {
-        LOG(ERROR) << "Empty hand string provided for west";
-        throw std::runtime_error("Empty hand string provided for west");
-      }
-      std::vector<std::string> words = SplitWords(val);
-      std::string hand_str = StrJoin(words, " ");
-      uint64_t parsed = ParseHand(hand_str);
-      if (parsed == 0) {
-        LOG(ERROR) << "Unparseable hand string for west: " << val;
-        throw std::runtime_error("Unparseable hand string for west: " + val);
-      }
-      hands[WEST] = parsed;
-      hand_set[WEST] = true;
-    } else if (key == "trump" || key == "trumps") {
-      trump = ParseSuitName(val);
-    } else if (key == "leader" || key == "lead") {
-      leader = ParseDirectionName(val);
-    } else {
-      LOG(ERROR) << "Unrecognized key '" << key << "' on line " << line_num;
-      throw std::runtime_error("Unrecognized key in deal file: " + key);
     }
   }
 
   for (int i = 0; i < 4; i++) {
     if (!hand_set[i]) {
-      std::string dir_name;
-      switch (i) {
-        case NORTH: dir_name = "north"; break;
-        case EAST:  dir_name = "east"; break;
-        case SOUTH: dir_name = "south"; break;
-        case WEST:  dir_name = "west"; break;
-      }
+      std::string dir_name = ToLower(Card::PlayerDirectionDebugString(i));
       LOG(ERROR) << "Required directional hand missing from deal: " << dir_name;
       throw std::runtime_error("Missing required directional hand: " + dir_name);
     }

@@ -102,5 +102,3 @@ class BoardState {
   uint16_t shown_out_mask_ = 0;
   uint32_t board_id_ = 0;
 };
-
-std::string StrJoin(const std::set<int> &board_offsets, const char *sep = ", ");

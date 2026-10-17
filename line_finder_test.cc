@@ -405,17 +405,7 @@ void RunLineFinderTestCase(const LineFinderTestCase &tc) {
     min_tricks = total_cards > 0 ? total_cards / 4 : 0;
   }
 
-  int prev_noise = GetDefenderNoisePct();
-  SetDefenderNoisePct(0);
-  struct RestoreNoise {
-    int prev;
-    ~RestoreNoise() { SetDefenderNoisePct(prev); }
-  } restore_noise{prev_noise};
-
   LineFinder lf(tc.num_iters);
-  lf.SetTopKLines(1);
-  lf.SetTopKLvl1(1);
-  lf.SetAdversarialRescore(false);
   if (!tc.reqs1.empty() || !tc.reqs3.empty()) {
     lf.SetRequirements(tc.reqs1, tc.reqs3);
   }
@@ -738,6 +728,19 @@ TEST_CASE("LineFinder_AndInvariant") {
     .hand0 = "S 32 H 32 D A",
     .hand2 = "S AQ H AQ D 4",
     .unknown_cards = "S K7654 H K7654",
+  });
+}
+
+TEST_CASE("LineFinder_Simple9CardHearts") {
+  RunLineFinderTestCase({
+    .name = "simple_9_card_hearts",
+    .trump = HEARTS,
+    .leader = 0,
+    .min_tricks = 4,
+    .num_iters = 64,
+    .hand0 = "S 5432; H A; C 3",
+    .hand2 = "S K6; C AKJ2",
+    .unknown_cards = "S AQJT9; C QT98765",
   });
 }
 

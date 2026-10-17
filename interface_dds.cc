@@ -425,7 +425,7 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
 
 }  // namespace
 
-std::string FindBestDefenderCard(const BoardState &bs) {
+std::string FindBestDefenderCard(const BoardState &bs, int noise_pct) {
   DoInit();
   std::vector<CardType> valid = bs.ValidCardsToPlay();
   if (valid.size() == 1) {
@@ -444,7 +444,7 @@ std::string FindBestDefenderCard(const BoardState &bs) {
   }
   int level = bs.CardsPlayedThisTrick();
   auto [card_to_play, defender_rank_to_play] =
-      ChooseDefenderPlay(bs, level, futp);
+      ChooseDefenderPlay(bs, level, futp, noise_pct);
   return Card::PrintDDSCard(static_cast<Suit>(futp.suit[card_to_play]),
                             defender_rank_to_play);
 }
