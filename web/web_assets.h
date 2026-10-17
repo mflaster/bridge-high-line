@@ -12851,29 +12851,6 @@ To keep the line 100% legal at the table, the tree is only allowed to branch on
    declarer cashes it; if an opponent still holds the **♥Q**, declarer switches
    to a ruffing or side-suit plan.
 
-### Avoiding Sample Traps on Rare Branches (Thin-Node Splintering)
-
-Suppose you start with 300 random East/West deals. By Trick 5—after East won
-Trick 2 with a specific card and shifted to a diamond—only 8 of the original 300
-deals might reach that exact branch of the tree.
-
-With only 8 sample deals left on a branch, a naive search can fall into a
-"sample trap": it might find a weird play (like ruffing prematurely instead of
-drawing a round of trumps) that happens to survive on 6 of those 8 sample deals
-by sheer luck of how the spot cards fell.
-
-When an interior branch gets thin (fewer than 50 deals left out of a large
-solve, in `RefineThinNodesOnNode`), the solver performs **thin-node
-splintering**:
-- For each real deal on that branch, it deals fresh "splinter" East/West layouts
-  of the remaining unseen cards.
-- Every splinter layout strictly obeys all cards already played, all bidding
-  constraints, and **every suit void** East or West has already shown during
-  earlier tricks (`shown_out_mask_`), so a splinter hand can never reneg.
-- The solver evaluates candidate continuations across both the real deals and
-  their splinters, picking the true percentage bridge play rather than
-  overfitting to a tiny sample.
-
 ---
 
 ## 6. The Adversarial Defense Pass (Step 2 Re-scoring)
@@ -12971,7 +12948,6 @@ defeat it.
 | Human defensive leads & carding | [`interface_dds.cc`](../interface_dds.cc) | `ChooseDefenderPlay`, `RandomizeTouchingHonorRank` |
 | Grouping spot cards, honors, show-outs | [`conditional_line.cc`](../conditional_line.cc) | `GeneralizeOppCard`, `GeneralizedTrickFinder` |
 | Checking if a card is now high | [`conditional_line.cc`](../conditional_line.cc), [`line_finder.cc`](../line_finder.cc) | `IsCardGoodCondition`, `LineFinder::TryBranchOnGoodCards` |
-| Thin-branch resampling without renegs | [`line_finder.cc`](../line_finder.cc), [`board_state.h`](../board_state.h) | `RefineThinNodesOnNode`, `BoardState::shown_out_mask_` |
 | Adversarial defense re-scoring (Step 2) | [`line_finder.cc`](../line_finder.cc), [`conditional_line.cc`](../conditional_line.cc) | `RescoreTopLinesAdversarial`, `ChooseAdversarialDefenderCard` |
 | Counting unmakeable layouts on branches | [`conditional_line.cc`](../conditional_line.cc) | `TraceUnmakeableBoard`, `BranchSuccessProbability` |
 | Summarizing winning & losing layouts | [`cross_hand_summarizer.cc`](../cross_hand_summarizer.cc) | `CrossHandDealSetSummarizer::Summarize` |
