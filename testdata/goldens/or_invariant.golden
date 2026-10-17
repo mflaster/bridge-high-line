@@ -100,16 +100,16 @@ Invariant Rules for 7 card ending:
                           after HA (__) HT (H_): HA (__) HT (H_) [4] / HA S9 HT HK
                             when 2 wins the HA: HAND SUCCEEDED FOR: 4
         if 3 wins the SK: 
-          after (H_) HQ (HK) HA: (H_) HQ (HK) HA [0,9] / H5 HQ HK HA / H5 HQ HK HA
+          after (H_) HQ (HK) HA: (H_) HQ (HK) HA [0,9] / H5 HQ HK HA  / H5 HQ HK HA 
             when 2 wins the HA: 
-              after SA (S_) SJ (S_): SA (S_) SJ (S_) [0,9] / SA S7 SJ S6 / SA S6 SJ S8
+              after SA (S_) SJ (S_): SA (S_) SJ (S_) [0,9] / SA S7 SJ S6  / SA S6 SJ S8 
                 when 2 wins the SA: 
-                  after S2 (S_) ST (S_): S2 (S_) ST (S_) [0,9] / S2 S9 ST S8 / S2 S7 ST S9
+                  after S2 (S_) ST (S_): S2 (S_) ST (S_) [0,9] / S2 S9 ST S8  / S2 S7 ST S9 
                     when 0 wins the ST: 
-                      after HJ (H_) H3 (H_): HJ (H_) H3 (H_) [0,9] / HJ H7 H3 H6 / HJ H6 H3 H7
+                      after HJ (H_) H3 (H_): HJ (H_) H3 (H_) [0,9] / HJ H7 H3 H6  / HJ H6 H3 H7 
                         when 0 wins the HJ: 
-                          after HT (H_) H2 (H_): HT (H_) H2 (H_) [0,9] / HT H8 H2 H9 / HT H9 H2 H8
-                            when 0 wins the HT: HAND SUCCEEDED FOR: 0, 9
+                          after HT (H_) H2 (H_): HT (H_) H2 (H_) [0,9] / HT H8 H2 H9  / HT H9 H2 H8 
+                            when 0 wins the HT: 
           after (S_) SJ (S_) SA: (S_) SJ (S_) SA [5] / S6 SJ S7 SA
             when 2 wins the SA: 
               after S2 (S_) ST (S_): S2 (S_) ST (S_) [5] / S2 S8 ST S9
@@ -119,4 +119,4 @@ Invariant Rules for 7 card ending:
                       after H3 (H_) HJ (H_): H3 (H_) HJ (H_) [5] / H3 H7 HJ H5
                         when 0 wins the HJ: 
                           after HT (H_) H2 (H_): HT (H_) H2 (H_) [5] / HT H8 H2 H9
-                            when 0 wins the HT: HAND SUCCEEDED FOR: 5
+                            when 0 wins the HT: HAND SUCCEEDED FOR: 0, 5, 9

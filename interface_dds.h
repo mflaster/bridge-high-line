@@ -22,7 +22,7 @@ std::vector<std::string> FindBestCardsToPlay(
 
 int FindOptimalTricks(const BoardState &bs);
 
-std::string FindBestDefenderCard(const BoardState &bs);
+std::string FindBestDefenderCard(const BoardState &bs, int noise_pct = 0);
 
 std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs);
 

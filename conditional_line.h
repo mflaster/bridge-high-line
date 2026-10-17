@@ -80,6 +80,9 @@ struct GeneralizedTrick {
   int leader = 0;
   size_t opp1_step1_boards = 0;
   size_t opp2_step1_boards = 0;
+  size_t opp1_unmakeable_boards = 0;
+  size_t opp2_unmakeable_boards = 0;
+  std::array<size_t, 4> winner_unmakeable_boards = {};
   GeneralizedTrick(const GeneralizedDemiStruct &d1,
                    const GeneralizedDemiStruct &d2,
                    const std::set<int> &b,
@@ -292,6 +295,23 @@ class ConditionalLine {  // ConditionalLineBranch
   int ResultsOnHandAdversarial(
       const BoardState &bs, DefenderCardsCache *def_cache = nullptr,
       RescoreBoardTrace *out_trace = nullptr) const;
+
+  using Step1DefenderCardCache =
+      std::unordered_map<DefenderStateKey, std::string, DefenderStateKeyHash>;
+  struct UnmakeableBoardTrace {
+    std::vector<const ConditionalLine *> opp1_nodes;
+    std::vector<const ConditionalLine *> opp2_nodes;
+    std::vector<std::pair<const ConditionalLine *, int>> winner_nodes;
+  };
+  void TraceUnmakeableBoard(
+      const BoardState &bs, int board_num, bool in_step1_set,
+      Step1DefenderCardCache *def_cache,
+      UnmakeableBoardTrace *out_trace) const;
+  void ApplyUnmakeableBoardCounts(
+      const std::unordered_map<const ConditionalLine *, size_t> &opp1_counts,
+      const std::unordered_map<const ConditionalLine *, size_t> &opp2_counts,
+      const std::unordered_map<const ConditionalLine *, std::array<size_t, 4>>
+          &winner_counts);
 
   // Clones all child ConditionalLine pointers recursively so this tree does
   // not share subtree nodes with other candidate lines.
