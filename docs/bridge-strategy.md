@@ -109,13 +109,13 @@ the contract (`min_tricks`)?"**
 ## 3. How Defenders Play During the Initial Search (Step 1)
 
 On any single deal, double-dummy analysis often reports that several defensive
-cards tie. For example, West might be able to lead any of three suits to hold
-declarer to nine tricks, or East might hold **K Q** equals where playing either
-honor has the same double-dummy score.
+cards tie. Suppose dummy leads a small card toward **A Q** in South, and East
+(sitting in front of South) holds **K 2**. Double-dummy, East's **K** and **2**
+tie: South wins both the **A** and the **Q** either way.
 
-If defenders picked tied cards at random—say, playing the King from **K Q** half
-the time and the 2 from **K Q 2** the other half—declarer's decision tree would
-learn unnatural habits based on unrealistic defense.
+If East popped up with the **K** from **K 2** half the time, declarer would
+never face a real finesse guess, and the decision tree would learn unnatural
+habits based on defense no human plays at the table.
 
 During the initial search (`ChooseDefenderPlay` in
 [`interface_dds.cc`](../interface_dds.cc)), whenever multiple cards tie for best
