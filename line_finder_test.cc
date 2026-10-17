@@ -741,6 +741,19 @@ TEST_CASE("LineFinder_AndInvariant") {
   });
 }
 
+TEST_CASE("LineFinder_Simple9CardHearts") {
+  RunLineFinderTestCase({
+    .name = "simple_9_card_hearts",
+    .trump = HEARTS,
+    .leader = 0,
+    .min_tricks = 4,
+    .num_iters = 64,
+    .hand0 = "S 5432; H A; C 3",
+    .hand2 = "S K6; C AKJ2",
+    .unknown_cards = "S AQJT9; C QT98765",
+  });
+}
+
 TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
   srand48(0);
   // 2-card Spades finesse deal: N has SAQ, S has S87, E/W share SK543.
