@@ -15,7 +15,7 @@ inline const char* INDEX_HTML = R"rawhtml(
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Bridge Solver">
-  <title>Bridge Deal Solver & Decision Tree Explorer</title>
+  <title>Bridge High Line Solver & Decision Tree Explorer</title>
   <script src="https://browser.sentry-cdn.com/11.8.0/bundle.logs.metrics.min.js" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -24,7 +24,7 @@ inline const char* INDEX_HTML = R"rawhtml(
     <div class="header-content">
       <div class="logo">
         <span class="spade-icon">♠</span>
-        <h1>Bridge Deal Solver</h1>
+        <h1>Bridge High Line Solver</h1>
       </div>
       <div class="preset-selector">
         <label for="presetSelect">Hand Selector:</label>

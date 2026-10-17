@@ -23,7 +23,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   auto res_index = client.Get("/");
   REQUIRE(res_index);
   REQUIRE(res_index->status == 200);
-  REQUIRE(res_index->body.find("Bridge Deal Solver") != std::string::npos);
+  REQUIRE(res_index->body.find("Bridge High Line Solver") != std::string::npos);
   REQUIRE(res_index->body.find("traceHandInput") != std::string::npos);
   REQUIRE(res_index->body.find("traceHandBtn") != std::string::npos);
   REQUIRE(res_index->body.find("arrow-traced") != std::string::npos);
