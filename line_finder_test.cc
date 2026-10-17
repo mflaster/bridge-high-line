@@ -747,7 +747,7 @@ TEST_CASE("LineFinder_Simple9CardHearts") {
     .trump = HEARTS,
     .leader = 0,
     .min_tricks = 4,
-    .num_iters = 40,
+    .num_iters = 64,
     .hand0 = "S 5432; H A; C 3",
     .hand2 = "S K6; C AKJ2",
     .unknown_cards = "S AQJT9; C QT98765",
