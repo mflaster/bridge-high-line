@@ -1338,19 +1338,6 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S KT86; H K3; D K3; C K3;',
       west: '',
       unknown_cards: 'S Q5432 H 98765 D 98765 C 98765'
-    },
-    hand_8_261014: {
-      name: "Hand 8 from 261014",
-      trump: 'HEARTS',
-      leader: 'WEST',
-      cur_trick: ['CJ'],
-      target: 9,
-      iters: 300,
-      north: 'S Q; H KJT52; D J83; C KQ9;',
-      east: '',
-      south: 'S KT9543; H A97; D K; C 75;',
-      west: 'S -; H -; D -; C J;',
-      unknown_cards: 'S AJ8762 H Q8643 D AQT976542 C T86'
     }
   };
 

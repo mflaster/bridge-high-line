@@ -80,7 +80,6 @@ struct GeneralizedTrick {
   int leader = 0;
   size_t opp1_step1_boards = 0;
   size_t opp2_step1_boards = 0;
-  std::array<size_t, 4> winner_step1_boards = {};
   size_t opp1_unmakeable_boards = 0;
   size_t opp2_unmakeable_boards = 0;
   std::array<size_t, 4> winner_unmakeable_boards = {};
@@ -100,9 +99,6 @@ struct GeneralizedTrick {
   }
   bool Empty() const { return boards.empty() && demi2.boards_vec.empty(); }
   void PopulateLegacyMaps();
-  void StripBoardsAtOrAbove(int max_board_id, Suit trump_suit = NOTRUMP,
-                            bool preserve_step1_counts = false);
-  void TightenToEntries(Suit trump_suit);
   std::string ToString(bool compact = false) const;
 
   std::string GetTrickForBoard(int b) const;
@@ -206,10 +202,6 @@ class ConditionalLine {  // ConditionalLineBranch
   explicit ConditionalLine(const std::set<int> &boards)
       : final_covered_boards_(boards),
         covered_count_(static_cast<int>(boards.size())) {}
-
-  ConditionalLine(const std::set<int> &boards, int covered_count)
-      : final_covered_boards_(boards),
-        covered_count_(covered_count) {}
 
   // Adds a conditional branch linking a PlayCondition (e.g. WinnerPlayCondition or TrickPlayCondition)
   // to a child ConditionalLine continuation node.
@@ -325,20 +317,6 @@ class ConditionalLine {  // ConditionalLineBranch
   // not share subtree nodes with other candidate lines.
   void DeepCloneChildren();
 
-  // Recomputes covered_count_ bottom-up as the unweighted count of boards in
-  // final_covered_boards_ (1 per real or synthetic board) so Step-1 branch
-  // probabilities on splintered subtrees match unweighted board counts.
-  void NormalizeSplinterStep1Counts();
-  void SetSplinterScale(double scale);
-  double splinter_scale() const { return splinter_scale_; }
-
-  // Returns true if any leaf under this node covers a board ID < max_board_id.
-  bool HasBoardBelow(int max_board_id) const;
-
-  // Removes all board IDs >= max_board_id from this subtree and recomputes
-  // covered_count_ on the remaining boards.
-  void StripBoardsAtOrAbove(int max_board_id, Suit trump_suit = NOTRUMP);
-
   // Updates leaf final_covered_boards_, action board_to_trick maps, and
   // bottom-up covered_count_ from Step-2 rescored results while preserving
   // step1_covered_count_.
@@ -402,14 +380,6 @@ class ConditionalLine {  // ConditionalLineBranch
     return conditions_;
   }
 
-  std::vector<std::pair<std::shared_ptr<PlayCondition>,
-                       std::shared_ptr<ConditionalLine>>> &
-  mutable_conditions() {
-    return conditions_;
-  }
-
-  void RecomputeCoveredCount();
-
   // Returns set of board IDs directly covered at this terminal leaf node.
   const std::set<int> &final_covered_boards() const {
     return final_covered_boards_;
@@ -434,7 +404,6 @@ class ConditionalLine {  // ConditionalLineBranch
   int covered_count_ = 0;
   int step1_covered_count_ = 0;
   bool has_rescored_boards_ = false;
-  double splinter_scale_ = 1.0;
 
   // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;

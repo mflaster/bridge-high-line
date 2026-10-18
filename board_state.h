@@ -66,17 +66,6 @@ class BoardState {
   uint32_t board_id() const { return board_id_; }
   void set_board_id(uint32_t id) { board_id_ = id; }
 
-  bool HasShownOut(int player, Suit s) const {
-    return (shown_out_mask_ & (1u << (player * 4 + s))) != 0;
-  }
-  uint16_t shown_out_mask() const { return shown_out_mask_; }
-  void set_shown_out_mask(uint16_t mask) { shown_out_mask_ = mask; }
-
-  void SetPlayerHand(int player, uint64_t hand) {
-    assert(player >= 0 && player < 4);
-    hands_[player] = hand;
-  }
-
   std::string GetPBNCards() const;
   std::string ConvertHandToPBN(uint64_t hand) const;
 
@@ -99,6 +88,5 @@ class BoardState {
   uint8_t prev_trick_leader_ = 0;
   uint8_t tricks_won_odd_ = 0;
   uint8_t tricks_won_even_ = 0;
-  uint16_t shown_out_mask_ = 0;
   uint32_t board_id_ = 0;
 };

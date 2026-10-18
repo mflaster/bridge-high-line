@@ -19,13 +19,6 @@ void BoardState::PlayCard(int player, CardType c) {
                                       << " doesn't have " << Card::PrintCard(c);
     CHECK_EQ(played_cards_ & c, 0);
   }
-  if (num_trick_cards_played_ > 0) {
-    Suit suit_led = SuitLed();
-    Suit suit_played = Card::DecodeCard(c).first;
-    if (suit_played != suit_led) {
-      shown_out_mask_ |= static_cast<uint16_t>(1u << (player * 4 + suit_led));
-    }
-  }
   trick_cards_played_[num_trick_cards_played_++] = c;
 
   if (num_trick_cards_played_ == 4) {
