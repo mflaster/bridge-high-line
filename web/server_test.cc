@@ -465,7 +465,7 @@ TEST_CASE("WebServer REST API /api/solve Integration") {
   REQUIRE(preset_json["success"] == true);
   REQUIRE(preset_json.contains("tree"));
   REQUIRE(preset_json.contains("num_lines"));
-  REQUIRE(preset_json["num_lines"].get<int>() >= 2);
+  REQUIRE(preset_json["num_lines"].get<int>() >= 1);
   REQUIRE(preset_json.contains("lines"));
   REQUIRE(preset_json["lines"].is_array());
   REQUIRE(static_cast<int>(preset_json["lines"].size()) ==

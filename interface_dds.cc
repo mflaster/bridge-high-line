@@ -309,14 +309,17 @@ int ScoreDefenderLeadGroup(const futureTricks &futp, int i, int low_r,
       top_r < 14 && (ns_suit >> (top_r - 1)) != 0;
 
   // Check whether N/S have a guarded honor/tenace in suit `s` that could
-  // benefit from a defender lead: either N/S hold >=2 cards with an honor and
-  // E/W still hold a higher card, or N/S hold >=2 honors in the suit.
-  int ns_top_bit = ns_suit != 0 ? 31 - __builtin_clz(ns_suit) : -1;
+  // benefit from a defender lead: N/S hold >=2 cards with an honor and
+  // E/W still hold a card higher than N/S's lowest honor (e.g. N/S have
+  // AKJ missing Q, or K9 missing AQJ), as opposed to N/S holding only
+  // solid top honors (e.g. CAK2 after CQ won, or DA5 after DK won).
   int ew_top_bit = ew_suit != 0 ? 31 - __builtin_clz(ew_suit) : -1;
   uint16_t ns_honors = ns_suit >> 9;
+  int ns_low_honor_bit =
+      ns_honors != 0 ? __builtin_ctz(ns_suit & ~0x1ff) : -1;
   bool ns_has_tenace =
       ns_honors != 0 && __builtin_popcount(ns_suit) >= 2 &&
-      (ew_top_bit > ns_top_bit || __builtin_popcount(ns_honors) >= 2);
+      ew_top_bit > ns_low_honor_bit;
 
   int def_highest_bit = def_suit != 0 ? 31 - __builtin_clz(def_suit) : -1;
   int def_highest_r = def_highest_bit + 2;
