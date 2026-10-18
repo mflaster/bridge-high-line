@@ -122,7 +122,9 @@ class AnyOfRequirement : public HandRequirements {
   std::vector<std::shared_ptr<HandRequirements>> reqs_;
 };
 
+namespace sayc {
 struct SaycDagNode;
+}  // namespace sayc
 
 // Evaluates whether a 13-card hand would make `bid` after the space-separated
 // first-round call sequence `after` by evaluating the compiled constraint DAG
@@ -146,5 +148,6 @@ class WouldBid : public HandRequirements {
  private:
   std::string bid_;
   std::string after_;
-  std::vector<SaycDagNode> prog_;
+  std::vector<sayc::SaycDagNode> prog_;
 };
+

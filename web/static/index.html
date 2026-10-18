@@ -131,6 +131,13 @@
               <g transform="translate(10, 12)" id="cardsEastGroup"></g>
             </g>
 
+            <!-- Lower Left Auction Box -->
+            <g class="hand-group hidden" id="svgAuctionHand" transform="translate(15, 248)">
+              <rect width="102" height="104" rx="8" class="auction-box" id="boxAuction"/>
+              <text x="51" y="15" class="auction-title" text-anchor="middle" id="titleAuction">AUCTION</text>
+              <g id="cardsAuctionGroup"></g>
+            </g>
+
             <!-- South Hand -->
             <g class="hand-group" id="svgSouthHand" transform="translate(129, 248)">
               <rect width="126" height="104" rx="8" class="hand-box" id="boxSouth"/>
@@ -546,10 +553,10 @@
             <div class="scan-dealer-row">
               <span class="scan-dealer-label">Dealer:</span>
               <div class="declarer-seat-group scan-dealer-group" role="group" aria-label="Select Dealer in modal">
-                <button type="button" class="modal-dealer-btn active" data-seat="N">N</button>
-                <button type="button" class="modal-dealer-btn" data-seat="E">E</button>
-                <button type="button" class="modal-dealer-btn" data-seat="S">S</button>
-                <button type="button" class="modal-dealer-btn" data-seat="W">W</button>
+                <button type="button" class="modal-dealer-btn active" data-seat="N" data-dealer="N">N</button>
+                <button type="button" class="modal-dealer-btn" data-seat="E" data-dealer="E">E</button>
+                <button type="button" class="modal-dealer-btn" data-seat="S" data-dealer="S">S</button>
+                <button type="button" class="modal-dealer-btn" data-seat="W" data-dealer="W">W</button>
               </div>
             </div>
             <div class="scan-initial-input-row">

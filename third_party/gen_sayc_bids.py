@@ -675,6 +675,7 @@ def main():
     f.write("#include <cstring>\n")
     f.write("#include <string>\n")
     f.write("#include <vector>\n\n")
+    f.write("namespace sayc {\n\n")
     f.write("enum class SaycOp : uint8_t {\n")
     f.write("  kBool = 0,\n")
     f.write("  kInt,\n")
@@ -832,7 +833,8 @@ def main():
     f.write("    }\n")
     f.write("  }\n")
     f.write("  return vals[n - 1] != 0;\n")
-    f.write("}\n")
+    f.write("}\n\n")
+    f.write("}  // namespace sayc\n")
 
 
 if __name__ == "__main__":

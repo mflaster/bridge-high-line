@@ -160,9 +160,9 @@ WouldBid::WouldBid(const std::string &bid, const std::string &after) {
     if (i > 0) after_ += " ";
     after_ += prior_calls[i];
   }
-  int root = LookupSaycBidNode(ToSaycHistoryKey(prior_calls),
-                               ToSaycCallName(bid_));
-  BuildSaycProgram(root, &prog_);
+  int root = sayc::LookupSaycBidNode(ToSaycHistoryKey(prior_calls),
+                                     ToSaycCallName(bid_));
+  sayc::BuildSaycProgram(root, &prog_);
 }
 
 WouldBid::~WouldBid() = default;
@@ -186,7 +186,7 @@ bool WouldBid::MeetsRequirement(uint64_t hand) const {
     vars[base + 3] = (sb >> 9) & 1;   // Jack
     vars[base + 4] = (sb >> 8) & 1;   // Ten
   }
-  return EvalSaycProgram(prog_, vars);
+  return sayc::EvalSaycProgram(prog_, vars);
 }
 
 std::string WouldBid::ToString() const {
