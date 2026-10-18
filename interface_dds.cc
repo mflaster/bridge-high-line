@@ -853,8 +853,7 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::Deepen(
   {
     std::lock_guard<std::mutex> lock(mu_);
     auto it = all_plays.find(line);
-    CHECK(it != all_plays.end()) << line;
-    if (it->second) {
+    if (it != all_plays.end() && it->second) {
       return it->second;
     }
     auto wit = cached_plays_.find(line);
@@ -877,10 +876,14 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::Deepen(
     return rest;
   }
   auto it = all_plays.find(line);
-  if (!it->second) {
-    it->second = rest;
+  if (it != all_plays.end()) {
+    if (!it->second) {
+      it->second = rest;
+    }
+    return it->second;
   }
-  return it->second;
+  all_plays[line] = rest;
+  return rest;
 }
 
 std::shared_ptr<OptimalPlayTree> OptimalPlayTree::PlayTrick(

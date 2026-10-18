@@ -724,6 +724,50 @@ std::set<std::string> ExtractWinningCardsForLeader(
   return winning_cards;
 }
 
+int CountSureTopTricks(const BoardState &bs) {
+  uint64_t mask = ~bs.played_cards();
+  uint64_t h0 = bs.GetHand(0) & mask;
+  uint64_t h1 = bs.GetHand(1) & mask;
+  uint64_t h2 = bs.GetHand(2) & mask;
+  uint64_t h3 = bs.GetHand(3) & mask;
+  Suit trump = bs.GetTrump();
+  int w_trumps =
+      (trump != NOTRUMP)
+          ? __builtin_popcountll((h1 >> (trump * 16)) & 0xffffULL)
+          : 0;
+  int e_trumps =
+      (trump != NOTRUMP)
+          ? __builtin_popcountll((h3 >> (trump * 16)) & 0xffffULL)
+          : 0;
+  int total_top = 0;
+  for (int s = 0; s < 4; ++s) {
+    uint16_t n_s = (h0 >> (s * 16)) & 0xffffU;
+    uint16_t w_s = (h1 >> (s * 16)) & 0xffffU;
+    uint16_t s_s = (h2 >> (s * 16)) & 0xffffU;
+    uint16_t e_s = (h3 >> (s * 16)) & 0xffffU;
+    uint16_t ns_s = n_s | s_s;
+    uint16_t ew_s = w_s | e_s;
+    if (ns_s == 0) continue;
+    int max_ns_len = std::max(__builtin_popcount(n_s), __builtin_popcount(s_s));
+    int highest_ew = (ew_s == 0) ? -1 : (31 - __builtin_clz(ew_s));
+    uint16_t top_ns_mask =
+        (highest_ew < 0)
+            ? ns_s
+            : static_cast<uint16_t>(ns_s & ~((1U << (highest_ew + 1)) - 1U));
+    int suit_top = std::min(max_ns_len, __builtin_popcount(top_ns_mask));
+    if (trump != NOTRUMP && s != static_cast<int>(trump)) {
+      if (w_trumps > 0) {
+        suit_top = std::min(suit_top, __builtin_popcount(w_s));
+      }
+      if (e_trumps > 0) {
+        suit_top = std::min(suit_top, __builtin_popcount(e_s));
+      }
+    }
+    total_top += suit_top;
+  }
+  return total_top;
+}
+
 }  // namespace
 
 std::vector<ConditionalLine> LineFinder::Solve(
@@ -793,9 +837,30 @@ std::vector<ConditionalLine> LineFinder::Solve(
   std::map<int, std::shared_ptr<OptimalPlayTree>> board_trees;
   std::vector<std::shared_ptr<OptimalPlayTree>> init_trees(boards.size());
 
+  int root_cards_left = 0;
+  if (!board_offsets.empty()) {
+    const BoardState &bs0 = boards[*board_offsets.begin()];
+    root_cards_left =
+        __builtin_popcountll(bs0.GetHand(0) & ~bs0.played_cards());
+  }
+  int assured_at_root = 0;
+  if (!board_offsets.empty() && leader % 2 == 0 && min_tricks >= 1 &&
+      min_tricks < root_cards_left) {
+    assured_at_root = root_cards_left;
+    for (int b : board_offsets) {
+      assured_at_root =
+          std::min(assured_at_root, CountSureTopTricks(boards[b]));
+      if (assured_at_root <= 0) break;
+    }
+  }
+  int effective_min_tricks =
+      (assured_at_root >= min_tricks && assured_at_root + 1 < root_cards_left)
+          ? (assured_at_root + 1)
+          : min_tricks;
+
   bool can_derive_init_trees =
       can_reuse_deals && cur_trick.size() == 1 && leader % 2 == 0 &&
-      min_tricks == base_min_tricks_ && min_tricks >= 1 &&
+      effective_min_tricks == base_min_tricks_ && effective_min_tricks >= 1 &&
       base_init_trees_.size() == boards.size();
   std::string forced_lead_prefix =
       can_derive_init_trees ? (Card::PrintCard(cur_trick[0]) + " ") : "";
@@ -812,10 +877,10 @@ std::vector<ConditionalLine> LineFinder::Solve(
     if (can_derive_init_trees && base_init_trees_[i] != nullptr) {
       init_trees[i] = DerivePlayTreeForForcedLead(
           *base_init_trees_[i], base_boards_[i], boards[i],
-          forced_lead_prefix, lead_decoded, min_tricks, &cache);
+          forced_lead_prefix, lead_decoded, effective_min_tricks, &cache);
     } else {
       init_trees[i] = OptimalPlayTree::FindOptimalPlayTree(
-          boards[i], min_tricks, &cache);
+          boards[i], effective_min_tricks, &cache);
     }
     int done = ++init_done;
     if (!IsStopRequested()) {
@@ -837,7 +902,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
     base_unknown_cards_ = unknown_cards;
     base_trump_ = trump;
     base_leader_ = leader;
-    base_min_tricks_ = min_tricks;
+    base_min_tricks_ = effective_min_tricks;
   }
   for (size_t i = 0; i < boards.size(); i++) {
     if (init_trees[i]) {
@@ -854,8 +919,21 @@ std::vector<ConditionalLine> LineFinder::Solve(
   SetActiveProgress(progress);
   std::vector<ConditionalLine> ans;
   ParallelRegion(effective_threads, [&]() {
-    ans = SolveHelper(min_tricks, cache, board_trees,
+    ans = SolveHelper(effective_min_tricks, cache, board_trees,
                       board_offsets, leader, 0, progress->root());
+    if (ans.empty() && effective_min_tricks > min_tricks &&
+        !IsStopRequested()) {
+      effective_min_tricks = min_tricks;
+      for (int b : board_offsets) {
+        if (IsStopRequested()) break;
+        board_trees[b] =
+            OptimalPlayTree::FindOptimalPlayTree(boards[b], min_tricks, &cache);
+      }
+      if (!IsStopRequested()) {
+        ans = SolveHelper(min_tricks, cache, board_trees, board_offsets, leader,
+                          0, progress->root());
+      }
+    }
   });
   SetActiveProgress(nullptr);
   if (IsStopRequested()) {
@@ -904,8 +982,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
     SetSolveStatus("Re-scoring top " + std::to_string(ans.size()) +
                    " lines against adversarial defense...");
     auto start_rescore = std::chrono::high_resolution_clock::now();
-    RescoreTopLinesAdversarial(boards, board_offsets, board_trees, min_tricks,
-                               effective_threads, &ans);
+    RescoreTopLinesAdversarial(boards, board_offsets, board_trees,
+                               effective_min_tricks, effective_threads, &ans);
     auto end_rescore = std::chrono::high_resolution_clock::now();
     rescore_ms_ = std::chrono::duration<double, std::milli>(
                       end_rescore - start_rescore)
@@ -2255,12 +2333,158 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
   Suit trump_suit = first_tree->MyBoard()->GetTrump();
   int cards_left = first_tree->CardsLeft();
   GeneralizedTrickFinder gen_trick_finder(trump_suit);
+  struct DeclarerPairInfo {
+    std::string my1;
+    std::string my2;
+    CardType my1_card = 0;
+    CardType my2_card = 0;
+  };
+  std::vector<DeclarerPairInfo> popular_my_pairs;
+  bool has_overtrick_board = false;
+  int solvable_count = 0;
+  if (min_tricks >= 1 && cards_left >= 1 && board_offsets.size() >= 2) {
+    std::map<std::pair<std::string, std::string>, int> pair_board_counts;
+    for (int b : board_offsets) {
+      const std::shared_ptr<OptimalPlayTree> &pt = board_trees.at(b);
+      const OptimalLines &lines = pt->GetLines();
+      if (lines.empty()) continue;
+      ++solvable_count;
+      int decl_max =
+          (leader % 2 == 0) ? pt->MiniMax() : (cards_left - pt->MiniMax());
+      if (decl_max > min_tricks) {
+        has_overtrick_board = true;
+      }
+      std::set<std::pair<std::string, std::string>> board_pairs;
+      for (const OptimalLine &trick : lines) {
+        std::string cards[4];
+        size_t pos = 0;
+        int c_idx = 0;
+        while (pos < trick.size() && c_idx < 4) {
+          while (pos < trick.size() && trick[pos] == ' ') ++pos;
+          if (pos >= trick.size()) break;
+          size_t end = pos;
+          while (end < trick.size() && trick[end] != ' ') ++end;
+          cards[c_idx++] = trick.substr(pos, end - pos);
+          pos = end;
+        }
+        if (c_idx < 4) continue;
+        const std::string &m1 = (leader % 2 == 0) ? cards[0] : cards[1];
+        const std::string &m2 = (leader % 2 == 0) ? cards[2] : cards[3];
+        if (board_pairs.emplace(m1, m2).second) {
+          ++pair_board_counts[{m1, m2}];
+        }
+      }
+    }
+    if (has_overtrick_board && solvable_count >= 2) {
+      int min_pair_boards =
+          (solvable_count >= 4) ? std::max(2, solvable_count / 4) : 1;
+      for (const auto &[p, cnt] : pair_board_counts) {
+        if (cnt >= min_pair_boards && cnt < solvable_count) {
+          DeclarerPairInfo info;
+          info.my1 = p.first;
+          info.my2 = p.second;
+          info.my1_card = Card::ParseStringCard(p.first);
+          info.my2_card = Card::ParseStringCard(p.second);
+          popular_my_pairs.push_back(std::move(info));
+        }
+      }
+    }
+  }
   for (int b : board_offsets) {
     const std::shared_ptr<OptimalPlayTree> &play_tree = board_trees.at(b);
     const OptimalLines &lines = play_tree->GetLines();
     for (const OptimalLine &trick : lines) {
       VLOG(3) << "    " << trick;
       gen_trick_finder.RecordOptimalTrick(leader, trick, b);
+    }
+    int decl_max = (leader % 2 == 0) ? play_tree->MiniMax()
+                                     : (cards_left - play_tree->MiniMax());
+    if (!popular_my_pairs.empty() && !lines.empty() && decl_max > min_tricks) {
+      const BoardState &bs = *play_tree->MyBoard();
+      for (const auto &wp : popular_my_pairs) {
+        bool already_has = false;
+        for (const OptimalLine &trick : lines) {
+          std::string cards[4];
+          size_t pos = 0;
+          int c_idx = 0;
+          while (pos < trick.size() && c_idx < 4) {
+            while (pos < trick.size() && trick[pos] == ' ') ++pos;
+            if (pos >= trick.size()) break;
+            size_t end = pos;
+            while (end < trick.size() && trick[end] != ' ') ++end;
+            cards[c_idx++] = trick.substr(pos, end - pos);
+            pos = end;
+          }
+          if (c_idx == 4) {
+            const std::string &m1 = (leader % 2 == 0) ? cards[0] : cards[1];
+            const std::string &m2 = (leader % 2 == 0) ? cards[2] : cards[3];
+            if (m1 == wp.my1 && m2 == wp.my2) {
+              already_has = true;
+              break;
+            }
+          }
+        }
+        if (already_has) continue;
+
+        BoardState copy = bs;
+        int start_pos = copy.CardsPlayedThisTrick();
+        std::string played_str[4];
+        bool legal = true;
+        for (int i = 0; i < start_pos; ++i) {
+          played_str[i] = Card::PrintCard(copy.trick_cards_played()[i]);
+          int p = (leader + i) % 4;
+          if (p % 2 == 0) {
+            const std::string &want = (i < 2) ? wp.my1 : wp.my2;
+            if (played_str[i] != want) {
+              legal = false;
+              break;
+            }
+          }
+        }
+        for (int pos = start_pos; legal && pos < 4; ++pos) {
+          int p = copy.CurPlayer();
+          if (p % 2 == 0) {
+            CardType want = (pos < 2) ? wp.my1_card : wp.my2_card;
+            std::vector<CardType> valid = copy.ValidCardsToPlay();
+            if (std::find(valid.begin(), valid.end(), want) == valid.end()) {
+              legal = false;
+              break;
+            }
+            played_str[pos] = (pos < 2) ? wp.my1 : wp.my2;
+            copy.PlayCard(p, want);
+          } else {
+            std::string def_c =
+                FindBestDefenderCard(copy, GetDefenderNoisePct());
+            if (def_c.empty()) {
+              legal = false;
+              break;
+            }
+            played_str[pos] = def_c;
+            copy.PlayCard(p, Card::ParseStringCard(def_c));
+          }
+        }
+        if (!legal) continue;
+        int winner = copy.CurPlayer();
+        int trick_won = (winner % 2 == 0) ? 1 : 0;
+        int req_after = min_tricks - trick_won;
+        if (trick_won == 0 && CountSureTopTricks(bs) >= min_tricks) {
+          req_after = min_tricks + 1;
+        }
+        std::string trick_str = played_str[0] + " " + played_str[1] + " " +
+                                played_str[2] + " " + played_str[3] + " ";
+        bool can_make = false;
+        if (cards_left <= 1) {
+          can_make = (req_after <= 0);
+        } else {
+          auto child_tree = play_tree->PlayTrick(trick_str, &cache_in);
+          can_make = child_tree != nullptr &&
+                     WonEnoughTricks(child_tree->MiniMax(), req_after, winner,
+                                     cards_left - 1);
+        }
+        if (can_make) {
+          gen_trick_finder.RecordOptimalTrick(leader, trick_str, b);
+        }
+      }
     }
   }
   unsigned int kMaxTricks = 500;
