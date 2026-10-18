@@ -1,10 +1,10 @@
 #include <iostream>
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 
 #include "interface_dds.h"
 #include "board_state.h"
 
-TEST_CASE("Basic") {
+TEST(InterfaceDdsTest, Basic) {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AQ"));
   hands.push_back(ParseHand("S KJ"));
@@ -20,7 +20,7 @@ TEST_CASE("Basic") {
   for (const auto &line : lines) {
     std::cout << "See line: " << line << "\n";
   }
-  REQUIRE(ans == 1);
+  ASSERT_TRUE(ans == 1);
 }
 
 std::shared_ptr<OptimalPlayTree> FindOptimalPlayTree(
@@ -28,7 +28,7 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTree(
   return OptimalPlayTree::FindOptimalPlayTree(bs, min_tricks);
 }
 
-TEST_CASE("PlayTree") {
+TEST(InterfaceDdsTest, PlayTree) {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AK"));
   hands.push_back(ParseHand("S QJ"));
@@ -42,14 +42,14 @@ TEST_CASE("PlayTree") {
   std::shared_ptr<OptimalPlayTree> all_plays = FindOptimalPlayTree(
       bs, 1);
   std::cout << "Got " << all_plays->DebugString() << "\n";
-  REQUIRE(all_plays->TotalCount() == 1);
+  ASSERT_TRUE(all_plays->TotalCount() == 1);
 
   all_plays->Deepen(10, nullptr);
   std::cout << "Got " << all_plays->DebugString() << "\n";
-  REQUIRE(all_plays->TotalCount() == 2);
+  ASSERT_TRUE(all_plays->TotalCount() == 2);
 }
 
-TEST_CASE("PlayTree2") {
+TEST(InterfaceDdsTest, PlayTree2) {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AQ"));
   hands.push_back(ParseHand("S KJ"));
@@ -64,10 +64,10 @@ TEST_CASE("PlayTree2") {
       bs, 1);
   all_plays->Deepen(10, nullptr);
   std::cout << "Got " << all_plays->DebugString() << "\n";
-  REQUIRE(all_plays->TotalCount() == 4);
+  ASSERT_TRUE(all_plays->TotalCount() == 4);
 }
 
-TEST_CASE("PlayTree3") {
+TEST(InterfaceDdsTest, PlayTree3) {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S AQT"));
   hands.push_back(ParseHand("S KJ9"));
@@ -81,10 +81,10 @@ TEST_CASE("PlayTree3") {
   std::shared_ptr<OptimalPlayTree> all_plays = FindOptimalPlayTree(bs, 2);
   all_plays->Deepen(10, nullptr);
   std::cout << "Got " << all_plays->DebugString() << "\n";
-  REQUIRE(all_plays->TotalCount() == 10);
+  ASSERT_TRUE(all_plays->TotalCount() == 10);
 }
 
-TEST_CASE("PlayTree8", "[.slow]") {
+TEST(InterfaceDdsTest, DISABLED_PlayTree8) {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("H Q7; D KQT9; C A2; "));
   hands.push_back(ParseHand("H T5; D A754; C Q3; "));
@@ -99,10 +99,10 @@ TEST_CASE("PlayTree8", "[.slow]") {
   SolverCache cache;
   all_plays->Deepen(10, &cache);
   std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
-  REQUIRE(all_plays->TotalCount() > 10);
+  ASSERT_TRUE(all_plays->TotalCount() > 10);
 }
 
-TEST_CASE("PlayTree11", "[.slow]") {
+TEST(InterfaceDdsTest, DISABLED_PlayTree11) {
   std::vector<uint64_t> hands;
   hands.push_back(ParseHand("S 94; H T8; D KQT9; C Q94; "));
   hands.push_back(ParseHand("S KQ; H Q; D A754; C A765; "));
@@ -123,7 +123,7 @@ TEST_CASE("PlayTree11", "[.slow]") {
   std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
   all_plays->Deepen(5, &cache);
   std::cout << "TotalCount " << all_plays->TotalCount() << "\n";
-  REQUIRE(all_plays->TotalCount() > 10);
+  ASSERT_TRUE(all_plays->TotalCount() > 10);
 }
 
 namespace {
@@ -136,7 +136,7 @@ struct ScopedDefenderNoise {
 };
 }  // namespace
 
-TEST_CASE("DefenderSeatRules_SecondHandLowAndEquals") {
+TEST(InterfaceDdsTest, DefenderSeatRules_SecondHandLowAndEquals) {
   ScopedDefenderNoise no_noise(0);
   // Hand 1 holds touching QJ in 2nd seat (random 50/50 between SQ and SJ);
   // Hand 3 holds touching spot cards 54 in 4th seat (always lowest S4).
@@ -157,18 +157,18 @@ TEST_CASE("DefenderSeatRules_SecondHandLowAndEquals") {
   for (int trial = 0; trial < 40; ++trial) {
     OptimalLines lines;
     DDSFindOptimalLines(bs, 2, &lines, nullptr);
-    REQUIRE(lines.size() == 1);
+    ASSERT_TRUE(lines.size() == 1);
     const std::string &line = *lines.begin();
     if (line == "SA SJ S8 S4 ") {
       ++saw_sj;
     } else if (line == "SA SQ S8 S4 ") {
       ++saw_sq;
     } else {
-      FAIL("Unexpected line: " << line);
+      FAIL() << "Unexpected line: " << line;
     }
   }
-  REQUIRE(saw_sj > 5);
-  REQUIRE(saw_sq > 5);
+  ASSERT_TRUE(saw_sj > 5);
+  ASSERT_TRUE(saw_sq > 5);
 
   // Touching T9 (one honor T and one spot 9) also randomizes between ST and S9.
   std::vector<uint64_t> t9_hands = {
@@ -189,11 +189,11 @@ TEST_CASE("DefenderSeatRules_SecondHandLowAndEquals") {
     if (lines.count("SA S9 S8 S4 ")) ++saw_s9;
     if (lines.count("SA ST S8 S4 ")) ++saw_st;
   }
-  REQUIRE(saw_s9 > 5);
-  REQUIRE(saw_st > 5);
+  ASSERT_TRUE(saw_s9 > 5);
+  ASSERT_TRUE(saw_st > 5);
 }
 
-TEST_CASE("DefenderSeatRules_ThirdHandHighAndEquals") {
+TEST(InterfaceDdsTest, DefenderSeatRules_ThirdHandHighAndEquals) {
   ScopedDefenderNoise no_noise(0);
   // Hand 1 leads a small spade (S3), Hand 2 plays low (S2), Hand 3 in 3rd seat
   // holds KQ5 with Hand 0 holding AT9 in 4th seat. Whether 3rd hand plays KQ
@@ -219,24 +219,24 @@ TEST_CASE("DefenderSeatRules_ThirdHandHighAndEquals") {
   for (int trial = 0; trial < 40; ++trial) {
     OptimalLines lines;
     DDSFindOptimalLines(bs, 0, &lines, nullptr);
-    REQUIRE(!lines.empty());
+    ASSERT_TRUE(!lines.empty());
     for (const std::string &line : lines) {
       if (line.rfind("S3 S2 SQ ", 0) == 0) {
         ++saw_sq;
       } else if (line.rfind("S3 S2 SK ", 0) == 0) {
         ++saw_sk;
       } else {
-        FAIL("Unexpected 3rd hand play in line: " << line);
+        FAIL() << "Unexpected 3rd hand play in line: " << line;
       }
     }
   }
-  REQUIRE(saw_sq > 5);
-  REQUIRE(saw_sk > 5);
+  ASSERT_TRUE(saw_sq > 5);
+  ASSERT_TRUE(saw_sk > 5);
 }
 
-TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
+TEST(InterfaceDdsTest, DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake) {
   ScopedDefenderNoise no_noise(0);
-  SECTION("4th hand wins instead of ducking and randomizes touching honors") {
+  {  // 4th hand wins instead of ducking and randomizes touching honors
     // Hand 2 leads S8, Hand 3 plays S5, Hand 0 plays ST. Hand 1 in 4th seat
     // holds QJ4 while Hand 2 has SA2 remaining. Winning with SJ/SQ or ducking
     // with S4 all yield 2 tricks for E/W; 4th hand must win (never duck with
@@ -261,20 +261,20 @@ TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
     for (int trial = 0; trial < 40; ++trial) {
       OptimalLines lines;
       DDSFindOptimalLines(bs, 0, &lines, nullptr);
-      REQUIRE(lines.size() == 1);
+      ASSERT_TRUE(lines.size() == 1);
       if (*lines.begin() == "S8 S5 ST SJ ") {
         ++saw_sj;
       } else if (*lines.begin() == "S8 S5 ST SQ ") {
         ++saw_sq;
       } else {
-        FAIL("Unexpected 4th hand play: " << *lines.begin());
+        FAIL() << "Unexpected 4th hand play: " << *lines.begin();
       }
     }
-    REQUIRE(saw_sj > 5);
-    REQUIRE(saw_sq > 5);
+    ASSERT_TRUE(saw_sj > 5);
+    ASSERT_TRUE(saw_sq > 5);
   }
 
-  SECTION("4th hand wins as cheaply as possible with non-touching honors") {
+  {  // 4th hand wins as cheaply as possible with non-touching honors
     // Hand 1 in 4th seat holds K J 4 over ST; since K and J are not touching,
     // 4th hand deterministically wins with the cheaper winning card (SJ).
     std::vector<uint64_t> hands = {
@@ -293,11 +293,11 @@ TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
 
     OptimalLines lines;
     DDSFindOptimalLines(bs, 0, &lines, nullptr);
-    REQUIRE(lines.size() == 1);
-    REQUIRE(*lines.begin() == "S8 S5 ST SJ ");
+    ASSERT_TRUE(lines.size() == 1);
+    ASSERT_TRUE(*lines.begin() == "S8 S5 ST SJ ");
   }
 
-  SECTION("4th hand does not overtake partner's winning card") {
+  {  // 4th hand does not overtake partner's winning card
     // Hand 2 leads S2, Hand 3 (partner) plays SJ which is winning, Hand 0
     // plays S3. Hand 1 in 4th seat holds KQ4 (both overtaking and ducking win
     // all tricks for E/W). 4th hand must play S4 and not overtake partner.
@@ -317,14 +317,14 @@ TEST_CASE("DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake") {
 
     OptimalLines lines;
     DDSFindOptimalLines(bs, 0, &lines, nullptr);
-    REQUIRE(lines.size() == 1);
-    REQUIRE(*lines.begin() == "S2 SJ S3 S4 ");
+    ASSERT_TRUE(lines.size() == 1);
+    ASSERT_TRUE(*lines.begin() == "S2 SJ S3 S4 ");
   }
 }
 
-TEST_CASE("DefenderSeatRules_FirstHandLeadSelection") {
+TEST(InterfaceDdsTest, DefenderSeatRules_FirstHandLeadSelection) {
   ScopedDefenderNoise no_noise(0);
-  SECTION("Prefers leading touching honors over underleading into a tenace") {
+  {  // Prefers leading touching honors over underleading into a tenace
     // West (Hand 3) is on lead in a 7-card ending (like Trick 3 of 9-Card
     // Hearts after DK holds at Trick 2). West holds touching honors DQJ in
     // diamonds (where South has DA5 opposite North's DT) alongside S AJ4
@@ -350,21 +350,21 @@ TEST_CASE("DefenderSeatRules_FirstHandLeadSelection") {
     for (int trial = 0; trial < 40; ++trial) {
       OptimalLines lines;
       DDSFindOptimalLines(bs, 0, &lines, nullptr);
-      REQUIRE(lines.size() == 1);
+      ASSERT_TRUE(lines.size() == 1);
       const std::string &line = *lines.begin();
       if (line.rfind("DJ ", 0) == 0) {
         ++saw_dj;
       } else if (line.rfind("DQ ", 0) == 0) {
         ++saw_dq;
       } else {
-        FAIL("Expected West to lead DJ or DQ, got: " << line);
+        FAIL() << "Expected West to lead DJ or DQ, got: " << line;
       }
     }
-    REQUIRE(saw_dj > 5);
-    REQUIRE(saw_dq > 5);
+    ASSERT_TRUE(saw_dj > 5);
+    ASSERT_TRUE(saw_dq > 5);
   }
 
-  SECTION("Prefers passive spot lead over underleading an unsupported honor") {
+  {  // Prefers passive spot lead over underleading an unsupported honor
     // East (Hand 1) is on lead holding S AT4 (into South's S K73) and H 87
     // (passive suit with no N/S honor tenace). When both leads are
     // double-dummy optimal, East must lead passively (H7) rather than
@@ -382,9 +382,9 @@ TEST_CASE("DefenderSeatRules_FirstHandLeadSelection") {
 
     OptimalLines lines;
     DDSFindOptimalLines(bs, 0, &lines, nullptr);
-    REQUIRE(!lines.empty());
+    ASSERT_TRUE(!lines.empty());
     for (const std::string &line : lines) {
-      REQUIRE(line.rfind("H7 ", 0) == 0);
+      ASSERT_TRUE(line.rfind("H7 ", 0) == 0);
     }
   }
 }

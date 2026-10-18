@@ -1,10 +1,10 @@
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 #include <iostream>
 
 #include "dll.h"
 #include "card.h"
 
-TEST_CASE("Basic") {
+TEST(DdsTest, Basic) {
 #if defined(__linux) || defined(__APPLE__)
   SetMaxThreads(0);
 #endif
@@ -36,11 +36,11 @@ TEST_CASE("Basic") {
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
               << " (equals " << futp.equals[i] << "), score: " << futp.score[i] << "\n";
   }
-  REQUIRE(futp.cards == 2);
-  REQUIRE(futp.score[0] == 2);
+  ASSERT_TRUE(futp.cards == 2);
+  ASSERT_TRUE(futp.score[0] == 2);
 }
 
-TEST_CASE("Basic2") {
+TEST(DdsTest, Basic2) {
 #if defined(__linux) || defined(__APPLE__)
   SetMaxThreads(0);
 #endif
@@ -74,12 +74,12 @@ TEST_CASE("Basic2") {
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
               << " (equals " << futp.equals[i] << "), score: " << futp.score[i] << "\n";
   }
-  REQUIRE(futp.cards == 1);
-  REQUIRE(futp.score[0] == 2);
+  ASSERT_TRUE(futp.cards == 1);
+  ASSERT_TRUE(futp.score[0] == 2);
 }
 
 
-TEST_CASE("Basic3") {
+TEST(DdsTest, Basic3) {
 #if defined(__linux) || defined(__APPLE__)
   SetMaxThreads(0);
 #endif
@@ -111,6 +111,6 @@ TEST_CASE("Basic3") {
               << Card::PrintDDSCard((Suit)futp.suit[i], futp.rank[i])
               << " (equals " << futp.equals[i] << "), score: " << futp.score[i] << "\n";
   }
-  REQUIRE(futp.cards == 1);
-  REQUIRE(futp.score[0] == 2);
+  ASSERT_TRUE(futp.cards == 1);
+  ASSERT_TRUE(futp.score[0] == 2);
 }
