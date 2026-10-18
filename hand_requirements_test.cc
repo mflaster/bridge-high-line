@@ -239,5 +239,12 @@ TEST(HandRequirementsTest, WouldBid_OpeningsAndTakeoutDouble) {
   uint64_t overcall_1s = ParseHand("S AQJ74 H 83 D K84 C 952");
   EXPECT_TRUE(WouldBid("1S", "1H").MeetsRequirement(overcall_1s));
   EXPECT_FALSE(WouldBid("X", "1H").MeetsRequirement(overcall_1s));
+
+  // 10 HCP 2-5-1-5 hand (S 43; H AKQT7; D J; C 75432) over P 1S:
+  // Should overcall 2H or Michaels 2S, NOT takeout double X!
+  uint64_t h_2515_10hcp = ParseHand("S 43 H AKQT7 D J C 75432");
+  EXPECT_FALSE(WouldBid("X", "P 1S").MeetsRequirement(h_2515_10hcp));
+  EXPECT_TRUE(WouldBid("2H", "P 1S").MeetsRequirement(h_2515_10hcp));
+  EXPECT_TRUE(WouldBid("2S", "P 1S").MeetsRequirement(h_2515_10hcp));
 }
 

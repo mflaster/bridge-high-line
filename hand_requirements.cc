@@ -286,27 +286,36 @@ bool QualifiesForTakeoutDouble(uint64_t hand, const HandEvalMetrics &m,
   if (QualifiesFor1NTOvercall(hand, m, open_level, open_suit, balancing)) {
     return false;
   }
-  // Power double (17+ HCP or 18+ playing points) doubles first with any shape.
-  if (m.hcp >= 17 || m.playing_pts >= 18) {
+  // Power double (17+ HCP) doubles first with any shape.
+  if (m.hcp >= 17) {
     return true;
   }
-
-  int min_hcp = (open_level == 1) ? (balancing ? 9 : 11) : 12;
-  int min_playing = (open_level == 1) ? (balancing ? 10 : 12) : 13;
-  bool enough_pts = (m.hcp >= min_hcp) || (m.playing_pts >= min_playing) ||
-                    (open_level == 1 && m.hcp >= (min_hcp - 1) &&
-                     m.dist[open_suit] <= 1);
-  if (!enough_pts) return false;
 
   // Must be short in opener's suit (at most 2 cards, or 3 with 13+ HCP).
   if (m.dist[open_suit] > 3) return false;
   if (m.dist[open_suit] == 3 && m.hcp < 13) return false;
 
-  // A 6+ card suit with < 17 HCP prefers overcalling its own suit.
+  // Minimum HCP for a standard takeout double:
+  // - Direct seat over 1-level opening: 12+ HCP, or 11 HCP with singleton/void
+  //   in opener's suit.
+  // - Balancing seat over 1-level opening: 10+ HCP, or 9 HCP with
+  //   singleton/void in opener's suit.
+  // - Over 2+ level opening: 13+ HCP, or 12 HCP with singleton/void in
+  //   opener's suit.
+  int min_hcp = (open_level == 1) ? (balancing ? 10 : 12) : 13;
+  int min_short_hcp = min_hcp - 1;
+  bool enough_hcp =
+      (m.hcp >= min_hcp) || (m.dist[open_suit] <= 1 && m.hcp >= min_short_hcp);
+  if (!enough_hcp) return false;
+
+  // With < 17 HCP:
+  // - Any 6+ card unbid suit overcalls its own suit instead of doubling.
+  // - A 5+ card unbid major overcalls the major (or bids Michaels if 5-5)
+  //   instead of making a takeout double.
   for (int s = 0; s < 4; ++s) {
-    if (s != open_suit && m.dist[s] >= 6) {
-      return false;
-    }
+    if (s == open_suit) continue;
+    if (m.dist[s] >= 6) return false;
+    if ((s == SPADES || s == HEARTS) && m.dist[s] >= 5) return false;
   }
 
   // Classic takeout support: at least 3 cards in every unbid suit.
@@ -319,20 +328,23 @@ bool QualifiesForTakeoutDouble(uint64_t hand, const HandEvalMetrics &m,
     }
   }
   if (all_unbid_3plus) {
+    // If holding 3 cards in opener's suit, require 4 cards in the unbid major
+    // (or at least one 4-card major over a minor).
+    if (m.dist[open_suit] == 3) {
+      if (open_suit == SPADES) return m.dist[HEARTS] == 4;
+      if (open_suit == HEARTS) return m.dist[SPADES] == 4;
+      return m.dist[SPADES] == 4 || m.dist[HEARTS] == 4;
+    }
     return true;
   }
 
-  // Also allow 4+ in the unbid major(s) with <= 2 in opener's suit and >= 3
-  // in at least one unbid minor (e.g. 4-4-3-2 or 4-3-4-2 with doubleton in a
-  // minor).
-  if (m.dist[open_suit] <= 2) {
-    bool major_ok = true;
-    for (Suit maj : {SPADES, HEARTS}) {
-      if (maj != open_suit && m.dist[maj] < 4) {
-        major_ok = false;
-      }
-    }
-    if (major_ok && (m.dist[DIAMONDS] >= 3 || m.dist[CLUBS] >= 3)) {
+  // Over a minor opening (1C/1D), allow 4-4 in the majors with <= 2 in
+  // opener's minor and a doubleton (never singleton/void) in the unbid minor
+  // (i.e. 4-4-3-2 or 4-4-2-3).
+  if ((open_suit == CLUBS || open_suit == DIAMONDS) &&
+      m.dist[open_suit] <= 2 && m.dist[SPADES] == 4 && m.dist[HEARTS] == 4) {
+    Suit other_minor = (open_suit == CLUBS) ? DIAMONDS : CLUBS;
+    if (m.dist[other_minor] >= 2) {
       return true;
     }
   }
