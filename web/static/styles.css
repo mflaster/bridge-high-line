@@ -1828,6 +1828,11 @@ body.is-resizing * {
   transition: fill 0.12s ease, filter 0.12s ease;
 }
 
+.card-rank-current.card-rank-playable {
+  fill: #fbbf24;
+  font-weight: 900;
+}
+
 .card-rank-playable:hover {
   fill: #38bdf8;
   text-decoration: underline;
