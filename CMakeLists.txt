@@ -39,13 +39,15 @@ FetchContent_Declare(
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
-# 3. Catch2 (only needed for native test builds)
+# 3. GoogleTest (only needed for native test builds)
 if(NOT EMSCRIPTEN)
-  set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+  set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_Declare(
-    Catch2
-    URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.5.2.tar.gz
-    URL_HASH SHA256=269543a49eb76f40b3f93ff231d4c24c27a7e16c90e47d2e45bcc564de470c6e
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+    URL_HASH SHA256=8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
   )
 endif()
@@ -59,9 +61,11 @@ FetchContent_Declare(
 )
 
 if(EMSCRIPTEN)
+  add_compile_options(-pthread)
+  add_link_options(-pthread)
   FetchContent_MakeAvailable(boost_headers glog)
 else()
-  FetchContent_MakeAvailable(boost_headers glog Catch2)
+  FetchContent_MakeAvailable(boost_headers glog googletest)
 endif()
 
 if(NOT TARGET Boost::thread)
@@ -95,7 +99,8 @@ if(NOT dds_POPULATED)
     "${dds_SOURCE_DIR}/src"
   )
   if(EMSCRIPTEN)
-    target_compile_options(dds PRIVATE -O3 -msimd128 -fexceptions)
+    target_compile_definitions(dds PRIVATE DDS_THREADS_STL)
+    target_compile_options(dds PRIVATE -O3 -msimd128 -fexceptions -pthread)
     target_link_libraries(dds PUBLIC boost_headers)
   else()
     target_compile_definitions(dds PRIVATE DDS_THREADS_OPENMP)
@@ -132,6 +137,7 @@ if(EMSCRIPTEN)
     -O3
     -msimd128
     -fexceptions
+    -pthread
     -Wno-unknown-pragmas
   )
   target_link_libraries(bridge_lib PUBLIC
@@ -145,8 +151,10 @@ if(EMSCRIPTEN)
   target_link_options(bridge_wasm PRIVATE
     "-O3"
     "-fexceptions"
+    "-pthread"
+    "-sPTHREAD_POOL_SIZE=4"
     "-sALLOW_MEMORY_GROWTH=1"
-    "-sINITIAL_MEMORY=67108864"
+    "-sINITIAL_MEMORY=134217728"
     "-sMAXIMUM_MEMORY=2147483648"
     "-sSTACK_SIZE=8388608"
     "-sENVIRONMENT=worker,web,node"
@@ -162,6 +170,7 @@ else()
       ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
       ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
       ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
+      ${CMAKE_CURRENT_SOURCE_DIR}/docs/bridge-strategy.md
     COMMENT "Generating web/web_assets.h from static web assets"
   )
 
@@ -183,7 +192,7 @@ else()
     glog::glog
     boost_headers
     OpenMP::OpenMP_CXX
-    Catch2::Catch2
+    GTest::gtest
   )
 
   if(WIN32)
@@ -224,7 +233,7 @@ else()
     add_executable(${test_name} ${TEST_SRC})
     target_link_libraries(${test_name} PRIVATE
       bridge_lib
-      Catch2::Catch2WithMain
+      GTest::gtest_main
     )
     add_test(NAME ${test_name} COMMAND ${test_name} WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
   endforeach()

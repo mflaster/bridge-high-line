@@ -1,13 +1,15 @@
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <thread>
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 
+#include "deal.h"
 #include "golden_serializer.h"
 #include "line_finder.h"
-#include "deal.h"
+#include "omp_compat.h"
 
-TEST_CASE("GeneralizedDemiPlay1") {
+TEST(LineFinderTest, GeneralizedDemiPlay1) {
   GeneralizedDemiPlay line(HEARTS);
   for (int i = 0; i < 5; i++) {
     line.RecordOptimalPlay("", "HA", i);
@@ -22,13 +24,13 @@ TEST_CASE("GeneralizedDemiPlay1") {
   GeneralizedPlaysVector top_plays = line.GetGeneralizedPlays(0, HEARTS);
   std::cout << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
       top_plays) << "\n";
-  REQUIRE(top_plays.size() == 3);
+  ASSERT_TRUE(top_plays.size() == 3);
   REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
                              "generalized_demi_play_1.golden",
                              "GeneralizedDemiPlay1: top plays in hearts");
 }
 
-TEST_CASE("GeneralizedDemiPlay2") {
+TEST(LineFinderTest, GeneralizedDemiPlay2) {
   GeneralizedDemiPlay line(HEARTS);
   for (int i = 0; i < 5; i++) {
     std::string opp_card = "H2";
@@ -51,13 +53,13 @@ TEST_CASE("GeneralizedDemiPlay2") {
   std::cout << "Got top_plays:\n" << GeneralizedDemiPlay::PrintGeneralizedPlays(
       top_plays) << "\n";
   // 14 if you consider low cards, 9 cards otherwise
-  REQUIRE((top_plays.size() == 9 || top_plays.size() == 10));
+  ASSERT_TRUE((top_plays.size() == 9 || top_plays.size() == 10));
   REQUIRE_GOLDEN_LINE_RESULT(GeneralizedDemiPlay::PrintGeneralizedPlays(top_plays),
                              "generalized_demi_play_2.golden",
                              "GeneralizedDemiPlay2: top plays in hearts with opponent cards");
 }
 
-TEST_CASE("GeneralizedTrickFinders") {
+TEST(LineFinderTest, GeneralizedTrickFinders) {
   // From solver8
   std::vector<std::string> input = {
     "H7 H5 H8 H4",
@@ -140,7 +142,7 @@ TEST_CASE("GeneralizedTrickFinders") {
     GeneralizedTricksVector gen_tricks = gen_trick.GetGeneralizedTricks(20);
     std::cout << "Leader " << leader << ": got top tricks\n"
               << GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks) << "\n";
-    REQUIRE(gen_tricks.size() == 20);
+    ASSERT_TRUE(gen_tricks.size() == 20);
     REQUIRE_GOLDEN_LINE_RESULT(GeneralizedTrickFinder::PrintGeneralizedTricks(gen_tricks),
                                "generalized_trick_finder_leader_" + std::to_string(leader) + ".golden",
                                "GeneralizedTrickFinders: leader " + std::to_string(leader) + " top tricks");
@@ -153,7 +155,7 @@ TEST_CASE("GeneralizedTrickFinders") {
           break;
         }
       }
-      REQUIRE(found);
+      ASSERT_TRUE(found);
     } else {
       bool found = false;
       for (size_t i = 0; i < std::min<size_t>(10, gen_tricks.size()); i++) {
@@ -163,7 +165,7 @@ TEST_CASE("GeneralizedTrickFinders") {
           break;
         }
       }
-      REQUIRE(found);
+      ASSERT_TRUE(found);
     }
   }
 }
@@ -184,7 +186,7 @@ std::string PrintBestLine(const std::vector<ConditionalLine> &lines) {
 }
 
 
-TEST_CASE("BestLead1") {
+TEST(LineFinderTest, BestLead1) {
   std::cout << "BestLead1" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -217,10 +219,10 @@ TEST_CASE("BestLead1") {
       lf.FindBestLead(min_tricks, hands, unknown_cards, leader, SPADES);
   std::cout << "Found best leads " << StrJoin(leads, ", ") << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(StrJoin(leads, ", "), "best_lead_1.golden", hands, unknown_cards, SPADES, "BestLead1: best lead for spades contract, Hand 1 on lead");
-  // REQUIRE(leads.size() == 1);
+  // ASSERT_TRUE(leads.size() == 1);
 }
 
-TEST_CASE("BestContract1", "[.slow]") {
+TEST(LineFinderTest, DISABLED_BestContract1) {
   std::cout << "BestContract1" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -256,7 +258,7 @@ TEST_CASE("BestContract1", "[.slow]") {
   REQUIRE_GOLDEN_LINE_RESULT(notrump_tricks, "best_contract_1_notrump.golden", hands, unknown_cards, NOTRUMP, "BestContract1: NT contract trick distribution, Hand 1 on lead");
 }
 
-TEST_CASE("BestContract2", "[.slow]") {
+TEST(LineFinderTest, DISABLED_BestContract2) {
   std::cout << "BestContract2" << "\n";
   srand48(0);
   std::set<uint64_t> better_for_spades;
@@ -329,7 +331,7 @@ TEST_CASE("BestContract2", "[.slow]") {
   std::cout << "Total hands better for spades: " << better_for_spades.size() << "\n";
 }
 
-TEST_CASE("BestContract3", "[.slow]") {
+TEST(LineFinderTest, DISABLED_BestContract3) {
   std::cout << "BestContract3" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -415,7 +417,7 @@ void RunLineFinderTestCase(const LineFinderTestCase &tc) {
       lf.Solve(min_tricks, hands, unknown, tc.leader, tc.trump, cur_trick);
 
   std::cout << "Found lines: " << lines.size() << "\n";
-  REQUIRE(!lines.empty());
+  ASSERT_TRUE(!lines.empty());
 
   std::string desc = tc.description;
   if (desc.empty()) {
@@ -426,7 +428,7 @@ void RunLineFinderTestCase(const LineFinderTestCase &tc) {
   REQUIRE_GOLDEN_LINE_RESULT(lines, tc.name + ".golden", hands, unknown, tc.trump, desc);
 }
 
-TEST_CASE("LineFinder2") {
+TEST(LineFinderTest, LineFinder2) {
   RunLineFinderTestCase({
     .name = "line_finder_2",
     .trump = SPADES,
@@ -440,7 +442,7 @@ TEST_CASE("LineFinder2") {
   });
 }
 
-TEST_CASE("LineFinder3") {
+TEST(LineFinderTest, LineFinder3) {
   RunLineFinderTestCase({
     .name = "line_finder_3",
     .trump = SPADES,
@@ -455,7 +457,7 @@ TEST_CASE("LineFinder3") {
   });
 }
 
-TEST_CASE("LineFinder4") {
+TEST(LineFinderTest, LineFinder4) {
   RunLineFinderTestCase({
     .name = "line_finder_4",
     .trump = SPADES,
@@ -469,7 +471,7 @@ TEST_CASE("LineFinder4") {
   });
 }
 
-TEST_CASE("LineFinder5", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder5) {
   RunLineFinderTestCase({
     .name = "line_finder_5",
     .trump = SPADES,
@@ -483,7 +485,7 @@ TEST_CASE("LineFinder5", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder5b", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder5b) {
   RunLineFinderTestCase({
     .name = "line_finder_5b",
     .trump = SPADES,
@@ -498,7 +500,7 @@ TEST_CASE("LineFinder5b", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder5c", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder5c) {
   RunLineFinderTestCase({
     .name = "line_finder_5c",
     .trump = SPADES,
@@ -514,7 +516,7 @@ TEST_CASE("LineFinder5c", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder5d", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder5d) {
   RunLineFinderTestCase({
     .name = "line_finder_5d",
     .trump = DIAMONDS,
@@ -530,7 +532,7 @@ TEST_CASE("LineFinder5d", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder5e", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder5e) {
   RunLineFinderTestCase({
     .name = "line_finder_5e",
     .trump = SPADES,
@@ -546,7 +548,7 @@ TEST_CASE("LineFinder5e", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder7", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder7) {
   RunLineFinderTestCase({
     .name = "line_finder_7",
     .trump = SPADES,
@@ -560,7 +562,7 @@ TEST_CASE("LineFinder7", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder9", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder9) {
   RunLineFinderTestCase({
     .name = "line_finder_9",
     .trump = NOTRUMP,
@@ -574,7 +576,7 @@ TEST_CASE("LineFinder9", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder11", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder11) {
   RunLineFinderTestCase({
     .name = "line_finder_11",
     .trump = HEARTS,
@@ -589,7 +591,7 @@ TEST_CASE("LineFinder11", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder12", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder12) {
   RunLineFinderTestCase({
     .name = "line_finder_12",
     .trump = NOTRUMP,
@@ -604,7 +606,7 @@ TEST_CASE("LineFinder12", "[.slow]") {
   });
 }
 
-TEST_CASE("LineFinder13", "[.slow]") {
+TEST(LineFinderTest, DISABLED_LineFinder13) {
   std::cout << "LineFinder13" << "\n";
   srand48(0);
   uint64_t known_hand = ParseHand("SQ6; HKQT983; DK7; CAJ3");
@@ -651,7 +653,7 @@ TEST_CASE("LineFinder13", "[.slow]") {
             << num_hands_to_try << " = " << (more_than_half / num_hands_to_try) << "\n";
 }
 
-TEST_CASE("LineFinder_Squeeze1") {
+TEST(LineFinderTest, LineFinder_Squeeze1) {
   RunLineFinderTestCase({
     .name = "squeeze_1",
     .trump = NOTRUMP,
@@ -664,7 +666,7 @@ TEST_CASE("LineFinder_Squeeze1") {
   });
 }
 
-TEST_CASE("LineFinder_TrumpSafety") {
+TEST(LineFinderTest, LineFinder_TrumpSafety) {
   RunLineFinderTestCase({
     .name = "trump_safety",
     .trump = SPADES,
@@ -678,7 +680,7 @@ TEST_CASE("LineFinder_TrumpSafety") {
   });
 }
 
-TEST_CASE("LineFinder_OnsideAce") {
+TEST(LineFinderTest, LineFinder_OnsideAce) {
   RunLineFinderTestCase({
     .name = "OnsideAce",
     .trump = CLUBS,
@@ -691,7 +693,7 @@ TEST_CASE("LineFinder_OnsideAce") {
   });
 }
 
-TEST_CASE("LineFinder_4CardEndplay") {
+TEST(LineFinderTest, LineFinder_4CardEndplay) {
   RunLineFinderTestCase({
     .name = "line_finder_4_card_endplay",
     .trump = HEARTS,
@@ -705,7 +707,7 @@ TEST_CASE("LineFinder_4CardEndplay") {
   });
 }
 
-TEST_CASE("LineFinder_OrInvariant") {
+TEST(LineFinderTest, LineFinder_OrInvariant) {
   RunLineFinderTestCase({
     .name = "or_invariant",
     .trump = DIAMONDS,
@@ -718,7 +720,7 @@ TEST_CASE("LineFinder_OrInvariant") {
   });
 }
 
-TEST_CASE("LineFinder_AndInvariant") {
+TEST(LineFinderTest, LineFinder_AndInvariant) {
   RunLineFinderTestCase({
     .name = "and_invariant",
     .trump = DIAMONDS,
@@ -731,7 +733,7 @@ TEST_CASE("LineFinder_AndInvariant") {
   });
 }
 
-TEST_CASE("LineFinder_Simple9CardHearts") {
+TEST(LineFinderTest, LineFinder_Simple9CardHearts) {
   RunLineFinderTestCase({
     .name = "simple_9_card_hearts",
     .trump = HEARTS,
@@ -744,7 +746,7 @@ TEST_CASE("LineFinder_Simple9CardHearts") {
   });
 }
 
-TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
+TEST(LineFinderTest, LineFinder_MidTrickSolveAndPreassignedDefenderCard) {
   srand48(0);
   // 2-card Spades finesse deal: N has SAQ, S has S87, E/W share SK543.
   // Case 1: South leads S8 (1 card in cur_trick).
@@ -760,9 +762,9 @@ TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
     LineFinder lf(20);
     std::vector<ConditionalLine> lines =
         lf.Solve(2, hands, unknown_cards, /*leader=*/2, SPADES, cur_trick);
-    REQUIRE(!lines.empty());
-    REQUIRE(lines[0].CoveredBoards() > 0);
-    REQUIRE(lines[0].Describe().find("S8") != std::string::npos);
+    ASSERT_TRUE(!lines.empty());
+    ASSERT_TRUE(lines[0].CoveredBoards() > 0);
+    ASSERT_TRUE(lines[0].Describe().find("S8") != std::string::npos);
   }
 
   // Case 2: South leads S8, West plays S3 from Unknown Cards (assigned to W).
@@ -783,9 +785,9 @@ TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
     LineFinder lf(20);
     std::vector<ConditionalLine> lines =
         lf.Solve(2, hands, unknown_cards, /*leader=*/2, SPADES, cur_trick);
-    REQUIRE(!lines.empty());
-    REQUIRE(lines[0].CoveredBoards() > 0);
-    REQUIRE(lines[0].Describe().find("S8") != std::string::npos);
+    ASSERT_TRUE(!lines.empty());
+    ASSERT_TRUE(lines[0].CoveredBoards() > 0);
+    ASSERT_TRUE(lines[0].Describe().find("S8") != std::string::npos);
   }
 
   // Case 3: 3 cards in cur_trick (S8, S3, SQ played; East to play 4th card).
@@ -805,13 +807,13 @@ TEST_CASE("LineFinder_MidTrickSolveAndPreassignedDefenderCard") {
     LineFinder lf(20);
     std::vector<ConditionalLine> lines =
         lf.Solve(2, hands, unknown_cards, /*leader=*/2, SPADES, cur_trick);
-    REQUIRE(!lines.empty());
-    REQUIRE(lines[0].CoveredBoards() > 0);
-    REQUIRE(lines[0].Describe().find("SQ") != std::string::npos);
+    ASSERT_TRUE(!lines.empty());
+    ASSERT_TRUE(lines[0].CoveredBoards() > 0);
+    ASSERT_TRUE(lines[0].Describe().find("SQ") != std::string::npos);
   }
 }
 
-TEST_CASE("LineFinder_NineCardHeartsTrick2DK") {
+TEST(LineFinderTest, LineFinder_NineCardHeartsTrick2DK) {
   srand48(0);
   // 9-Card Hearts deal at Trick 2 after #1: D2 D7 D8 D9 (West won D9) and West
   // leads DK at Trick 2 (with East known to have followed to Diamonds on
@@ -830,12 +832,12 @@ TEST_CASE("LineFinder_NineCardHeartsTrick2DK") {
   LineFinder lf(40);
   std::vector<ConditionalLine> lines =
       lf.Solve(6, hands, unknown_cards, /*leader=*/3, HEARTS, cur_trick);
-  REQUIRE(!lines.empty());
-  REQUIRE(lines[0].CoveredBoards() > 0);
-  REQUIRE(lines[0].Describe().find("(DK)") != std::string::npos);
+  ASSERT_TRUE(!lines.empty());
+  ASSERT_TRUE(lines[0].CoveredBoards() > 0);
+  ASSERT_TRUE(lines[0].Describe().find("(DK)") != std::string::npos);
 }
 
-TEST_CASE("LineFinder_RestrictedChoice_NoDuplicateTrick1Splits") {
+TEST(LineFinderTest, LineFinder_RestrictedChoice_NoDuplicateTrick1Splits) {
   srand48(0);
   // Restricted Choice spade combination (AT987 opposite K654, missing QJ32).
   // Previously, Solve returned 4 tied lines that all played SA and S6 on the
@@ -852,8 +854,8 @@ TEST_CASE("LineFinder_RestrictedChoice_NoDuplicateTrick1Splits") {
   std::vector<ConditionalLine> lines =
       lf.Solve(6, hands, unknown_cards, /*leader=*/0, SPADES,
                {Card::ParseStringCard("SA")});
-  REQUIRE(lines.size() == 1);
-  REQUIRE(lines[0].conditions().size() == 1);
+  ASSERT_TRUE(lines.size() == 1);
+  ASSERT_TRUE(lines[0].conditions().size() == 1);
 
   // Reduced Mollo 6S ending (East leads DQ, West holds DA, North void in D):
   // Verify that Solve does not return near-duplicate lines that share the same
@@ -870,13 +872,13 @@ TEST_CASE("LineFinder_RestrictedChoice_NoDuplicateTrick1Splits") {
   std::vector<ConditionalLine> mollo_lines =
       mollo_lf.Solve(7, mollo_hands, mollo_unknown, /*leader=*/1, SPADES,
                      {Card::ParseStringCard("DQ")});
-  REQUIRE(!mollo_lines.empty());
+  ASSERT_TRUE(!mollo_lines.empty());
   for (const ConditionalLine &line : mollo_lines) {
-    REQUIRE(line.conditions().size() == 1);
+    ASSERT_TRUE(line.conditions().size() == 1);
   }
 }
 
-TEST_CASE("LineFinder_ReuseCachedDealsForForcedLead") {
+TEST(LineFinderTest, LineFinder_ReuseCachedDealsForForcedLead) {
   srand48(0);
   std::vector<uint64_t> hands(4, 0);
   hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
@@ -886,40 +888,40 @@ TEST_CASE("LineFinder_ReuseCachedDealsForForcedLead") {
   LineFinder lf(30);
   std::vector<ConditionalLine> base_lines =
       lf.Solve(6, hands, unknown, 0, HEARTS, {});
-  REQUIRE(!base_lines.empty());
+  ASSERT_TRUE(!base_lines.empty());
   int base_cov = base_lines[0].CoveredFinalBoards();
-  REQUIRE(base_cov > 0);
+  ASSERT_TRUE(base_cov > 0);
 
   // Forced lead HT (distinct rank in suit) should reuse base_boards_ and
   // base_init_trees_ and match a fresh cold solve with the same seed.
   std::vector<ConditionalLine> warm_ht =
       lf.Solve(6, hands, unknown, 0, HEARTS, {Card::ParseStringCard("HT")});
-  REQUIRE(!warm_ht.empty());
+  ASSERT_TRUE(!warm_ht.empty());
 
   srand48(0);
   LineFinder cold_lf_ht(30);
   std::vector<ConditionalLine> cold_ht =
       cold_lf_ht.Solve(6, hands, unknown, 0, HEARTS,
                        {Card::ParseStringCard("HT")});
-  REQUIRE(!cold_ht.empty());
-  REQUIRE(warm_ht[0].CoveredFinalBoards() == cold_ht[0].CoveredFinalBoards());
+  ASSERT_TRUE(!cold_ht.empty());
+  ASSERT_TRUE(warm_ht[0].CoveredFinalBoards() == cold_ht[0].CoveredFinalBoards());
 
   // Forced lead S5 (higher of touching/near-touching spades) and S3 (lower in
   // same suit) should also match fresh cold solves on the same 30 deals.
   std::vector<ConditionalLine> warm_s5 =
       lf.Solve(6, hands, unknown, 0, HEARTS, {Card::ParseStringCard("S5")});
-  REQUIRE(!warm_s5.empty());
+  ASSERT_TRUE(!warm_s5.empty());
 
   srand48(0);
   LineFinder cold_lf_s5(30);
   std::vector<ConditionalLine> cold_s5 =
       cold_lf_s5.Solve(6, hands, unknown, 0, HEARTS,
                        {Card::ParseStringCard("S5")});
-  REQUIRE(!cold_s5.empty());
-  REQUIRE(warm_s5[0].CoveredFinalBoards() == cold_s5[0].CoveredFinalBoards());
+  ASSERT_TRUE(!cold_s5.empty());
+  ASSERT_TRUE(warm_s5[0].CoveredFinalBoards() == cold_s5[0].CoveredFinalBoards());
 }
 
-TEST_CASE("LineFinder_StopSolve") {
+TEST(LineFinderTest, LineFinder_StopSolve) {
   srand48(0);
   std::vector<uint64_t> hands(4, 0);
   hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
@@ -943,16 +945,53 @@ TEST_CASE("LineFinder_StopSolve") {
   std::vector<ConditionalLine> stopped_lines =
       lf.Solve(6, hands, unknown, 0, HEARTS, {}, /*num_threads=*/2);
   stopper.join();
-  REQUIRE(LineFinder::IsStopRequested());
-  REQUIRE(stopped_lines.empty());
-  REQUIRE(LineFinder::GetSolveStatus() == "Solve stopped.");
+  ASSERT_TRUE(LineFinder::IsStopRequested());
+  ASSERT_TRUE(stopped_lines.empty());
+  ASSERT_TRUE(LineFinder::GetSolveStatus() == "Solve stopped.");
 
   // A subsequent Solve() automatically clears the stop flag and succeeds.
   LineFinder lf2(15);
   std::vector<ConditionalLine> resumed_lines =
       lf2.Solve(6, hands, unknown, 0, HEARTS, {});
-  REQUIRE(!LineFinder::IsStopRequested());
-  REQUIRE(!resumed_lines.empty());
-  REQUIRE(resumed_lines[0].CoveredFinalBoards() > 0);
+  ASSERT_TRUE(!LineFinder::IsStopRequested());
+  ASSERT_TRUE(!resumed_lines.empty());
+  ASSERT_TRUE(resumed_lines[0].CoveredFinalBoards() > 0);
 }
+
+TEST(LineFinderTest, OmpCompatPool_FourThreadsNestedTasks) {
+  auto &pool = OmpCompatPool::Instance();
+  std::atomic<int> sum{0};
+  std::atomic<int> thread_mask{0};
+
+  pool.RunRegion(4, [&]() {
+    ASSERT_TRUE(OmpCompatPool::InParallel() == 1);
+    ASSERT_TRUE(OmpCompatPool::MaxThreads() == 4);
+    pool.RunTaskBatch(8, [&](size_t outer) {
+      int tid_outer = OmpCompatPool::ThreadNum();
+      ASSERT_TRUE(tid_outer >= 0);
+      ASSERT_TRUE(tid_outer < 4);
+      thread_mask.fetch_or(1 << tid_outer, std::memory_order_relaxed);
+      pool.RunTaskBatch(4, [&](size_t inner) {
+        int tid_inner = OmpCompatPool::ThreadNum();
+        ASSERT_TRUE(tid_inner >= 0);
+        ASSERT_TRUE(tid_inner < 4);
+        thread_mask.fetch_or(1 << tid_inner, std::memory_order_relaxed);
+        sum.fetch_add(static_cast<int>(outer * 10 + inner + 1),
+                      std::memory_order_relaxed);
+      });
+    });
+  });
+
+  int expected = 0;
+  for (size_t outer = 0; outer < 8; ++outer) {
+    for (size_t inner = 0; inner < 4; ++inner) {
+      expected += static_cast<int>(outer * 10 + inner + 1);
+    }
+  }
+  ASSERT_TRUE(sum.load() == expected);
+  ASSERT_TRUE(OmpCompatPool::InParallel() == 0);
+  ASSERT_TRUE((thread_mask.load() & 1) != 0);
+  ASSERT_TRUE((thread_mask.load() & ~0xF) == 0);
+}
+
 

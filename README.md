@@ -4,6 +4,9 @@ A C++17 library and test suite for double-dummy bridge analysis, deal generation
 
 ## System Architecture & Documentation
 
+- **[User Guide](docs/user-guide.md)**: How to load hand records (PDFs, photos, PBNs, text files), explore the interactive decision tree, propose alternative lines, and compare competing strategies.
+- **[Bridge Strategy Guide](docs/bridge-strategy.md)**: High-level explanation for bridge players of how single-dummy sampling, conditional decision trees, and the adversarial defense pass work.
+
 Comprehensive architectural documentation, interactive Mermaid diagrams, sequence diagrams, and component layer descriptions are available in [docs/architecture.md](docs/architecture.md):
 
 - **[Component Topology Diagram](docs/architecture.md#1-top-level-component-topology)**: Visual map of analytical engines (including `CrossHandDealSetSummarizer`), performance utilities (`line_finder_perf`), solvers, state management, and core data primitives.
@@ -20,8 +23,8 @@ Comprehensive architectural documentation, interactive Mermaid diagrams, sequenc
 All external dependencies are automatically fetched, configured, and built via CMake `FetchContent` or embedded in `third_party/`. No manual pre-installation of libraries is required:
 
 - **Double Dummy Solver (`dds`)**: v2.9.0 static library build with OpenMP support.
-- **Catch2**: v3.5.2 test framework.
-- **glog**: Google Logging library (v0.6.0).
+- **GoogleTest (`gtest`)**: v1.14.0 test framework.
+- **glog**: Google Logging library (v0.7.1).
 - **Boost**: C++ Header libraries (v1.83.0).
 - **Embedded Web Assets & HTTP Microserver**: C++17 single-binary microserver powered by embedded `cpp-httplib` and `nlohmann/json`.
 
@@ -60,7 +63,7 @@ There are three primary ways to build and run the project on Windows 10:
    # Run test suite
    ctest --test-dir build -C Release --output-on-failure
    ```
-   *Note: All C++ dependencies (Catch2, glog, Boost headers, DDS) are automatically downloaded and built via CMake `FetchContent`.*
+   *Note: All C++ dependencies (GoogleTest, glog, Boost headers, DDS) are automatically downloaded and built via CMake `FetchContent`.*
 
 #### Option 2: MSYS2 / MinGW-w64 (`g++`)
 1. Install [MSYS2](https://www.msys2.org/) and launch the **MINGW64** shell.
@@ -145,7 +148,7 @@ For complete details on web application usage, configuration, and REST JSON API 
 - **`hand_requirements_test`**: High card points, suit length, and hand shape constraint checkers.
 - **`interface_dds_test`**: Higher-level DDS C++ wrapper tests and play tree evaluations.
 - **`line_finder_test`**: Line-finding searches across simulated deals.
-- **`server_test`**: Catch2 unit and integration tests for `bridge_server` routes and static web assets.
+- **`server_test`**: GoogleTest unit and integration tests for `bridge_server` routes and static web assets.
 
 ### Performance Benchmark
 - **`line_finder_perf`**: Standalone performance test binary evaluating `LineFinder::Solve` scaling across deal ending sizes (6 to 13 cards per hand) and recording execution benchmarks in `perf/summary.log` and `perf/details.log`. Detailed module specifications are in the [Performance Utilities Layer](docs/architecture.md#35-performance-utilities-layer).
@@ -166,7 +169,7 @@ make run_all_tests
 
 ### Running Individual Tests
 
-You can run individual Catch2 test binaries directly from `build/` with optional Catch2 flags:
+You can run individual GoogleTest binaries directly from `build/` with optional GoogleTest flags:
 
 ```bash
 # Run deal tests
@@ -175,11 +178,11 @@ You can run individual Catch2 test binaries directly from `build/` with optional
 # Run web server tests
 ./build/server_test
 
-# Run basic tests with compact reporter
-./build/basic_test --reporter compact --success -d yes
+# Filter to specific test cases
+./build/basic_test --gtest_filter=*Solver*
 
-# Skip slow tests in line_finder_test using Catch2 tags
-./build/line_finder_test "~[.slow]"
+# Also run disabled slow tests in line_finder_test
+./build/line_finder_test --gtest_also_run_disabled_tests
 ```
 
 Or run via Makefile convenience targets:

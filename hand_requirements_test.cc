@@ -1,21 +1,21 @@
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 
 #include "card.h"
 #include "hand.h"
 #include "hand_requirements.h"
 
-TEST_CASE("basic") {
+TEST(HandRequirementsTest, basic) {
   uint64_t hand = ParseHand("S KQJT987 H KQJ; D KQJ; C 9; ");
-  REQUIRE(SuitAtLeast(SPADES, 8).MeetsRequirement(hand) == false);
-  REQUIRE(SuitAtLeast(SPADES, 7).MeetsRequirement(hand) == true);
-  REQUIRE(SuitAtLeast(SPADES, 6).MeetsRequirement(hand) == true);
+  ASSERT_TRUE(SuitAtLeast(SPADES, 8).MeetsRequirement(hand) == false);
+  ASSERT_TRUE(SuitAtLeast(SPADES, 7).MeetsRequirement(hand) == true);
+  ASSERT_TRUE(SuitAtLeast(SPADES, 6).MeetsRequirement(hand) == true);
 
-  REQUIRE(SuitAtLeast(HEARTS, 4).MeetsRequirement(hand) == false);
-  REQUIRE(SuitAtLeast(HEARTS, 3).MeetsRequirement(hand) == true);
-  REQUIRE(SuitAtLeast(HEARTS, 2).MeetsRequirement(hand) == true);
+  ASSERT_TRUE(SuitAtLeast(HEARTS, 4).MeetsRequirement(hand) == false);
+  ASSERT_TRUE(SuitAtLeast(HEARTS, 3).MeetsRequirement(hand) == true);
+  ASSERT_TRUE(SuitAtLeast(HEARTS, 2).MeetsRequirement(hand) == true);
 }
 
-TEST_CASE("anti_and_any_of_requirements") {
+TEST(HandRequirementsTest, anti_and_any_of_requirements) {
   uint64_t hand4 = ParseHand("S J543 D 5432");
   uint64_t hand0 = ParseHand("D 5432 C 5432");
   uint64_t hand2 = ParseHand("S 54 D 5432 C 54");
@@ -23,30 +23,30 @@ TEST_CASE("anti_and_any_of_requirements") {
   auto not_1_to_3 = std::make_shared<AntiRequirement>(
       std::make_shared<SuitLength>(SPADES, 1, 3));
 
-  REQUIRE(not_1_to_3->MeetsRequirement(hand4) == true);
-  REQUIRE(not_1_to_3->MeetsRequirement(hand0) == true);
-  REQUIRE(not_1_to_3->MeetsRequirement(hand2) == false);
+  ASSERT_TRUE(not_1_to_3->MeetsRequirement(hand4) == true);
+  ASSERT_TRUE(not_1_to_3->MeetsRequirement(hand0) == true);
+  ASSERT_TRUE(not_1_to_3->MeetsRequirement(hand2) == false);
 
   auto zero_or_four = std::make_shared<AnyOfRequirement>(
       std::vector<std::shared_ptr<HandRequirements>>{
           std::make_shared<SuitLength>(SPADES, 0, 0),
           std::make_shared<SuitLength>(SPADES, 4, 4)});
 
-  REQUIRE(zero_or_four->MeetsRequirement(hand4) == true);
-  REQUIRE(zero_or_four->MeetsRequirement(hand0) == true);
-  REQUIRE(zero_or_four->MeetsRequirement(hand2) == false);
+  ASSERT_TRUE(zero_or_four->MeetsRequirement(hand4) == true);
+  ASSERT_TRUE(zero_or_four->MeetsRequirement(hand0) == true);
+  ASSERT_TRUE(zero_or_four->MeetsRequirement(hand2) == false);
 }
 
-TEST_CASE("HonorBitmask_ExtractionAndCounts") {
+TEST(HandRequirementsTest, HonorBitmask_ExtractionAndCounts) {
   // Empty hand
   uint64_t empty_hand = 0;
-  REQUIRE(ExtractHonors(empty_hand) == 0ULL);
-  REQUIRE(CountHonorsInHand(empty_hand) == 0);
+  ASSERT_TRUE(ExtractHonors(empty_hand) == 0ULL);
+  ASSERT_TRUE(CountHonorsInHand(empty_hand) == 0);
 
   // Spot cards only (ranks 2-9)
   uint64_t spot_hand = ParseHand("S 98765432 H 98765");
-  REQUIRE(ExtractHonors(spot_hand) == 0ULL);
-  REQUIRE(CountHonorsInHand(spot_hand) == 0);
+  ASSERT_TRUE(ExtractHonors(spot_hand) == 0ULL);
+  ASSERT_TRUE(CountHonorsInHand(spot_hand) == 0);
 
   // Hand with specific honors: S A, H K, D Q, C J
   uint64_t honor_hand = ParseHand("S A H K D Q C J");
@@ -54,132 +54,132 @@ TEST_CASE("HonorBitmask_ExtractionAndCounts") {
                           Card::GetSuitedCard(HEARTS, 11) |
                           Card::GetSuitedCard(DIAMONDS, 10) |
                           Card::GetSuitedCard(CLUBS, 9);
-  REQUIRE(ExtractHonors(honor_hand) == expected_mask);
-  REQUIRE(CountHonorsInHand(honor_hand) == 4);
+  ASSERT_TRUE(ExtractHonors(honor_hand) == expected_mask);
+  ASSERT_TRUE(CountHonorsInHand(honor_hand) == 4);
 
   // All honors (A, K, Q, J, 10 across all 4 suits)
   uint64_t all_honors = ParseHand("S AKQJT H AKQJT D AKQJT C AKQJT");
-  REQUIRE(ExtractHonors(all_honors) == kHonorMask64);
-  REQUIRE(CountHonorsInHand(all_honors) == 20);
+  ASSERT_TRUE(ExtractHonors(all_honors) == kHonorMask64);
+  ASSERT_TRUE(CountHonorsInHand(all_honors) == 20);
 }
 
-TEST_CASE("FastHighCardPoints_Calculation") {
-  REQUIRE(GetHighCardPoints(0) == 0);
+TEST(HandRequirementsTest, FastHighCardPoints_Calculation) {
+  ASSERT_TRUE(GetHighCardPoints(0) == 0);
 
   // Spot cards have 0 HCP
-  REQUIRE(GetHighCardPoints(ParseHand("S 98765 H 9876 D 987 C 98")) == 0);
+  ASSERT_TRUE(GetHighCardPoints(ParseHand("S 98765 H 9876 D 987 C 98")) == 0);
 
   // 40 HCP hand (all A, K, Q, J)
-  REQUIRE(GetHighCardPoints(ParseHand("S AKQJ H AKQJ D AKQJ C AKQJ")) == 40);
+  ASSERT_TRUE(GetHighCardPoints(ParseHand("S AKQJ H AKQJ D AKQJ C AKQJ")) == 40);
 
   // 10 HCP hand (S AKQ2 = 9, H J = 1)
-  REQUIRE(GetHighCardPoints(ParseHand("S AKQ2 H JT9 D 876 C 543")) == 10);
+  ASSERT_TRUE(GetHighCardPoints(ParseHand("S AKQ2 H JT9 D 876 C 543")) == 10);
 
   // Requirement test with AtLeastAces
   uint64_t aces_hand = ParseHand("S A H A D K C Q");
-  REQUIRE(AtLeastAces(2).MeetsRequirement(aces_hand) == true);
-  REQUIRE(AtLeastAces(3).MeetsRequirement(aces_hand) == false);
+  ASSERT_TRUE(AtLeastAces(2).MeetsRequirement(aces_hand) == true);
+  ASSERT_TRUE(AtLeastAces(3).MeetsRequirement(aces_hand) == false);
 }
 
-TEST_CASE("HonorPossessionMatrix_Classification") {
+TEST(HandRequirementsTest, HonorPossessionMatrix_Classification) {
   // Hand 1: S AKQ 2; Hand 2: S JT 3
   uint64_t h1 = ParseHand("S AKQ2");
   uint64_t h2 = ParseHand("S JT3");
 
   HonorPossessionMatrix matrix = ClassifyHonorPossession(h1, h2);
 
-  REQUIRE(matrix.hand1_honor_count == 3);
-  REQUIRE(matrix.hand2_honor_count == 2);
-  REQUIRE(matrix.joint_honor_count == 5);
-  REQUIRE(matrix.shared_honors == 0ULL);
-  REQUIRE(matrix.neither_honors == (kHonorMask64 & ~matrix.joint_honors));
+  ASSERT_TRUE(matrix.hand1_honor_count == 3);
+  ASSERT_TRUE(matrix.hand2_honor_count == 2);
+  ASSERT_TRUE(matrix.joint_honor_count == 5);
+  ASSERT_TRUE(matrix.shared_honors == 0ULL);
+  ASSERT_TRUE(matrix.neither_honors == (kHonorMask64 & ~matrix.joint_honors));
 
-  REQUIRE(matrix.Hand1HasHonor(SPADES, 12) == true);  // Ace
-  REQUIRE(matrix.Hand1HasHonor(SPADES, 11) == true);  // King
-  REQUIRE(matrix.Hand1HasHonor(SPADES, 10) == true);  // Queen
-  REQUIRE(matrix.Hand1HasHonor(SPADES, 9) == false);  // Jack
-  REQUIRE(matrix.Hand2HasHonor(SPADES, 9) == true);   // Jack
-  REQUIRE(matrix.Hand2HasHonor(SPADES, 8) == true);   // Ten
-  REQUIRE(matrix.JointHasHonor(SPADES, 12) == true);
+  ASSERT_TRUE(matrix.Hand1HasHonor(SPADES, 12) == true);  // Ace
+  ASSERT_TRUE(matrix.Hand1HasHonor(SPADES, 11) == true);  // King
+  ASSERT_TRUE(matrix.Hand1HasHonor(SPADES, 10) == true);  // Queen
+  ASSERT_TRUE(matrix.Hand1HasHonor(SPADES, 9) == false);  // Jack
+  ASSERT_TRUE(matrix.Hand2HasHonor(SPADES, 9) == true);   // Jack
+  ASSERT_TRUE(matrix.Hand2HasHonor(SPADES, 8) == true);   // Ten
+  ASSERT_TRUE(matrix.JointHasHonor(SPADES, 12) == true);
 
-  REQUIRE(matrix.Hand1SuitHonors(SPADES) == 0x1C00);
-  REQUIRE(matrix.Hand2SuitHonors(SPADES) == 0x0300);
+  ASSERT_TRUE(matrix.Hand1SuitHonors(SPADES) == 0x1C00);
+  ASSERT_TRUE(matrix.Hand2SuitHonors(SPADES) == 0x0300);
 
   // Zero cards hands
   HonorPossessionMatrix empty_matrix = ClassifyHonorPossession(0, 0);
-  REQUIRE(empty_matrix.hand1_honors == 0ULL);
-  REQUIRE(empty_matrix.hand2_honors == 0ULL);
-  REQUIRE(empty_matrix.shared_honors == 0ULL);
-  REQUIRE(empty_matrix.joint_honors == 0ULL);
-  REQUIRE(empty_matrix.neither_honors == kHonorMask64);
-  REQUIRE(empty_matrix.hand1_honor_count == 0);
-  REQUIRE(empty_matrix.hand2_honor_count == 0);
-  REQUIRE(empty_matrix.joint_honor_count == 0);
+  ASSERT_TRUE(empty_matrix.hand1_honors == 0ULL);
+  ASSERT_TRUE(empty_matrix.hand2_honors == 0ULL);
+  ASSERT_TRUE(empty_matrix.shared_honors == 0ULL);
+  ASSERT_TRUE(empty_matrix.joint_honors == 0ULL);
+  ASSERT_TRUE(empty_matrix.neither_honors == kHonorMask64);
+  ASSERT_TRUE(empty_matrix.hand1_honor_count == 0);
+  ASSERT_TRUE(empty_matrix.hand2_honor_count == 0);
+  ASSERT_TRUE(empty_matrix.joint_honor_count == 0);
 }
 
-TEST_CASE("ToString_and_FromString") {
+TEST(HandRequirementsTest, ToString_and_FromString) {
   // 1. SuitAtLeast
   SuitAtLeast sal(SPADES, 4);
-  REQUIRE(sal.ToString() == "SuitAtLeast(Spades, 4)");
+  ASSERT_TRUE(sal.ToString() == "SuitAtLeast(Spades, 4)");
   auto sal_parsed = HandRequirements::FromString("SuitAtLeast(Spades, 4)");
-  REQUIRE(sal_parsed != nullptr);
-  REQUIRE(sal_parsed->ToString() == "SuitAtLeast(Spades, 4)");
+  ASSERT_TRUE(sal_parsed != nullptr);
+  ASSERT_TRUE(sal_parsed->ToString() == "SuitAtLeast(Spades, 4)");
 
   // 2. SuitLength
   SuitLength sl(HEARTS, 1, 3);
-  REQUIRE(sl.ToString() == "SuitLength(Hearts, 1, 3)");
+  ASSERT_TRUE(sl.ToString() == "SuitLength(Hearts, 1, 3)");
   auto sl_parsed = HandRequirements::FromString("SuitLength(Hearts, 1, 3)");
-  REQUIRE(sl_parsed != nullptr);
-  REQUIRE(sl_parsed->ToString() == "SuitLength(Hearts, 1, 3)");
+  ASSERT_TRUE(sl_parsed != nullptr);
+  ASSERT_TRUE(sl_parsed->ToString() == "SuitLength(Hearts, 1, 3)");
 
   // 3. BalancedHand
   BalancedHand bh;
-  REQUIRE(bh.ToString() == "BalancedHand()");
+  ASSERT_TRUE(bh.ToString() == "BalancedHand()");
   auto bh_parsed = HandRequirements::FromString("BalancedHand()");
-  REQUIRE(bh_parsed != nullptr);
-  REQUIRE(bh_parsed->ToString() == "BalancedHand()");
+  ASSERT_TRUE(bh_parsed != nullptr);
+  ASSERT_TRUE(bh_parsed->ToString() == "BalancedHand()");
 
   // 4. AntiRequirement
   auto anti = std::make_shared<AntiRequirement>(std::make_shared<SuitLength>(SPADES, 1, 3));
-  REQUIRE(anti->ToString() == "Anti(SuitLength(Spades, 1, 3))");
+  ASSERT_TRUE(anti->ToString() == "Anti(SuitLength(Spades, 1, 3))");
   auto anti_parsed = HandRequirements::FromString("Anti(SuitLength(Spades,1,3))");
-  REQUIRE(anti_parsed != nullptr);
-  REQUIRE(anti_parsed->ToString() == "Anti(SuitLength(Spades, 1, 3))");
+  ASSERT_TRUE(anti_parsed != nullptr);
+  ASSERT_TRUE(anti_parsed->ToString() == "Anti(SuitLength(Spades, 1, 3))");
 
   // 5. HighCardRange
   HighCardRange hcr(15, 17);
-  REQUIRE(hcr.ToString() == "HighCardRange(15, 17)");
+  ASSERT_TRUE(hcr.ToString() == "HighCardRange(15, 17)");
   auto hcr_parsed = HandRequirements::FromString("HighCardRange(15, 17)");
-  REQUIRE(hcr_parsed != nullptr);
-  REQUIRE(hcr_parsed->ToString() == "HighCardRange(15, 17)");
+  ASSERT_TRUE(hcr_parsed != nullptr);
+  ASSERT_TRUE(hcr_parsed->ToString() == "HighCardRange(15, 17)");
 
   // 6. HandHasCard
   HandHasCard hhc(Card::ParseStringCard("SK"));
-  REQUIRE(hhc.ToString() == "HandHasCard(SK)");
+  ASSERT_TRUE(hhc.ToString() == "HandHasCard(SK)");
   auto hhc_parsed = HandRequirements::FromString("HandHasCard(SK)");
-  REQUIRE(hhc_parsed != nullptr);
-  REQUIRE(hhc_parsed->ToString() == "HandHasCard(SK)");
+  ASSERT_TRUE(hhc_parsed != nullptr);
+  ASSERT_TRUE(hhc_parsed->ToString() == "HandHasCard(SK)");
 
   // 7. AtLeastAces
   AtLeastAces ala(2);
-  REQUIRE(ala.ToString() == "AtLeastAces(2)");
+  ASSERT_TRUE(ala.ToString() == "AtLeastAces(2)");
   auto ala_parsed = HandRequirements::FromString("AtLeastAces(2)");
-  REQUIRE(ala_parsed != nullptr);
-  REQUIRE(ala_parsed->ToString() == "AtLeastAces(2)");
+  ASSERT_TRUE(ala_parsed != nullptr);
+  ASSERT_TRUE(ala_parsed->ToString() == "AtLeastAces(2)");
 
   // 8. AnyOfRequirement
   std::vector<std::shared_ptr<HandRequirements>> reqs;
   reqs.push_back(std::make_shared<SuitLength>(SPADES, 0, 0));
   reqs.push_back(std::make_shared<SuitLength>(SPADES, 4, 4));
   AnyOfRequirement anyof(reqs);
-  REQUIRE(anyof.ToString() == "AnyOf(SuitLength(Spades, 0, 0), SuitLength(Spades, 4, 4))");
+  ASSERT_TRUE(anyof.ToString() == "AnyOf(SuitLength(Spades, 0, 0), SuitLength(Spades, 4, 4))");
   auto anyof_parsed = HandRequirements::FromString("AnyOf(SuitLength(Spades, 0, 0), SuitLength(Spades, 4, 4))");
-  REQUIRE(anyof_parsed != nullptr);
-  REQUIRE(anyof_parsed->ToString() == "AnyOf(SuitLength(Spades, 0, 0), SuitLength(Spades, 4, 4))");
+  ASSERT_TRUE(anyof_parsed != nullptr);
+  ASSERT_TRUE(anyof_parsed->ToString() == "AnyOf(SuitLength(Spades, 0, 0), SuitLength(Spades, 4, 4))");
 
   // Verify behavior equivalence on sample hand
   uint64_t hand4 = ParseHand("S J543 D 5432");
   uint64_t hand2 = ParseHand("S 54 D 5432 C 54");
-  REQUIRE(anti_parsed->MeetsRequirement(hand4) == true);
-  REQUIRE(anti_parsed->MeetsRequirement(hand2) == false);
+  ASSERT_TRUE(anti_parsed->MeetsRequirement(hand4) == true);
+  ASSERT_TRUE(anti_parsed->MeetsRequirement(hand2) == false);
 }

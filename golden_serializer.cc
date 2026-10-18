@@ -320,3 +320,13 @@ std::string GoldenMatcher::describe() const {
   return failure_message_.empty() ? ("Matches golden file " + golden_filename_)
                                   : failure_message_;
 }
+
+::testing::AssertionResult CheckGoldenMatch(
+    const char * /*actual_expr*/, const char * /*golden_expr*/,
+    const std::string &actual, const std::string &golden_filename) {
+  GoldenMatcher matcher(golden_filename);
+  if (matcher.match(actual)) {
+    return ::testing::AssertionSuccess();
+  }
+  return ::testing::AssertionFailure() << matcher.describe();
+}

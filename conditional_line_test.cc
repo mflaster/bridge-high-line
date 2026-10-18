@@ -1,5 +1,5 @@
 #include <iostream>
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 
 #include "golden_serializer.h"
 #include "conditional_line.h"
@@ -16,7 +16,7 @@ static std::string FormatGroupedTricks(
   return res;
 }
 
-TEST_CASE("GroupTricks") {
+TEST(ConditionalLineTest, GroupTricks) {
   std::set<int> empty;
   int leader = 0;
   auto input = std::vector<GeneralizedTrick>({
@@ -27,13 +27,13 @@ TEST_CASE("GroupTricks") {
     });
   std::vector<std::vector<GeneralizedTrick>> grouped_tricks =
       GroupTricks(input);
-  REQUIRE(grouped_tricks.size() >= 1);
-  REQUIRE(grouped_tricks[0].size() == 1);
+  ASSERT_TRUE(grouped_tricks.size() >= 1);
+  ASSERT_TRUE(grouped_tricks[0].size() == 1);
   std::cout << "grouped_tricks[0] " << grouped_tricks[0][0].ToString() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_1.golden", "GroupTricks: grouping single trick");
 }
 
-TEST_CASE("GroupTricks2") {
+TEST(ConditionalLineTest, GroupTricks2) {
   int leader = 0;
   std::set<int> empty;
   auto input = std::vector<GeneralizedTrick>({
@@ -54,12 +54,12 @@ TEST_CASE("GroupTricks2") {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  REQUIRE(grouped_tricks.size() == 1);
-  REQUIRE(grouped_tricks[0].size() == 2);
+  ASSERT_TRUE(grouped_tricks.size() == 1);
+  ASSERT_TRUE(grouped_tricks[0].size() == 2);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_2.golden", "GroupTricks2: grouping spade/heart tricks");
 }
 
-TEST_CASE("GroupTricks3") {
+TEST(ConditionalLineTest, GroupTricks3) {
   int leader = 0;
   std::set<int> empty;
   auto input = std::vector<GeneralizedTrick>({
@@ -96,13 +96,13 @@ TEST_CASE("GroupTricks3") {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  REQUIRE(grouped_tricks.size() == 4);
-  REQUIRE(grouped_tricks[0].size() == 3);
-  REQUIRE(grouped_tricks[1].size() == 2);
+  ASSERT_TRUE(grouped_tricks.size() == 4);
+  ASSERT_TRUE(grouped_tricks[0].size() == 3);
+  ASSERT_TRUE(grouped_tricks[1].size() == 2);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_3.golden", "GroupTricks3: grouping multiple trick types");
 }
 
-TEST_CASE("GroupTricks4") {
+TEST(ConditionalLineTest, GroupTricks4) {
   int leader = 1;
   std::set<int> empty;
   auto input = std::vector<GeneralizedTrick>({
@@ -139,13 +139,13 @@ TEST_CASE("GroupTricks4") {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  REQUIRE(grouped_tricks.size() == 2);
-  REQUIRE(grouped_tricks[0].size() == 5);
-  REQUIRE(grouped_tricks[1].size() == 1);
+  ASSERT_TRUE(grouped_tricks.size() == 2);
+  ASSERT_TRUE(grouped_tricks[0].size() == 5);
+  ASSERT_TRUE(grouped_tricks[1].size() == 1);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_4.golden", "GroupTricks4: grouping tricks led by West");
 }
 
-TEST_CASE("GroupTricksFinesse") {
+TEST(ConditionalLineTest, GroupTricksFinesse) {
   int leader = 0;
   std::set<int> empty;
   auto input = std::vector<GeneralizedTrick>({
@@ -182,13 +182,13 @@ TEST_CASE("GroupTricksFinesse") {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  REQUIRE(grouped_tricks.size() == 3);
-  REQUIRE(grouped_tricks[0].size() == 3);
-  REQUIRE(grouped_tricks[1].size() == 4);
+  ASSERT_TRUE(grouped_tricks.size() == 3);
+  ASSERT_TRUE(grouped_tricks[0].size() == 3);
+  ASSERT_TRUE(grouped_tricks[1].size() == 4);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse.golden", "GroupTricksFinesse: grouping finesse tricks");
 }
 
-TEST_CASE("GroupTricksFinesse2") {
+TEST(ConditionalLineTest, GroupTricksFinesse2) {
   int leader = 0;
   std::set<int> empty;
   // Hands:
@@ -238,38 +238,38 @@ TEST_CASE("GroupTricksFinesse2") {
   // The third group plays SK rather than SJ over a low card on board 0: a
   // different play that happens to be feasible on an already-grouped board,
   // so it must not be dropped as redundant.
-  REQUIRE(grouped_tricks.size() == 3);
-  REQUIRE(grouped_tricks[0].size() == 4);
-  REQUIRE(grouped_tricks[1].size() == 5);
-  REQUIRE(grouped_tricks[2].size() == 4);
+  ASSERT_TRUE(grouped_tricks.size() == 3);
+  ASSERT_TRUE(grouped_tricks[0].size() == 4);
+  ASSERT_TRUE(grouped_tricks[1].size() == 5);
+  ASSERT_TRUE(grouped_tricks[2].size() == 4);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse_2.golden", "GroupTricksFinesse2: grouping complex finesse tricks");
 }
 
-TEST_CASE("ConditionalLineTotalBoardsFormat") {
+TEST(ConditionalLineTest, ConditionalLineTotalBoardsFormat) {
   ConditionalLine line(std::set<int>({1, 2, 4, 5, 6}));
   ConditionalLine root;
   root.AddCondition(new WinnerPlayCondition(2), line);
 
-  REQUIRE(root.Describe().find("Covers 5 [1, 2, 4, 5, 6]") == 0);
-  REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5 [1, 2, 4, 5, 6]") == 0);
+  ASSERT_TRUE(root.Describe().find("Covers 5 [1, 2, 4, 5, 6]") == 0);
+  ASSERT_TRUE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5 [1, 2, 4, 5, 6]") == 0);
 
   root.set_total_boards(10);
-  REQUIRE(root.Describe().find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
-  REQUIRE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
+  ASSERT_TRUE(root.Describe().find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
+  ASSERT_TRUE(PlayLineGoldenSerializer::Serialize(root).find("Covers 5/10 (50.0%) [1, 2, 4, 5, 6]") == 0);
 }
 
-TEST_CASE("WinnerPlayConditionDescribeWithWinningCards") {
+TEST(ConditionalLineTest, WinnerPlayConditionDescribeWithWinningCards) {
   WinnerPlayCondition cond1(0, std::set<std::string>{"SQ"});
-  REQUIRE(cond1.Describe(true) == "when 0 wins the SQ");
-  REQUIRE(cond1.Describe(false) == "if 0 wins the SQ");
+  ASSERT_TRUE(cond1.Describe(true) == "when 0 wins the SQ");
+  ASSERT_TRUE(cond1.Describe(false) == "if 0 wins the SQ");
 
   WinnerPlayCondition cond2(1, std::vector<std::string>{"SJ", "SK"});
-  REQUIRE(cond2.Describe(true) == "when 1 wins the SJ,SK");
-  REQUIRE(cond2.Describe(false) == "if 1 wins the SJ,SK");
+  ASSERT_TRUE(cond2.Describe(true) == "when 1 wins the SJ,SK");
+  ASSERT_TRUE(cond2.Describe(false) == "if 1 wins the SJ,SK");
 
   WinnerPlayCondition cond3(2);
-  REQUIRE(cond3.Describe(true) == "when 2 wins");
-  REQUIRE(cond3.Describe(false) == "if 2 wins");
+  ASSERT_TRUE(cond3.Describe(true) == "when 2 wins");
+  ASSERT_TRUE(cond3.Describe(false) == "if 2 wins");
 }
 
 namespace {
@@ -317,7 +317,7 @@ ConditionalLine MakeFinesseLine(const BoardState &sample_bs) {
 
 }  // namespace
 
-TEST_CASE("ResultsFinesseOnsides") {
+TEST(ConditionalLineTest, ResultsFinesseOnsides) {
   // Hand 0 (North): S32
   // Hand 1 (East):  SK4 (King onside)
   // Hand 2 (South): SAQ
@@ -331,11 +331,11 @@ TEST_CASE("ResultsFinesseOnsides") {
   BoardState bs = MakeBoardState(hands, 0, SPADES);
   ConditionalLine line = MakeFinesseLine(bs);
 
-  REQUIRE(line.ResultsOnHand(bs) == 2);
-  REQUIRE(line.ResultsOnHand(PairedDeal("S K4", "S 65")) == 2);
+  ASSERT_TRUE(line.ResultsOnHand(bs) == 2);
+  ASSERT_TRUE(line.ResultsOnHand(PairedDeal("S K4", "S 65")) == 2);
 }
 
-TEST_CASE("ResultsFinesseOffsides") {
+TEST(ConditionalLineTest, ResultsFinesseOffsides) {
   // Hand 0 (North): S32
   // Hand 1 (East):  S65
   // Hand 2 (South): SAQ
@@ -357,11 +357,11 @@ TEST_CASE("ResultsFinesseOffsides") {
   };
   BoardState bs_offside = MakeBoardState(hands_offside, 0, SPADES);
 
-  REQUIRE(line.ResultsOnHand(bs_offside) == 1);
-  REQUIRE(line.ResultsOnHand(PairedDeal("S 65", "S K4")) == 1);
+  ASSERT_TRUE(line.ResultsOnHand(bs_offside) == 1);
+  ASSERT_TRUE(line.ResultsOnHand(PairedDeal("S 65", "S K4")) == 1);
 }
 
-TEST_CASE("ConditionalLineDescribeSortBranches") {
+TEST(ConditionalLineTest, ConditionalLineDescribeSortBranches) {
   ConditionalLine line_b(std::set<int>{2});
   ConditionalLine line_a(std::set<int>{1});
 
@@ -374,25 +374,25 @@ TEST_CASE("ConditionalLineDescribeSortBranches") {
   std::string sorted = root.Describe(0, /*sort_branches=*/true);
 
   // Unsorted preserves insertion order (if 1 wins comes before if 0 wins)
-  REQUIRE(unsorted.find("if 1 wins") < unsorted.find("if 0 wins"));
+  ASSERT_TRUE(unsorted.find("if 1 wins") < unsorted.find("if 0 wins"));
 
   // Sorted reorders branches deterministically (if 0 wins comes before if 1 wins)
-  REQUIRE(sorted.find("if 0 wins") < sorted.find("if 1 wins"));
+  ASSERT_TRUE(sorted.find("if 0 wins") < sorted.find("if 1 wins"));
 
   // Verify PlayLineGoldenSerializer delegates to Describe with sort_branches = true
-  REQUIRE(PlayLineGoldenSerializer::Serialize(root) ==
+  ASSERT_TRUE(PlayLineGoldenSerializer::Serialize(root) ==
           PlayLineGoldenSerializer::Serialize(sorted));
 }
 
-TEST_CASE("IsCardGoodConditionEvaluateAndResults") {
+TEST(ConditionalLineTest, IsCardGoodConditionEvaluateAndResults) {
   CardType hk = Card::ParseStringCard("HK");
   IsCardGoodCondition cond_good(hk, true);
   IsCardGoodCondition cond_not_good(hk, false);
 
-  REQUIRE(cond_good.Describe(false) == "if HK is good");
-  REQUIRE(cond_good.Describe(true) == "when HK is good");
-  REQUIRE(cond_not_good.Describe(false) == "if HK is not good");
-  REQUIRE(cond_not_good.Describe(true) == "when HK is not good");
+  ASSERT_TRUE(cond_good.Describe(false) == "if HK is good");
+  ASSERT_TRUE(cond_good.Describe(true) == "when HK is good");
+  ASSERT_TRUE(cond_not_good.Describe(false) == "if HK is not good");
+  ASSERT_TRUE(cond_not_good.Describe(true) == "when HK is not good");
 
   std::vector<uint64_t> hands = {
       ParseHand("S A3"),
@@ -402,7 +402,7 @@ TEST_CASE("IsCardGoodConditionEvaluateAndResults") {
   };
   BoardState bs = MakeBoardState(hands, 2, NOTRUMP);
   // HA is unplayed in hand 3, so HK is not good.
-  REQUIRE(!cond_good.Evaluate(bs));
+  ASSERT_TRUE(!cond_good.Evaluate(bs));
 
   // Build a ConditionalLine at 2-card ending with South (2) on lead:
   // if HK is good -> play HK (throwing S3), then S2 to SA
@@ -438,7 +438,7 @@ TEST_CASE("IsCardGoodConditionEvaluateAndResults") {
 
   // When HA is still held by East (hand 3) and spades are 1-1, branch_not_good
   // plays S2 to SA (felling SJ and ST) and cashes S3 for 2 tricks.
-  REQUIRE(root.ResultsOnHand(bs) == 2);
+  ASSERT_TRUE(root.ResultsOnHand(bs) == 2);
 
   // When HA has already been discarded by East (e.g., East holds S T9 instead
   // of S T H A), HK is good and branch_good cashes HK then S2 to SA for 2
@@ -450,23 +450,23 @@ TEST_CASE("IsCardGoodConditionEvaluateAndResults") {
       ParseHand("S T9"),
   };
   BoardState bs_ha_gone = MakeBoardState(hands_ha_gone, 2, NOTRUMP);
-  REQUIRE(cond_good.Evaluate(bs_ha_gone));
-  REQUIRE(root.ResultsOnHand(bs_ha_gone) == 2);
+  ASSERT_TRUE(cond_good.Evaluate(bs_ha_gone));
+  ASSERT_TRUE(root.ResultsOnHand(bs_ha_gone) == 2);
 }
 
-TEST_CASE("GeneralizedDemiPlayDiscardNoSuitBranching") {
+TEST(ConditionalLineTest, GeneralizedDemiPlayDiscardNoSuitBranching) {
   GeneralizedDemiPlay demi(HEARTS);
   demi.RecordOptimalPlay("D4", "SA", 0);
   demi.RecordOptimalPlay("CQ", "SA", 1);
 
   GeneralizedPlaysVector plays = demi.GetGeneralizedPlays(0, SPADES, 20);
   for (const auto &p : plays) {
-    REQUIRE((p.opp_card == "R_" || p.opp_card == "__"));
-    REQUIRE(p.boards == std::set<int>{0, 1});
+    ASSERT_TRUE((p.opp_card == "R_" || p.opp_card == "__"));
+    ASSERT_EQ(p.boards, (std::set<int>{0, 1}));
   }
 }
 
-TEST_CASE("GeneralizedTrickFinderDefenderLeadConsolidation") {
+TEST(ConditionalLineTest, GeneralizedTrickFinderDefenderLeadConsolidation) {
   GeneralizedTrickFinder gtf(HEARTS);
   // West (3) is on lead.
   // Spades: on boards 0, 1, 2, West leads S4, SJ, S6 and East plays S4, SQ, ST
@@ -499,8 +499,8 @@ TEST_CASE("GeneralizedTrickFinderDefenderLeadConsolidation") {
       if (gt.demi1.opp_card == "Sx") found_s_low_sa = true;
     }
   }
-  REQUIRE(found_s_any_sa);
-  REQUIRE(!found_s_low_sa);
+  ASSERT_TRUE(found_s_any_sa);
+  ASSERT_TRUE(!found_s_low_sa);
 
   // Verify that GroupTricks produces a 4-branch group covering all 7 boards:
   // (S_) S5 (S_) SK [0,1,2], (S_) S5 (SA) S9 [3], (Cx) C6 (C_) CJ [4,5],
@@ -517,10 +517,10 @@ TEST_CASE("GeneralizedTrickFinderDefenderLeadConsolidation") {
       break;
     }
   }
-  REQUIRE(found_consolidated_group);
+  ASSERT_TRUE(found_consolidated_group);
 }
 
-TEST_CASE("SecondSeatGeneralPatternNotPrunedBeforeFourthSeat") {
+TEST(ConditionalLineTest, SecondSeatGeneralPatternNotPrunedBeforeFourthSeat) {
   // Models the Restricted Choice Trick 1 multi-variant split:
   //   Variant 0: SA (S_) S6 (Sx) -> Trick 2: ST (SX) SK (S_) -> Trick 3: S5 S9
   //   Variant 1: SA (Sx) S6 (SJ) -> Trick 2: ST (Sx) S5 (__) -> Trick 3: S9 SK
@@ -595,12 +595,12 @@ TEST_CASE("SecondSeatGeneralPatternNotPrunedBeforeFourthSeat") {
        ParseHand("S K65"), ParseHand("S Q2 C 3")},
       0, SPADES);
   root.set_sample_board(bs_2_2);
-  REQUIRE(root.ResultsOnHand(bs_2_2) == 3);
+  ASSERT_TRUE(root.ResultsOnHand(bs_2_2) == 3);
   auto trace_2_2 = root.TraceOnBoard(bs_2_2, 0);
-  REQUIRE(trace_2_2.final_ns_tricks == 3);
-  REQUIRE(trace_2_2.steps.size() == 3);
-  REQUIRE(trace_2_2.steps[0].unmatched_seat == -1);
-  REQUIRE(trace_2_2.steps[0].node->do_first().ToString(true) ==
+  ASSERT_TRUE(trace_2_2.final_ns_tricks == 3);
+  ASSERT_TRUE(trace_2_2.steps.size() == 3);
+  ASSERT_TRUE(trace_2_2.steps[0].unmatched_seat == -1);
+  ASSERT_TRUE(trace_2_2.steps[0].node->do_first().ToString(true) ==
           "SA (S_) S6 (Sx)");
 
   // Case 2: Failed 3-1 deal where East has QJ3 and West has singleton S2.
@@ -612,12 +612,12 @@ TEST_CASE("SecondSeatGeneralPatternNotPrunedBeforeFourthSeat") {
        ParseHand("S K65"), ParseHand("S 2 C 32")},
       0, SPADES);
   auto trace_fail = root.TraceOnBoard(bs_3_1_fail, 1);
-  REQUIRE(trace_fail.final_ns_tricks == 2);
-  REQUIRE(trace_fail.steps.size() == 2);
-  REQUIRE(trace_fail.steps[0].unmatched_seat == -1);
-  REQUIRE(trace_fail.steps[0].node->do_first().ToString(true) ==
+  ASSERT_TRUE(trace_fail.final_ns_tricks == 2);
+  ASSERT_TRUE(trace_fail.steps.size() == 2);
+  ASSERT_TRUE(trace_fail.steps[0].unmatched_seat == -1);
+  ASSERT_TRUE(trace_fail.steps[0].node->do_first().ToString(true) ==
           "SA (S_) S6 (Sx)");
-  REQUIRE(trace_fail.steps[1].unmatched_seat == 3);
+  ASSERT_TRUE(trace_fail.steps[1].unmatched_seat == 3);
 
   // Case 3: Making 3-1 deal where East has Q32 and West has singleton SJ.
   // East plays S2 and West drops SJ on Trick 1; matches SA (Sx) S6 (SJ) and
@@ -626,16 +626,16 @@ TEST_CASE("SecondSeatGeneralPatternNotPrunedBeforeFourthSeat") {
       {ParseHand("S AT9"), ParseHand("S Q32"),
        ParseHand("S K65"), ParseHand("S J C 32")},
       0, SPADES);
-  REQUIRE(root.ResultsOnHand(bs_3_1_make) == 3);
+  ASSERT_TRUE(root.ResultsOnHand(bs_3_1_make) == 3);
   auto trace_make = root.TraceOnBoard(bs_3_1_make, 2);
-  REQUIRE(trace_make.final_ns_tricks == 3);
-  REQUIRE(trace_make.steps.size() == 3);
-  REQUIRE(trace_make.steps[0].unmatched_seat == -1);
-  REQUIRE(trace_make.steps[0].node->do_first().ToString(true) ==
+  ASSERT_TRUE(trace_make.final_ns_tricks == 3);
+  ASSERT_TRUE(trace_make.steps.size() == 3);
+  ASSERT_TRUE(trace_make.steps[0].unmatched_seat == -1);
+  ASSERT_TRUE(trace_make.steps[0].node->do_first().ToString(true) ==
           "SA (Sx) S6 (SJ)");
 }
 
-TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
+TEST(ConditionalLineTest, AdversarialDefenderUsesStep1Denominator) {
   // 3-card miniature of 9-Card Hearts club suit:
   // South (0): C 6, D 2, S 2
   // East  (1): C QT4
@@ -679,12 +679,12 @@ TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
       gt_cq_ca = gt;
     }
   }
-  REQUIRE(gt_cx_cj.NumBoards() == 10);
-  REQUIRE(gt_cx_cj.opp1_step1_boards == 10);
-  REQUIRE(gt_ct_ca.NumBoards() == 4);
-  REQUIRE(gt_ct_ca.opp1_step1_boards == 6);
-  REQUIRE(gt_cq_ca.NumBoards() == 2);
-  REQUIRE(gt_cq_ca.opp1_step1_boards == 2);
+  ASSERT_TRUE(gt_cx_cj.NumBoards() == 10);
+  ASSERT_TRUE(gt_cx_cj.opp1_step1_boards == 10);
+  ASSERT_TRUE(gt_ct_ca.NumBoards() == 4);
+  ASSERT_TRUE(gt_ct_ca.opp1_step1_boards == 6);
+  ASSERT_TRUE(gt_cq_ca.NumBoards() == 2);
+  ASSERT_TRUE(gt_cq_ca.opp1_step1_boards == 2);
 
   std::set<int> b_cx = gt_cx_cj.boards;
   std::set<int> b_ct = gt_ct_ca.boards;
@@ -745,13 +745,13 @@ TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
   // Because C6 (CT) CA only solved 4/6 Step-1 CT boards (66.7%) vs 10/10
   // (100%) for C6 (Cx) CJ, adversarial East plays CT from C QT4 instead of
   // C4, forcing declarer to rise with CA and setting up East's CQ.
-  REQUIRE(root.ResultsOnHandAdversarial(bs) == 2);
+  ASSERT_TRUE(root.ResultsOnHandAdversarial(bs) == 2);
 
   // Before rescoring, Step-1 TraceOnBoard plays C4 and wins 3 tricks, and
   // board 0 is in the Cx leaf.
-  REQUIRE(root.ResultsOnHand(bs) == 3);
-  REQUIRE(root.TraceOnBoard(bs, 0).final_ns_tricks == 3);
-  REQUIRE(root.CoveredFinalBoards() == 16);
+  ASSERT_TRUE(root.ResultsOnHand(bs) == 3);
+  ASSERT_TRUE(root.TraceOnBoard(bs, 0).final_ns_tricks == 3);
+  ASSERT_TRUE(root.CoveredFinalBoards() == 16);
 
   // Board 1: East holds C 954 and West holds C 87 S A, so C6 (Cx) CJ makes
   // 3 tricks even under adversarial defense.
@@ -762,26 +762,116 @@ TEST_CASE("AdversarialDefenderUsesStep1Denominator") {
 
   root.DeepCloneChildren();
   ConditionalLine::RescoreBoardTrace trace0;
-  REQUIRE(root.ResultsOnHandAdversarial(bs, nullptr, &trace0) == 2);
+  ASSERT_TRUE(root.ResultsOnHandAdversarial(bs, nullptr, &trace0) == 2);
   ConditionalLine::RescoreBoardTrace trace1;
-  REQUIRE(root.ResultsOnHandAdversarial(bs_make, nullptr, &trace1) == 3);
-  REQUIRE(trace1.leaf != nullptr);
+  ASSERT_TRUE(root.ResultsOnHandAdversarial(bs_make, nullptr, &trace1) == 3);
+  ASSERT_TRUE(trace1.leaf != nullptr);
 
   std::unordered_map<const ConditionalLine *, std::set<int>> leaf_boards;
   leaf_boards[trace1.leaf] = {1};
   root.ApplyRescoredBoards(leaf_boards);
 
-  REQUIRE(root.has_rescored_boards());
-  REQUIRE(root.step1_covered_boards() == 16);
-  REQUIRE(root.CoveredFinalBoards() == 1);
-  REQUIRE(root.CoveredBoardsSet() == std::set<int>{1});
-  REQUIRE(trace1.leaf->final_covered_boards() == std::set<int>{1});
+  ASSERT_TRUE(root.has_rescored_boards());
+  ASSERT_TRUE(root.step1_covered_boards() == 16);
+  ASSERT_TRUE(root.CoveredFinalBoards() == 1);
+  ASSERT_TRUE(root.CoveredBoardsSet() == std::set<int>{1});
+  ASSERT_TRUE(trace1.leaf->final_covered_boards() == std::set<int>{1});
 
   // After rescoring, TraceOnBoard on failed board 0 must also use the
   // adversarial defender (East plays CT, winning only 2 tricks), never
   // replaying the Step-1 C4 path to 3 tricks.
   auto trace_fail = root.TraceOnBoard(bs, 0);
-  REQUIRE(trace_fail.final_ns_tricks == 2);
-  REQUIRE(!trace_fail.steps.empty());
-  REQUIRE(trace_fail.steps[0].trick_str.rfind("C6 CT ", 0) == 0);
+  ASSERT_TRUE(trace_fail.final_ns_tricks == 2);
+  ASSERT_TRUE(!trace_fail.steps.empty());
+  ASSERT_TRUE(trace_fail.steps[0].trick_str.rfind("C6 CT ", 0) == 0);
+}
+
+TEST(ConditionalLineTest, AdversarialDefenderCountsUnmakeableBoards) {
+  // 5-card Trick-2 position from simple_9_card_hearts (West = 3 on lead, H
+  // trump, N/S need 4 tricks).
+  // North (0): S 5432, H A
+  // South (2): S K6, C AK2
+  // On bs_make (East has SA, West has SQJ and C T98), both C8 and SJ are
+  // DDS-optimal for West (each holds N/S to 4 tricks).
+  // On bs_unmakeable (West has SA and C T98, East has SQJ9), only a club lead
+  // holds N/S to 3 tricks; a spade lead lets N/S win 4 tricks.
+  BoardState bs_make = MakeBoardState(
+      {ParseHand("S 5432 H A"), ParseHand("S AT9 C 76"),
+       ParseHand("S K6 C AK2"), ParseHand("S QJ C T98")},
+      3, HEARTS);
+  BoardState bs_unmakeable = MakeBoardState(
+      {ParseHand("S 5432 H A"), ParseHand("S QJ9 C 76"),
+       ParseHand("S K6 C AK2"), ParseHand("S AT C T98")},
+      3, HEARTS);
+
+  GeneralizedTrickFinder finder(HEARTS);
+  for (int b = 0; b < 2; ++b) {
+    finder.RecordOptimalTrick(3, "C8 S2 C6 CA", b);
+  }
+  for (int b = 2; b < 5; ++b) {
+    finder.RecordOptimalTrick(3, "CT S2 C6 CA", b);
+  }
+  for (int b = 5; b < 7; ++b) {
+    finder.RecordOptimalTrick(3, "SJ S2 SA S6", b);
+  }
+  for (int b = 7; b < 10; ++b) {
+    finder.RecordOptimalTrick(3, "S9 S2 SA S6", b);
+  }
+  GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(50, true);
+  GeneralizedTrick gt_club;
+  GeneralizedTrick gt_spade;
+  for (const auto &gt : tricks) {
+    if (gt.demi1.opp_card == "C_" && gt.demi1.my_card == "S2") {
+      gt_club = gt;
+    } else if (gt.demi1.opp_card == "S_" && gt.demi1.my_card == "S2") {
+      gt_spade = gt;
+    }
+  }
+  ASSERT_TRUE(gt_club.opp1_step1_boards == 5);
+  ASSERT_TRUE(gt_spade.opp1_step1_boards == 5);
+
+  ConditionalLine leaf_club(gt_club.boards);
+  ConditionalLine node_club;
+  node_club.SetAction(gt_club);
+  node_club.AddCondition(new WinnerPlayCondition(2), leaf_club);
+
+  ConditionalLine leaf_spade(gt_spade.boards);
+  ConditionalLine node_spade;
+  node_spade.SetAction(gt_spade);
+  node_spade.AddCondition(new WinnerPlayCondition(1), leaf_spade);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("(C_) S2 (C_) CA"), node_club);
+  root.AddCondition(new TrickPlayCondition("(S_) S2 (SA) S6"), node_spade);
+  root.set_min_tricks(4);
+  root.set_sample_board(bs_make);
+  root.DeepCloneChildren();
+
+  // Trace the unmakeable board (not in Step 1's solvable set) and apply its
+  // Step-1 defender choices to the denominator counts.
+  ConditionalLine::Step1DefenderCardCache step1_cache;
+  ConditionalLine::UnmakeableBoardTrace unmakeable_trace;
+  root.TraceUnmakeableBoard(bs_unmakeable, /*board_num=*/99,
+                            /*in_step1_set=*/false, &step1_cache,
+                            &unmakeable_trace);
+  ASSERT_TRUE(unmakeable_trace.opp1_nodes.size() == 1);
+
+  std::unordered_map<const ConditionalLine *, size_t> opp1_counts;
+  std::unordered_map<const ConditionalLine *, size_t> opp2_counts;
+  std::unordered_map<const ConditionalLine *, std::array<size_t, 4>>
+      winner_counts;
+  for (const ConditionalLine *n : unmakeable_trace.opp1_nodes) {
+    ++opp1_counts[n];
+  }
+  root.ApplyUnmakeableBoardCounts(opp1_counts, opp2_counts, winner_counts);
+
+  // With the unmakeable board counted on (C_), (C_) has 5/6 success vs 5/5 on
+  // (S_), so adversarial West leads a club on bs_make and reaches leaf_club.
+  ConditionalLine::RescoreBoardTrace rescore_trace;
+  root.ResultsOnHandAdversarial(bs_make, nullptr, &rescore_trace);
+  ASSERT_TRUE(rescore_trace.leaf != nullptr);
+  ASSERT_TRUE(rescore_trace.leaf->step1_covered_boards() == 5);
+  ASSERT_TRUE(opp1_counts.begin()->first->do_first().demi1.opp_card == "C_");
+  ASSERT_TRUE(rescore_trace.leaf ==
+          opp1_counts.begin()->first->conditions()[0].second.get());
 }

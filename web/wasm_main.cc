@@ -1,6 +1,7 @@
 #include <string>
 
 #include "line_finder.h"
+#include "omp_compat.h"
 #include "web_server.h"
 
 #ifdef __EMSCRIPTEN__
@@ -23,7 +24,9 @@ WebServer &GetSolverEngine() {
   static WebServer *engine = []() {
     LineFinder::SetProgressCallback(
         [](const std::string &status, double progress) {
-          js_notify_progress(status.c_str(), progress);
+          if (omp_get_thread_num() == 0) {
+            js_notify_progress(status.c_str(), progress);
+          }
         });
     return new WebServer();
   }();
