@@ -67,6 +67,17 @@ document.addEventListener('DOMContentLoaded', () => {
       cur_trick: Array.isArray(presetCurTrick) ? presetCurTrick.slice() : [],
       loadedBoardHands: loadedBoardHands ? { ...loadedBoardHands } : null,
       loadedActualDeal: loadedActualDeal ? { ...loadedActualDeal } : null,
+      loadedFirstRoundCalls: Array.isArray(loadedFirstRoundCalls)
+        ? loadedFirstRoundCalls.map(c => Object.assign({}, c))
+        : [],
+      importedBiddingReqs: {
+        E: (importedBiddingReqs && Array.isArray(importedBiddingReqs.E))
+          ? importedBiddingReqs.E.map(r => Object.assign({}, r))
+          : [],
+        W: (importedBiddingReqs && Array.isArray(importedBiddingReqs.W))
+          ? importedBiddingReqs.W.map(r => Object.assign({}, r))
+          : []
+      },
       importedSuitVoids: {
         E: new Set(importedSuitVoids && importedSuitVoids.E ? importedSuitVoids.E : []),
         W: new Set(importedSuitVoids && importedSuitVoids.W ? importedSuitVoids.W : [])
@@ -134,6 +145,17 @@ document.addEventListener('DOMContentLoaded', () => {
     loadedHandSource = entry.source;
     loadedBoardHands = s.loadedBoardHands ? { ...s.loadedBoardHands } : null;
     loadedActualDeal = s.loadedActualDeal ? { ...s.loadedActualDeal } : null;
+    loadedFirstRoundCalls = Array.isArray(s.loadedFirstRoundCalls)
+      ? s.loadedFirstRoundCalls.map(c => Object.assign({}, c))
+      : [];
+    importedBiddingReqs = {
+      E: (s.importedBiddingReqs && Array.isArray(s.importedBiddingReqs.E))
+        ? s.importedBiddingReqs.E.map(r => Object.assign({}, r))
+        : [],
+      W: (s.importedBiddingReqs && Array.isArray(s.importedBiddingReqs.W))
+        ? s.importedBiddingReqs.W.map(r => Object.assign({}, r))
+        : []
+    };
     importedSuitVoids = {
       E: new Set(s.importedSuitVoids && s.importedSuitVoids.E ? s.importedSuitVoids.E : []),
       W: new Set(s.importedSuitVoids && s.importedSuitVoids.W ? s.importedSuitVoids.W : [])
@@ -1338,6 +1360,46 @@ document.addEventListener('DOMContentLoaded', () => {
       south: 'S KT86; H K3; D K3; C K3;',
       west: '',
       unknown_cards: 'S Q5432 H 98765 D 98765 C 98765'
+    },
+    hand_8_261014: {
+      name: "Hand 8 from 261014",
+      trump: 'HEARTS',
+      leader: 'WEST',
+      cur_trick: ['CJ'],
+      target: 9,
+      iters: 300,
+      north: 'S Q; H KJT52; D J83; C KQ9;',
+      east: '',
+      south: 'S KT9543; H A97; D K; C 75;',
+      west: 'S -; H -; D -; C J;',
+      unknown_cards: 'S AJ8762 H Q8643 D AQT976542 C T86'
+    },
+    hand_6_261014: {
+      name: "Hand 6 from 261014",
+      trump: 'SPADES',
+      leader: 'EAST',
+      cur_trick: ['HA'],
+      target: 10,
+      iters: 300,
+      north: 'S AJ8765; H J85; D -; C KJ86;',
+      east: 'S -; H A; D -; C -;',
+      south: 'S KT9; H 93; D AQ853; C AQ9;',
+      west: '',
+      unknown_cards: 'S Q432 H KQT7642 D KJT97642 C T75432',
+      requirements: {
+        E: {
+          would_bid: [{ bid: 'X', after: 'P 1S' }]
+        },
+        W: {
+          would_bid: [{ bid: 'P', after: '' }]
+        }
+      },
+      actual_deal: {
+        N: 'S AJ8765; H J85; D -; C KJ86;',
+        E: 'S Q3; H AKQ; D KJ96; C 7543;',
+        S: 'S KT9; H 93; D AQ853; C AQ9;',
+        W: 'S 42; H T7642; D T742; C T2;'
+      }
     }
   };
 
@@ -2446,10 +2508,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let loadedBoardHands = null; // Stores original { N, E, S, W } compass hands when a 4-hand deal is scanned/loaded
   let loadedActualDeal = null; // Stores rotated { N: decl, E: lho, S: dummy, W: rho } for Board #0 (Actual)
+  let loadedFirstRoundCalls = []; // Stores [{ seat, bid, after }, ...] in original compass seats
+  let importedBiddingReqs = { E: [], W: [] }; // Rotated defender would_bid requirements: [{ bid, after }, ...]
   let importedSuitVoids = { E: new Set(), W: new Set() }; // Voids revealed during imported initial play
   let currentDeclarerSeat = 'N';
+  let modalDealerSeat = 'N';
   let modalContractLevel = 4;
   let modalContractStrain = 'SPADES';
+
+  function computeDefenderBiddingReqsFromFirstRound(callsList, lhoSeat, rhoSeat) {
+    const out = { E: [], W: [] };
+    if (!Array.isArray(callsList)) return out;
+    callsList.forEach(c => {
+      if (!c || !c.seat || !c.bid) return;
+      const entry = { bid: c.bid, after: c.after || '' };
+      if (c.seat === lhoSeat) {
+        out.E.push(entry);
+      } else if (c.seat === rhoSeat) {
+        out.W.push(entry);
+      }
+    });
+    return out;
+  }
 
   function combineHandsToUnknownString(handA, handB) {
     const suitsA = parseHandToSuits(handA || '');
@@ -2527,6 +2607,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    if (typeof updateModalBiddingUI === 'function') {
+      updateModalBiddingUI();
+    }
     if (typeof updateModalContractAndPlayUI === 'function') {
       updateModalContractAndPlayUI();
     }
@@ -2565,6 +2648,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const lhoSeat = order[(idx + 1) % 4];
     const dummySeat = order[(idx + 2) % 4];
     const rhoSeat = order[(idx + 3) % 4];
+
+    if (fromModal && typeof parseModalFirstRoundCalls === 'function') {
+      const parsedBids = parseModalFirstRoundCalls();
+      loadedFirstRoundCalls = (!parsedBids.error && Array.isArray(parsedBids.calls))
+        ? parsedBids.calls
+        : [];
+    }
+    importedBiddingReqs = computeDefenderBiddingReqsFromFirstRound(
+      loadedFirstRoundCalls,
+      lhoSeat,
+      rhoSeat
+    );
 
     if (fromModal && typeof simulateModalInitialPlay === 'function') {
       const sim = simulateModalInitialPlay(loadedBoardHands, seat, modalContractStrain);
@@ -2627,7 +2722,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ? ` (${sim.completedTricks.length} completed trick${sim.completedTricks.length !== 1 ? 's' : ''}` +
           (sim.currentTrickCards.length > 0 ? `, current trick: ${presetCurTrick.join(' ')}` : '') + ')'
         : '';
-      setStatus('idle', `Loaded ${contractDesc}${playDesc}. Declarer rotated to North, Dummy (${dummySeat}) to South.`);
+      const bidDesc = (importedBiddingReqs.E.length > 0 || importedBiddingReqs.W.length > 0)
+        ? ` [Bidding: ${loadedFirstRoundCalls.map(c => `${c.seat}:${c.bid}`).join(' ')}]`
+        : '';
+      setStatus('idle', `Loaded ${contractDesc}${playDesc}${bidDesc}. Declarer rotated to North, Dummy (${dummySeat}) to South.`);
       updateDealSvg();
       return;
     }
@@ -2685,7 +2783,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!p) return;
 
     loadedBoardHands = null;
-    loadedActualDeal = null;
+    loadedActualDeal = p.actual_deal ? Object.assign({}, p.actual_deal) : null;
+    loadedFirstRoundCalls = [];
+    importedBiddingReqs = { E: [], W: [] };
+    if (p.requirements && typeof p.requirements === 'object') {
+      ['E', 'W'].forEach(seatKey => {
+        const sr = p.requirements[seatKey];
+        if (sr && Array.isArray(sr.would_bid)) {
+          importedBiddingReqs[seatKey] = sr.would_bid.map(r => ({
+            bid: r.bid || '',
+            after: r.after || ''
+          }));
+        }
+      });
+    }
     importedSuitVoids = { E: new Set(), W: new Set() };
     updateDeclarerBarUI('N');
     presetCurTrick = Array.isArray(p.cur_trick) ? p.cur_trick.slice() : [];
@@ -2783,6 +2894,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!text) return;
     loadedBoardHands = null;
     loadedActualDeal = null;
+    loadedFirstRoundCalls = [];
+    importedBiddingReqs = { E: [], W: [] };
     importedSuitVoids = { E: new Set(), W: new Set() };
     presetCurTrick = [];
     clearPanels();
@@ -3610,6 +3723,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanInputS = document.getElementById('scanInputS');
   const scanInputW = document.getElementById('scanInputW');
   const modalContractHint = document.getElementById('modalContractHint');
+  const modalBiddingHint = document.getElementById('modalBiddingHint');
+  const scanBiddingInput = document.getElementById('scanBiddingInput');
+  const scanUndoBidBtn = document.getElementById('scanUndoBidBtn');
+  const scanClearBidsBtn = document.getElementById('scanClearBidsBtn');
+  const scanBiddingError = document.getElementById('scanBiddingError');
+  const scanBiddingCallsList = document.getElementById('scanBiddingCallsList');
+  const scanBiddingCallPicker = document.getElementById('scanBiddingCallPicker');
   const modalNextLeadHint = document.getElementById('modalNextLeadHint');
   const scanInitialCardsInput = document.getElementById('scanInitialCardsInput');
   const scanUndoCardBtn = document.getElementById('scanUndoCardBtn');
@@ -3619,7 +3739,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanInitialCardPicker = document.getElementById('scanInitialCardPicker');
 
   let scanSourceCanvas = null; // Offscreen canvas holding current (possibly rotated) image
-  let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands?, pbnDeclarer?, pbnContract? } in scanSourceCanvas coords
+  let detectedBoardBoxes = []; // Array of { x, y, w, h, boardLabel?, pbnHands?, pbnDealer?, pbnDeclarer?, pbnContract? } in scanSourceCanvas coords
   let activeDetectedBoardIdx = -1;
   let lastSelectedBoardLabel = '1';
   let cropBox = { x: 0, y: 0, w: 100, h: 100 }; // In scanSourceCanvas coords
@@ -3641,6 +3761,259 @@ document.addEventListener('DOMContentLoaded', () => {
   let activePdfTotalPages = 1;
   let pdfPageBoardCounts = {};
   let pdfJsLoadPromise = null;
+
+  function normalizeCallToken(tok) {
+    if (!tok) return null;
+    const s = tok.trim()
+      .replace(/♠/g, 'S')
+      .replace(/♥/g, 'H')
+      .replace(/♦/g, 'D')
+      .replace(/♣/g, 'C')
+      .toUpperCase();
+    if (!s) return null;
+    if (s === 'P' || s === 'PASS' || s === '-') return 'P';
+    if (s === 'X' || s === 'DBL' || s === 'DOUBLE') return 'X';
+    if (s === 'XX' || s === 'RDBL' || s === 'REDOUBLE') return 'XX';
+    if (s.length >= 2 && s[0] >= '1' && s[0] <= '7') {
+      const lvl = s[0];
+      const strain = s.slice(1);
+      if (strain === 'C' || strain === 'D' || strain === 'H' || strain === 'S') {
+        return `${lvl}${strain}`;
+      }
+      if (strain === 'N' || strain === 'NT') {
+        return `${lvl}NT`;
+      }
+    }
+    return null;
+  }
+
+  function callStrainOrderIndex(strain) {
+    if (strain === 'C') return 0;
+    if (strain === 'D') return 1;
+    if (strain === 'H') return 2;
+    if (strain === 'S') return 3;
+    if (strain === 'NT') return 4;
+    return -1;
+  }
+
+  function formatCallDisplayHtml(callCode) {
+    if (callCode === 'P') return 'Pass';
+    if (callCode === 'X') return 'X';
+    if (callCode === 'XX') return 'XX';
+    if (callCode && callCode.length >= 2) {
+      const lvl = callCode[0];
+      const strain = callCode.slice(1);
+      if (strain === 'S') return `${lvl}<span class="card-suit-s">♠</span>`;
+      if (strain === 'H') return `${lvl}<span class="card-suit-h">♥</span>`;
+      if (strain === 'D') return `${lvl}<span class="card-suit-d">♦</span>`;
+      if (strain === 'C') return `${lvl}<span class="card-suit-c">♣</span>`;
+      if (strain === 'NT') return `${lvl}NT`;
+    }
+    return escapeHtml(callCode || '');
+  }
+
+  function parseModalFirstRoundCalls() {
+    const order = ['N', 'E', 'S', 'W'];
+    const dealerIdx = Math.max(0, order.indexOf(modalDealerSeat || 'N'));
+    const rawInput = scanBiddingInput ? scanBiddingInput.value.trim() : '';
+    const rawTokens = rawInput ? rawInput.split(/[\s,;/]+/).filter(Boolean) : [];
+    const calls = [];
+    let error = null;
+
+    if (rawTokens.length > 4) {
+      error = 'First round of bidding can have at most 4 calls (one per seat starting from Dealer).';
+    }
+
+    let highestBidRank = -1;
+    let lastNonPassCall = null;
+    let lastNonPassSeatIdx = -1;
+
+    const limit = Math.min(4, rawTokens.length);
+    for (let i = 0; i < limit; i++) {
+      const rawTok = rawTokens[i];
+      const norm = normalizeCallToken(rawTok);
+      const seatIdx = (dealerIdx + i) % 4;
+      const seat = order[seatIdx];
+      if (!norm) {
+        error = `Invalid call "${rawTok}" (expected e.g. P, 1S, X, 1NT, 2H).`;
+        break;
+      }
+      if (norm === 'X') {
+        if (!lastNonPassCall || lastNonPassCall === 'X' || lastNonPassCall === 'XX') {
+          error = `Cannot double (${seat}) without a preceding contract bid.`;
+          break;
+        }
+        if ((seatIdx % 2) === (lastNonPassSeatIdx % 2)) {
+          error = `${seat} cannot double partner's (${order[lastNonPassSeatIdx]}) bid.`;
+          break;
+        }
+      } else if (norm === 'XX') {
+        if (lastNonPassCall !== 'X') {
+          error = `Cannot redouble (${seat}) unless the last non-pass call was X.`;
+          break;
+        }
+        if ((seatIdx % 2) === (lastNonPassSeatIdx % 2)) {
+          error = `${seat} cannot redouble partner's double.`;
+          break;
+        }
+      } else if (norm !== 'P') {
+        const lvl = parseInt(norm[0], 10);
+        const strain = norm.slice(1);
+        const bidRank = (lvl - 1) * 5 + callStrainOrderIndex(strain);
+        if (bidRank <= highestBidRank) {
+          error = `Bid ${norm} by ${seat} is not higher than the preceding bid.`;
+          break;
+        }
+        highestBidRank = bidRank;
+      }
+
+      const afterStr = calls.map(c => c.bid).join(' ');
+      calls.push({
+        seat,
+        seatIdx,
+        bid: norm,
+        after: afterStr
+      });
+
+      if (norm !== 'P') {
+        lastNonPassCall = norm;
+        lastNonPassSeatIdx = seatIdx;
+      }
+    }
+
+    const nextTurnIdx = calls.length < 4 ? (dealerIdx + calls.length) % 4 : -1;
+    const nextTurnSeat = nextTurnIdx >= 0 ? order[nextTurnIdx] : null;
+    return {
+      dealerSeat: order[dealerIdx],
+      dealerIdx,
+      calls,
+      nextTurnIdx,
+      nextTurnSeat,
+      highestBidRank,
+      lastNonPassCall,
+      lastNonPassSeatIdx,
+      error
+    };
+  }
+
+  function appendModalCallToken(callCode) {
+    if (!scanBiddingInput) return;
+    const cur = scanBiddingInput.value.trim();
+    const toks = cur ? cur.split(/[\s,;/]+/).filter(Boolean) : [];
+    if (toks.length >= 4) return;
+    toks.push(callCode);
+    scanBiddingInput.value = toks.join(' ');
+    updateModalBiddingUI();
+  }
+
+  function updateModalBiddingUI() {
+    document.querySelectorAll('.modal-dealer-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.dealer === modalDealerSeat);
+    });
+
+    const parsed = parseModalFirstRoundCalls();
+    const order = ['N', 'E', 'S', 'W'];
+    const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
+    const declIdx = Math.max(0, order.indexOf(currentDeclarerSeat || 'N'));
+    const lhoSeat = order[(declIdx + 1) % 4];
+    const rhoSeat = order[(declIdx + 3) % 4];
+    const getRoleLabel = (origIdx) => {
+      if (origIdx === declIdx) return 'Declarer';
+      if (origIdx === (declIdx + 1) % 4) return 'LHO';
+      if (origIdx === (declIdx + 2) % 4) return 'Dummy';
+      return 'RHO';
+    };
+
+    if (modalBiddingHint) {
+      if (parsed.calls.length === 0) {
+        modalBiddingHint.textContent =
+          `Dealer: ${seatNames[parsed.dealerSeat]} (${getRoleLabel(parsed.dealerIdx)})`;
+      } else if (parsed.calls.length < 4 && parsed.nextTurnSeat) {
+        modalBiddingHint.textContent =
+          `${parsed.calls.length}/4 calls · Next: ${seatNames[parsed.nextTurnSeat]} (${getRoleLabel(parsed.nextTurnIdx)})`;
+      } else {
+        modalBiddingHint.textContent = 'First round complete (4/4 calls)';
+      }
+    }
+
+    const hasInputText = Boolean(scanBiddingInput && scanBiddingInput.value.trim().length > 0);
+    if (scanUndoBidBtn) scanUndoBidBtn.disabled = !hasInputText;
+    if (scanClearBidsBtn) scanClearBidsBtn.disabled = !hasInputText;
+
+    if (scanBiddingError) {
+      if (parsed.error) {
+        scanBiddingError.textContent = parsed.error;
+        scanBiddingError.classList.remove('hidden');
+      } else {
+        scanBiddingError.textContent = '';
+        scanBiddingError.classList.add('hidden');
+      }
+    }
+
+    if (scanBiddingCallsList) {
+      scanBiddingCallsList.innerHTML = '';
+      if (parsed.calls.length === 0) {
+        scanBiddingCallsList.classList.add('hidden');
+      } else {
+        scanBiddingCallsList.classList.remove('hidden');
+        parsed.calls.forEach(c => {
+          const isDefender = (c.seat === lhoSeat || c.seat === rhoSeat);
+          const roleTag = getRoleLabel(c.seatIdx);
+          const pill = document.createElement('span');
+          pill.className = `scan-bidding-call-pill${isDefender ? ' defender-call' : ''}`;
+          pill.innerHTML =
+            `<strong>${c.seat} (${roleTag}):</strong> ${formatCallDisplayHtml(c.bid)}` +
+            (isDefender ? ' <span class="trick-winner-tag">[constrained]</span>' : '');
+          scanBiddingCallsList.appendChild(pill);
+        });
+      }
+    }
+
+    if (scanBiddingCallPicker) {
+      scanBiddingCallPicker.innerHTML = '';
+      if (parsed.calls.length >= 4 || parsed.error) {
+        return;
+      }
+      const nextSeat = parsed.nextTurnSeat || parsed.dealerSeat;
+      const nextRole = getRoleLabel(parsed.nextTurnIdx >= 0 ? parsed.nextTurnIdx : parsed.dealerIdx);
+      const header = document.createElement('div');
+      header.className = 'scan-picker-header';
+      header.innerHTML =
+        `Quick add call for <strong>${seatNames[nextSeat]} (${nextRole})</strong>:`;
+      scanBiddingCallPicker.appendChild(header);
+
+      const quickCalls = ['P'];
+      if (parsed.lastNonPassCall && parsed.lastNonPassCall !== 'X' && parsed.lastNonPassCall !== 'XX' &&
+          (parsed.nextTurnIdx % 2) !== (parsed.lastNonPassSeatIdx % 2)) {
+        quickCalls.push('X');
+      }
+      const candidateBids = [
+        '1C', '1D', '1H', '1S', '1NT',
+        '2C', '2D', '2H', '2S', '2NT',
+        '3C', '3D', '3H', '3S', '3NT'
+      ];
+      candidateBids.forEach(b => {
+        const lvl = parseInt(b[0], 10);
+        const strain = b.slice(1);
+        const rank = (lvl - 1) * 5 + callStrainOrderIndex(strain);
+        if (rank > parsed.highestBidRank) {
+          quickCalls.push(b);
+        }
+      });
+
+      quickCalls.forEach(code => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'scan-bidding-call-btn';
+        btn.innerHTML = formatCallDisplayHtml(code);
+        btn.title = `Add ${code} by ${seatNames[nextSeat]}`;
+        btn.addEventListener('click', () => {
+          appendModalCallToken(code);
+        });
+        scanBiddingCallPicker.appendChild(btn);
+      });
+    }
+  }
 
   function parseModalSingleCardToken(tok) {
     if (!tok) return null;
@@ -4011,6 +4384,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyBoardMetadataToModal(box) {
     if (!box) return;
+    if (box.pbnDealer && ['N', 'E', 'S', 'W'].includes(box.pbnDealer)) {
+      modalDealerSeat = box.pbnDealer;
+    } else if (box.boardLabel) {
+      const bNum = parseInt(box.boardLabel, 10);
+      if (!isNaN(bNum) && bNum >= 1) {
+        modalDealerSeat = ['N', 'E', 'S', 'W'][(bNum - 1) % 4];
+      }
+    }
     if (box.pbnDeclarer && ['N', 'E', 'S', 'W'].includes(box.pbnDeclarer)) {
       currentDeclarerSeat = box.pbnDeclarer;
     }
@@ -4053,11 +4434,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const boards = [];
     const lines = text.split(/\r?\n/);
     let curBoard = null;
+    let curDealer = null;
     let curDeclarer = null;
     let curContract = null;
     for (const line of lines) {
       const bm = line.match(/^\[Board\s+"([^"]+)"\]/i);
       if (bm) curBoard = bm[1].trim();
+      const dlm = line.match(/^\[Dealer\s+"([NESW])"\]/i);
+      if (dlm) {
+        curDealer = dlm[1].toUpperCase();
+        if (boards.length > 0 && !curBoard && !boards[boards.length - 1].dealer) {
+          boards[boards.length - 1].dealer = curDealer;
+        }
+      }
       const decm = line.match(/^\[Declarer\s+"([NESW])"\]/i);
       if (decm) {
         curDeclarer = decm[1].toUpperCase();
@@ -4081,14 +4470,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dm) {
         const hands = parsePbnDealString(dm[1]);
         if (hands) {
+          const dealSeatMatch = dm[1].trim().match(/^([NESW]):/i);
+          const fallbackDealer = dealSeatMatch ? dealSeatMatch[1].toUpperCase() : null;
           boards.push({
             board: curBoard || String(boards.length + 1),
             hands,
+            dealer: curDealer || fallbackDealer,
             declarer: curDeclarer,
             contract: curContract
           });
         }
         curBoard = null;
+        curDealer = null;
         curDeclarer = null;
         curContract = null;
       }
@@ -4252,6 +4645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         h: cellH - 8,
         boardLabel: String(b.board),
         pbnHands: b.hands,
+        pbnDealer: b.dealer || null,
         pbnDeclarer: b.declarer || null,
         pbnContract: b.contract || null
       });
@@ -4276,6 +4670,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function renderActivePdfPage() {
     updatePdfPageBarUI();
+    if (scanBiddingInput) scanBiddingInput.value = '';
     if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     let pageBoardOffset = 0;
     for (let p = 1; p < activePdfPageNum; p++) {
@@ -4328,6 +4723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activePdfTotalPages = Math.max(1, Math.ceil(pbnBoards.length / 16));
     pdfPageBoardCounts = {};
     syncModalContractFromMainUI();
+    if (scanBiddingInput) scanBiddingInput.value = '';
     if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     if (recropPhotoBtn) recropPhotoBtn.classList.remove('hidden');
     if (photoScanModal) photoScanModal.classList.remove('hidden');
@@ -4344,6 +4740,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activePdfTotalPages = 1;
     pdfPageBoardCounts = {};
     syncModalContractFromMainUI();
+    if (scanBiddingInput) scanBiddingInput.value = '';
     if (scanInitialCardsInput) scanInitialCardsInput.value = '';
 
     if (photoScanModal) photoScanModal.classList.remove('hidden');
@@ -4431,6 +4828,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activePdfTotalPages = 1;
     pdfPageBoardCounts = {};
     syncModalContractFromMainUI();
+    if (scanBiddingInput) scanBiddingInput.value = '';
     if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     updatePdfPageBarUI();
 
@@ -4456,6 +4854,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!scanSourceCanvas || !photoScanModal) return;
     if (resetDetection) {
       syncModalContractFromMainUI();
+      if (scanBiddingInput) scanBiddingInput.value = '';
       if (scanInitialCardsInput) scanInitialCardsInput.value = '';
     }
     photoScanModal.classList.remove('hidden');
@@ -4468,6 +4867,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         fitCropPhotoView();
         renderCropCanvas();
+        updateModalBiddingUI();
         updateModalContractAndPlayUI();
       }
     });
@@ -4489,6 +4889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ...b,
         boardLabel: pbnEntry ? String(pbnEntry.board) : String(boardOffset + idx + 1),
         pbnHands: pbnEntry ? pbnEntry.hands : null,
+        pbnDealer: pbnEntry ? (pbnEntry.dealer || null) : null,
         pbnDeclarer: pbnEntry ? (pbnEntry.declarer || null) : null,
         pbnContract: pbnEntry ? (pbnEntry.contract || null) : null
       };
@@ -4535,8 +4936,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const label = box.boardLabel || String(idx + 1);
       btn.textContent = `#${label}`;
       btn.addEventListener('click', () => {
-        if (activeDetectedBoardIdx !== idx && scanInitialCardsInput) {
-          scanInitialCardsInput.value = '';
+        if (activeDetectedBoardIdx !== idx) {
+          if (scanBiddingInput) scanBiddingInput.value = '';
+          if (scanInitialCardsInput) scanInitialCardsInput.value = '';
         }
         activeDetectedBoardIdx = idx;
         const selectedBox = detectedBoardBoxes[idx];
@@ -4871,8 +5273,9 @@ document.addEventListener('DOMContentLoaded', () => {
           pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h
         );
         if (hitIdx !== -1) {
-          if (activeDetectedBoardIdx !== hitIdx && scanInitialCardsInput) {
-            scanInitialCardsInput.value = '';
+          if (activeDetectedBoardIdx !== hitIdx) {
+            if (scanBiddingInput) scanBiddingInput.value = '';
+            if (scanInitialCardsInput) scanInitialCardsInput.value = '';
           }
           activeDetectedBoardIdx = hitIdx;
           const hitBox = detectedBoardBoxes[hitIdx];
@@ -5022,6 +5425,39 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  document.querySelectorAll('.modal-dealer-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.dealer && ['N', 'E', 'S', 'W'].includes(btn.dataset.dealer)) {
+        modalDealerSeat = btn.dataset.dealer;
+        updateModalBiddingUI();
+      }
+    });
+  });
+
+  if (scanBiddingInput) {
+    scanBiddingInput.addEventListener('input', () => {
+      updateModalBiddingUI();
+    });
+  }
+
+  if (scanUndoBidBtn && scanBiddingInput) {
+    scanUndoBidBtn.addEventListener('click', () => {
+      const toks = scanBiddingInput.value.trim().split(/[\s,;/]+/).filter(Boolean);
+      if (toks.length > 0) {
+        toks.pop();
+        scanBiddingInput.value = toks.join(' ');
+        updateModalBiddingUI();
+      }
+    });
+  }
+
+  if (scanClearBidsBtn && scanBiddingInput) {
+    scanClearBidsBtn.addEventListener('click', () => {
+      scanBiddingInput.value = '';
+      updateModalBiddingUI();
+    });
+  }
 
   if (scanInitialCardsInput) {
     scanInitialCardsInput.addEventListener('input', () => {
@@ -5180,7 +5616,7 @@ document.addEventListener('DOMContentLoaded', () => {
       payload.actual_deal = activeActualDeal;
     }
 
-    // Include hand requirements if entered or if voids were revealed in initial play
+    // Include hand requirements if entered or if voids/bidding were revealed
     const reqs = {};
     const wHcpLow = document.getElementById('wHcpLow').value;
     const wHcpHigh = document.getElementById('wHcpHigh').value;
@@ -5198,6 +5634,14 @@ document.addEventListener('DOMContentLoaded', () => {
         voidSet.forEach(s => {
           reqs[seatKey].suit_max[s] = 0;
         });
+      }
+      const bidReqs = importedBiddingReqs && importedBiddingReqs[seatKey];
+      if (Array.isArray(bidReqs) && bidReqs.length > 0) {
+        if (!reqs[seatKey]) reqs[seatKey] = {};
+        reqs[seatKey].would_bid = bidReqs.map(r => ({
+          bid: r.bid || '',
+          after: r.after || ''
+        }));
       }
     });
     if (Object.keys(reqs).length > 0) {
@@ -5765,6 +6209,14 @@ document.addEventListener('DOMContentLoaded', () => {
           voidSet.forEach(s => {
             reqs[seatKey].suit_max[s] = 0;
           });
+        }
+        const bidReqs = importedBiddingReqs && importedBiddingReqs[seatKey];
+        if (Array.isArray(bidReqs) && bidReqs.length > 0) {
+          if (!reqs[seatKey]) reqs[seatKey] = {};
+          reqs[seatKey].would_bid = bidReqs.map(r => ({
+            bid: r.bid || '',
+            after: r.after || ''
+          }));
         }
       });
       const recordVoidIfShowedOut = (trickCards) => {
@@ -8105,6 +8557,11 @@ document.addEventListener('DOMContentLoaded', () => {
         low: wHcpLowEl ? wHcpLowEl.value : '',
         high: wHcpHighEl ? wHcpHighEl.value : ''
       };
+    }
+    if (importedBiddingReqs &&
+        ((Array.isArray(importedBiddingReqs.E) && importedBiddingReqs.E.length > 0) ||
+         (Array.isArray(importedBiddingReqs.W) && importedBiddingReqs.W.length > 0))) {
+      snap.bidding_reqs = importedBiddingReqs;
     }
     if (currentSolveData) {
       snap.last_solve = {

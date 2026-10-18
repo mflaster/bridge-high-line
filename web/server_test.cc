@@ -113,6 +113,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find("function getNodeFillProportions") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("node-fill-pat-") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("selectedTrickStates") != std::string::npos);
+  ASSERT_TRUE(res_js->body.find("parseModalFirstRoundCalls") !=
+              std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");
@@ -130,6 +132,13 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(presets_file_json.contains("hand_8_261014"));
   ASSERT_TRUE(presets_file_json["hand_8_261014"]["cur_trick"] ==
           nlohmann::json::array({"CJ"}));
+  ASSERT_TRUE(presets_file_json.contains("hand_6_261014"));
+  const auto &h6 = presets_file_json["hand_6_261014"];
+  ASSERT_TRUE(h6["cur_trick"] == nlohmann::json::array({"HA"}));
+  ASSERT_TRUE(h6.contains("requirements"));
+  ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["bid"] == "X");
+  ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["after"] == "P 1S");
+  ASSERT_TRUE(h6["requirements"]["W"]["would_bid"][0]["bid"] == "P");
   for (const auto& [key, preset] : presets_file_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -146,6 +155,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(presets_api_json.contains("mollo_6s"));
   ASSERT_TRUE(presets_api_json.contains("two_way_finesse"));
   ASSERT_TRUE(presets_api_json.contains("hand_8_261014"));
+  ASSERT_TRUE(presets_api_json.contains("hand_6_261014"));
   for (const auto& [key, preset] : presets_api_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -1144,3 +1154,45 @@ TEST(ServerTest, WebServerSolveJsonActualDealEvaluationBoard0) {
   ASSERT_TRUE(std::find(root_boards_fail.begin(), root_boards_fail.end(), -1) !=
           root_boards_fail.end());
 }
+
+TEST(ServerTest, WebServerSolveJsonWouldBidRequirements) {
+  WebServer engine;
+
+  // Base E (11 cards): S 4; H QT; D KJT7; C T754 (6 HCP).
+  // Base W (11 cards): S Q32; H 7642; D 9642; C - (2 HCP).
+  // Unknown cards (4 cards): H AK C 32.
+  // For E to satisfy WouldBid(X, P 1S), E MUST receive both HA and HK (6+7=13
+  // HCP, 1-4-4-4), giving W C32 (2 HCP, passes).
+  nlohmann::json req;
+  req["hands"]["N"] = "S AJ8765; H J85; D -; C KJ86;";
+  req["hands"]["S"] = "S KT9; H 93; D AQ853; C AQ9;";
+  req["hands"]["E"] = "S 4; H QT; D KJT7; C T754;";
+  req["hands"]["W"] = "S Q32; H 7642; D 9642; C -;";
+  req["unknown_cards"] = "H AK C 32";
+  req["trump"] = "SPADES";
+  req["leader"] = "NORTH";
+  req["min_tricks"] = 12;
+  req["num_iters"] = 4;
+  req["num_threads"] = 1;
+  req["requirements"]["E"]["would_bid"] = nlohmann::json::array(
+      {{{"bid", "X"}, {"after", "P 1S"}}});
+  req["requirements"]["W"]["would_bid"] = nlohmann::json::array(
+      {{{"bid", "P"}, {"after", ""}}});
+
+  int status_code = 0;
+  std::string body = engine.SolveJson(req.dump(), &status_code);
+  ASSERT_EQ(status_code, 200);
+  nlohmann::json res = nlohmann::json::parse(body);
+  ASSERT_TRUE(res["success"] == true);
+  ASSERT_TRUE(res.contains("all_hands"));
+  ASSERT_GE(res["all_hands"].size(), 1u);
+  WouldBid east_x("X", "P 1S");
+  WouldBid west_p("P", "");
+  for (const auto &board : res["all_hands"]) {
+    uint64_t eh = ParseHand(board["E"].get<std::string>());
+    uint64_t wh = ParseHand(board["W"].get<std::string>());
+    EXPECT_TRUE(east_x.MeetsRequirement(eh)) << "East hand: " << board["E"];
+    EXPECT_TRUE(west_p.MeetsRequirement(wh)) << "West hand: " << board["W"];
+  }
+}
+

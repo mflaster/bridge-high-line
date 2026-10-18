@@ -177,9 +177,67 @@ TEST(HandRequirementsTest, ToString_and_FromString) {
   ASSERT_TRUE(anyof_parsed != nullptr);
   ASSERT_TRUE(anyof_parsed->ToString() == "AnyOf(SuitLength(Spades, 0, 0), SuitLength(Spades, 4, 4))");
 
+  // 9. WouldBid
+  WouldBid wb1("X", "P 1S");
+  ASSERT_TRUE(wb1.ToString() == "WouldBid(X, P 1S)");
+  auto wb1_parsed = HandRequirements::FromString("WouldBid(X, P 1S)");
+  ASSERT_TRUE(wb1_parsed != nullptr);
+  ASSERT_TRUE(wb1_parsed->ToString() == "WouldBid(X, P 1S)");
+
+  auto wb1_kw =
+      HandRequirements::FromString("WouldBid(bid=\"X\", after=\"P 1S\")");
+  ASSERT_TRUE(wb1_kw != nullptr);
+  ASSERT_TRUE(wb1_kw->ToString() == "WouldBid(X, P 1S)");
+
+  WouldBid wb_pass("P");
+  ASSERT_TRUE(wb_pass.ToString() == "WouldBid(P)");
+  auto wb_pass_parsed = HandRequirements::FromString("WouldBid(P)");
+  ASSERT_TRUE(wb_pass_parsed != nullptr);
+  ASSERT_TRUE(wb_pass_parsed->ToString() == "WouldBid(P)");
+
   // Verify behavior equivalence on sample hand
   uint64_t hand4 = ParseHand("S J543 D 5432");
   uint64_t hand2 = ParseHand("S 54 D 5432 C 54");
   ASSERT_TRUE(anti_parsed->MeetsRequirement(hand4) == true);
   ASSERT_TRUE(anti_parsed->MeetsRequirement(hand2) == false);
 }
+
+TEST(HandRequirementsTest, WouldBid_OpeningsAndTakeoutDouble) {
+  // Board 6 from 261014 actual hands:
+  // Original East (Dealer): S 42; H T7642; D T742; C T2; (0 HCP -> Pass)
+  // Original South: S AJ8765; H J85; D -; C KJ86; (10 HCP, 6-4-3-0 -> 1S)
+  // Original West: S Q3; H AKQ; D KJ96; C 7543; (15 HCP, 2-3-4-4 -> X over 1S)
+  // Original North: S KT9; H 93; D AQ853; C AQ9; (15 HCP)
+  uint64_t orig_east = ParseHand("S 42 H T7642 D T742 C T2");
+  uint64_t orig_south = ParseHand("S AJ8765 H J85 C KJ86");
+  uint64_t orig_west = ParseHand("S Q3 H AKQ D KJ96 C 7543");
+  uint64_t orig_north = ParseHand("S KT9 H 93 D AQ853 C AQ9");
+
+  EXPECT_TRUE(WouldBid("P", "").MeetsRequirement(orig_east));
+  EXPECT_FALSE(WouldBid("1H", "").MeetsRequirement(orig_east));
+  EXPECT_FALSE(WouldBid("2H", "").MeetsRequirement(orig_east));
+
+  EXPECT_TRUE(WouldBid("1S", "P").MeetsRequirement(orig_south));
+  EXPECT_FALSE(WouldBid("P", "P").MeetsRequirement(orig_south));
+  EXPECT_FALSE(WouldBid("1C", "P").MeetsRequirement(orig_south));
+
+  EXPECT_TRUE(WouldBid("X", "P 1S").MeetsRequirement(orig_west));
+  EXPECT_FALSE(WouldBid("P", "P 1S").MeetsRequirement(orig_west));
+  EXPECT_FALSE(WouldBid("1NT", "P 1S").MeetsRequirement(orig_west));
+
+  // Original North has 15 HCP and 3-2-5-3 balanced -> would open 1NT, not Pass
+  EXPECT_TRUE(WouldBid("1NT", "").MeetsRequirement(orig_north));
+  EXPECT_FALSE(WouldBid("P", "").MeetsRequirement(orig_north));
+
+  // Weak 2H preempt (6 hearts, 3 of top 5 honors, 7 HCP)
+  uint64_t weak_2h = ParseHand("S 84 H KJT942 D Q53 C 62");
+  EXPECT_TRUE(WouldBid("2H", "").MeetsRequirement(weak_2h));
+  EXPECT_FALSE(WouldBid("1H", "").MeetsRequirement(weak_2h));
+  EXPECT_FALSE(WouldBid("P", "").MeetsRequirement(weak_2h));
+
+  // 1-level overcall: 1S over 1H with 5 spades and 11 HCP
+  uint64_t overcall_1s = ParseHand("S AQJ74 H 83 D K84 C 952");
+  EXPECT_TRUE(WouldBid("1S", "1H").MeetsRequirement(overcall_1s));
+  EXPECT_FALSE(WouldBid("X", "1H").MeetsRequirement(overcall_1s));
+}
+

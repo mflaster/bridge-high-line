@@ -32,6 +32,7 @@
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
           <option value="hand_8_261014">Hand 8 from 261014</option>
+          <option value="hand_6_261014">Hand 6 from 261014</option>
         </select>
         <a id="openHelpBtn" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn" title="Open Help &amp; Strategy Guide in a new tab">
           ❓ Help ↗
@@ -535,6 +536,30 @@
                 <button type="button" class="modal-contract-strain-btn" data-strain="NOTRUMP">NT</button>
               </div>
             </div>
+          </div>
+
+          <div class="scan-bidding-box">
+            <div class="scan-declarer-header">
+              <span class="scan-declarer-title">First Round of Bidding (Optional)</span>
+              <span id="modalBiddingHint" class="scan-declarer-hint">Dealer: N (0/4 calls)</span>
+            </div>
+            <div class="scan-dealer-row">
+              <span class="scan-dealer-label">Dealer:</span>
+              <div class="declarer-seat-group scan-dealer-group" role="group" aria-label="Select Dealer in modal">
+                <button type="button" class="modal-dealer-btn active" data-seat="N">N</button>
+                <button type="button" class="modal-dealer-btn" data-seat="E">E</button>
+                <button type="button" class="modal-dealer-btn" data-seat="S">S</button>
+                <button type="button" class="modal-dealer-btn" data-seat="W">W</button>
+              </div>
+            </div>
+            <div class="scan-initial-input-row">
+              <input type="text" id="scanBiddingInput" class="text-input mini-text-input" placeholder="Up to 4 calls from Dealer, e.g. P 1S X (or tap below)">
+              <button id="scanUndoBidBtn" type="button" class="btn btn-secondary-sm" disabled title="Undo last call">Undo</button>
+              <button id="scanClearBidsBtn" type="button" class="btn btn-secondary-sm" disabled title="Clear all calls">Clear</button>
+            </div>
+            <div id="scanBiddingError" class="scan-initial-error hidden"></div>
+            <div id="scanBiddingCallsList" class="scan-bidding-calls-list hidden"></div>
+            <div id="scanBiddingCallPicker" class="scan-bidding-call-picker"></div>
           </div>
 
           <div class="scan-initial-play-box">

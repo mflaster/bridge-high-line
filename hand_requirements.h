@@ -11,6 +11,7 @@ class HandRequirements {
   virtual ~HandRequirements() {}
 
   virtual bool MeetsRequirement(uint64_t hand) const { return false; }
+  virtual bool AppliesToRemainingHand() const { return true; }
   virtual std::string ToString() const { return ""; }
 
   static std::shared_ptr<HandRequirements> FromString(const std::string &str);
@@ -49,6 +50,7 @@ class BalancedHand : public HandRequirements {
   ~BalancedHand() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  bool AppliesToRemainingHand() const override { return false; }
   std::string ToString() const override;
 };
 
@@ -59,6 +61,9 @@ class AntiRequirement : public HandRequirements {
   ~AntiRequirement() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  bool AppliesToRemainingHand() const override {
+    return other_ ? other_->AppliesToRemainingHand() : true;
+  }
   std::string ToString() const override;
 
  private:
@@ -71,6 +76,7 @@ class HighCardRange : public HandRequirements {
   ~HighCardRange() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  bool AppliesToRemainingHand() const override { return false; }
   std::string ToString() const override;
 
  private:
@@ -96,6 +102,7 @@ class AtLeastAces : public HandRequirements {
   ~AtLeastAces() {}
 
   bool MeetsRequirement(uint64_t hand) const override;
+  bool AppliesToRemainingHand() const override { return false; }
   std::string ToString() const override;
 
  private:
@@ -114,4 +121,25 @@ class AnyOfRequirement : public HandRequirements {
  private:
   std::vector<std::shared_ptr<HandRequirements>> reqs_;
 };
+
+class WouldBid : public HandRequirements {
+ public:
+  WouldBid(const std::string &bid, const std::string &after = "");
+  ~WouldBid() override = default;
+
+  bool MeetsRequirement(uint64_t hand) const override;
+  bool AppliesToRemainingHand() const override { return false; }
+  std::string ToString() const override;
+
+  const std::string &bid() const { return bid_; }
+  const std::string &after() const { return after_; }
+
+  static std::string NormalizeCall(const std::string &raw_call);
+
+ private:
+  std::string bid_;
+  std::string after_;
+  std::vector<std::string> prior_calls_;
+};
+
 

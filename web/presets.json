@@ -120,5 +120,36 @@
     "south": "S KT9543; H A97; D K; C 75;",
     "west": "S -; H -; D -; C J;",
     "unknown_cards": "S AJ8762 H Q8643 D AQT976542 C T86"
+  },
+  "hand_6_261014": {
+    "name": "Hand 6 from 261014",
+    "trump": "SPADES",
+    "leader": "EAST",
+    "cur_trick": ["HA"],
+    "target": 10,
+    "iters": 300,
+    "north": "S AJ8765; H J85; D -; C KJ86;",
+    "east": "S -; H A; D -; C -;",
+    "south": "S KT9; H 93; D AQ853; C AQ9;",
+    "west": "",
+    "unknown_cards": "S Q432 H KQT7642 D KJT97642 C T75432",
+    "requirements": {
+      "E": {
+        "would_bid": [
+          { "bid": "X", "after": "P 1S" }
+        ]
+      },
+      "W": {
+        "would_bid": [
+          { "bid": "P", "after": "" }
+        ]
+      }
+    },
+    "actual_deal": {
+      "N": "S AJ8765; H J85; D -; C KJ86;",
+      "E": "S Q3; H AKQ; D KJ96; C 7543;",
+      "S": "S KT9; H 93; D AQ853; C AQ9;",
+      "W": "S 42; H T7642; D T742; C T2;"
+    }
   }
 }
