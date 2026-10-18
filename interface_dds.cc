@@ -227,6 +227,11 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
     return {idx, RandomizeTouchingHonorRank(bs, futp, idx, base_r)};
   };
 
+  int overall_best_key = 10000;
+  int best_key_per_suit[4] = {10000, 10000, 10000, 10000};
+  int best_idx_per_suit[4] = {-1, -1, -1, -1};
+  int best_rank_per_suit[4] = {0, 0, 0, 0};
+
   auto choose_heuristic = [&]() -> std::pair<int, int> {
     Suit suit_led = bs.SuitLed();
     // 1. Not following suit (discarding or ruffing when void in suit_led).
@@ -301,12 +306,18 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
           tier = 0;
         }
         int key = tier + (hand_touching_honors ? (15 - top_r) : low_r);
+        if (s >= 0 && s < 4 && key < best_key_per_suit[s]) {
+          best_key_per_suit[s] = key;
+          best_idx_per_suit[s] = i;
+          best_rank_per_suit[s] = play_r;
+        }
         if (i == 0 || key < best_key) {
           best_key = key;
           best_idx = i;
           best_rank = play_r;
         }
       }
+      overall_best_key = best_key;
       return finalize(best_idx, best_rank);
     }
 
@@ -396,6 +407,34 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
 
   auto heur_choice = choose_heuristic();
   if (noise_pct > 0 && futp.cards > 1) {
+    if (level == 0) {
+      std::vector<int> active_suits;
+      for (int s = 0; s < 4; ++s) {
+        if (best_idx_per_suit[s] >= 0 && best_key_per_suit[s] < 350 &&
+            best_key_per_suit[s] <= overall_best_key + 150) {
+          active_suits.push_back(s);
+        }
+      }
+      if (active_suits.size() > 1) {
+        uint64_t pick = 0;
+        uint64_t n_suits = static_cast<uint64_t>(active_suits.size());
+        if (bs.board_id() != 0) {
+          uint64_t z =
+              static_cast<uint64_t>(bs.board_id()) * 0xd1b54a32d192ed03ULL;
+          z ^= bs.played_cards() + 0x9e3779b97f4a7c15ULL + (z << 6) + (z >> 2);
+          z ^= static_cast<uint64_t>((bs.CurPlayer() << 8) | (level << 4) |
+                                     futp.cards);
+          z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+          z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+          z = z ^ (z >> 31);
+          pick = z % n_suits;
+        } else {
+          pick = static_cast<uint64_t>(lrand48()) % n_suits;
+        }
+        int s = active_suits[pick];
+        return finalize(best_idx_per_suit[s], best_rank_per_suit[s]);
+      }
+    }
     uint64_t roll = 0;
     uint64_t alt_roll = 0;
     uint64_t num_alts = static_cast<uint64_t>(futp.cards - 1);

@@ -1,6 +1,7 @@
 #include "web_server.h"
 
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <regex>
 #include <sstream>
@@ -1448,6 +1449,10 @@ void WebServer::RegisterRoutes() {
     res.set_content(web_assets::INDEX_HTML, "text/html");
   });
 
+  svr_.Get("/help.html", [](const httplib::Request &, httplib::Response &res) {
+    res.set_content(web_assets::HELP_HTML, "text/html");
+  });
+
   svr_.Get("/styles.css", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::STYLES_CSS, "text/css");
   });
@@ -1475,6 +1480,28 @@ void WebServer::RegisterRoutes() {
     res.set_content(web_assets::USER_GUIDE_MD,
                     "text/markdown; charset=utf-8");
   });
+
+  auto serve_doc_image = [](const httplib::Request &req,
+                            httplib::Response &res) {
+    if (req.matches.size() < 2) {
+      res.status = 404;
+      return;
+    }
+    std::string name = req.matches[1].str();
+    const char *candidates[] = {"docs/images/", "../docs/images/"};
+    for (const char *dir : candidates) {
+      std::ifstream ifs(std::string(dir) + name, std::ios::binary);
+      if (ifs) {
+        std::ostringstream ss;
+        ss << ifs.rdbuf();
+        res.set_content(ss.str(), "image/png");
+        return;
+      }
+    }
+    res.status = 404;
+  };
+  svr_.Get(R"(/images/([A-Za-z0-9_.-]+\.png))", serve_doc_image);
+  svr_.Get(R"(/docs/images/([A-Za-z0-9_.-]+\.png))", serve_doc_image);
 
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {
     HandleHealth(req, res);

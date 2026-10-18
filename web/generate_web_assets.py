@@ -7,6 +7,7 @@ def main():
     static_dir = os.path.join(script_dir, "static")
     
     html_path = os.path.join(static_dir, "index.html")
+    help_html_path = os.path.join(static_dir, "help.html")
     css_path = os.path.join(static_dir, "styles.css")
     js_path = os.path.join(static_dir, "app.js")
     presets_path = os.path.join(script_dir, "presets.json")
@@ -16,6 +17,9 @@ def main():
 
     with open(html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
+
+    with open(help_html_path, "r", encoding="utf-8") as f:
+        help_html_content = f.read()
 
     with open(css_path, "r", encoding="utf-8") as f:
         css_content = f.read()
@@ -40,6 +44,10 @@ namespace web_assets {{
 
 inline const char* INDEX_HTML = R"rawhtml(
 {html_content}
+)rawhtml";
+
+inline const char* HELP_HTML = R"rawhtml(
+{help_html_content}
 )rawhtml";
 
 inline const char* STYLES_CSS = R"rawcss(
