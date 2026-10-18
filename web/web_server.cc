@@ -1,6 +1,7 @@
 #include "web_server.h"
 
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <regex>
 #include <sstream>
@@ -16,6 +17,7 @@
 #include "hand.h"
 #include "hand_requirements.h"
 #include "line_finder.h"
+#include "omp_compat.h"
 #include "solver.h"
 #include "string_util.h"
 #ifndef __EMSCRIPTEN__
@@ -23,28 +25,6 @@
 #endif
 
 namespace {
-
-Suit ParseSuitName(const std::string &s) {
-  return Card::ParseSuit(s);
-}
-
-int ParsePlayerDirection(const std::string &d) {
-  if (d == "N" || d == "NORTH" || d == "0" || d == "north") return NORTH; // 0
-  if (d == "E" || d == "EAST" || d == "1" || d == "east") return EAST;   // 1
-  if (d == "S" || d == "SOUTH" || d == "2" || d == "south") return SOUTH; // 2
-  if (d == "W" || d == "WEST" || d == "3" || d == "west") return WEST;   // 3
-  return NORTH;
-}
-
-std::string PlayerDirectionName(int dir) {
-  switch ((dir % 4 + 4) % 4) {
-    case NORTH: return "North";
-    case EAST: return "East";
-    case SOUTH: return "South";
-    case WEST: return "West";
-    default: return "Unknown";
-  }
-}
 
 }  // namespace
 
@@ -63,7 +43,8 @@ std::string FormatWinnerCondition(const PlayCondition *cond_ptr) {
   std::smatch match;
   while (std::regex_search(desc, match, kPlayerWinsRegex)) {
     int player = std::stoi(match[1].str());
-    desc.replace(match.position(0), match.length(0), PlayerDirectionName(player) + " wins");
+    desc.replace(match.position(0), match.length(0),
+                 Card::PlayerDirectionDebugString(player) + " wins");
   }
   return desc;
 }
@@ -553,15 +534,14 @@ FailureIndex IndexFailures(const ConditionalLine &line,
   if (failed_board_ids.empty()) {
     return index;
   }
-  EnsureDDSInitialized();
-  int effective_threads = std::max(1, num_threads);
+  int max_dds_threads = EnsureDDSInitialized();
+  int effective_threads = std::clamp(num_threads, 1, max_dds_threads);
   std::vector<ConditionalLine::BoardPlayTrace> traces(failed_board_ids.size());
-  #pragma omp parallel for num_threads(effective_threads) schedule(dynamic) \
-      if (effective_threads > 1 && failed_board_ids.size() > 1)
-  for (size_t i = 0; i < failed_board_ids.size(); ++i) {
-    int b_idx = failed_board_ids[i];
-    traces[i] = line.TraceOnBoard(boards[b_idx], b_idx);
-  }
+  ParallelForDynamic(failed_board_ids.size(), effective_threads,
+                     [&](size_t i) {
+                       int b_idx = failed_board_ids[i];
+                       traces[i] = line.TraceOnBoard(boards[b_idx], b_idx);
+                     });
 
   auto add_to_group = [](FailureIndex::Group &group, int board_id,
                          int ns_tricks) {
@@ -1469,6 +1449,10 @@ void WebServer::RegisterRoutes() {
     res.set_content(web_assets::INDEX_HTML, "text/html");
   });
 
+  svr_.Get("/help.html", [](const httplib::Request &, httplib::Response &res) {
+    res.set_content(web_assets::HELP_HTML, "text/html");
+  });
+
   svr_.Get("/styles.css", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::STYLES_CSS, "text/css");
   });
@@ -1484,6 +1468,40 @@ void WebServer::RegisterRoutes() {
   svr_.Get("/api/presets", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::PRESETS_JSON, "application/json");
   });
+
+  svr_.Get("/bridge-strategy.md", [](const httplib::Request &,
+                                     httplib::Response &res) {
+    res.set_content(web_assets::BRIDGE_STRATEGY_MD,
+                    "text/markdown; charset=utf-8");
+  });
+
+  svr_.Get("/user-guide.md", [](const httplib::Request &,
+                                httplib::Response &res) {
+    res.set_content(web_assets::USER_GUIDE_MD,
+                    "text/markdown; charset=utf-8");
+  });
+
+  auto serve_doc_image = [](const httplib::Request &req,
+                            httplib::Response &res) {
+    if (req.matches.size() < 2) {
+      res.status = 404;
+      return;
+    }
+    std::string name = req.matches[1].str();
+    const char *candidates[] = {"docs/images/", "../docs/images/"};
+    for (const char *dir : candidates) {
+      std::ifstream ifs(std::string(dir) + name, std::ios::binary);
+      if (ifs) {
+        std::ostringstream ss;
+        ss << ifs.rdbuf();
+        res.set_content(ss.str(), "image/png");
+        return;
+      }
+    }
+    res.status = 404;
+  };
+  svr_.Get(R"(/images/([A-Za-z0-9_.-]+\.png))", serve_doc_image);
+  svr_.Get(R"(/docs/images/([A-Za-z0-9_.-]+\.png))", serve_doc_image);
 
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {
     HandleHealth(req, res);
@@ -1548,7 +1566,7 @@ ParseHandRequirements(const nlohmann::json &reqs_json) {
     if (p_req.contains("suit_max") && p_req["suit_max"].is_object()) {
       for (const auto &[s_key, max_val] : p_req["suit_max"].items()) {
         if (max_val.is_number_integer()) {
-          Suit s = ParseSuitName(s_key);
+          Suit s = Card::ParseSuit(s_key);
           if (s != NOTRUMP) {
             reqs[i].push_back(std::make_shared<SuitLength>(
                 s, 0, std::max(0, max_val.get<int>())));
@@ -1671,7 +1689,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
 
     Suit trump_suit = NOTRUMP;
     if (req_json.contains("trump")) {
-      trump_suit = ParseSuitName(req_json["trump"].get<std::string>());
+      trump_suit = Card::ParseSuit(req_json["trump"].get<std::string>());
     }
 
     int leader = NORTH;
@@ -1679,7 +1697,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
       if (req_json["leader"].is_number()) {
         leader = req_json["leader"].get<int>() % 4;
       } else {
-        leader = ParsePlayerDirection(req_json["leader"].get<std::string>());
+        leader = Card::ParsePlayerDirection(
+            req_json["leader"].get<std::string>());
       }
     }
 
@@ -1801,12 +1820,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
               req_json["initial_leader"].is_string()) {
             std::string il_str = req_json["initial_leader"].get<std::string>();
             if (!il_str.empty()) {
-              char il_c = static_cast<char>(
-                  std::toupper(static_cast<unsigned char>(il_str[0])));
-              if (il_c == 'N') init_lead = 0;
-              else if (il_c == 'E') init_lead = 1;
-              else if (il_c == 'S') init_lead = 2;
-              else if (il_c == 'W') init_lead = 3;
+              init_lead = Card::ParsePlayerDirection(il_str);
             }
           }
           actual_init_bs.SetHands(actual_hands);

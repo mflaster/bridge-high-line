@@ -20,9 +20,25 @@ jobs:
   build-wasm:
     name: Build WebAssembly Solver
     runs-on: ubuntu-24.04
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install ccache
+        run: |
+          if ! command -v ccache >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ccache
+          fi
 
       - name: Setup Emscripten SDK
         uses: mymindstorm/setup-emsdk@v14
@@ -38,10 +54,20 @@ jobs:
           restore-keys: |
             wasm-deps-v1-${{ runner.os }}-
 
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-wasm-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
+          restore-keys: |
+            ccache-wasm-v1-${{ runner.os }}-
+
       - name: Configure and build bridge_wasm
         run: |
+          ccache -z
           emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release
           cmake --build build-wasm -j "$(nproc)"
+          ccache -s
 
       - name: Smoke-test bridge_wasm in Node.js
         run: |
@@ -64,17 +90,17 @@ jobs:
                   trump: "SPADES",
                   leader: "NORTH",
                   min_tricks: 1,
-                  num_iters: 1,
-                  num_threads: 1
+                  num_iters: 4,
+                  num_threads: 4
                 });
                 const out = JSON.parse(
                   global.Module.ccall("wasm_solve_json", "string", ["string"], [req])
                 );
-                if (!out.success || out.tricks_won !== 1 || out.best_lead !== "SA") {
+                if (!out.success || out.tricks_won !== 1 || out.best_lead !== "SA" || out.num_threads !== 4) {
                   console.error("Unexpected Wasm solve output:", out);
                   process.exit(1);
                 }
-                console.log("Wasm smoke test passed:", out.best_lead, "statuses:", statuses.length);
+                console.log("Wasm smoke test passed:", out.best_lead, "threads:", out.num_threads, "statuses:", statuses.length);
                 process.exit(0);
               }
             };
@@ -83,19 +109,28 @@ jobs:
 
       - name: Assemble static site bundle
         run: |
-          mkdir -p _site
+          mkdir -p _site _site/images
           cp web/static/index.html _site/
+          cp web/static/help.html _site/
           cp web/static/styles.css _site/
           cp web/static/app.js _site/
           cp web/static/solver_worker.js _site/
+          cp web/static/coi_serviceworker.js _site/
           cp web/presets.json _site/
+          cp docs/bridge-strategy.md _site/bridge-strategy.md
+          cp docs/user-guide.md _site/user-guide.md
+          cp -r docs/images/* _site/images/
           cp build-wasm/bridge_wasm.js _site/
           cp build-wasm/bridge_wasm.wasm _site/
+          if [ -f build-wasm/bridge_wasm.worker.js ]; then
+            cp build-wasm/bridge_wasm.worker.js _site/
+          fi
           VER="${GITHUB_SHA::8}"
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|src=\"app.js\"|src=\"app.js?v=${VER}\"|g" _site/index.html
-          sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g" _site/app.js
+          sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" _site/help.html
+          sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" _site/app.js
           touch _site/.nojekyll
-          ls -lh _site/
+          ls -lh _site/ _site/images/
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
