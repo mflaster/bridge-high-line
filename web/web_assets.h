@@ -270,8 +270,8 @@ inline const char* INDEX_HTML = R"rawhtml(
             <button id="tabCompareLinesBtn" class="tab-btn" type="button">Compare Lines <span id="compareLinesCounterBadge" class="badge-counter hidden">0</span></button>
           </div>
           <div class="zoom-controls">
-            <div class="tree-legend" title="Blue: a trick to play. Green: the contract is made. Red: the defense beats this line.">
-              <span><span class="legend-swatch legend-play"></span>Play</span>
+            <div class="tree-legend" title="Bottom fill height shows the share of total deals reaching the node, split left-to-right between Green (makes) and Red (fails); top grey shows unreached deals.">
+              <span><span class="legend-swatch legend-play"></span>Unreached</span>
               <span><span class="legend-swatch legend-makes"></span>Makes</span>
               <span><span class="legend-swatch legend-fails"></span>Fails</span>
             </div>
@@ -2246,8 +2246,8 @@ body.is-resizing * {
   cursor: pointer;
 }
 
-.node-action { fill: #1e293b; stroke: #3b82f6; }
-.node-condition { fill: #1e1b4b; stroke: #818cf8; }
+.node-action { fill: #064e3b; stroke: #3b82f6; }
+.node-condition { fill: #064e3b; stroke: #818cf8; }
 .node-outcome { fill: #064e3b; stroke: #10b981; }
 
 .node-card.centered-node {
@@ -10694,17 +10694,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function getNodeFailFraction(node) {
-    if (!node) return 0;
-    if (node.failure) return 1;
+  function getNodeFillProportions(node) {
+    if (!node) return { dealFrac: 1, failFrac: 0 };
+    const total = (node.total_boards !== undefined && node.total_boards > 0)
+      ? node.total_boards
+      : (currentSolveData && currentSolveData.total_boards > 0 ? currentSolveData.total_boards : 0);
+    if (node.failure) {
+      const fails = Math.max(
+        0,
+        node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0)
+      );
+      const dealFrac = total > 0 ? Math.min(1, Math.max(0, fails / total)) : 1;
+      return { dealFrac, failFrac: 1 };
+    }
     const wins = Math.max(
       0,
       node.success_boards !== undefined ? node.success_boards : (node.covered_boards || 0)
     );
     const fails = Math.max(0, node.failure_boards || 0);
     const reaching = wins + fails;
-    if (reaching <= 0 || fails <= 0) return 0;
-    return Math.min(1, Math.max(0, fails / reaching));
+    const dealFrac = total > 0 ? Math.min(1, Math.max(0, reaching / total)) : 1;
+    const failFrac = (reaching > 0 && fails > 0)
+      ? Math.min(1, Math.max(0, fails / reaching))
+      : 0;
+    return { dealFrac, failFrac };
+  }
+
+  function getNodeFailFraction(node) {
+    return getNodeFillProportions(node).failFrac;
   }
 
   // Decision Tree SVG Rendering
@@ -10952,42 +10969,59 @@ document.addEventListener('DOMContentLoaded', () => {
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
 
-      const failFrac = getNodeFailFraction(node);
-      if (failFrac > 0 && failFrac < 1) {
-        const gradId = `node-fail-grad-${failGradCounter++}`;
-        const splitPct = ((1 - failFrac) * 100).toFixed(2) + '%';
-        const baseColor = (node.type === 'condition')
-          ? '#1e1b4b'
-          : (node.type === 'outcome' ? '#064e3b' : '#1e293b');
-        const failColor = '#450a0a';
-        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-        grad.setAttribute('id', gradId);
-        grad.setAttribute('x1', '0%');
-        grad.setAttribute('y1', '0%');
-        grad.setAttribute('x2', '100%');
-        grad.setAttribute('y2', '0%');
+      const { dealFrac, failFrac } = getNodeFillProportions(node);
+      const greyColor = '#1e293b';
+      const successColor = '#064e3b';
+      const failColor = '#450a0a';
+      if (dealFrac <= 0) {
+        rect.style.fill = greyColor;
+      } else if (dealFrac >= 1 && failFrac <= 0) {
+        rect.style.fill = successColor;
+      } else if (dealFrac >= 1 && failFrac >= 1) {
+        rect.style.fill = failColor;
+      } else {
+        const patId = `node-fill-pat-${failGradCounter++}`;
+        const pat = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+        pat.setAttribute('id', patId);
+        pat.setAttribute('patternUnits', 'objectBoundingBox');
+        pat.setAttribute('width', '1');
+        pat.setAttribute('height', '1');
 
-        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop1.setAttribute('offset', '0%');
-        stop1.setAttribute('stop-color', baseColor);
-        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop2.setAttribute('offset', splitPct);
-        stop2.setAttribute('stop-color', baseColor);
-        const stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop3.setAttribute('offset', splitPct);
-        stop3.setAttribute('stop-color', failColor);
-        const stop4 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop4.setAttribute('offset', '100%');
-        stop4.setAttribute('stop-color', failColor);
+        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bgRect.setAttribute('x', '0');
+        bgRect.setAttribute('y', '0');
+        bgRect.setAttribute('width', nodeWidth);
+        bgRect.setAttribute('height', nodeHeight);
+        bgRect.setAttribute('fill', greyColor);
+        pat.appendChild(bgRect);
 
-        grad.appendChild(stop1);
-        grad.appendChild(stop2);
-        grad.appendChild(stop3);
-        grad.appendChild(stop4);
-        treeDefs.appendChild(grad);
-        rect.style.fill = `url(#${gradId})`;
-      } else if (failFrac >= 1 && !node.failure) {
-        rect.style.fill = '#450a0a';
+        const activeHeight = dealFrac * nodeHeight;
+        const activeY = nodeHeight - activeHeight;
+        const successWidth = (1 - failFrac) * nodeWidth;
+        const failWidth = nodeWidth - successWidth;
+
+        if (successWidth > 0) {
+          const winRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          winRect.setAttribute('x', '0');
+          winRect.setAttribute('y', activeY.toFixed(2));
+          winRect.setAttribute('width', successWidth.toFixed(2));
+          winRect.setAttribute('height', activeHeight.toFixed(2));
+          winRect.setAttribute('fill', successColor);
+          pat.appendChild(winRect);
+        }
+
+        if (failWidth > 0) {
+          const loseRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          loseRect.setAttribute('x', successWidth.toFixed(2));
+          loseRect.setAttribute('y', activeY.toFixed(2));
+          loseRect.setAttribute('width', failWidth.toFixed(2));
+          loseRect.setAttribute('height', activeHeight.toFixed(2));
+          loseRect.setAttribute('fill', failColor);
+          pat.appendChild(loseRect);
+        }
+
+        treeDefs.appendChild(pat);
+        rect.style.fill = `url(#${patId})`;
       }
 
       node._svgRect = rect;
@@ -13667,11 +13701,11 @@ displays it in the **Decision Tree** tab.
 
 Each card in the tree represents a trick or final outcome:
 
-- **Blue Nodes (`Play`)**: A trick played along the line (for example,
-  `Trick 1: SA, S4, S7, SJ`). Shows how many sampled deals reach and make along
-  this branch. When some deals reaching a node go on to fail, the node
-  background splits proportionally between blue and red and displays both
-  `Makes:` and `Fails:` counts.
+- **Node Fill Proportions (`Makes` / `Fails` / `Unreached`)**: Each node's
+  vertical fill shows how common that branch is across all sampled deals: if a
+  node is reached by 25% of total deals, the top 75% is shaded grey while the
+  bottom 25% is split left-to-right between **green** (deals that make) and
+  **red** (deals that go on to fail).
 - **Green Leaf Nodes (`Makes`)**: The contract succeeds on all deals reaching
   this leaf (`N/S Won: X`).
 - **Red Leaf Nodes (`Fails`)**: The defense defeats the line on the deals
