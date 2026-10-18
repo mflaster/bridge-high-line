@@ -10,34 +10,34 @@ run_all_tests: all
 	ctest --test-dir build --output-on-failure
 
 run_basic_test: all
-	./build/basic_test --reporter compact --success -d yes
+	./build/basic_test
 
 run_requirements_test: all
-	./build/hand_requirements_test --reporter compact --success -d yes
+	./build/hand_requirements_test
 
 run_deal_test: all
-	./build/deal_test --reporter compact --success -d yes
+	./build/deal_test
 
 run_dds_test: all
-	./build/dds_test --reporter compact --success -d yes Basic3
+	./build/dds_test --gtest_filter=*Basic3*
 
 run_interface_dds_test: all
-	./build/interface_dds_test --reporter compact --success -d yes
+	./build/interface_dds_test
 
 run_line_finder_test: all
-	./build/line_finder_test --reporter compact --success -d yes
+	./build/line_finder_test
 
 run_board_state_test: all
-	./build/board_state_test --reporter compact --success -d yes
+	./build/board_state_test
 
 run_conditional_line_test: all
-	./build/conditional_line_test --reporter compact --success -d yes
+	./build/conditional_line_test
 
 run_server_test: all
-	./build/server_test --reporter compact --success -d yes
+	./build/server_test
 
 run_cross_hand_summarizer_test: all
-	./build/cross_hand_summarizer_test --reporter compact --success -d yes
+	./build/cross_hand_summarizer_test
 
 run_server: all
 	./build/bridge_server

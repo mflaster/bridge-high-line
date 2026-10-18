@@ -1,5 +1,5 @@
 #include <iostream>
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 
 #include "golden_serializer.h"
 #include "board_state.h"
@@ -8,224 +8,224 @@
 #include "hand.h"
 #include "solver.h"
 
-TEST_CASE("StrJoin") {
+TEST(BasicTest, StrJoin) {
   std::vector<std::string> words = {"apple", "banana", "cherry"};
-  REQUIRE(StrJoin(words) == "apple, banana, cherry");
-  REQUIRE(StrJoin(words, " - ") == "apple - banana - cherry");
+  ASSERT_TRUE(StrJoin(words) == "apple, banana, cherry");
+  ASSERT_TRUE(StrJoin(words, " - ") == "apple - banana - cherry");
 
   std::set<int> numbers = {1, 2, 5, 10};
-  REQUIRE(StrJoin(numbers) == "1, 2, 5, 10");
-  REQUIRE(StrJoin(numbers, ";") == "1;2;5;10");
+  ASSERT_TRUE(StrJoin(numbers) == "1, 2, 5, 10");
+  ASSERT_TRUE(StrJoin(numbers, ";") == "1;2;5;10");
 
   std::vector<int> empty_vec;
-  REQUIRE(StrJoin(empty_vec) == "");
+  ASSERT_TRUE(StrJoin(empty_vec) == "");
 
   std::vector<int> single_vec = {42};
-  REQUIRE(StrJoin(single_vec) == "42");
+  ASSERT_TRUE(StrJoin(single_vec) == "42");
 }
 
-TEST_CASE("Cards") {
-  REQUIRE(Card::GetSuitedCard(SPADES, 0) == 1);
-  REQUIRE(Card::GetSuitedCard(SPADES, 1) == 2);
-  REQUIRE(Card::GetSuitedCard(SPADES, 2) == 4);
-  REQUIRE(Card::GetSuitedCard(HEARTS, 0) == (1 << 16));
+TEST(BasicTest, Cards) {
+  ASSERT_TRUE(Card::GetSuitedCard(SPADES, 0) == 1);
+  ASSERT_TRUE(Card::GetSuitedCard(SPADES, 1) == 2);
+  ASSERT_TRUE(Card::GetSuitedCard(SPADES, 2) == 4);
+  ASSERT_TRUE(Card::GetSuitedCard(HEARTS, 0) == (1 << 16));
 }
 
-TEST_CASE("CardsInSuit") {
+TEST(BasicTest, CardsInSuit) {
   uint64_t empty_hand = 0;
-  REQUIRE(CardsInSuit(empty_hand, SPADES) == 0);
-  REQUIRE(CardsInSuit(empty_hand, HEARTS) == 0);
-  REQUIRE(CardsInSuit(empty_hand, DIAMONDS) == 0);
-  REQUIRE(CardsInSuit(empty_hand, CLUBS) == 0);
-  REQUIRE(CardsInSuit(empty_hand, NOTRUMP) == 0);
+  ASSERT_TRUE(CardsInSuit(empty_hand, SPADES) == 0);
+  ASSERT_TRUE(CardsInSuit(empty_hand, HEARTS) == 0);
+  ASSERT_TRUE(CardsInSuit(empty_hand, DIAMONDS) == 0);
+  ASSERT_TRUE(CardsInSuit(empty_hand, CLUBS) == 0);
+  ASSERT_TRUE(CardsInSuit(empty_hand, NOTRUMP) == 0);
 
   uint64_t single_spade = Card::GetSuitedCard(SPADES, 0);
-  REQUIRE(CardsInSuit(single_spade, SPADES) == 1);
-  REQUIRE(CardsInSuit(single_spade, HEARTS) == 0);
-  REQUIRE(CardsInSuit(single_spade, DIAMONDS) == 0);
-  REQUIRE(CardsInSuit(single_spade, CLUBS) == 0);
+  ASSERT_TRUE(CardsInSuit(single_spade, SPADES) == 1);
+  ASSERT_TRUE(CardsInSuit(single_spade, HEARTS) == 0);
+  ASSERT_TRUE(CardsInSuit(single_spade, DIAMONDS) == 0);
+  ASSERT_TRUE(CardsInSuit(single_spade, CLUBS) == 0);
 
   uint64_t hand = ParseHand("S AKQ5; H JT9; D 8762; C 43; ");
-  REQUIRE(CardsInSuit(hand, SPADES) == 4);
-  REQUIRE(CardsInSuit(hand, HEARTS) == 3);
-  REQUIRE(CardsInSuit(hand, DIAMONDS) == 4);
-  REQUIRE(CardsInSuit(hand, CLUBS) == 2);
-  REQUIRE(CardsInSuit(hand, NOTRUMP) == 0);
+  ASSERT_TRUE(CardsInSuit(hand, SPADES) == 4);
+  ASSERT_TRUE(CardsInSuit(hand, HEARTS) == 3);
+  ASSERT_TRUE(CardsInSuit(hand, DIAMONDS) == 4);
+  ASSERT_TRUE(CardsInSuit(hand, CLUBS) == 2);
+  ASSERT_TRUE(CardsInSuit(hand, NOTRUMP) == 0);
 }
 
-TEST_CASE("ParseSuit") {
-  REQUIRE(Card::ParseSuit('S') == SPADES);
-  REQUIRE(Card::ParseSuit('h') == HEARTS);
-  REQUIRE(Card::ParseSuit("spades") == SPADES);
-  REQUIRE(Card::ParseSuit("Spades") == SPADES);
-  REQUIRE(Card::ParseSuit("  S  ") == SPADES);
-  REQUIRE(Card::ParseSuit("hearts") == HEARTS);
-  REQUIRE(Card::ParseSuit("H") == HEARTS);
-  REQUIRE(Card::ParseSuit("diamonds") == DIAMONDS);
-  REQUIRE(Card::ParseSuit("D") == DIAMONDS);
-  REQUIRE(Card::ParseSuit("clubs") == CLUBS);
-  REQUIRE(Card::ParseSuit("c") == CLUBS);
-  REQUIRE(Card::ParseSuit("notrump") == NOTRUMP);
-  REQUIRE(Card::ParseSuit("no trump") == NOTRUMP);
-  REQUIRE(Card::ParseSuit("NT") == NOTRUMP);
+TEST(BasicTest, ParseSuit) {
+  ASSERT_TRUE(Card::ParseSuit('S') == SPADES);
+  ASSERT_TRUE(Card::ParseSuit('h') == HEARTS);
+  ASSERT_TRUE(Card::ParseSuit("spades") == SPADES);
+  ASSERT_TRUE(Card::ParseSuit("Spades") == SPADES);
+  ASSERT_TRUE(Card::ParseSuit("  S  ") == SPADES);
+  ASSERT_TRUE(Card::ParseSuit("hearts") == HEARTS);
+  ASSERT_TRUE(Card::ParseSuit("H") == HEARTS);
+  ASSERT_TRUE(Card::ParseSuit("diamonds") == DIAMONDS);
+  ASSERT_TRUE(Card::ParseSuit("D") == DIAMONDS);
+  ASSERT_TRUE(Card::ParseSuit("clubs") == CLUBS);
+  ASSERT_TRUE(Card::ParseSuit("c") == CLUBS);
+  ASSERT_TRUE(Card::ParseSuit("notrump") == NOTRUMP);
+  ASSERT_TRUE(Card::ParseSuit("no trump") == NOTRUMP);
+  ASSERT_TRUE(Card::ParseSuit("NT") == NOTRUMP);
 }
 
-TEST_CASE("ParsePlayerDirection") {
-  REQUIRE(Card::ParsePlayerDirection("north") == NORTH);
-  REQUIRE(Card::ParsePlayerDirection("NORTH") == NORTH);
-  REQUIRE(Card::ParsePlayerDirection("North") == NORTH);
-  REQUIRE(Card::ParsePlayerDirection("  N  ") == NORTH);
-  REQUIRE(Card::ParsePlayerDirection("0") == NORTH);
-  REQUIRE(Card::ParsePlayerDirection('N') == NORTH);
-  REQUIRE(Card::ParsePlayerDirection('n') == NORTH);
-  REQUIRE(Card::ParsePlayerDirection('0') == NORTH);
+TEST(BasicTest, ParsePlayerDirection) {
+  ASSERT_TRUE(Card::ParsePlayerDirection("north") == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("NORTH") == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("North") == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("  N  ") == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("0") == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection('N') == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection('n') == NORTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection('0') == NORTH);
 
-  REQUIRE(Card::ParsePlayerDirection("east") == EAST);
-  REQUIRE(Card::ParsePlayerDirection("EAST") == EAST);
-  REQUIRE(Card::ParsePlayerDirection("East") == EAST);
-  REQUIRE(Card::ParsePlayerDirection("e") == EAST);
-  REQUIRE(Card::ParsePlayerDirection("1") == EAST);
-  REQUIRE(Card::ParsePlayerDirection('E') == EAST);
-  REQUIRE(Card::ParsePlayerDirection('e') == EAST);
-  REQUIRE(Card::ParsePlayerDirection('1') == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("east") == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("EAST") == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("East") == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("e") == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("1") == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection('E') == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection('e') == EAST);
+  ASSERT_TRUE(Card::ParsePlayerDirection('1') == EAST);
 
-  REQUIRE(Card::ParsePlayerDirection("south") == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection("SOUTH") == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection("South") == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection("s") == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection("2") == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection('S') == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection('s') == SOUTH);
-  REQUIRE(Card::ParsePlayerDirection('2') == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("south") == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("SOUTH") == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("South") == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("s") == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection("2") == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection('S') == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection('s') == SOUTH);
+  ASSERT_TRUE(Card::ParsePlayerDirection('2') == SOUTH);
 
-  REQUIRE(Card::ParsePlayerDirection("west") == WEST);
-  REQUIRE(Card::ParsePlayerDirection("WEST") == WEST);
-  REQUIRE(Card::ParsePlayerDirection("West") == WEST);
-  REQUIRE(Card::ParsePlayerDirection("w") == WEST);
-  REQUIRE(Card::ParsePlayerDirection("3") == WEST);
-  REQUIRE(Card::ParsePlayerDirection('W') == WEST);
-  REQUIRE(Card::ParsePlayerDirection('w') == WEST);
-  REQUIRE(Card::ParsePlayerDirection('3') == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("west") == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("WEST") == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("West") == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("w") == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection("3") == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection('W') == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection('w') == WEST);
+  ASSERT_TRUE(Card::ParsePlayerDirection('3') == WEST);
 
-  REQUIRE_THROWS_AS(Card::ParsePlayerDirection("invalid"), std::runtime_error);
-  REQUIRE_THROWS_AS(Card::ParsePlayerDirection("4"), std::runtime_error);
-  REQUIRE_THROWS_AS(Card::ParsePlayerDirection(""), std::runtime_error);
-  REQUIRE_THROWS_AS(Card::ParsePlayerDirection('X'), std::runtime_error);
+  EXPECT_THROW(Card::ParsePlayerDirection("invalid"), std::runtime_error);
+  EXPECT_THROW(Card::ParsePlayerDirection("4"), std::runtime_error);
+  EXPECT_THROW(Card::ParsePlayerDirection(""), std::runtime_error);
+  EXPECT_THROW(Card::ParsePlayerDirection('X'), std::runtime_error);
 }
 
-TEST_CASE("PlayerDirectionDebugString") {
-  REQUIRE(PlayerDirectionDebugString(NORTH) == "North");
-  REQUIRE(PlayerDirectionDebugString(EAST) == "East");
-  REQUIRE(PlayerDirectionDebugString(SOUTH) == "South");
-  REQUIRE(PlayerDirectionDebugString(WEST) == "West");
+TEST(BasicTest, PlayerDirectionDebugString) {
+  ASSERT_TRUE(PlayerDirectionDebugString(NORTH) == "North");
+  ASSERT_TRUE(PlayerDirectionDebugString(EAST) == "East");
+  ASSERT_TRUE(PlayerDirectionDebugString(SOUTH) == "South");
+  ASSERT_TRUE(PlayerDirectionDebugString(WEST) == "West");
 
-  REQUIRE(Card::PlayerDirectionDebugString(NORTH) == "North");
-  REQUIRE(Card::PlayerDirectionDebugString(EAST) == "East");
-  REQUIRE(Card::PlayerDirectionDebugString(SOUTH) == "South");
-  REQUIRE(Card::PlayerDirectionDebugString(WEST) == "West");
+  ASSERT_TRUE(Card::PlayerDirectionDebugString(NORTH) == "North");
+  ASSERT_TRUE(Card::PlayerDirectionDebugString(EAST) == "East");
+  ASSERT_TRUE(Card::PlayerDirectionDebugString(SOUTH) == "South");
+  ASSERT_TRUE(Card::PlayerDirectionDebugString(WEST) == "West");
 
-  REQUIRE(Card::PlayerDirectionDebugString(4) == "North");
+  ASSERT_TRUE(Card::PlayerDirectionDebugString(4) == "North");
 }
 
-TEST_CASE("PrintCards") {
-  REQUIRE(Card::PrintCard(Card::GetSuitedCard(SPADES, 0)) == "S2");
-  REQUIRE(Card::PrintCard(Card::GetSuitedCard(DIAMONDS, 12)) == "DA");
+TEST(BasicTest, PrintCards) {
+  ASSERT_TRUE(Card::PrintCard(Card::GetSuitedCard(SPADES, 0)) == "S2");
+  ASSERT_TRUE(Card::PrintCard(Card::GetSuitedCard(DIAMONDS, 12)) == "DA");
 }
 
-TEST_CASE("DealCards") {
+TEST(BasicTest, DealCards) {
   srand48(0);
   std::vector<uint64_t> hands = DealHands();
-  REQUIRE(hands.size() == 4);
-  REQUIRE(HandDebugString(hands[0]) == "S 42; H T82; D KQT93; C Q92; ");
-  REQUIRE(HandDebugString(hands[1]) == "S KQ9; H Q3; D A754; C A765; ");
-  REQUIRE(HandDebugString(hands[2]) == "S AJ863; H KJ976; D -; C KJ3; ");
-  REQUIRE(HandDebugString(hands[3]) == "S T75; H A54; D J862; C T84; ");
+  ASSERT_TRUE(hands.size() == 4);
+  ASSERT_TRUE(HandDebugString(hands[0]) == "S 42; H T82; D KQT93; C Q92; ");
+  ASSERT_TRUE(HandDebugString(hands[1]) == "S KQ9; H Q3; D A754; C A765; ");
+  ASSERT_TRUE(HandDebugString(hands[2]) == "S AJ863; H KJ976; D -; C KJ3; ");
+  ASSERT_TRUE(HandDebugString(hands[3]) == "S T75; H A54; D J862; C T84; ");
 }
 
-TEST_CASE("ParseHand") {
+TEST(BasicTest, ParseHand) {
   // std::string hand_str = "S AJ863; H KJ976; D -; C KJ3; ";
   std::string hand_str = "S T75; H A54; D J862; C T84; ";
   uint64_t hand_int = ParseHand(hand_str);
-  REQUIRE(HandDebugString(hand_int) == hand_str);
+  ASSERT_TRUE(HandDebugString(hand_int) == hand_str);
 
   hand_str = "S AJ863; H KJ976; D -; C KJ3; ";
   hand_int = ParseHand(hand_str);
-  REQUIRE(HandDebugString(hand_int) == hand_str);
+  ASSERT_TRUE(HandDebugString(hand_int) == hand_str);
 
   hand_str = "S AJ863";
   hand_int = ParseHand(hand_str);
-  REQUIRE(HandDebugString(hand_int) == hand_str + "; H -; D -; C -; ");
+  ASSERT_TRUE(HandDebugString(hand_int) == hand_str + "; H -; D -; C -; ");
 }
 
-TEST_CASE("BoardState") {
+TEST(BasicTest, BoardState) {
   srand48(0);
   std::vector<uint64_t> hands = DealHands();
   BoardState state;
   state.SetHands(hands);
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S 42; H T82; D KQT93; C Q92; ");
   state.PlayCard(0, Card::ParseStringCard("S4"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S KQ9; H -; D -; C -; ");
   state.PlayCard(1, Card::ParseStringCard("SK"));
   state.PlayCard(2, Card::ParseStringCard("S3"));
   state.PlayCard(3, Card::ParseStringCard("S5"));
-  REQUIRE(state.CurPlayer() == 1);
-  REQUIRE(state.tricks_won_odd() == 1);
-  REQUIRE(state.tricks_won_even() == 0);
+  ASSERT_TRUE(state.CurPlayer() == 1);
+  ASSERT_TRUE(state.tricks_won_odd() == 1);
+  ASSERT_TRUE(state.tricks_won_even() == 0);
 
-  REQUIRE(HandDebugString(state.played_cards()) == "S K543; H -; D -; C -; ");
+  ASSERT_TRUE(HandDebugString(state.played_cards()) == "S K543; H -; D -; C -; ");
 
   state.SetTrump(SPADES);
   state.PlayCard(1, Card::ParseStringCard("DA"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S AJ86; H KJ976; D -; C KJ3; ");
   state.PlayCard(2, Card::ParseStringCard("S6"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S -; H -; D J862; C -; ");
   state.PlayCard(3, Card::ParseStringCard("D2"));
   state.PlayCard(0, Card::ParseStringCard("D3"));
-  REQUIRE(state.CurPlayer() == 2);
-  REQUIRE(state.tricks_won_odd() == 1);
-  REQUIRE(state.tricks_won_even() == 1);
-  REQUIRE(HandDebugString(state.played_cards()) ==
+  ASSERT_TRUE(state.CurPlayer() == 2);
+  ASSERT_TRUE(state.tricks_won_odd() == 1);
+  ASSERT_TRUE(state.tricks_won_even() == 1);
+  ASSERT_TRUE(HandDebugString(state.played_cards()) ==
           "S K6543; H -; D A32; C -; ");
 
   state.PlayCard(2, Card::ParseStringCard("S8"));
   state.PlayCard(3, Card::ParseStringCard("ST"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S 2; H -; D -; C -; ");
   state.PlayCard(0, Card::ParseStringCard("S2"));
   state.PlayCard(1, Card::ParseStringCard("S9"));
 
-  REQUIRE(state.CurPlayer() == 3);
-  REQUIRE(state.tricks_won_odd() == 2);
-  REQUIRE(state.tricks_won_even() == 1);
+  ASSERT_TRUE(state.CurPlayer() == 3);
+  ASSERT_TRUE(state.tricks_won_odd() == 2);
+  ASSERT_TRUE(state.tricks_won_even() == 1);
 
   state.PlayCard(3, Card::ParseStringCard("D8"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S -; H -; D KQT9; C -; ");
   state.PlayCard(0, Card::ParseStringCard("D9"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S -; H -; D 754; C -; ");
   state.PlayCard(1, Card::ParseStringCard("D7"));
 
-  REQUIRE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
+  ASSERT_TRUE(HandDebugString(MakeHandFromCards(state.ValidCardsToPlay())) ==
           "S AJ; H KJ976; D -; C KJ3; ");
   state.PlayCard(2, Card::ParseStringCard("CK"));
 
-  REQUIRE(state.CurPlayer() == 0);
-  REQUIRE(state.tricks_won_even() == 2);
+  ASSERT_TRUE(state.CurPlayer() == 0);
+  ASSERT_TRUE(state.tricks_won_even() == 2);
 }
 
-TEST_CASE("HandsKey") {
+TEST(BasicTest, HandsKey) {
   srand48(0);
   for (int suit = 0; suit < 4; suit++) {
     std::string suit_str = SuitDebugString((Suit)suit);
@@ -257,7 +257,7 @@ TEST_CASE("HandsKey") {
       std::cout << "key2" << "\n";
       key2 = bs.RemainingHandsKey();
     }
-    REQUIRE(key1 == key2);
+    ASSERT_TRUE(key1 == key2);
     {
       std::vector<uint64_t> hands;
       hands.push_back(ParseHand(suit_str + " AJ"));
@@ -271,11 +271,11 @@ TEST_CASE("HandsKey") {
       std::cout << "key3" << "\n";
       key3 = bs.RemainingHandsKey();
     }
-    REQUIRE(key1 != key3);
+    ASSERT_TRUE(key1 != key3);
   }
 }
 
-TEST_CASE("HandsKey2") {
+TEST(BasicTest, HandsKey2) {
   srand48(0);
   std::pair<uint64_t, uint64_t> key1, key2, key3;
   {
@@ -305,7 +305,7 @@ TEST_CASE("HandsKey2") {
     std::cout << "key2" << "\n";
     key2 = bs.RemainingHandsKey();
   }
-  REQUIRE(key1 == key2);
+  ASSERT_TRUE(key1 == key2);
   {
     std::vector<uint64_t> hands;
     hands.push_back(ParseHand("S AJ; H KQ; D 832; C 5"));
@@ -319,11 +319,11 @@ TEST_CASE("HandsKey2") {
     std::cout << "key3" << "\n";
     key3 = bs.RemainingHandsKey();
   }
-  REQUIRE(key1.first != key3.first);
-  REQUIRE(key1.second != key3.second);
+  ASSERT_TRUE(key1.first != key3.first);
+  ASSERT_TRUE(key1.second != key3.second);
 }
 
-TEST_CASE("HandsKey3") {
+TEST(BasicTest, HandsKey3) {
   srand48(0);
   std::pair<uint64_t, uint64_t> key1, key2;
   {
@@ -354,7 +354,7 @@ TEST_CASE("HandsKey3") {
     std::cout << "key1" << "\n";
     key2 = bs.RemainingHandsKey();
   }
-  REQUIRE(key1 != key2);
+  ASSERT_TRUE(key1 != key2);
 }
 
 void PrintOutResults(const OptimalLines &lines) {
@@ -366,7 +366,7 @@ void PrintOutResults(const OptimalLines &lines) {
   }
 }
 
-TEST_CASE("Solver2") {
+TEST(BasicTest, Solver2) {
   std::cout << "Solver2" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -377,32 +377,32 @@ TEST_CASE("Solver2") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(bs.Finished() == false);
+  ASSERT_TRUE(bs.Finished() == false);
   std::string seq;
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
   std::cout << "seq " << seq << "\n";
-  REQUIRE(ans == 1);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  REQUIRE(seq == "/ SA SJ S7 S4 / SQ SK S8 S5 ");
-  REQUIRE(lines.size() == 2);
+  ASSERT_TRUE(ans == 1);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(seq == "/ SA SJ S7 S4 / SQ SK S8 S5 ");
+  ASSERT_TRUE(lines.size() == 2);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_2_seq.golden", hands, "Solver2: optimal play sequence for 2 spade tricks, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_2_lines.golden", hands, "Solver2: optimal lines for 2 spade tricks, Hand 0 on lead");
 
   bs.SetLead(1);
   seq.clear();
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 2);
-  // REQUIRE(seq == "/ SJ S7 S4 SQ / SA SK S8 S5 ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 2);
+  // ASSERT_TRUE(seq == "/ SJ S7 S4 SQ / SA SK S8 S5 ");
 
   bs.SetLead(2);
   seq.clear();
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 1);
-  // REQUIRE(seq == "/ S7 S4 SQ SK / SJ S8 S5 SA ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 1);
+  // ASSERT_TRUE(seq == "/ S7 S4 SQ SK / SJ S8 S5 SA ");
 }
 
 
-TEST_CASE("Solver2b") {
+TEST(BasicTest, Solver2b) {
   std::cout << "Solver2b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -414,12 +414,12 @@ TEST_CASE("Solver2b") {
   bs.SetHands(hands);
   bs.SetLead(0);
   std::string seq;
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 2);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 2);
   // 9 or 19 depending on whether ALLOW_CLAIMS
-  REQUIRE(num_solver_iters() == 23);
+  ASSERT_TRUE(num_solver_iters() == 23);
 }
 
-TEST_CASE("Solver2c") {
+TEST(BasicTest, Solver2c) {
   std::cout << "Solver2" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -430,20 +430,20 @@ TEST_CASE("Solver2c") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(bs.Finished() == false);
+  ASSERT_TRUE(bs.Finished() == false);
   std::string seq;
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
   std::cout << "seq " << seq << "\n";
-  REQUIRE(ans == 2);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  REQUIRE(lines.size() == 1);
+  ASSERT_TRUE(ans == 2);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(lines.size() == 1);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_2c_seq.golden", hands, "Solver2c: optimal play sequence for spades trick layout, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_2c_lines.golden", hands, "Solver2c: optimal lines for spades trick layout, Hand 0 on lead");
 }
 
-TEST_CASE("Solver3a") {
+TEST(BasicTest, Solver3a) {
   std::cout << "Solver3a" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -454,19 +454,19 @@ TEST_CASE("Solver3a") {
   BoardState bs;
   bs.SetHands(hands);
   std::string seq;
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 2);
-  // REQUIRE(seq == "/ S9 ST S6 S3 / SJ S7 S4 SQ / SA SK S8 S5 ");
-  REQUIRE(seq == "/ S9 ST S6 S3 / SK S7 S4 SA / SQ SJ S8 S5 ");
-  REQUIRE(num_solver_iters() == 79);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 2);
+  // ASSERT_TRUE(seq == "/ S9 ST S6 S3 / SJ S7 S4 SQ / SA SK S8 S5 ");
+  ASSERT_TRUE(seq == "/ S9 ST S6 S3 / SK S7 S4 SA / SQ SJ S8 S5 ");
+  ASSERT_TRUE(num_solver_iters() == 79);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3a_seq.golden", hands, "Solver3a: optimal play sequence with 3-card spade hands, Hand 0 on lead");
 
   seq.clear();
-  REQUIRE(MostTricksCanBeWon(bs, 1, &seq) == 1);
-  // REQUIRE(seq == "/ S9 ST S6 S3 / SJ S7 S4 SQ / SA SK S8 S5 ");
-  REQUIRE(seq == "/ S9 ST S6 S3 / SK S7 S4 SA / SQ SJ S8 S5 ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, &seq) == 1);
+  // ASSERT_TRUE(seq == "/ S9 ST S6 S3 / SJ S7 S4 SQ / SA SK S8 S5 ");
+  ASSERT_TRUE(seq == "/ S9 ST S6 S3 / SK S7 S4 SA / SQ SJ S8 S5 ");
 }
 
-TEST_CASE("Solver3") {
+TEST(BasicTest, Solver3) {
   std::cout << "Solver3" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -484,13 +484,13 @@ TEST_CASE("Solver3") {
   bs.SetHands(hands);
   bs.SetLead(0);
   std::string seq;
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 2);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  REQUIRE(num_solver_iters() == 789);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 2);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(num_solver_iters() == 789);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3_seq.golden", hands, "Solver3: optimal play sequence for 4-card partial deal, Hand 0 on lead");
 }
 
-TEST_CASE("Solver3b") {
+TEST(BasicTest, Solver3b) {
   std::cout << "Solver3b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -503,12 +503,12 @@ TEST_CASE("Solver3b") {
   bs.SetHands(hands);
   bs.SetLead(0);
   std::string seq;
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 3);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 3);
   // 13 or 49 depending on ALLOW_CLAIMS
-  REQUIRE(num_solver_iters() == 49);
+  ASSERT_TRUE(num_solver_iters() == 49);
 }
 
-TEST_CASE("Solver3c") {
+TEST(BasicTest, Solver3c) {
   std::cout << "Solver3c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -520,14 +520,14 @@ TEST_CASE("Solver3c") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(1);
-  REQUIRE(MostTricksCanBeWon(bs, 1, nullptr) == 0);
-  REQUIRE(num_solver_iters() == 21);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, nullptr) == 0);
+  ASSERT_TRUE(num_solver_iters() == 21);
 
   bs.SetTrump(SPADES);
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 0);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr) == 0);
 }
 
-TEST_CASE("Solver3d") {
+TEST(BasicTest, Solver3d) {
   std::cout << "Solver3d" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -538,20 +538,20 @@ TEST_CASE("Solver3d") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(bs.Finished() == false);
+  ASSERT_TRUE(bs.Finished() == false);
   std::string seq;
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
   std::cout << "seq " << seq << "\n";
-  REQUIRE(ans == 3);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
-  REQUIRE(lines.size() == 3);
+  ASSERT_TRUE(ans == 3);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(lines.size() == 3);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_3d_seq.golden", hands, "Solver3d: optimal play sequence with spades and hearts, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_3d_lines.golden", hands, "Solver3d: optimal lines with spades and hearts, Hand 0 on lead");
 }
 
-TEST_CASE("Solver4") {
+TEST(BasicTest, Solver4) {
   std::cout << "Solver4" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -570,12 +570,12 @@ TEST_CASE("Solver4") {
   // 2nd hand low: 14,986,505
   // 4th hand win if you can: 14,799,576
   std::string seq;
-  REQUIRE(MostTricksCanBeWon(bs, 1, &seq) == 3);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, &seq) == 3);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters() == 5581);
+  ASSERT_TRUE(num_solver_iters() == 5581);
 }
 
-TEST_CASE("Solver4b") {
+TEST(BasicTest, Solver4b) {
   std::cout << "Solver4b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -589,13 +589,13 @@ TEST_CASE("Solver4b") {
   bs.SetLead(3);
   // 128,119,931 iterations
   // single threaded: 154,651,390 iterations
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 2);
-  REQUIRE(num_solver_iters() == 1873);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr) == 2);
+  ASSERT_TRUE(num_solver_iters() == 1873);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
-TEST_CASE("Solver4c") {
+TEST(BasicTest, Solver4c) {
   std::cout << "Solver4c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -607,13 +607,13 @@ TEST_CASE("Solver4c") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 2);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr) == 2);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters() == 171);
+  ASSERT_TRUE(num_solver_iters() == 171);
 }
 
-TEST_CASE("Solver4d") {
+TEST(BasicTest, Solver4d) {
   std::cout << "Solver4d" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -624,19 +624,19 @@ TEST_CASE("Solver4d") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(bs.Finished() == false);
+  ASSERT_TRUE(bs.Finished() == false);
   std::string seq;
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
   std::cout << "seq " << seq << "\n";
-  REQUIRE(ans == 4);
-  REQUIRE(lines.size() == 1);
+  ASSERT_TRUE(ans == 4);
+  ASSERT_TRUE(lines.size() == 1);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4d_seq.golden", hands, "Solver4d: optimal play sequence for 4-trick deal, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4d_lines.golden", hands, "Solver4d: optimal lines for 4-trick deal, Hand 0 on lead");
 }
 
-TEST_CASE("Solver4e") {
+TEST(BasicTest, Solver4e) {
   std::cout << "Solver4e" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -647,19 +647,19 @@ TEST_CASE("Solver4e") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(bs.Finished() == false);
+  ASSERT_TRUE(bs.Finished() == false);
   std::string seq;
   OptimalLines lines;
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   PrintOutResults(lines);
   std::cout << "seq " << seq << "\n";
-  REQUIRE(ans == 4);
-  REQUIRE(lines.size() == 6);
+  ASSERT_TRUE(ans == 4);
+  ASSERT_TRUE(lines.size() == 6);
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_4e_seq.golden", hands, "Solver4e: optimal play sequence for 4-card deal, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4e_lines.golden", hands, "Solver4e: optimal lines for 4-card deal, Hand 0 on lead");
 }
 
-TEST_CASE("Solver4f") {
+TEST(BasicTest, Solver4f) {
   std::cout << "Solver4f" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -676,11 +676,11 @@ TEST_CASE("Solver4f") {
   int ans = MostTricksCanBeWon(bs, 0, nullptr, &lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
   PrintOutResults(lines);
-  REQUIRE(ans == 4);
+  ASSERT_TRUE(ans == 4);
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_4f_lines.golden", hands, DIAMONDS, "Solver4f: optimal lines with diamond trump contract, Hand 2 on lead");
 }
 
-TEST_CASE("Solver5") {
+TEST(BasicTest, Solver5) {
   std::cout << "Solver5" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -692,13 +692,13 @@ TEST_CASE("Solver5") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(MostTricksCanBeWon(bs, 1, nullptr) == 3);
-  REQUIRE(num_solver_iters() == 17285);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, nullptr) == 3);
+  ASSERT_TRUE(num_solver_iters() == 17285);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
-TEST_CASE("Solver5b") {
+TEST(BasicTest, Solver5b) {
   std::cout << "Solver5b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -712,13 +712,13 @@ TEST_CASE("Solver5b") {
   bs.SetLead(0);
   bs.SetTrump(SPADES);
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 5);
-  REQUIRE(lines.size() == 62);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 5);
+  ASSERT_TRUE(lines.size() == 62);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5b_lines.golden", hands, SPADES, "Solver5b: optimal lines with spade contract, Hand 0 on lead");
 }
 
-TEST_CASE("Solver5c") {
+TEST(BasicTest, Solver5c) {
   std::cout << "Solver5c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -736,14 +736,14 @@ TEST_CASE("Solver5c") {
   int ans = MostTricksCanBeWon(bs, 0, &seq, &lines);
   std::cout << "seq " << seq << "\n";
   PrintOutResults(lines);
-  REQUIRE(ans == 5);
-  REQUIRE(lines.size() == 10);
+  ASSERT_TRUE(ans == 5);
+  ASSERT_TRUE(lines.size() == 10);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_5c_seq.golden", hands, DIAMONDS, "Solver5c: optimal play sequence with diamond trump, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_5c_lines.golden", hands, DIAMONDS, "Solver5c: optimal lines with diamond trump, Hand 0 on lead");
 }
 
-TEST_CASE("Solver6") {
+TEST(BasicTest, Solver6) {
   std::cout << "Solver6" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -755,13 +755,13 @@ TEST_CASE("Solver6") {
   BoardState bs;
   bs.SetHands(hands);
   bs.SetLead(0);
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr) == 4);
-  REQUIRE(num_solver_iters() == 1695);
-  // REQUIRE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr) == 4);
+  ASSERT_TRUE(num_solver_iters() == 1695);
+  // ASSERT_TRUE(seq == "/ SQ SK S7 S4 / SJ S8 S5 SA ");
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
-TEST_CASE("Solver7") {
+TEST(BasicTest, Solver7) {
   std::cout << "Solver7" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -774,14 +774,14 @@ TEST_CASE("Solver7") {
   bs.SetHands(hands);
   bs.SetLead(0);
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 2);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 2);
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters_str() == "262K");
+  ASSERT_TRUE(num_solver_iters_str() == "262K");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_7_lines.golden", hands, "Solver7: optimal lines for 7-trick layout, Hand 0 on lead");
 }
 
-TEST_CASE("Solver8", "[.slow]") {
+TEST(BasicTest, DISABLED_Solver8) {
   std::cout << "Solver8" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -795,14 +795,14 @@ TEST_CASE("Solver8", "[.slow]") {
   bs.SetLead(0);
   // 7.3B iterations
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 3);  // ???
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 3);  // ???
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters_str() == "1M");
+  ASSERT_TRUE(num_solver_iters_str() == "1M");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8_lines.golden", hands, "Solver8: optimal lines for solver8 layout, Hand 0 on lead");
 }
 
-TEST_CASE("Solver8b", "[.slow]") {
+TEST(BasicTest, DISABLED_Solver8b) {
   std::cout << "Solver8b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -816,14 +816,14 @@ TEST_CASE("Solver8b", "[.slow]") {
   bs.SetLead(0);
   // 7.3B iterations
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 3);  // ???
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 1, nullptr, &lines) == 3);  // ???
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters_str() == "1M");
+  ASSERT_TRUE(num_solver_iters_str() == "1M");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8b_lines.golden", hands, "Solver8b: optimal lines for solver8b layout, Hand 0 on lead");
 }
 
-TEST_CASE("Solver8c", "[.slow]") {
+TEST(BasicTest, DISABLED_Solver8c) {
   std::cout << "Solver8c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -840,12 +840,12 @@ TEST_CASE("Solver8c", "[.slow]") {
   int ans = MostTricksCanBeWon(bs, 1, nullptr, &lines);
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters_str() == "1M");
-  REQUIRE(ans == 2);
+  ASSERT_TRUE(num_solver_iters_str() == "1M");
+  ASSERT_TRUE(ans == 2);
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_8c_lines.golden", hands, "Solver8c: optimal lines for solver8c layout, Hand 0 on lead");
 }
 
-TEST_CASE("Solver9") {
+TEST(BasicTest, Solver9) {
   std::cout << "Solver9" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -858,13 +858,13 @@ TEST_CASE("Solver9") {
   bs.SetHands(hands);
   bs.SetLead(0);
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_9_lines.golden", hands, "Solver9: optimal lines for 9-trick layout, Hand 0 on lead");
 }
 
-TEST_CASE("Solver9b", "[.slow]") {
+TEST(BasicTest, DISABLED_Solver9b) {
   std::cout << "Solver9b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -877,12 +877,12 @@ TEST_CASE("Solver9b", "[.slow]") {
   bs.SetHands(hands);
   bs.SetLead(0);
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);  // ??
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, nullptr, &lines) == 6);  // ??
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
 }
 
-TEST_CASE("Solver10", "[.slow]") {
+TEST(BasicTest, DISABLED_Solver10) {
   std::cout << "Solver10" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -903,10 +903,10 @@ TEST_CASE("Solver10", "[.slow]") {
   bs.PlayCard(2, Card::ParseStringCard("CQ"));
   std::string seq;
   OptimalLines lines;
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq, &lines) == 6);  // ??
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq, &lines) == 6);  // ??
   PrintOutResults(lines);
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
-  REQUIRE(num_solver_iters_str() == "11M");
+  ASSERT_TRUE(num_solver_iters_str() == "11M");
   std::cout << "Line: " << seq << "\n";
   REQUIRE_GOLDEN_LINE_RESULT(seq, "solver_10_seq.golden", hands, HEARTS, "Solver10: optimal play sequence for hearts contract, Hand 0 on lead");
   REQUIRE_GOLDEN_LINE_RESULT(lines, "solver_10_lines.golden", hands, HEARTS, "Solver10: optimal lines for hearts contract, Hand 0 on lead");
@@ -915,7 +915,7 @@ TEST_CASE("Solver10", "[.slow]") {
 }
 
 #if 0
-TEST_CASE("Solver11") {
+TEST(BasicTest, Solver11) {
   std::cout << "Solver11" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -928,7 +928,7 @@ TEST_CASE("Solver11") {
   bs.SetHands(hands);
   bs.SetLead(0);
   std::string seq;
-  REQUIRE(MostTricksCanBeWon(bs, 0, &seq) == 7);  // ??
+  ASSERT_TRUE(MostTricksCanBeWon(bs, 0, &seq) == 7);  // ??
   std::cout << "Total iterations: " << num_solver_iters() << "\n";
   // MostTricksCanBeWon solved after 8,709,766,653 with cache having 192,416,041
   // 1473.068u 5.119s 24:39.18 99.9% 0+0k 0+0io 0pf+0w
@@ -938,7 +938,7 @@ TEST_CASE("Solver11") {
   // 35.411u 0.072s 0:35.49 99.9%    0+0k 0+0io 0pf+0w
 }
 
-TEST_CASE("Solver12") {
+TEST(BasicTest, Solver12) {
   std::cout << "Solver12" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -952,7 +952,7 @@ TEST_CASE("Solver12") {
   bs.SetLead(0);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
   std::cout << "MostTricksCanBeWon " << dd << "\n";
-  REQUIRE(dd == 7);
+  ASSERT_TRUE(dd == 7);
   std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   // MostTricksCanBeWon solved after 3,454,569,914 with cache having 45,501,969
   // 762.230u 1.336s 12:43.95 99.9%  0+0k 0+0io 0pf+0w
@@ -962,7 +962,7 @@ TEST_CASE("Solver12") {
   // 773.691u 1.416s 12:55.52 99.9%  0+0k 0+0io 0pf+0w
 }
 
-TEST_CASE("Solver13") {
+TEST(BasicTest, Solver13) {
   // Hand 1, 3/8/23
   std::cout << "Solver13" << "\n";
   srand48(0);
@@ -979,7 +979,7 @@ TEST_CASE("Solver13") {
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
   std::cout << "dd is " << dd << "\n";
   std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
-  REQUIRE(dd == 10);
+  ASSERT_TRUE(dd == 10);
   // MostTricksCanBeWon solved after 4,353,698,625 with cache having 65,178,868
   // 912.467u 1.884s 15:14.83 99.9%  0+0k 0+0io 0pf+0w
 
@@ -992,7 +992,7 @@ TEST_CASE("Solver13") {
 
 }
 
-TEST_CASE("Solver13b") {
+TEST(BasicTest, Solver13b) {
   std::cout << "Solver13b" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -1007,7 +1007,7 @@ TEST_CASE("Solver13b") {
   bs.SetTrump(NOTRUMP);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
   std::cout << "dd is " << dd << "\n";
-  REQUIRE(dd >= 5);
+  ASSERT_TRUE(dd >= 5);
   std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   // MostTricksCanBeWon solved 27,785,173,522 with cache having 330,146,725
   // 1hr 40.
@@ -1016,7 +1016,7 @@ TEST_CASE("Solver13b") {
   // 7074.347u 10.050s 1:58:07.25 99.9%      0+0k 3640+0io 21pf+0w
 }
 
-TEST_CASE("Solver13c") {
+TEST(BasicTest, Solver13c) {
   std::cout << "Solver13c" << "\n";
   srand48(0);
   std::vector<uint64_t> hands;
@@ -1031,7 +1031,7 @@ TEST_CASE("Solver13c") {
   bs.SetTrump(HEARTS);
   int dd = MostTricksCanBeWon(bs, 0, nullptr);
   std::cout << "dd is " << dd << "\n";
-  REQUIRE(dd >= 5);
+  ASSERT_TRUE(dd >= 5);
   std::cout << "Total iterations: " << num_solver_iters_str() << "\n";
   // MostTricksCanBeWon solved 27,785,173,522 with cache having 330,146,725
   // 1hr 40.
