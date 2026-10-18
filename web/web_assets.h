@@ -13378,10 +13378,10 @@ habits based on defense no human plays at the table.
 During the initial search (`ChooseDefenderPlay` in
 [`interface_dds.cc`](../interface_dds.cc)), whenever multiple cards tie for best
 double-dummy defense, defenders break ties using normal human carding rules:
-- **Opening lead / 1st hand**: Defenders lead the bottom of touching honors
-  (such as the Queen from **Q J 10**), avoid leading away from an unsupported
-  honor into declarer's tenace (for instance, refusing to lead from **J x x**
-  into **A Q**), and otherwise make a low lead.
+- **Opening lead / 1st hand**: Defenders lead the top of touching honors (such
+  as the Queen from **Q J 10**), avoid leading away from an unsupported honor
+  into declarer's tenace (for instance, refusing to lead from **J x x** into
+  **A Q**), and otherwise make a low lead.
 - **2nd hand**: Defenders play **2nd hand low**, playing their lowest optimal
   spot card.
 - **3rd hand**: Defenders play **3rd hand high** (the cheapest of touching high

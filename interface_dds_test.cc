@@ -330,9 +330,9 @@ TEST(InterfaceDdsTest, DefenderSeatRules_FirstHandLeadSelection) {
     // diamonds (where South has DA5 opposite North's DT) alongside S AJ4
     // (over South's SK9) and C Q4 (under South's CAKJ).
     // All leads yield the same double-dummy trick count for E/W, so West
-    // should continue with a touching diamond honor (DQ or DJ) rather than
-    // shifting away from an unsupported honor into South's spade or club
-    // tenaces.
+    // should continue with the top of touching diamond honors (DQ from DQJ)
+    // rather than shifting away from an unsupported honor into South's spade
+    // or club tenaces.
     std::vector<uint64_t> hands = {
         ParseHand("S 532; H T7; D T; C 6;"),
         ParseHand("S QT6; H -; D 6; C T98;"),
@@ -344,24 +344,12 @@ TEST(InterfaceDdsTest, DefenderSeatRules_FirstHandLeadSelection) {
     bs.SetLead(3);
     bs.SetTrump(HEARTS);
 
-    srand48(19);
-    int saw_dj = 0;
-    int saw_dq = 0;
-    for (int trial = 0; trial < 40; ++trial) {
-      OptimalLines lines;
-      DDSFindOptimalLines(bs, 0, &lines, nullptr);
-      ASSERT_TRUE(lines.size() == 1);
-      const std::string &line = *lines.begin();
-      if (line.rfind("DJ ", 0) == 0) {
-        ++saw_dj;
-      } else if (line.rfind("DQ ", 0) == 0) {
-        ++saw_dq;
-      } else {
-        FAIL() << "Expected West to lead DJ or DQ, got: " << line;
-      }
-    }
-    ASSERT_TRUE(saw_dj > 5);
-    ASSERT_TRUE(saw_dq > 5);
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_EQ(lines.size(), 1u);
+    const std::string &line = *lines.begin();
+    ASSERT_EQ(line.rfind("DQ ", 0), 0u)
+        << "Expected West to lead top of touching honors DQ, got: " << line;
   }
 
   {  // Prefers passive spot lead over underleading an unsupported honor
