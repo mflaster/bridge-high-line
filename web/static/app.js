@@ -1379,7 +1379,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trump: 'SPADES',
       leader: 'EAST',
       cur_trick: ['HA'],
-      target: 10,
+      target: 11,
       iters: 200,
       north: 'S AJ8765; H J85; D -; C KJ86;',
       east: 'S -; H A; D -; C -;',
