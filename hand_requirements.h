@@ -122,16 +122,17 @@ class AnyOfRequirement : public HandRequirements {
   std::vector<std::shared_ptr<HandRequirements>> reqs_;
 };
 
+struct SaycDagNode;
+
 // Evaluates whether a 13-card hand would make `bid` after the space-separated
-// first-round call sequence `after` under Standard American Yellow Card (SAYC)
-// heuristics. Rule priorities and negative-inference Pass logic are modeled
-// after SAYCBridge (https://github.com/eseidel/saycbridge, Copyright (c) 2013
-// The SAYCBridge Authors, BSD-3-Clause) and Yarborough
-// (https://github.com/saycbridge/yarborough, Apache-2.0).
+// first-round call sequence `after` by evaluating the compiled constraint DAG
+// generated at build time from SAYCBridge
+// (https://github.com/eseidel/saycbridge, Copyright (c) 2013 The SAYCBridge
+// Authors, BSD-3-Clause).
 class WouldBid : public HandRequirements {
  public:
   WouldBid(const std::string &bid, const std::string &after = "");
-  ~WouldBid() override = default;
+  ~WouldBid() override;
 
   bool MeetsRequirement(uint64_t hand) const override;
   bool AppliesToRemainingHand() const override { return false; }
@@ -145,7 +146,5 @@ class WouldBid : public HandRequirements {
  private:
   std::string bid_;
   std::string after_;
-  std::vector<std::string> prior_calls_;
+  std::vector<SaycDagNode> prog_;
 };
-
-

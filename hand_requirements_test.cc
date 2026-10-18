@@ -241,10 +241,15 @@ TEST(HandRequirementsTest, WouldBid_OpeningsAndTakeoutDouble) {
   EXPECT_FALSE(WouldBid("X", "1H").MeetsRequirement(overcall_1s));
 
   // 10 HCP 2-5-1-5 hand (S 43; H AKQT7; D J; C 75432) over P 1S:
-  // Should overcall 2H or Michaels 2S, NOT takeout double X!
+  // SAYCBridge overcalls 2H (does NOT takeout double X, and does not bid
+  // weak Michaels 2S since C 75432 lacks 2 of the top 5 honors).
   uint64_t h_2515_10hcp = ParseHand("S 43 H AKQT7 D J C 75432");
   EXPECT_FALSE(WouldBid("X", "P 1S").MeetsRequirement(h_2515_10hcp));
   EXPECT_TRUE(WouldBid("2H", "P 1S").MeetsRequirement(h_2515_10hcp));
-  EXPECT_TRUE(WouldBid("2S", "P 1S").MeetsRequirement(h_2515_10hcp));
-}
+  EXPECT_FALSE(WouldBid("2S", "P 1S").MeetsRequirement(h_2515_10hcp));
 
+  // Weak Michaels 2S over P 1S when both 5-card suits have 2+ top-5 honors:
+  uint64_t h_michaels = ParseHand("S 43 H KJT74 D 2 C KQT32");
+  EXPECT_TRUE(WouldBid("2S", "P 1S").MeetsRequirement(h_michaels));
+  EXPECT_FALSE(WouldBid("X", "P 1S").MeetsRequirement(h_michaels));
+}

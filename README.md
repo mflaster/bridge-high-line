@@ -27,7 +27,7 @@ All external dependencies are automatically fetched, configured, and built via C
 - **glog**: Google Logging library (v0.7.1).
 - **Boost**: C++ Header libraries (v1.83.0).
 - **Embedded Web Assets & HTTP Microserver**: C++17 single-binary microserver powered by embedded `cpp-httplib` and `nlohmann/json`.
-- **SAYC Bidding Heuristics (`WouldBid`)**: First-round SAYC bidding rules and negative-inference `Pass` constraints modeled after [`eseidel/saycbridge`](https://github.com/eseidel/saycbridge) and [`saycbridge/yarborough`](https://github.com/saycbridge/yarborough).
+- **SAYCBridge (`saycbridge`)**: Fetched via CMake `FetchContent` from [`eseidel/saycbridge`](https://github.com/eseidel/saycbridge); its `z3b` SAYC constraint expressions and priority hierarchy are compiled at build time into `sayc_generated.h` for `WouldBid` evaluation in both C++ and WebAssembly.
 
 See [**ACKNOWLEDGEMENTS.md**](ACKNOWLEDGEMENTS.md) for full credits and license notices.
 

@@ -19,10 +19,12 @@ contributors:
   - [`eseidel/saycbridge`](https://github.com/eseidel/saycbridge) (BSD-3-Clause)
   - [`saycbridge/yarborough`](https://github.com/saycbridge/yarborough) (Apache License 2.0)
 - **License**: BSD-3-Clause / Apache License 2.0
-- **Role in Project**: The priority-ordered Standard American Yellow Card (SAYC)
-  bidding rules and negative-inference `Pass` evaluation in `WouldBid`
-  (`hand_requirements.{h,cc}`) are modeled after the declarative SAYC rule
-  hierarchy and `z3b` rule definitions in `saycbridge` and `yarborough`.
+- **Role in Project**: Fetched via CMake `FetchContent` (`CMakeLists.txt`). At
+  build time, `third_party/gen_sayc_bids.py` imports `saycbridge`'s `z3b`
+  Standard American Yellow Card (SAYC) rules and priority hierarchy and compiles
+  their exact constraint expressions (including negative-inference `Pass` and
+  priority exclusions) into `sayc_generated.h`, which is evaluated by `WouldBid`
+  (`hand_requirements.{h,cc}`) in both native C++ and WebAssembly builds.
 
 ```text
 Copyright (c) 2013, The SAYCBridge Authors. All rights reserved.
