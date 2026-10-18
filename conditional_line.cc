@@ -2106,10 +2106,88 @@ void ConditionalLine::ApplyUnmakeableBoardCounts(
 }
 
 void ConditionalLine::DeepCloneChildren() {
+  std::vector<ConditionalLine *> action_children;
   for (auto &[cond, child] : conditions_) {
     if (child) {
       child = std::make_shared<ConditionalLine>(*child);
+      if (!child->do_first_.Empty()) {
+        action_children.push_back(child.get());
+      }
       child->DeepCloneChildren();
+    }
+  }
+  if (action_children.size() > 1 &&
+      action_children[0]->do_first_.leader % 2 == 0) {
+    bool has_diff_my_play = false;
+    const GeneralizedTrick &gt0 = action_children[0]->do_first_;
+    for (size_t i = 1; i < action_children.size(); ++i) {
+      const GeneralizedTrick &gti = action_children[i]->do_first_;
+      if (gti.demi1.my_card != gt0.demi1.my_card ||
+          gti.demi2.my_card != gt0.demi2.my_card) {
+        has_diff_my_play = true;
+        break;
+      }
+    }
+    bool updated_cond_str = false;
+    for (size_t k = 0; has_diff_my_play && k < action_children.size(); ++k) {
+      ConditionalLine *ck = action_children[k];
+      GeneralizedTrick &gt_k = ck->do_first_;
+      for (size_t m = 0; m < action_children.size(); ++m) {
+        if (m == k) continue;
+        ConditionalLine *cm = action_children[m];
+        const GeneralizedTrick &gt_m = cm->do_first_;
+        if (gt_k.demi1.my_card != gt_m.demi1.my_card ||
+            gt_k.demi2.my_card != gt_m.demi2.my_card ||
+            gt_k.demi1.opp_card == gt_m.demi1.opp_card ||
+            gt_k.demi1.opp_card.size() < 2 ||
+            gt_m.demi1.opp_card.size() < 2 ||
+            gt_k.demi1.opp_card[0] != gt_m.demi1.opp_card[0] ||
+            gt_k.demi1.opp_card[0] == 'R' ||
+            gt_k.demi1.opp_card[0] == '_') {
+          continue;
+        }
+        if (cm->CoveredFinalBoards() > ck->CoveredFinalBoards() * 2 &&
+            gt_m.demi2.opp_card == "__" && gt_k.demi2.opp_card != "__") {
+          gt_k.demi2.opp_card = "__";
+          updated_cond_str = true;
+        }
+        for (const auto &[cond_m, child_m] : cm->conditions_) {
+          auto *wm = dynamic_cast<const WinnerPlayCondition *>(cond_m.get());
+          if (!wm || !child_m) continue;
+          bool found_w = false;
+          for (auto &[cond_k, child_k] : ck->conditions_) {
+            auto *wk = dynamic_cast<const WinnerPlayCondition *>(cond_k.get());
+            if (wk && wk->who() == wm->who()) {
+              found_w = true;
+              if (!child_k ||
+                  child_m->CoveredFinalBoards() >
+                      child_k->CoveredFinalBoards() * 2) {
+                auto cloned = std::make_shared<ConditionalLine>(*child_m);
+                cloned->DeepCloneChildren();
+                child_k = std::move(cloned);
+              }
+              break;
+            }
+          }
+          if (!found_w &&
+              cm->CoveredFinalBoards() > ck->CoveredFinalBoards() * 2) {
+            auto cloned = std::make_shared<ConditionalLine>(*child_m);
+            cloned->DeepCloneChildren();
+            ck->conditions_.emplace_back(
+                std::make_shared<WinnerPlayCondition>(wm->who()),
+                std::move(cloned));
+          }
+        }
+      }
+    }
+    if (updated_cond_str) {
+      for (auto &[cond, child] : conditions_) {
+        if (!child || child->do_first_.Empty()) continue;
+        if (dynamic_cast<const TrickPlayCondition *>(cond.get()) != nullptr) {
+          cond = std::make_shared<TrickPlayCondition>(
+              child->do_first_.ToString(true));
+        }
+      }
     }
   }
 }
