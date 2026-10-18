@@ -1448,15 +1448,50 @@ std::string GetPatternAtPos(const GeneralizedTrick &gt, int pos) {
   return "";
 }
 
+bool AreCandidateDeclarerCardsLegalForTrick(const BoardState &bs,
+                                            const ConditionalLine *cand,
+                                            int from_pos, Suit suit_led) {
+  if (suit_led == NOTRUMP || suit_led < 0 || suit_led >= 4) {
+    return true;
+  }
+  const GeneralizedTrick &gt = cand->do_first();
+  int trick_leader = bs.cur_trick_leader();
+  uint64_t played_mask = bs.played_cards();
+  for (int i = 0; i < bs.CardsPlayedThisTrick(); ++i) {
+    played_mask |= bs.trick_cards_played()[i];
+  }
+  uint64_t suit_bits = 0xffffULL << (static_cast<int>(suit_led) * 16);
+  for (int d_pos = std::max(1, from_pos); d_pos < 4; ++d_pos) {
+    int seat = (trick_leader + d_pos) % 4;
+    if (seat % 2 != 0) continue;
+    std::string decl_str = GetPatternAtPos(gt, d_pos);
+    if (decl_str.size() < 2) continue;
+    CardType decl_card = Card::ParseStringCard(decl_str);
+    Suit decl_suit = Card::DecodeCard(decl_card).first;
+    uint64_t hand_rem = bs.GetHand(seat) & (~played_mask);
+    if (decl_suit != suit_led && (hand_rem & suit_bits) != 0) {
+      return false;
+    }
+    played_mask |= decl_card;
+  }
+  return true;
+}
+
 std::vector<const ConditionalLine *> FilterCandidatesByDefenderCard(
     const std::vector<const ConditionalLine *> &candidates,
-    const std::string &def_card_str, int pos, Suit suit_led, Suit trump) {
+    const std::string &def_card_str, int pos, Suit suit_led, Suit trump,
+    const BoardState *bs = nullptr) {
   std::vector<const ConditionalLine *> matching;
   for (const ConditionalLine *cand : candidates) {
     std::string pattern = GetPatternAtPos(cand->do_first(), pos);
-    if (GeneralizesTo(def_card_str, pattern, suit_led, trump)) {
-      matching.push_back(cand);
+    if (!GeneralizesTo(def_card_str, pattern, suit_led, trump)) {
+      continue;
     }
+    if (bs != nullptr &&
+        !AreCandidateDeclarerCardsLegalForTrick(*bs, cand, pos + 1, suit_led)) {
+      continue;
+    }
+    matching.push_back(cand);
   }
   return matching;
 }
@@ -1475,10 +1510,29 @@ auto CandidateSpecificityScore(const ConditionalLine *cand, int up_to_pos) {
 }
 
 const ConditionalLine *SelectMostSpecificCandidate(
-    const std::vector<const ConditionalLine *> &candidates, int up_to_pos) {
+    const std::vector<const ConditionalLine *> &candidates, int up_to_pos,
+    const BoardState *bs = nullptr, Suit suit_led = NOTRUMP) {
   CHECK(!candidates.empty());
-  const ConditionalLine *best = candidates[0];
-  auto best_score = CandidateSpecificityScore(best, up_to_pos);
+  const ConditionalLine *best = nullptr;
+  auto best_score = CandidateSpecificityScore(candidates[0], up_to_pos);
+  if (bs != nullptr) {
+    for (const ConditionalLine *cand : candidates) {
+      if (!AreCandidateDeclarerCardsLegalForTrick(*bs, cand, up_to_pos,
+                                                  suit_led)) {
+        continue;
+      }
+      auto s = CandidateSpecificityScore(cand, up_to_pos);
+      if (best == nullptr || s > best_score) {
+        best = cand;
+        best_score = s;
+      }
+    }
+    if (best != nullptr) {
+      return best;
+    }
+  }
+  best = candidates[0];
+  best_score = CandidateSpecificityScore(best, up_to_pos);
   for (size_t i = 1; i < candidates.size(); ++i) {
     auto s = CandidateSpecificityScore(candidates[i], up_to_pos);
     if (s > best_score) {
@@ -1497,7 +1551,7 @@ double BranchSuccessProbability(
       (pos == 0) ? Card::DecodeCard(card_val).first : copy.SuitLed();
   std::vector<const ConditionalLine *> matching =
       FilterCandidatesByDefenderCard(
-          candidates, card_str, pos, suit_led, copy.GetTrump());
+          candidates, card_str, pos, suit_led, copy.GetTrump(), &copy);
   if (matching.empty()) {
     return -1.0;
   }
@@ -1700,12 +1754,13 @@ int ResultsOnHandHelper(
       Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
       std::vector<const ConditionalLine *> matching =
           FilterCandidatesByDefenderCard(
-              candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
+              candidates, pre_str, pre_pos, suit_led, copy.GetTrump(), &copy);
       if (!matching.empty()) {
         candidates = std::move(matching);
       } else {
         diverged_during_trick = true;
-        candidates = {SelectMostSpecificCandidate(candidates, pre_pos)};
+        candidates = {SelectMostSpecificCandidate(candidates, pre_pos + 1,
+                                                  &copy, suit_led)};
       }
     }
   }
@@ -1753,12 +1808,14 @@ int ResultsOnHandHelper(
       if (candidates.size() > 1) {
         std::vector<const ConditionalLine *> matching =
             FilterCandidatesByDefenderCard(
-                candidates, def_card_str, pos, suit_led, copy.GetTrump());
+                candidates, def_card_str, pos, suit_led, copy.GetTrump(),
+                &copy);
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
           diverged_during_trick = true;
-          candidates = {SelectMostSpecificCandidate(candidates, pos)};
+          candidates = {SelectMostSpecificCandidate(candidates, pos + 1, &copy,
+                                                    suit_led)};
         }
       }
     }
@@ -1949,7 +2006,7 @@ void TraceUnmakeableBoardHelper(
       Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
       std::vector<const ConditionalLine *> matching =
           FilterCandidatesByDefenderCard(
-              candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
+              candidates, pre_str, pre_pos, suit_led, copy.GetTrump(), &copy);
       if (matching.empty()) return;
       if (pre_pos == 0) {
         if (!in_step1_set) {
@@ -2002,7 +2059,7 @@ void TraceUnmakeableBoardHelper(
           (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
       std::vector<const ConditionalLine *> matching =
           FilterCandidatesByDefenderCard(
-              candidates, def_card_str, pos, suit_led, copy.GetTrump());
+              candidates, def_card_str, pos, suit_led, copy.GetTrump(), &copy);
       if (matching.empty()) {
         return;
       }
@@ -2189,6 +2246,47 @@ void ConditionalLine::DeepCloneChildren() {
         }
       }
     }
+  } else if (action_children.size() > 1 &&
+             action_children[0]->do_first_.leader % 2 != 0) {
+    bool has_wildcard_lead = false;
+    for (const ConditionalLine *c : action_children) {
+      if (c->do_first_.demi1.opp_card == "__") {
+        has_wildcard_lead = true;
+        break;
+      }
+    }
+    bool updated_cond_str = false;
+    for (size_t k = 0; has_wildcard_lead && k < action_children.size(); ++k) {
+      ConditionalLine *ck = action_children[k];
+      GeneralizedTrick &gt_k = ck->do_first_;
+      const std::string &opp1_k = gt_k.demi1.opp_card;
+      if (opp1_k.size() < 2 || opp1_k[0] == '_' || opp1_k[0] == 'R' ||
+          opp1_k[1] == '_') {
+        continue;
+      }
+      bool another_same_suit = false;
+      for (size_t m = 0; m < action_children.size(); ++m) {
+        if (m == k) continue;
+        const std::string &opp1_m = action_children[m]->do_first_.demi1.opp_card;
+        if (opp1_m.size() >= 2 && opp1_m[0] == opp1_k[0]) {
+          another_same_suit = true;
+          break;
+        }
+      }
+      if (!another_same_suit) {
+        gt_k.demi1.opp_card[1] = '_';
+        updated_cond_str = true;
+      }
+    }
+    if (updated_cond_str) {
+      for (auto &[cond, child] : conditions_) {
+        if (!child || child->do_first_.Empty()) continue;
+        if (dynamic_cast<const TrickPlayCondition *>(cond.get()) != nullptr) {
+          cond = std::make_shared<TrickPlayCondition>(
+              child->do_first_.ToString(true));
+        }
+      }
+    }
   }
 }
 
@@ -2357,7 +2455,7 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
         Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
         std::vector<const ConditionalLine *> matching =
             FilterCandidatesByDefenderCard(
-                candidates, pre_str, pre_pos, suit_led, copy.GetTrump());
+                candidates, pre_str, pre_pos, suit_led, copy.GetTrump(), &copy);
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
@@ -2366,7 +2464,8 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
             unmatched_card = pre_str;
           }
           diverged_during_trick = true;
-          candidates = {SelectMostSpecificCandidate(candidates, pre_pos)};
+          candidates = {SelectMostSpecificCandidate(candidates, pre_pos + 1,
+                                                    &copy, suit_led)};
         }
       }
     }
@@ -2418,7 +2517,8 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
 
         std::vector<const ConditionalLine *> matching =
             FilterCandidatesByDefenderCard(
-                candidates, def_card_str, pos, suit_led, copy.GetTrump());
+                candidates, def_card_str, pos, suit_led, copy.GetTrump(),
+                &copy);
         if (!matching.empty()) {
           candidates = std::move(matching);
         } else {
@@ -2427,7 +2527,8 @@ ConditionalLine::BoardPlayTrace ConditionalLine::TraceOnBoard(
             unmatched_card = def_card_str;
           }
           diverged_during_trick = true;
-          candidates = {SelectMostSpecificCandidate(candidates, pos)};
+          candidates = {SelectMostSpecificCandidate(candidates, pos + 1, &copy,
+                                                    suit_led)};
         }
       }
     }
