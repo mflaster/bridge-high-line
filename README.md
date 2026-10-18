@@ -22,11 +22,14 @@ Comprehensive architectural documentation, interactive Mermaid diagrams, sequenc
 
 All external dependencies are automatically fetched, configured, and built via CMake `FetchContent` or embedded in `third_party/`. No manual pre-installation of libraries is required:
 
-- **Double Dummy Solver (`dds`)**: v2.9.0 static library build with OpenMP support.
+- **Double Dummy Solver (`dds`)**: v2.9.0 static library build with OpenMP support, by Bo Haglund and Soren Hein ([`dds-bridge/dds`](https://github.com/dds-bridge/dds)).
 - **GoogleTest (`gtest`)**: v1.14.0 test framework.
 - **glog**: Google Logging library (v0.7.1).
 - **Boost**: C++ Header libraries (v1.83.0).
 - **Embedded Web Assets & HTTP Microserver**: C++17 single-binary microserver powered by embedded `cpp-httplib` and `nlohmann/json`.
+- **SAYCBridge (`saycbridge`)**: Fetched via CMake `FetchContent` from [`eseidel/saycbridge`](https://github.com/eseidel/saycbridge); its `z3b` SAYC constraint expressions and priority hierarchy are compiled at build time into `sayc_generated.h` for `WouldBid` evaluation in both C++ and WebAssembly.
+
+See [**ACKNOWLEDGEMENTS.md**](ACKNOWLEDGEMENTS.md) for full credits and license notices.
 
 ## Prerequisites
 
@@ -235,4 +238,13 @@ west   = S 543 H 543 D JT9 C JT92
 trump  = HEARTS
 leader = NORTH
 ```
+
+## Acknowledgements
+
+- **[Double Dummy Solver (`dds`)](https://github.com/dds-bridge/dds)** by **Bo Haglund** and **Soren Hein** (Apache License 2.0) — the double-dummy bridge solver engine used for trick evaluation and play-tree analysis.
+- **[SAYCBridge (`eseidel/saycbridge`)](https://github.com/eseidel/saycbridge)** and **[Yarborough (`saycbridge/yarborough`)](https://github.com/saycbridge/yarborough)** by **Eric Seidel**, **Adam Barth**, and **The SAYCBridge Authors** (BSD-3-Clause / Apache License 2.0) — inspiration for the priority-ordered SAYC bidding rules and negative-inference `Pass` logic in `WouldBid`.
+- **[`cpp-httplib`](https://github.com/yhirose/cpp-httplib)** by **Yuji Hirose**, **[`nlohmann/json`](https://github.com/nlohmann/json)** by **Niels Lohmann**, **[Boost](https://github.com/boostorg/headers)**, **[`glog`](https://github.com/google/glog)**, **[GoogleTest](https://github.com/google/googletest)**, and **[PDF.js](https://github.com/mozilla/pdf.js)**.
+
+See [**ACKNOWLEDGEMENTS.md**](ACKNOWLEDGEMENTS.md) for complete third-party credits and license notices.
+
 

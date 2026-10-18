@@ -1553,10 +1553,21 @@ namespace {
 std::vector<std::vector<std::shared_ptr<HandRequirements>>>
 ParseHandRequirements(const nlohmann::json &reqs_json) {
   std::vector<std::vector<std::shared_ptr<HandRequirements>>> reqs(4);
+  if (!reqs_json.is_object()) return reqs;
   for (int i = 0; i < 4; ++i) {
     std::string p_key = (i == 0 ? "N" : (i == 1 ? "E" : (i == 2 ? "S" : "W")));
     if (!reqs_json.contains(p_key)) continue;
     const auto &p_req = reqs_json[p_key];
+    if (p_req.is_array()) {
+      for (const auto &item : p_req) {
+        if (item.is_string()) {
+          auto r = HandRequirements::FromString(item.get<std::string>());
+          if (r) reqs[i].push_back(std::move(r));
+        }
+      }
+      continue;
+    }
+    if (!p_req.is_object()) continue;
     if (p_req.contains("hcp_low") && p_req.contains("hcp_high")) {
       reqs[i].push_back(std::make_shared<HighCardRange>(
           p_req["hcp_low"].get<int>(), p_req["hcp_high"].get<int>()));
@@ -1573,6 +1584,39 @@ ParseHandRequirements(const nlohmann::json &reqs_json) {
             reqs[i].push_back(std::make_shared<SuitLength>(
                 s, 0, std::max(0, max_val.get<int>())));
           }
+        }
+      }
+    }
+    if (p_req.contains("would_bid")) {
+      const auto &wb = p_req["would_bid"];
+      auto add_wb_obj = [&](const nlohmann::json &obj) {
+        if (obj.is_object() && obj.contains("bid") && obj["bid"].is_string()) {
+          std::string bid = obj["bid"].get<std::string>();
+          std::string after =
+              (obj.contains("after") && obj["after"].is_string())
+                  ? obj["after"].get<std::string>()
+                  : "";
+          if (!bid.empty()) {
+            reqs[i].push_back(std::make_shared<WouldBid>(bid, after));
+          }
+        } else if (obj.is_string()) {
+          auto r = HandRequirements::FromString(obj.get<std::string>());
+          if (r) reqs[i].push_back(std::move(r));
+        }
+      };
+      if (wb.is_array()) {
+        for (const auto &item : wb) {
+          add_wb_obj(item);
+        }
+      } else {
+        add_wb_obj(wb);
+      }
+    }
+    if (p_req.contains("exprs") && p_req["exprs"].is_array()) {
+      for (const auto &expr : p_req["exprs"]) {
+        if (expr.is_string()) {
+          auto r = HandRequirements::FromString(expr.get<std::string>());
+          if (r) reqs[i].push_back(std::move(r));
         }
       }
     }

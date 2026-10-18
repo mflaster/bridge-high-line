@@ -20,7 +20,7 @@ std::pair<uint64_t, uint64_t> DealTwoRequiredHands(
     uint64_t cards,
     const std::vector<std::shared_ptr<HandRequirements>> &reqs1,
     const std::vector<std::shared_ptr<HandRequirements>> &reqs2,
-    int hand1_count = -1);
+    int hand1_count = -1, uint64_t known_hand1 = 0, uint64_t known_hand2 = 0);
 
 std::vector<uint64_t> DealMissingCards(
     const std::vector<uint64_t> &hands,
