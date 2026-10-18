@@ -620,17 +620,9 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   if (min_tricks > total_tricks) {
     return 0;
   }
-  // For declarer, ask DDS for every card that still makes min_tricks rather
-  // than only the cards that maximize tricks. The search's objective is to
-  // make the contract on as many boards as possible, so a play that makes
-  // exactly min_tricks here must stay a candidate even when a peek-dependent
-  // play (dropping an offside doubleton queen, say) would win an overtrick on
-  // this particular board. Once the contract is secure (min_tricks <= 0) the
-  // maximal plays suffice and keep the tree small.
-  bool use_min_tricks_target = pair_is_me && min_tricks >= 1;
   futureTricks futp_storage{};
   if (!solved_tricks) {
-    int target = use_min_tricks_target ? min_tricks : -1;
+    int target = -1;
     int solutions = 2; // Return all optimum cards and their scores.
     // int mode = 1;  // automatic reuse of state / always search
     int mode = 2;  // force reuse of state

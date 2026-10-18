@@ -452,7 +452,7 @@ std::shared_ptr<OptimalPlayTree> DerivePlayTreeForForcedLead(
     }
     return tree;
   }
-  if (!has_higher_same_suit) {
+  if (base_tree.MiniMax() <= min_tricks && !has_higher_same_suit) {
     return std::make_shared<OptimalPlayTree>(0, base_board, tr, min_tricks);
   }
   return OptimalPlayTree::FindOptimalPlayTree(cur_board, min_tricks, cache);
