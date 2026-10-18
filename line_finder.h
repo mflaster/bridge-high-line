@@ -243,6 +243,22 @@ class LineFinder {
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
       int min_covered = 0);
 
+  void TryUpgradeBranchForOvertricks(
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets,
+      int leader, int lvl,
+      std::vector<ConditionalLine> *branch_res);
+
+  ConditionalLine ExtendOvertrickLineToContract(
+      const ConditionalLine &ot_node,
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets,
+      int leader, int lvl);
+
  private:
   static constexpr size_t kMemoShards = 64;
   static constexpr size_t kMaxMemoPerShard = 4096;

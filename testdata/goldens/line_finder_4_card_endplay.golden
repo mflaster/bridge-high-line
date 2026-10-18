@@ -5,6 +5,7 @@
 # Hand 3: 
 # Unknown cards: S KJ9543; H -; D 43; C -;
 # Trump: H
+Line 1:
 Covers 30/30 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
 Cross-Hand Deal Set Summary Report
 Total Deals: 30
@@ -13,21 +14,13 @@ Invariant Rules for 4 card ending:
 
   after S8 (S_) SQ (S_): S8 (S_) SQ (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29] / S8 S4 SQ S3 / S8 S3 SQ SK / S8 S3 SQ SK / S8 S3 SQ SK / S8 S3 SQ SK
     if 0 wins the SQ: 
-      after ST (S_) S7 (S_): ST (S_) S7 (S_) [0,5,6,7,8,9,10,15,17,18,20,23,25,26,27] / ST S5 S7 SK / ST S9 S7 SK / ST S9 S7 SK / ST S5 S7 SK / ST S5 S7 SK
-        if 1 wins the SJ: 
-          after (D_) S6 (__) H2: (D_) S6 (__) H2 [10,23] / D3 S6 S5 H2 / D3 S6 S9 H2
-            when 0 wins the H2: 
-              after SA (__) HA (SK): SA (__) HA (SK) [10,23] / SA D4 HA SK / SA D4 HA SK
-                when 2 wins the HA: HAND SUCCEEDED FOR: 10, 23
-        if 3 wins the SJ,SK: 
-          after (D_) SA (D_) HA: (D_) SA (D_) HA [0,5,7,15] / D3 SA D4 HA / D4 SA D3 HA  / D4 SA D3 HA / D3 SA D4 HA
-            when 2 wins the HA: 
-              after S6 (S_) H2 (SJ): S6 (S_) H2 (SJ) [0,5,7,15] / S6 S9 H2 SJ / S6 S4 H2 SJ  / S6 S9 H2 SJ / S6 S4 H2 SJ
-                when 0 wins the H2: HAND SUCCEEDED FOR: 0, 6, 7, 8, 15, 17, 20, 25, 26, 27
-          after (S_) SA (__) S6: (S_) SA (__) S6 [6,8,9,17,18,20,25,26,27] / S5 SA SJ S6  / S9 SA SJ S6  / S5 SA SK S6  / S4 SA SJ S6  / S9 SA D3 S6
+      after H2 (__) HA (__): H2 (__) HA (__) [0,5,6,7,8,9,10,15,17,18,20,23,25,26,27] / H2 D4 HA D3 / H2 D3 HA D4 / H2 D3 HA D4 / H2 D3 HA D4 / H2 D3 HA D4
+        when 2 wins the HA: 
+          after S7 (S_) SA (S_): S7 (S_) SA (S_) [0,5,6,7,8,9,10,15,17,18,20,23,25,26,27] / S7 S9 SA S5 / S7 S4 SA S9 / S7 S5 SA S9 / S7 S9 SA S5 / S7 S9 SA S5
             when 0 wins the SA: 
-              after H2 (__) HA (__): H2 (__) HA (__) [6,8,9,17,18,20,25,26,27] / H2 D3 HA D4  / H2 D3 HA D4  / H2 D3 HA D4  / H2 D4 HA D3  / H2 D4 HA SK
-                when 2 wins the HA: HAND SUCCEEDED FOR: 5, 18
+              after ST (__) S6 (S_): ST (__) S6 (S_) [0,5,6,7,8,9,10,15,17,18,20,23,25,26,27] / ST SJ S6 SK / ST SJ S6 SK / ST SJ S6 SK / ST SJ S6 SK / ST SJ S6 SK
+                if 1 wins the SJ,SK: 
+                if 3 wins the SK: HAND SUCCEEDED FOR: 0, 5, 6, 7, 8, 10, 15, 17, 18, 20, 23, 25, 26, 27
     if 1 wins the SK: 
       after (D_) S7 (__) H2: (D_) S7 (__) H2 [1,3,11,19,21,24,29] / D3 S7 D4 H2 / D4 S7 D3 H2 / D3 S7 D4 H2 / D4 S7 D3 H2 / D3 S7 S5 H2
         when 0 wins the H2: 
@@ -47,3 +40,54 @@ Invariant Rules for 4 card ending:
             when 0 wins the SA: 
               after H2 (__) HA (__): H2 (__) HA (__) [2,4,13] / H2 D4 HA D3  / H2 SJ HA D4 / H2 SJ HA D4
                 when 2 wins the HA: HAND SUCCEEDED FOR: 4, 13
+
+Line 2:
+Covers 30/30 (100.0%) [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
+Cross-Hand Deal Set Summary Report
+Total Deals: 30
+Invariant Rules for 4 card ending:
+  (None)
+
+  after S8 (S_) ST (S_): S8 (S_) ST (S_) [0,1,2,3,4,5,6,7,8,9,10,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29] / S8 S4 ST SJ / S8 S3 ST SK / S8 S3 ST SJ / S8 S3 ST SJ / S8 S3 ST SJ
+    if 0 wins the ST: 
+      after H2 (__) HA (__): H2 (__) HA (__) [9,18] / H2 D3 HA D4  / H2 D3 HA S9
+        when 2 wins the HA: 
+          after S7 (S_) SQ (S_): S7 (S_) SQ (S_) [9,18] / S7 S5 SQ SK  / S7 SJ SQ S5
+            if 0 wins the SQ: 
+              after SA (__) S6 (SK): SA (__) S6 (SK) [18] / SA D4 S6 SK
+                when 0 wins the SA: HAND SUCCEEDED FOR: 18, 25, 27
+            if 1 wins the SK: 
+              after (S_) S6 (SJ) SA: (S_) S6 (SJ) SA [9] / S4 S6 SJ SA 
+                when 0 wins the SA: 
+    if 1 wins the SJ,SK: 
+      after (D_) S7 (__) H2: (D_) S7 (__) H2 [0,1,2,3,5,6,7,8,10,12,15,16,17,23,24,26,28] / D4 S7 D3 H2  / D3 S7 D4 H2  / D4 S7 D3 H2  / D4 S7 D3 H2  / D3 S7 D4 H2 
+        when 0 wins the H2: 
+          after SA (S_) S6 (S_): SA (S_) S6 (S_) [0,1,2,3,5,6,7,8,10,12,15,16,17,23,24,26,28] / SA S3 S6 S9  / SA S5 S6 S4  / SA S9 S6 S4  / SA S9 S6 S4  / SA S5 S6 S4 
+            when 0 wins the SA: 
+              after SQ (__) HA (S_): SQ (__) HA (S_) [0,1,2,3,5,6,7,8,10,12,15,16,17,23,24,26,28] / SQ S5 HA SK  / SQ S9 HA SJ  / SQ SK HA S5  / SQ SK HA S5  / SQ S9 HA SK 
+                when 2 wins the HA: HAND SUCCEEDED FOR: 24
+      after (SK) S7 (S_) SA: (SK) S7 (S_) SA [13] / SK S7 S5 SA 
+        when 0 wins the SA: 
+          after SQ (S_) S6 (__): SQ (S_) S6 (__) [13] / SQ S4 S6 D3 
+            when 0 wins the SQ: 
+              after H2 (__) HA (__): H2 (__) HA (__) [13] / H2 S9 HA D4 
+                when 2 wins the HA: 
+      after (S_) S7 (SX) SA: (S_) S7 (SX) SA [14,19,20,22] / S3 S7 SJ SA / S4 S7 SJ SA  / S9 S7 SK SA  / S3 S7 SJ SA
+        when 0 wins the SA: 
+          after SQ (S_) S6 (__): SQ (S_) S6 (__) [14,19,20,22] / SQ S5 S6 D3 / SQ S9 S6 S5  / SQ S3 S6 S5  / SQ S4 S6 D3
+            when 0 wins the SQ: 
+              after H2 (__) HA (__): H2 (__) HA (__) [14,19,20,22] / H2 S9 HA D4 / H2 D4 HA D3  / H2 D4 HA D3  / H2 S5 HA D4
+                when 2 wins the HA: HAND SUCCEEDED FOR: 14, 22
+      after (S_) S7 (S_) SQ: (S_) S7 (S_) SQ [4] / S4 S7 S9 SQ
+        when 0 wins the SQ: 
+          after SA (S_) S6 (__): SA (S_) S6 (__) [4] / SA S5 S6 D3
+            when 0 wins the SA: 
+              after H2 (__) HA (__): H2 (__) HA (__) [4] / H2 SK HA D4
+                when 2 wins the HA: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 26, 28, 29
+    if 3 wins the SJ: 
+      after (D_) SQ (D_) HA: (D_) SQ (D_) HA [25,27] / D4 SQ D3 HA  / D4 SQ D3 HA 
+        when 2 wins the HA: 
+          after S7 (S_) SA (S_): S7 (S_) SA (S_) [25,27] / S7 S4 SA S5  / S7 S4 SA S5 
+            when 0 wins the SA: 
+              after H2 (__) S6 (__): H2 (__) S6 (__) [25,27] / H2 S9 S6 SK  / H2 S9 S6 SK 
+                when 0 wins the H2: 
