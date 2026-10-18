@@ -1206,8 +1206,8 @@ body.is-resizing * {
   cursor: pointer;
 }
 
-.node-action { fill: #1e293b; stroke: #3b82f6; }
-.node-condition { fill: #1e1b4b; stroke: #818cf8; }
+.node-action { fill: #064e3b; stroke: #3b82f6; }
+.node-condition { fill: #064e3b; stroke: #818cf8; }
 .node-outcome { fill: #064e3b; stroke: #10b981; }
 
 .node-card.centered-node {
