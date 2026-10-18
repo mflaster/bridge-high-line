@@ -20,9 +20,25 @@ jobs:
   build-wasm:
     name: Build WebAssembly Solver
     runs-on: ubuntu-24.04
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install ccache
+        run: |
+          if ! command -v ccache >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ccache
+          fi
 
       - name: Setup Emscripten SDK
         uses: mymindstorm/setup-emsdk@v14
@@ -38,10 +54,20 @@ jobs:
           restore-keys: |
             wasm-deps-v1-${{ runner.os }}-
 
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-wasm-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
+          restore-keys: |
+            ccache-wasm-v1-${{ runner.os }}-
+
       - name: Configure and build bridge_wasm
         run: |
+          ccache -z
           emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release
           cmake --build build-wasm -j "$(nproc)"
+          ccache -s
 
       - name: Smoke-test bridge_wasm in Node.js
         run: |
