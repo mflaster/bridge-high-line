@@ -994,4 +994,30 @@ TEST(LineFinderTest, OmpCompatPool_FourThreadsNestedTasks) {
   ASSERT_TRUE((thread_mask.load() & ~0xF) == 0);
 }
 
+TEST(LineFinderTest, LineFinder_AssuredContractAtRootElevatesMinTricks) {
+  std::vector<uint64_t> hands(4, 0);
+  hands[0] = ParseHand("S 532; H T7; D T32; C 6;");
+  hands[2] = ParseHand("S K9; H -; D A854; C AKJ;");
+  uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
 
+  // 5 tricks (CA, CK, DA, HT, H7) are assured from the start on all deals.
+  // Solving for min_tricks = 5 should elevate to min_tricks = 6 and produce
+  // the exact same top line as solving for min_tricks = 6 (C6 -> CJ finesse at
+  // Trick 1, and when CJ holds, trying for 7 tricks).
+  srand48(0);
+  LineFinder lf5(50);
+  std::vector<ConditionalLine> lines5 =
+      lf5.Solve(5, hands, unknown, 0, HEARTS, {});
+  ASSERT_TRUE(!lines5.empty());
+
+  srand48(0);
+  LineFinder lf6(50);
+  std::vector<ConditionalLine> lines6 =
+      lf6.Solve(6, hands, unknown, 0, HEARTS, {});
+  ASSERT_TRUE(!lines6.empty());
+
+  ASSERT_TRUE(lines5[0].CoveredFinalBoards() == lines6[0].CoveredFinalBoards());
+  ASSERT_TRUE(lines5[0].Describe() == lines6[0].Describe());
+  ASSERT_TRUE(lines5[0].Describe().find("C6 (Cx) CJ (C_)") !=
+              std::string::npos);
+}
