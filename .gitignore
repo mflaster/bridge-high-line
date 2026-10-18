@@ -12,3 +12,4 @@ bridge_server
 server_test
 dds-develop/
 .ccache/
+web/web_assets.h

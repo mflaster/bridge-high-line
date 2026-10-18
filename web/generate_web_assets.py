@@ -13,7 +13,11 @@ def main():
     presets_path = os.path.join(script_dir, "presets.json")
     strategy_doc_path = os.path.join(script_dir, "..", "docs", "bridge-strategy.md")
     user_guide_path = os.path.join(script_dir, "..", "docs", "user-guide.md")
-    out_path = os.path.join(script_dir, "web_assets.h")
+    out_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.path.join(script_dir, "web_assets.h")
+    )
 
     with open(html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
