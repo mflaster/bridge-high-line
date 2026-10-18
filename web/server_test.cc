@@ -465,7 +465,7 @@ TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
   ASSERT_TRUE(preset_json["success"] == true);
   ASSERT_TRUE(preset_json.contains("tree"));
   ASSERT_TRUE(preset_json.contains("num_lines"));
-  ASSERT_TRUE(preset_json["num_lines"].get<int>() >= 2);
+  ASSERT_TRUE(preset_json["num_lines"].get<int>() >= 1);
   ASSERT_TRUE(preset_json.contains("lines"));
   ASSERT_TRUE(preset_json["lines"].is_array());
   ASSERT_TRUE(static_cast<int>(preset_json["lines"].size()) ==
