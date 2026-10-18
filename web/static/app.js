@@ -2412,7 +2412,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function appendSvgCallSpans(textEl, callCode) {
     const norm = normalizeCallToken(callCode) || callCode || '';
     if (norm === 'P') {
-      textEl.textContent = 'Pass';
+      textEl.textContent = 'P';
       return;
     }
     if (norm === 'X' || norm === 'XX') {
@@ -2433,7 +2433,8 @@ document.addEventListener('DOMContentLoaded', () => {
         lvlSpan.textContent = lvl;
         textEl.appendChild(lvlSpan);
         const symSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-        symSpan.setAttribute('class', suitMap[strain].cls);
+        symSpan.setAttribute('class', `card-suit-label ${suitMap[strain].cls}`);
+        symSpan.setAttribute('font-size', '15');
         symSpan.textContent = suitMap[strain].sym;
         textEl.appendChild(symSpan);
         return;
@@ -2451,11 +2452,11 @@ document.addEventListener('DOMContentLoaded', () => {
     cardsAuctionGroup.innerHTML = '';
 
     const order = ['N', 'E', 'S', 'W'];
-    const constrainedSeats = new Set();
+    let hasBiddingReqs = false;
     ['E', 'W'].forEach(seatKey => {
       if (importedBiddingReqs && Array.isArray(importedBiddingReqs[seatKey]) &&
           importedBiddingReqs[seatKey].length > 0) {
-        constrainedSeats.add(seatKey);
+        hasBiddingReqs = true;
       }
     });
 
@@ -2470,14 +2471,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const seatIdx = (dealerIdx + i) % 4;
         const seat = order[seatIdx];
         const normBid = normalizeCallToken(c.bid) || c.bid;
-        return {
-          seat,
-          seatIdx,
-          bid: normBid,
-          constrained: constrainedSeats.has(seat)
-        };
+        return { seat, seatIdx, bid: normBid };
       });
-    } else if (constrainedSeats.size > 0) {
+    } else if (hasBiddingReqs) {
       // Reconstruct the implied first-round auction from importedBiddingReqs
       let bestSeq = null;
       let bestDealerIdx = 0;
@@ -2501,12 +2497,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const seatIdx = (dealerIdx + i) % 4;
           const seat = order[seatIdx];
           const normBid = normalizeCallToken(rawBid) || rawBid;
-          return {
-            seat,
-            seatIdx,
-            bid: normBid,
-            constrained: constrainedSeats.has(seat)
-          };
+          return { seat, seatIdx, bid: normBid };
         });
       }
     }
@@ -2518,7 +2509,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     auctionGroup.classList.remove('hidden');
     if (titleAuction) {
-      titleAuction.textContent = `AUCTION (DLR ${order[dealerIdx]})`;
+      titleAuction.textContent = 'AUCTION';
     }
 
     const colX = [16, 39, 62, 85];
@@ -2529,20 +2520,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const seat = order[seatIdx];
       const hdr = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       hdr.setAttribute('x', String(colX[i]));
-      hdr.setAttribute('y', '32');
+      hdr.setAttribute('y', '35');
       hdr.setAttribute('text-anchor', 'middle');
-      hdr.setAttribute('font-size', '9.5');
+      hdr.setAttribute('font-size', '11');
       hdr.setAttribute('font-weight', '700');
-      hdr.setAttribute('fill', constrainedSeats.has(seat) ? '#7dd3fc' : '#94a3b8');
+      hdr.setAttribute('fill', '#94a3b8');
       hdr.textContent = seat;
       cardsAuctionGroup.appendChild(hdr);
     }
 
     const divider = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     divider.setAttribute('x1', '7');
-    divider.setAttribute('y1', '37');
+    divider.setAttribute('y1', '42');
     divider.setAttribute('x2', '95');
-    divider.setAttribute('y2', '37');
+    divider.setAttribute('y2', '42');
     divider.setAttribute('stroke', '#2a5a43');
     divider.setAttribute('stroke-width', '1');
     cardsAuctionGroup.appendChild(divider);
@@ -2550,24 +2541,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // First-round call cells
     for (let i = 0; i < 4; i++) {
       const callEntry = callsByTurn[i];
-      if (callEntry && callEntry.constrained) {
-        const badge = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        badge.setAttribute('x', String(colX[i] - 10.5));
-        badge.setAttribute('y', '42');
-        badge.setAttribute('width', '21');
-        badge.setAttribute('height', '16');
-        badge.setAttribute('rx', '3');
-        badge.setAttribute('fill', 'rgba(56, 189, 248, 0.16)');
-        badge.setAttribute('stroke', '#38bdf8');
-        badge.setAttribute('stroke-width', '0.9');
-        cardsAuctionGroup.appendChild(badge);
-      }
-
       const cell = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       cell.setAttribute('x', String(colX[i]));
-      cell.setAttribute('y', '53.5');
+      cell.setAttribute('y', '61');
       cell.setAttribute('text-anchor', 'middle');
-      cell.setAttribute('font-size', (callEntry && callEntry.bid === 'P') ? '8.5' : '10.5');
+      cell.setAttribute('font-size', '12.5');
       cell.setAttribute('font-weight', '700');
       cell.setAttribute('fill', callEntry ? '#f8fafc' : '#64748b');
       if (callEntry) {
@@ -2576,44 +2554,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cell.textContent = '—';
       }
       cardsAuctionGroup.appendChild(cell);
-    }
-
-    // Footer showing constrained defender calls
-    const constrainedCalls = callsByTurn.filter(c => c.constrained);
-    if (constrainedCalls.length > 0) {
-      const subLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      subLabel.setAttribute('x', '51');
-      subLabel.setAttribute('y', '74');
-      subLabel.setAttribute('text-anchor', 'middle');
-      subLabel.setAttribute('font-size', '8');
-      subLabel.setAttribute('font-weight', '700');
-      subLabel.setAttribute('fill', '#6ee7b7');
-      subLabel.setAttribute('letter-spacing', '0.3');
-      subLabel.textContent = 'CONSTRAINED BIDS';
-      cardsAuctionGroup.appendChild(subLabel);
-
-      const summaryText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      summaryText.setAttribute('x', '51');
-      summaryText.setAttribute('y', '89');
-      summaryText.setAttribute('text-anchor', 'middle');
-      summaryText.setAttribute('font-size', '9.5');
-      summaryText.setAttribute('font-weight', '700');
-      summaryText.setAttribute('fill', '#f1f5f9');
-
-      constrainedCalls.forEach((c, idx) => {
-        if (idx > 0) {
-          const sep = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-          sep.setAttribute('fill', '#64748b');
-          sep.textContent = ' · ';
-          summaryText.appendChild(sep);
-        }
-        const seatSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-        seatSpan.setAttribute('fill', '#7dd3fc');
-        seatSpan.textContent = `${c.seat}: `;
-        summaryText.appendChild(seatSpan);
-        appendSvgCallSpans(summaryText, c.bid);
-      });
-      cardsAuctionGroup.appendChild(summaryText);
     }
   }
 

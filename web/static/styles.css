@@ -245,8 +245,7 @@ body.is-resizing * {
 /* SVG Deal Container */
 .svg-deal-container {
   width: 100%;
-  flex: 1 1 auto;
-  min-height: 200px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -258,7 +257,7 @@ body.is-resizing * {
 
 #dealSvg {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
 }
 
