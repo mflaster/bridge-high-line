@@ -10705,7 +10705,7 @@ document.addEventListener('DOMContentLoaded', () => {
         node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0)
       );
       const rawDealFrac = total > 0 ? Math.min(1, Math.max(0, fails / total)) : 1;
-      const dealFrac = 0.05 + 0.95 * rawDealFrac;
+      const dealFrac = 0.10 + 0.90 * rawDealFrac;
       return { dealFrac, failFrac: 1 };
     }
     const wins = Math.max(
@@ -10715,7 +10715,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fails = Math.max(0, node.failure_boards || 0);
     const reaching = wins + fails;
     const rawDealFrac = total > 0 ? Math.min(1, Math.max(0, reaching / total)) : 1;
-    const dealFrac = 0.05 + 0.95 * rawDealFrac;
+    const dealFrac = 0.10 + 0.90 * rawDealFrac;
     const failFrac = (reaching > 0 && fails > 0)
       ? Math.min(1, Math.max(0, fails / reaching))
       : 0;
