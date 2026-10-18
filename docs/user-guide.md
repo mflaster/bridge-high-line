@@ -107,11 +107,11 @@ displays it in the **Decision Tree** tab.
 
 Each card in the tree represents a trick or final outcome:
 
-- **Blue Nodes (`Play`)**: A trick played along the line (for example,
-  `Trick 1: SA, S4, S7, SJ`). Shows how many sampled deals reach and make along
-  this branch. When some deals reaching a node go on to fail, the node
-  background splits proportionally between blue and red and displays both
-  `Makes:` and `Fails:` counts.
+- **Node Fill Proportions (`Makes` / `Fails` / `Unreached`)**: Each node's
+  vertical fill shows how common that branch is across all sampled deals: if a
+  node is reached by 25% of total deals, the top 75% is shaded grey while the
+  bottom 25% is split left-to-right between **green** (deals that make) and
+  **red** (deals that go on to fail).
 - **Green Leaf Nodes (`Makes`)**: The contract succeeds on all deals reaching
   this leaf (`N/S Won: X`).
 - **Red Leaf Nodes (`Fails`)**: The defense defeats the line on the deals

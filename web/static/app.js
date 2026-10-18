@@ -6377,17 +6377,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function getNodeFailFraction(node) {
-    if (!node) return 0;
-    if (node.failure) return 1;
+  function getNodeFillProportions(node) {
+    if (!node) return { dealFrac: 1, failFrac: 0 };
+    const total = (node.total_boards !== undefined && node.total_boards > 0)
+      ? node.total_boards
+      : (currentSolveData && currentSolveData.total_boards > 0 ? currentSolveData.total_boards : 0);
+    if (node.failure) {
+      const fails = Math.max(
+        0,
+        node.failure_boards !== undefined ? node.failure_boards : (node.covered_boards || 0)
+      );
+      const rawDealFrac = total > 0 ? Math.min(1, Math.max(0, fails / total)) : 1;
+      const dealFrac = 0.10 + 0.90 * rawDealFrac;
+      return { dealFrac, failFrac: 1 };
+    }
     const wins = Math.max(
       0,
       node.success_boards !== undefined ? node.success_boards : (node.covered_boards || 0)
     );
     const fails = Math.max(0, node.failure_boards || 0);
     const reaching = wins + fails;
-    if (reaching <= 0 || fails <= 0) return 0;
-    return Math.min(1, Math.max(0, fails / reaching));
+    const rawDealFrac = total > 0 ? Math.min(1, Math.max(0, reaching / total)) : 1;
+    const dealFrac = 0.10 + 0.90 * rawDealFrac;
+    const failFrac = (reaching > 0 && fails > 0)
+      ? Math.min(1, Math.max(0, fails / reaching))
+      : 0;
+    return { dealFrac, failFrac };
+  }
+
+  function getNodeFailFraction(node) {
+    return getNodeFillProportions(node).failFrac;
   }
 
   // Decision Tree SVG Rendering
@@ -6635,42 +6654,59 @@ document.addEventListener('DOMContentLoaded', () => {
       if (node === currentCenteredNode) cardClass += ' centered-node';
       rect.setAttribute('class', `node-card ${cardClass}`);
 
-      const failFrac = getNodeFailFraction(node);
-      if (failFrac > 0 && failFrac < 1) {
-        const gradId = `node-fail-grad-${failGradCounter++}`;
-        const splitPct = ((1 - failFrac) * 100).toFixed(2) + '%';
-        const baseColor = (node.type === 'condition')
-          ? '#1e1b4b'
-          : (node.type === 'outcome' ? '#064e3b' : '#1e293b');
-        const failColor = '#450a0a';
-        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-        grad.setAttribute('id', gradId);
-        grad.setAttribute('x1', '0%');
-        grad.setAttribute('y1', '0%');
-        grad.setAttribute('x2', '100%');
-        grad.setAttribute('y2', '0%');
+      const { dealFrac, failFrac } = getNodeFillProportions(node);
+      const greyColor = '#1e293b';
+      const successColor = '#064e3b';
+      const failColor = '#450a0a';
+      if (dealFrac <= 0) {
+        rect.style.fill = greyColor;
+      } else if (dealFrac >= 1 && failFrac <= 0) {
+        rect.style.fill = successColor;
+      } else if (dealFrac >= 1 && failFrac >= 1) {
+        rect.style.fill = failColor;
+      } else {
+        const patId = `node-fill-pat-${failGradCounter++}`;
+        const pat = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+        pat.setAttribute('id', patId);
+        pat.setAttribute('patternUnits', 'objectBoundingBox');
+        pat.setAttribute('width', '1');
+        pat.setAttribute('height', '1');
 
-        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop1.setAttribute('offset', '0%');
-        stop1.setAttribute('stop-color', baseColor);
-        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop2.setAttribute('offset', splitPct);
-        stop2.setAttribute('stop-color', baseColor);
-        const stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop3.setAttribute('offset', splitPct);
-        stop3.setAttribute('stop-color', failColor);
-        const stop4 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stop4.setAttribute('offset', '100%');
-        stop4.setAttribute('stop-color', failColor);
+        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bgRect.setAttribute('x', '0');
+        bgRect.setAttribute('y', '0');
+        bgRect.setAttribute('width', nodeWidth);
+        bgRect.setAttribute('height', nodeHeight);
+        bgRect.setAttribute('fill', greyColor);
+        pat.appendChild(bgRect);
 
-        grad.appendChild(stop1);
-        grad.appendChild(stop2);
-        grad.appendChild(stop3);
-        grad.appendChild(stop4);
-        treeDefs.appendChild(grad);
-        rect.style.fill = `url(#${gradId})`;
-      } else if (failFrac >= 1 && !node.failure) {
-        rect.style.fill = '#450a0a';
+        const activeHeight = dealFrac * nodeHeight;
+        const activeY = nodeHeight - activeHeight;
+        const successWidth = (1 - failFrac) * nodeWidth;
+        const failWidth = nodeWidth - successWidth;
+
+        if (successWidth > 0) {
+          const winRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          winRect.setAttribute('x', '0');
+          winRect.setAttribute('y', activeY.toFixed(2));
+          winRect.setAttribute('width', successWidth.toFixed(2));
+          winRect.setAttribute('height', activeHeight.toFixed(2));
+          winRect.setAttribute('fill', successColor);
+          pat.appendChild(winRect);
+        }
+
+        if (failWidth > 0) {
+          const loseRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          loseRect.setAttribute('x', successWidth.toFixed(2));
+          loseRect.setAttribute('y', activeY.toFixed(2));
+          loseRect.setAttribute('width', failWidth.toFixed(2));
+          loseRect.setAttribute('height', activeHeight.toFixed(2));
+          loseRect.setAttribute('fill', failColor);
+          pat.appendChild(loseRect);
+        }
+
+        treeDefs.appendChild(pat);
+        rect.style.fill = `url(#${patId})`;
       }
 
       node._svgRect = rect;

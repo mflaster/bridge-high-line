@@ -109,6 +109,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find("const feedbackMessage = (message || '').slice(0, 4096);") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("const WASM_NUM_THREADS = 4;") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("function ensureCrossOriginIsolation") != std::string::npos);
+  ASSERT_TRUE(res_js->body.find("function getNodeFillProportions") != std::string::npos);
+  ASSERT_TRUE(res_js->body.find("node-fill-pat-") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");
