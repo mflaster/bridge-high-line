@@ -58,7 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-wasm-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
+          key: ccache-wasm-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'third_party/gen_sayc_bids.py', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
           restore-keys: |
             ccache-wasm-v1-${{ runner.os }}-
 

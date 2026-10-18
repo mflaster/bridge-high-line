@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ hashFiles('CMakeLists.txt', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
+          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ hashFiles('CMakeLists.txt', 'third_party/gen_sayc_bids.py', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
           restore-keys: |
             ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.compiler }}-
 

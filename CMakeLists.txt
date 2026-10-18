@@ -60,6 +60,14 @@ FetchContent_Declare(
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
+# 5. SAYCBridge (for WouldBid SAYC rules)
+FetchContent_Declare(
+  saycbridge
+  URL https://github.com/eseidel/saycbridge/archive/6d5c1c0b4ae42442aa9c3fb3010746a8a7cd5462.tar.gz
+  URL_HASH SHA256=ee0ef51b632697c9f919294f2bf0592c24b347114055acc84730ec6ba3b98ab4
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
 if(EMSCRIPTEN)
   add_compile_options(-pthread)
   add_link_options(-pthread)
@@ -109,6 +117,11 @@ if(NOT dds_POPULATED)
   endif()
 endif()
 
+FetchContent_GetProperties(saycbridge)
+if(NOT saycbridge_POPULATED)
+  FetchContent_Populate(saycbridge)
+endif()
+
 set(BRIDGE_CORE_SOURCES
   string_util.cc
   card.cc
@@ -125,6 +138,18 @@ set(BRIDGE_CORE_SOURCES
   cross_hand_summarizer.cc
   search_progress.cc
   ${CMAKE_CURRENT_BINARY_DIR}/web_assets.h
+  ${CMAKE_CURRENT_BINARY_DIR}/sayc_generated.h
+)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/sayc_generated.h
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gen_sayc_bids.py
+    ${saycbridge_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}/sayc_generated.h
+  DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gen_sayc_bids.py
+  COMMENT "Generating sayc_generated.h from eseidel/saycbridge"
 )
 
 add_custom_command(

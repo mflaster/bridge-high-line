@@ -75,19 +75,21 @@ std::pair<uint64_t, uint64_t> DealTwoRequiredHands(
     uint64_t cards,
     const std::vector<std::shared_ptr<HandRequirements>> &reqs1,
     const std::vector<std::shared_ptr<HandRequirements>> &reqs2,
-    int hand1_count) {
+    int hand1_count, uint64_t known_hand1, uint64_t known_hand2) {
   for (int i = 0; i < 1000 * 1000; i++) {
     auto [hand1, hand2] = DealTwoHands(cards, hand1_count);
+    uint64_t full_hand1 = known_hand1 | hand1;
+    uint64_t full_hand2 = known_hand2 | hand2;
     bool meets_reqs = true;
     for (const auto &req : reqs1) {
-      if (!req->MeetsRequirement(hand1)) {
+      if (!req->MeetsRequirement(full_hand1)) {
         meets_reqs = false;
         break;
       }
     }
 
     for (const auto &req : reqs2) {
-      if (!req->MeetsRequirement(hand2)) {
+      if (!req->MeetsRequirement(full_hand2)) {
         meets_reqs = false;
         break;
       }

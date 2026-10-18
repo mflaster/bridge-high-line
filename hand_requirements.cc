@@ -1,11 +1,13 @@
 #include "hand_requirements.h"
 
+#include <algorithm>
 #include <cctype>
 #include <sstream>
 #include <vector>
 #include "card.h"
-#include "string_util.h"
 #include "glog/logging.h"
+#include "sayc_generated.h"
+#include "string_util.h"
 
 namespace {
 
@@ -45,7 +47,154 @@ std::vector<std::string> SplitTopLevelArgs(const std::string &args_str) {
   return args;
 }
 
+std::string StripKeywordAndQuotes(const std::string &raw) {
+  std::string s = Trim(raw);
+  size_t eq_pos = s.find('=');
+  if (eq_pos != std::string::npos) {
+    std::string key = ToLower(Trim(s.substr(0, eq_pos)));
+    if (key == "bid" || key == "after") {
+      s = Trim(s.substr(eq_pos + 1));
+    }
+  }
+  if (s.size() >= 2 &&
+      ((s.front() == '"' && s.back() == '"') ||
+       (s.front() == '\'' && s.back() == '\''))) {
+    s = Trim(s.substr(1, s.size() - 2));
+  }
+  return s;
+}
+
+// Converts a normalized call (e.g. "1NT") to SAYCBridge's call string ("1N").
+std::string ToSaycCallName(const std::string &norm_call) {
+  if (norm_call.size() == 3 && norm_call[0] >= '1' && norm_call[0] <= '7' &&
+      norm_call.substr(1) == "NT") {
+    return std::string(1, norm_call[0]) + "N";
+  }
+  return norm_call;
+}
+
+// Normalizes a sequence of prior calls to the canonical SAYCBridge history key.
+std::string ToSaycHistoryKey(const std::vector<std::string> &prior_calls) {
+  size_t first_non_pass = 0;
+  while (first_non_pass < prior_calls.size() &&
+         prior_calls[first_non_pass] == "P") {
+    ++first_non_pass;
+  }
+  if (first_non_pass == prior_calls.size()) {
+    // Unopened auction: SAYCBridge uses "" for 1st/2nd/3rd seat (Rule of 20)
+    // and "P P P" for 4th seat (Rule of 15).
+    return prior_calls.size() == 3 ? "P P P" : "";
+  }
+  std::string key;
+  for (size_t i = first_non_pass; i < prior_calls.size(); ++i) {
+    if (!key.empty()) key += " ";
+    key += ToSaycCallName(prior_calls[i]);
+  }
+  return key;
+}
+
 }  // namespace
+
+/* static */
+std::string WouldBid::NormalizeCall(const std::string &raw_call) {
+  std::string s;
+  for (size_t i = 0; i < raw_call.size(); ++i) {
+    unsigned char ch = static_cast<unsigned char>(raw_call[i]);
+    if (std::isspace(ch)) continue;
+    // Handle UTF-8 suit symbols: ♠ (E2 99 A0), ♥ (E2 99 A5), ♦ (E2 99 A6),
+    // ♣ (E2 99 A3).
+    if (ch == 0xE2 && i + 2 < raw_call.size() &&
+        static_cast<unsigned char>(raw_call[i + 1]) == 0x99) {
+      unsigned char sym = static_cast<unsigned char>(raw_call[i + 2]);
+      if (sym == 0xA0) s += 'S';
+      else if (sym == 0xA5) s += 'H';
+      else if (sym == 0xA6) s += 'D';
+      else if (sym == 0xA3) s += 'C';
+      i += 2;
+      continue;
+    }
+    s += static_cast<char>(std::toupper(ch));
+  }
+  if (s.empty() || s == "P" || s == "PASS" || s == "-") {
+    return "P";
+  }
+  if (s == "X" || s == "DBL" || s == "DOUBLE" || s == "D") {
+    return "X";
+  }
+  if (s == "XX" || s == "RDBL" || s == "REDOUBLE" || s == "R") {
+    return "XX";
+  }
+  if (s.size() >= 2 && s[0] >= '1' && s[0] <= '7') {
+    std::string strain = s.substr(1);
+    if (strain == "N" || strain == "NT") {
+      return std::string(1, s[0]) + "NT";
+    }
+    if (strain == "C" || strain == "D" || strain == "H" || strain == "S") {
+      return std::string(1, s[0]) + strain;
+    }
+  }
+  return s;
+}
+
+WouldBid::WouldBid(const std::string &bid, const std::string &after) {
+  bid_ = NormalizeCall(StripKeywordAndQuotes(bid));
+  std::string clean_after = StripKeywordAndQuotes(after);
+  std::vector<std::string> prior_calls;
+  std::string tok;
+  for (size_t i = 0; i < clean_after.size(); ++i) {
+    char c = clean_after[i];
+    if (std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == ';') {
+      if (!tok.empty()) {
+        prior_calls.push_back(NormalizeCall(tok));
+        tok.clear();
+      }
+    } else {
+      tok += c;
+    }
+  }
+  if (!tok.empty()) {
+    prior_calls.push_back(NormalizeCall(tok));
+  }
+  after_.clear();
+  for (size_t i = 0; i < prior_calls.size(); ++i) {
+    if (i > 0) after_ += " ";
+    after_ += prior_calls[i];
+  }
+  int root = sayc::LookupSaycBidNode(ToSaycHistoryKey(prior_calls),
+                                     ToSaycCallName(bid_));
+  sayc::BuildSaycProgram(root, &prog_);
+}
+
+WouldBid::~WouldBid() = default;
+
+bool WouldBid::MeetsRequirement(uint64_t hand) const {
+  // Populate the 24 raw hand inputs defined by SAYCBridge's
+  // z3b/model.py expr_for_hand(hand):
+  //   vars[0..3]:   suit lengths (clubs, diamonds, hearts, spades)
+  //   vars[4..23]:  A, K, Q, J, T indicator bits for each suit in order
+  //                 (clubs, diamonds, hearts, spades).
+  constexpr Suit kSuitOrder[4] = {CLUBS, DIAMONDS, HEARTS, SPADES};
+  int vars[24];
+  for (int i = 0; i < 4; ++i) {
+    uint16_t sb =
+        static_cast<uint16_t>((hand >> (kSuitOrder[i] * 16)) & 0x1FFFU);
+    vars[i] = PopCount64(sb);
+    int base = 4 + i * 5;
+    vars[base + 0] = (sb >> 12) & 1;  // Ace
+    vars[base + 1] = (sb >> 11) & 1;  // King
+    vars[base + 2] = (sb >> 10) & 1;  // Queen
+    vars[base + 3] = (sb >> 9) & 1;   // Jack
+    vars[base + 4] = (sb >> 8) & 1;   // Ten
+  }
+  return sayc::EvalSaycProgram(prog_, vars);
+}
+
+std::string WouldBid::ToString() const {
+  if (after_.empty()) {
+    return "WouldBid(" + bid_ + ")";
+  }
+  return "WouldBid(" + bid_ + ", " + after_ + ")";
+}
 
 bool SuitAtLeast::MeetsRequirement(uint64_t hand) const {
   hand = hand >> (suit_ * 16);
@@ -63,7 +212,8 @@ bool SuitAtLeast::MeetsRequirement(uint64_t hand) const {
 }
 
 std::string SuitAtLeast::ToString() const {
-  return "SuitAtLeast(" + SuitToString(suit_) + ", " + std::to_string(count_) + ")";
+  return "SuitAtLeast(" + SuitToString(suit_) + ", " + std::to_string(count_) +
+         ")";
 }
 
 bool HandHasCard::MeetsRequirement(uint64_t hand) const {
@@ -81,8 +231,8 @@ bool SuitLength::MeetsRequirement(uint64_t hand) const {
 }
 
 std::string SuitLength::ToString() const {
-  return "SuitLength(" + SuitToString(suit_) + ", " + std::to_string(low_) + ", " +
-         std::to_string(high_) + ")";
+  return "SuitLength(" + SuitToString(suit_) + ", " + std::to_string(low_) +
+         ", " + std::to_string(high_) + ")";
 }
 
 bool HighCardRange::MeetsRequirement(uint64_t hand) const {
@@ -91,7 +241,8 @@ bool HighCardRange::MeetsRequirement(uint64_t hand) const {
 }
 
 std::string HighCardRange::ToString() const {
-  return "HighCardRange(" + std::to_string(low_) + ", " + std::to_string(high_) + ")";
+  return "HighCardRange(" + std::to_string(low_) + ", " +
+         std::to_string(high_) + ")";
 }
 
 bool BalancedHand::MeetsRequirement(uint64_t hand) const {
@@ -217,9 +368,15 @@ std::shared_ptr<HandRequirements> HandRequirements::FromString(
       }
     }
     return std::make_shared<AnyOfRequirement>(reqs);
+  } else if (class_lower == "wouldbid") {
+    auto args = SplitTopLevelArgs(args_str);
+    if (args.size() == 1) {
+      return std::make_shared<WouldBid>(args[0], "");
+    } else if (args.size() >= 2) {
+      return std::make_shared<WouldBid>(args[0], args[1]);
+    }
   }
 
   LOG(WARNING) << "Failed to parse HandRequirements from string: " << str;
   return nullptr;
 }
-

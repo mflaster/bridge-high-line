@@ -41,8 +41,9 @@ BoardState FuzzyBoardState::Randomize(bool deal_missing_cards) {
       target_cards = (hand1_known + hand3_known + unk_cnt) / 2;
     }
     int hand1_needed = std::max(0, target_cards - hand1_known);
-    auto [hand1, hand3] = DealTwoRequiredHands(
-        unknown_cards_, hand_reqs1_, hand_reqs3_, hand1_needed);
+    auto [hand1, hand3] =
+        DealTwoRequiredHands(unknown_cards_, hand_reqs1_, hand_reqs3_,
+                             hand1_needed, hands[1], hands[3]);
 
     hands[1] = hands[1] | hand1;
     hands[3] = hands[3] | hand3;
@@ -157,7 +158,10 @@ std::vector<BoardState> LineFinder::SetupBoards(
       }
       if (valid_for_branch) {
         for (const auto &req : fuzzy_state_.hand_reqs1()) {
-          if (req && !req->MeetsRequirement(rem_hands[1])) {
+          uint64_t check_h1 =
+              (req && !req->AppliesToRemainingHand()) ? sim.GetHand(1)
+                                                      : rem_hands[1];
+          if (req && !req->MeetsRequirement(check_h1)) {
             valid_for_branch = false;
             break;
           }
@@ -165,7 +169,10 @@ std::vector<BoardState> LineFinder::SetupBoards(
       }
       if (valid_for_branch) {
         for (const auto &req : fuzzy_state_.hand_reqs3()) {
-          if (req && !req->MeetsRequirement(rem_hands[3])) {
+          uint64_t check_h3 =
+              (req && !req->AppliesToRemainingHand()) ? sim.GetHand(3)
+                                                      : rem_hands[3];
+          if (req && !req->MeetsRequirement(check_h3)) {
             valid_for_branch = false;
             break;
           }
