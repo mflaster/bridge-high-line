@@ -81,6 +81,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".card-chip.card-winner") != std::string::npos);
   ASSERT_TRUE(res_css->body.find("border-radius: 9999px") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".card-rank-playable") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".card-rank-current.card-rank-playable") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".equivalent-lines-bar") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".compare-line-row") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
@@ -111,6 +112,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find("function ensureCrossOriginIsolation") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("function getNodeFillProportions") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("node-fill-pat-") != std::string::npos);
+  ASSERT_TRUE(res_js->body.find("selectedTrickStates") != std::string::npos);
 
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");

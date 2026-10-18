@@ -1925,17 +1925,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyProposalStateToSvg() {
     if (!activeProposalContext) return;
-    const states = clonePlayStates(activeProposalContext.playedStates);
-    activeProposalContext.proposedCards.forEach((c, idx) => {
-      const entry = Object.assign({}, c, { isLead: idx === 0 });
-      if (c.fromUnknown) {
-        states.U.current.push(entry);
-      }
-      if (states[c.seatName]) {
-        states[c.seatName].current.push(entry);
-      }
-    });
-    activeTrickCardStates = states;
+    const minProposedCards = activeProposalContext.initialCurCount || 0;
+    if (activeProposalContext.proposedCards.length <= minProposedCards &&
+        activeProposalContext.selectedTrickStates) {
+      activeTrickCardStates = clonePlayStates(activeProposalContext.selectedTrickStates);
+    } else {
+      const states = clonePlayStates(activeProposalContext.playedStates);
+      activeProposalContext.proposedCards.forEach((c, idx) => {
+        const entry = Object.assign({}, c, { isLead: idx === 0 });
+        if (c.fromUnknown) {
+          states.U.current.push(entry);
+        }
+        if (states[c.seatName]) {
+          states[c.seatName].current.push(entry);
+        }
+      });
+      activeTrickCardStates = states;
+    }
     updateProposeLineBarUI();
     updateDealSvg();
   }
@@ -2131,6 +2137,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tokenItems.length > 0) hasCards = true;
     });
 
+    const minProposedCards = activeProposalContext ? (activeProposalContext.initialCurCount || 0) : 0;
+    const isShowingSelectedTrickPreview = Boolean(
+      activeProposalContext &&
+      activeProposalContext.proposedCards.length <= minProposedCards &&
+      activeProposalContext.selectedTrickStates
+    );
+
     // Determine which suits are legal if this box is the active turn to play
     let legalSuits = null;
     if (playabilityInfo && playabilityInfo.isTurn) {
@@ -2138,7 +2151,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (playabilityInfo.forceLeadSuit && leadSuit) {
         legalSuits = new Set([leadSuit]);
       } else if (!isUnknown && leadSuit) {
-        const hasUnplayedLeadSuit = (suitTokenLists[leadSuit] || []).some(it => it.state === 'normal');
+        const hasUnplayedLeadSuit = (suitTokenLists[leadSuit] || []).some(
+          it => it.state === 'normal' || (isShowingSelectedTrickPreview && it.state === 'current')
+        );
         if (hasUnplayedLeadSuit) {
           legalSuits = new Set([leadSuit]);
         } else {
@@ -2190,7 +2205,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const isPlayable = Boolean(
             legalSuits &&
             legalSuits.has(s.key) &&
-            item.state === 'normal'
+            (item.state === 'normal' ||
+             (isShowingSelectedTrickPreview && item.state === 'current' && !item.addedFromUnknown))
           );
           if (isPlayable) {
             cls += ' card-rank-playable';
@@ -2268,7 +2284,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!suitKey) return false;
       const suits = parseHandToSuits(handStr);
       const baseTokens = tokenizeSuitRanks(suits[suitKey] || '-');
-      const st = activeTrickCardStates ? activeTrickCardStates[seatKey] : null;
+      const st = (activeProposalContext && activeProposalContext.playedStates)
+        ? activeProposalContext.playedStates[seatKey]
+        : (activeTrickCardStates ? activeTrickCardStates[seatKey] : null);
       const items = buildSeatSuitTokenList(suitKey, baseTokens, st, false);
       return items.some(it => it.state === 'normal');
     };
@@ -7259,6 +7277,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const selectedTrickRow = trickRows[selectedIdx];
+      const playedBeforeSelected = clonePlayStates(states);
+      const currentResolvedCards = resolveActualCardsForTrick(selectedTrickRow);
+      currentResolvedCards.forEach((c, idx) => recordCard(c, 'current', idx === 0));
+      const selectedTrickStates = clonePlayStates(states);
+
       const initCur = (selectedIdx === 0 && selectedTrickRow.trickNum === 1)
         ? getActiveInitialCurTrick()
         : [];
@@ -7283,7 +7306,8 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedIdx: selectedIdx,
         leaderIdx: selectedTrickRow.leadSeatIdx,
         nsTricksBefore: nsTricksBefore,
-        playedStates: clonePlayStates(states),
+        playedStates: playedBeforeSelected,
+        selectedTrickStates: selectedTrickStates,
         prefixTrickRows: prefixTrickRows,
         initialCurCount: initialProposedCards.length,
         proposedCards: initialProposedCards.slice()

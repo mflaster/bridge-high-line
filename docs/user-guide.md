@@ -149,8 +149,11 @@ fixed **N / E / S / W** columns:
 - The **led card** has a highlighted border, and the **winning card** is badged
   in green (if won by N/S) or red/amber (if won by E/W).
 - **Clicking a Trick Row (or `#K` badge)** in the Inspector selects that trick:
-  - Earlier tricks' cards are shown **dimmed and struck through** on the left
-    SVG deal diagram so you can see exactly which cards remain at Trick `#K`.
+  - Earlier tricks' cards (`1..K-1`) are shown **dimmed and struck through** on
+    the left SVG deal diagram, while the cards played in Trick `#K` are
+    **highlighted in amber** (with a gold box around the led card) and any
+    defender cards from **UNKNOWN CARDS** are moved into East's and West's hands
+    respectively.
   - Clicking the selected trick row a second time clears the selection and
     restores the full starting hands.
 
