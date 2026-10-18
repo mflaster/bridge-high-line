@@ -82,7 +82,7 @@ begins, so the percentages reflect the auction rather than raw 52-card odds.
 
 ---
 
-## 2. Aiming for the Contract, Not Overtricks
+## 2. Prioritizing the Contract, Then Pursuing Overtricks
 
 When a double-dummy engine analyzes a deal, its default mode asks: *"Which card
 wins the maximum possible number of tricks?"* In rubber bridge or IMPs,
@@ -100,9 +100,14 @@ To prevent that, the solver asks DDS a different question on declarer's turn (in
 the contract (`min_tricks`)?"**
 - Any play that makes the contract stays alive as a candidate on that deal, even
   if a riskier peek-dependent play could win an overtrick.
-- Once the contract is already locked up (`min_tricks <= 0`), the solver
-  switches to maximizing the remaining tricks to keep the end-of-hand play
-  clean.
+- Once a branch has **100% assured the contract** across all remaining deals on
+  that branch (`TryUpgradeBranchForOvertricks` in
+  [`line_finder.cc`](../line_finder.cc)), the solver searches for a continuation
+  that wins an overtrick (`min_tricks + 1`) on as many of those deals as
+  possible while keeping control of the hand—accepting the upgrade only if it
+  still makes the contract on every single deal in the branch.
+- Once all contract tricks have been won (`min_tricks <= 0`), the solver
+  maximizes the remaining tricks to keep the end-of-hand play clean.
 
 ---
 

@@ -28,23 +28,44 @@ Invariant Rules for 6 card ending:
         when 2 wins the CA: 
           after CK (__) S4 (__): CK (__) S4 (__) [0,1,6,8,10,11,12,13,15,16,18,19,20,22,24,25,27,31,32,33,51,52,53,54,56,60,62] / CK C8 S4 CQ / CK CT S4 C9 / CK CT S4 C9 / CK C9 S4 C7 / CK C8 S4 CQ
             when 2 wins the CK: 
-              after C2 (__) S3 (__): C2 (__) S3 (__) [0,1,6,8,10,11,12,13,15,16,18,19,20,22,24,25,27,31,32,33,51,52,53,54,56,60,62] / C2 C9 S3 S9 / C2 S9 S3 CQ / C2 S9 S3 CQ / C2 S9 S3 CQ / C2 C9 S3 SJ
-                if 1 wins the C8,C9,CQ,CT: 
-                  after (__) S6 (__) S2: (__) S6 (__) S2 [1,6,8,11,12,15,16,20,22,25,31,33,51,54,56,60] / SJ S6 SA S2 / ST S6 SA S2 / SJ S6 SA S2 / CQ S6 ST S2 / S9 S6 SA S2
-                    if 1 wins the CQ,CT,SQ: 
-                      after (__) SK (__) HA: (__) SK (__) HA [11,16,25,31,56,60] / SQ SK SA HA / CQ SK SA HA / CQ SK SA HA / SJ SK SA HA / SJ SK SA HA
-                        when 0 wins the HA: HAND SUCCEEDED FOR: 11, 15, 16, 25, 31, 56, 60
-                    if 3 wins the SA: 
-                      after (SX) HA (__) SK: (SX) HA (__) SK [1,6,8,12,15,20,22,33,51,54] / SQ HA ST SK / SJ HA SQ SK / SQ HA ST SK / SQ HA SJ SK / SQ HA CQ SK 
-                        when 0 wins the HA: HAND SUCCEEDED FOR: 1, 6, 8, 12, 20, 22, 33, 51, 54
-                if 3 wins the C8,C9,CT: 
-                  after (__) S2 (__) S6: (__) S2 (__) S6 [0,10,13,18,19,24,27,32,52,53,62] / ST S2 SA S6 / ST S2 SA S6 / S9 S2 SA S6 / SA S2 SJ S6 / SA S2 ST S6
+              after C2 (__) HA (__): C2 (__) HA (__) [0,1,6,8,10,11,12,13,15,16,18,19,20,22,24,25,27,31,32,33,51,52,53,54,56,60,62] / C2 C9 HA S9 / C2 S9 HA CQ / C2 S9 HA CQ / C2 S9 HA CQ / C2 C9 HA SJ
+                when 0 wins the HA: 
+                  after S3 (R_) S6 (SX): S3 (R_) S6 (SX) [16,25] / S3 CT S6 SJ / S3 CT S6 ST
+                    when 3 wins the SJ,ST: 
+                      after (SA) S2 (__) SK: (SA) S2 (__) SK [16,25] / SA S2 CQ SK / SA S2 CQ SK
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 16, 25
+                  after S3 (SA) S6 (S_): S3 (SA) S6 (S_) [10,13,60] / S3 SA S6 ST  / S3 SA S6 S9  / S3 SA S6 S9
                     if 1 wins the SA: 
-                      after (S_) SK (S_) HA: (S_) SK (S_) HA [0,10,13,24,32,52,53,62] / SJ SK SQ HA / SQ SK S9 HA / SQ SK SJ HA / SQ SK SJ HA / SQ SK S9 HA
-                        when 0 wins the HA: HAND SUCCEEDED FOR: 0, 10, 13, 24, 32, 41, 48, 52, 53, 62
-                    if 3 wins the CT,SA: 
-                      after (SX) HA (SX) SK: (SX) HA (SX) SK [18,19,27] / ST HA SQ SK / SQ HA SJ SK / SQ HA SA SK
-                        when 0 wins the HA: HAND SUCCEEDED FOR: 18, 19, 27
+                      after (__) SK (__) S2: (__) SK (__) S2 [10,13,60] / SQ SK S9 S2  / SQ SK SJ S2  / CQ SK SJ S2
+                        if 1 wins the CQ: HAND SUCCEEDED FOR: 60
+                        if 2 wins the SK: 
+                    if 3 wins: 
+                      after (SA) S2 (__) SK: (SA) S2 (__) SK [6,8,15,19,20,33,54] / SA S2 SQ SK  / SA S2 SJ SK  / SA S2 CQ SK  / SA S2 SJ SK  / SA S2 SQ SK 
+                        when 3 wins the SA: 
+                  after S3 (SJ) SK (SX): S3 (SJ) SK (SX) [0,1,27,52,56] / S3 SJ SK ST / S3 SJ SK SA / S3 SJ SK SQ  / S3 SJ SK ST / S3 SJ SK SA
+                    if 2 wins the SK: 
+                      after S6 (__) S2 (SA): S6 (__) S2 (SA) [0,27,52] / S6 SQ S2 SA / S6 CT S2 SA  / S6 SQ S2 SA
+                        when 1 wins the SA: HAND SUCCEEDED FOR: 0, 52
+                    if 3 wins the SA: 
+                      after (S_) S2 (SX) S6: (S_) S2 (SX) S6 [1,56] / SQ S2 ST S6 / S9 S2 SQ S6
+                        if 1 wins the SQ: HAND SUCCEEDED FOR: 56
+                        if 3 wins the SQ: HAND SUCCEEDED FOR: 1
+                  after S3 (SQ) SK (S_): S3 (SQ) SK (S_) [11,18,24,31,32,51,53,62] / S3 SQ SK SA / S3 SQ SK SA / S3 SQ SK S9 / S3 SQ SK SA / S3 SQ SK S9
+                    if 2 wins the SK: 
+                      after S6 (S_) S2 (SA): S6 (S_) S2 (SA) [24,32,53,62] / S6 SJ S2 SA / S6 ST S2 SA / S6 SJ S2 SA / S6 S9 S2 SA
+                        when 1 wins the SA: HAND SUCCEEDED FOR: 10, 13, 24, 32, 41, 48, 53, 62
+                    if 3 wins the SA: 
+                      after (SX) S2 (__) S6: (SX) S2 (__) S6 [11,18,31,51] / ST S2 CQ S6 / ST S2 SJ S6 / ST S2 SJ S6 / SJ S2 ST S6 
+                        if 1 wins the SJ: HAND SUCCEEDED FOR: 18, 31
+                        if 3 wins the SJ,ST: HAND SUCCEEDED FOR: 11
+                  after S3 (ST) S6 (SX): S3 (ST) S6 (SX) [6,8,15,19,20,33,54] / S3 ST S6 SJ / S3 ST S6 SQ / S3 ST S6 SQ / S3 ST S6 SQ / S3 ST S6 SJ
+                    when 3 wins the SJ,SQ: 
+                      after (SA) S2 (__) SK: (SA) S2 (__) SK [6,8,15,19,20,33,54] / SA S2 SQ SK / SA S2 SJ SK / SA S2 CQ SK / SA S2 SJ SK / SA S2 SQ SK
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 6, 8, 15, 19, 20, 33, 51, 54
+                  after S3 (Sx) S6 (SX): S3 (Sx) S6 (SX) [12,22] / S3 S9 S6 SQ / S3 S9 S6 ST
+                    when 3 wins the SQ,ST: 
+                      after (SA) S2 (__) SK: (SA) S2 (__) SK [6,8,15,19,20,33,54] / SA S2 SQ SK  / SA S2 SJ SK  / SA S2 CQ SK  / SA S2 SJ SK  / SA S2 SQ SK 
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 12, 22, 27
     if 3 wins the CQ: 
       after (C_) S5 (CT) CA: (C_) S5 (CT) CA [5,7,45,55,57] / C5 S5 CT CA / C5 S5 CT CA / C5 S5 CT CA / C5 S5 CT CA / C5 S5 CT CA
         when 2 wins the CA: 
@@ -124,10 +145,7 @@ Invariant Rules for 6 card ending:
             when 2 wins the CA: 
               after CK (__) S3 (C_): CK (__) S3 (C_) [9,49] / CK C8 S3 C9  / CK S9 S3 C7
                 when 2 wins the CK: 
-                  after C2 (__) S2 (__): C2 (__) S2 (__) [9,49] / C2 CT S2 SA  / C2 SJ S2 C8
-                    if 1 wins the C8: 
-                      after (CT) S6 (__) HA: (CT) S6 (__) HA [49] / CT S6 SA HA
-                        when 0 wins the HA: HAND SUCCEEDED FOR: 49
-                    if 3 wins the CT: 
-                      after (SJ) HA (S_) S6: (SJ) HA (S_) S6 [9] / SJ HA S9 S6 
-                        when 0 wins the HA: 
+                  after C2 (__) HA (__): C2 (__) HA (__) [9,49] / C2 CT HA SA  / C2 SJ HA C8
+                    when 0 wins the HA: 
+                      after S2 (__) S6 (SX): S2 (__) S6 (SX) [9,49] / S2 S9 S6 SJ  / S2 CT S6 SA
+                        when 3 wins the SA,SJ: HAND SUCCEEDED FOR: 49
