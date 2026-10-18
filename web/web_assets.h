@@ -38,6 +38,7 @@ inline const char* INDEX_HTML = R"rawhtml(
           <option value="restricted_choice">Restricted Choice (7S)</option>
           <option value="mollo_6s">Mollo 6S</option>
           <option value="two_way_finesse">2-Way Finesse</option>
+          <option value="hand_8_261014">Hand 8 from 261014</option>
         </select>
         <a id="openHelpBtn" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn" title="Open Help &amp; Strategy Guide in a new tab">
           ❓ Help ↗
@@ -13236,6 +13237,19 @@ inline const char* PRESETS_JSON = R"rawjson(
     "south": "S KT86; H K3; D K3; C K3;",
     "west": "",
     "unknown_cards": "S Q5432 H 98765 D 98765 C 98765"
+  },
+  "hand_8_261014": {
+    "name": "Hand 8 from 261014",
+    "trump": "HEARTS",
+    "leader": "WEST",
+    "cur_trick": ["CJ"],
+    "target": 9,
+    "iters": 300,
+    "north": "S Q; H KJT52; D J83; C KQ9;",
+    "east": "",
+    "south": "S KT9543; H A97; D K; C 75;",
+    "west": "S -; H -; D -; C J;",
+    "unknown_cards": "S AJ8762 H Q8643 D AQT976542 C T86"
   }
 }
 

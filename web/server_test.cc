@@ -123,6 +123,9 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(presets_file_json.contains("mollo_6s"));
   REQUIRE(presets_file_json["mollo_6s"]["cur_trick"] == nlohmann::json::array({"DQ"}));
   REQUIRE(presets_file_json.contains("two_way_finesse"));
+  REQUIRE(presets_file_json.contains("hand_8_261014"));
+  REQUIRE(presets_file_json["hand_8_261014"]["cur_trick"] ==
+          nlohmann::json::array({"CJ"}));
   for (const auto& [key, preset] : presets_file_json.items()) {
     REQUIRE(preset["iters"].get<int>() >= 100);
   }
@@ -138,6 +141,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(presets_api_json.contains("restricted_choice"));
   REQUIRE(presets_api_json.contains("mollo_6s"));
   REQUIRE(presets_api_json.contains("two_way_finesse"));
+  REQUIRE(presets_api_json.contains("hand_8_261014"));
   for (const auto& [key, preset] : presets_api_json.items()) {
     REQUIRE(preset["iters"].get<int>() >= 100);
   }
