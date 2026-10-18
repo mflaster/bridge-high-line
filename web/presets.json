@@ -129,10 +129,10 @@
     "target": 11,
     "iters": 200,
     "north": "S AJ8765; H J85; D -; C KJ86;",
-    "east": "S -; H A; D -; C -;",
+    "east": "S -; H AKQ; D -; C -;",
     "south": "S KT9; H 93; D AQ853; C AQ9;",
-    "west": "",
-    "unknown_cards": "S Q432 H KQT7642 D KJT97642 C T75432",
+    "west": "S -; H 642; D -; C -;",
+    "unknown_cards": "S Q432 H T7 D KJT97642 C T75432",
     "requirements": {
       "E": {
         "would_bid": [
