@@ -1,43 +1,43 @@
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 
 #include "string_util.h"
 
-TEST_CASE("TrimLeft") {
-  REQUIRE(TrimLeft("") == "");
-  REQUIRE(TrimLeft(" ") == "");
-  REQUIRE(TrimLeft("\t\r\n") == "");
-  REQUIRE(TrimLeft("  hello") == "hello");
-  REQUIRE(TrimLeft("hello  ") == "hello  ");
-  REQUIRE(TrimLeft("  hello  ") == "hello  ");
-  REQUIRE(TrimLeft("\t\n hello world \r\n") == "hello world \r\n");
+TEST(StringUtilTest, TrimLeft) {
+  ASSERT_TRUE(TrimLeft("") == "");
+  ASSERT_TRUE(TrimLeft(" ") == "");
+  ASSERT_TRUE(TrimLeft("\t\r\n") == "");
+  ASSERT_TRUE(TrimLeft("  hello") == "hello");
+  ASSERT_TRUE(TrimLeft("hello  ") == "hello  ");
+  ASSERT_TRUE(TrimLeft("  hello  ") == "hello  ");
+  ASSERT_TRUE(TrimLeft("\t\n hello world \r\n") == "hello world \r\n");
 }
 
-TEST_CASE("TrimRight") {
-  REQUIRE(TrimRight("") == "");
-  REQUIRE(TrimRight(" ") == "");
-  REQUIRE(TrimRight("\t\r\n") == "");
-  REQUIRE(TrimRight("  hello") == "  hello");
-  REQUIRE(TrimRight("hello  ") == "hello");
-  REQUIRE(TrimRight("  hello  ") == "  hello");
-  REQUIRE(TrimRight("\t\n hello world \r\n") == "\t\n hello world");
+TEST(StringUtilTest, TrimRight) {
+  ASSERT_TRUE(TrimRight("") == "");
+  ASSERT_TRUE(TrimRight(" ") == "");
+  ASSERT_TRUE(TrimRight("\t\r\n") == "");
+  ASSERT_TRUE(TrimRight("  hello") == "  hello");
+  ASSERT_TRUE(TrimRight("hello  ") == "hello");
+  ASSERT_TRUE(TrimRight("  hello  ") == "  hello");
+  ASSERT_TRUE(TrimRight("\t\n hello world \r\n") == "\t\n hello world");
 }
 
-TEST_CASE("Trim") {
-  REQUIRE(Trim("") == "");
-  REQUIRE(Trim(" ") == "");
-  REQUIRE(Trim("   ") == "");
-  REQUIRE(Trim("\t\r\n ") == "");
-  REQUIRE(Trim("  hello") == "hello");
-  REQUIRE(Trim("hello  ") == "hello");
-  REQUIRE(Trim("  hello  ") == "hello");
-  REQUIRE(Trim("\t\n hello world \r\n") == "hello world");
-  REQUIRE(Trim("no_whitespace") == "no_whitespace");
+TEST(StringUtilTest, Trim) {
+  ASSERT_TRUE(Trim("") == "");
+  ASSERT_TRUE(Trim(" ") == "");
+  ASSERT_TRUE(Trim("   ") == "");
+  ASSERT_TRUE(Trim("\t\r\n ") == "");
+  ASSERT_TRUE(Trim("  hello") == "hello");
+  ASSERT_TRUE(Trim("hello  ") == "hello");
+  ASSERT_TRUE(Trim("  hello  ") == "hello");
+  ASSERT_TRUE(Trim("\t\n hello world \r\n") == "hello world");
+  ASSERT_TRUE(Trim("no_whitespace") == "no_whitespace");
 }
 
-TEST_CASE("ToLower") {
-  REQUIRE(ToLower("") == "");
-  REQUIRE(ToLower("HELLO") == "hello");
-  REQUIRE(ToLower("Hello World") == "hello world");
-  REQUIRE(ToLower("abc 123 !@#") == "abc 123 !@#");
-  REQUIRE(ToLower("SPADES") == "spades");
+TEST(StringUtilTest, ToLower) {
+  ASSERT_TRUE(ToLower("") == "");
+  ASSERT_TRUE(ToLower("HELLO") == "hello");
+  ASSERT_TRUE(ToLower("Hello World") == "hello world");
+  ASSERT_TRUE(ToLower("abc 123 !@#") == "abc 123 !@#");
+  ASSERT_TRUE(ToLower("SPADES") == "spades");
 }

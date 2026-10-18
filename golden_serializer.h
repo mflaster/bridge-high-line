@@ -1,6 +1,6 @@
 #pragma once
 
-#include <catch2/catch_all.hpp>
+#include <gtest/gtest.h>
 #include <map>
 #include <memory>
 #include <set>
@@ -352,35 +352,56 @@ class PlayLineGoldenSerializer {
   static std::string SerializeConditionalLineHelper(const ConditionalLine &line, int lvl);
 };
 
-class GoldenMatcher : public Catch::Matchers::MatcherBase<std::string> {
+class GoldenMatcher {
  public:
   explicit GoldenMatcher(std::string golden_filename);
 
-  bool match(const std::string &actual) const override;
-  std::string describe() const override;
+  bool match(const std::string &actual) const;
+  std::string describe() const;
 
  private:
   std::string golden_filename_;
   mutable std::string failure_message_;
 };
 
+::testing::AssertionResult CheckGoldenMatch(
+    const char *actual_expr, const char *golden_expr,
+    const std::string &actual, const std::string &golden_filename);
+
 #define GET_REQUIRE_GOLDEN_MACRO(_1, _2, _3, _4, _5, _6, NAME, ...) NAME
 
-#define REQUIRE_GOLDEN_2(actual, golden_filename) \
-  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual), GoldenMatcher(golden_filename))
+#define REQUIRE_GOLDEN_2(actual, golden_filename)                      \
+  ASSERT_PRED_FORMAT2(                                                 \
+      CheckGoldenMatch,                                                \
+      PlayLineGoldenSerializer::SerializeWithHeader(actual),           \
+      golden_filename)
 
-#define REQUIRE_GOLDEN_3(actual, golden_filename, arg3) \
-  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, arg3), GoldenMatcher(golden_filename))
+#define REQUIRE_GOLDEN_3(actual, golden_filename, arg3)                \
+  ASSERT_PRED_FORMAT2(                                                 \
+      CheckGoldenMatch,                                                \
+      PlayLineGoldenSerializer::SerializeWithHeader(actual, arg3),     \
+      golden_filename)
 
-#define REQUIRE_GOLDEN_4(actual, golden_filename, hands, description) \
-  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, description), GoldenMatcher(golden_filename))
+#define REQUIRE_GOLDEN_4(actual, golden_filename, hands, description)  \
+  ASSERT_PRED_FORMAT2(                                                 \
+      CheckGoldenMatch,                                                \
+      PlayLineGoldenSerializer::SerializeWithHeader(                   \
+          actual, hands, description),                                 \
+      golden_filename)
 
-#define REQUIRE_GOLDEN_5(actual, golden_filename, hands, arg4, description) \
-  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, arg4, description), GoldenMatcher(golden_filename))
+#define REQUIRE_GOLDEN_5(actual, golden_filename, hands, arg4, desc)   \
+  ASSERT_PRED_FORMAT2(                                                 \
+      CheckGoldenMatch,                                                \
+      PlayLineGoldenSerializer::SerializeWithHeader(                   \
+          actual, hands, arg4, desc),                                  \
+      golden_filename)
 
-#define REQUIRE_GOLDEN_6(actual, golden_filename, hands, unknown_cards, trump, description) \
-  REQUIRE_THAT(PlayLineGoldenSerializer::SerializeWithHeader(actual, hands, unknown_cards, trump, description), GoldenMatcher(golden_filename))
+#define REQUIRE_GOLDEN_6(actual, golden_filename, hands, unk, trump, desc) \
+  ASSERT_PRED_FORMAT2(                                                     \
+      CheckGoldenMatch,                                                    \
+      PlayLineGoldenSerializer::SerializeWithHeader(                       \
+          actual, hands, unk, trump, desc),                                \
+      golden_filename)
 
 #define REQUIRE_GOLDEN_LINE_RESULT(...) \
   GET_REQUIRE_GOLDEN_MACRO(__VA_ARGS__, REQUIRE_GOLDEN_6, REQUIRE_GOLDEN_5, REQUIRE_GOLDEN_4, REQUIRE_GOLDEN_3, REQUIRE_GOLDEN_2)(__VA_ARGS__)
-
