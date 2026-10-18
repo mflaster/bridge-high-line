@@ -124,6 +124,24 @@ set(BRIDGE_CORE_SOURCES
   unknown_cards_invariant.cc
   cross_hand_summarizer.cc
   search_progress.cc
+  ${CMAKE_CURRENT_BINARY_DIR}/web_assets.h
+)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/web_assets.h
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/generate_web_assets.py
+    ${CMAKE_CURRENT_BINARY_DIR}/web_assets.h
+  DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/generate_web_assets.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/index.html
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/help.html
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/docs/bridge-strategy.md
+    ${CMAKE_CURRENT_SOURCE_DIR}/docs/user-guide.md
+  COMMENT "Generating web_assets.h from static web assets"
 )
 
 if(EMSCRIPTEN)
@@ -132,6 +150,7 @@ if(EMSCRIPTEN)
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/web
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+    ${CMAKE_CURRENT_BINARY_DIR}
   )
   target_compile_options(bridge_lib PUBLIC
     -O3
@@ -162,29 +181,17 @@ if(EMSCRIPTEN)
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
   )
 else()
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/web/web_assets.h
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/web/generate_web_assets.py
-    DEPENDS
-      ${CMAKE_CURRENT_SOURCE_DIR}/web/static/index.html
-      ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
-      ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
-      ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
-      ${CMAKE_CURRENT_SOURCE_DIR}/docs/bridge-strategy.md
-    COMMENT "Generating web/web_assets.h from static web assets"
-  )
-
   # Core bridge solver library
   add_library(bridge_lib STATIC
     ${BRIDGE_CORE_SOURCES}
     golden_serializer.cc
-    web/web_assets.h
   )
 
   target_include_directories(bridge_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/web
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+    ${CMAKE_CURRENT_BINARY_DIR}
   )
 
   target_link_libraries(bridge_lib PUBLIC

@@ -182,22 +182,15 @@ int CheapestWinningRankInGroup(const futureTricks &futp, int i,
 }
 
 // Returns the representative rank to lead from DDS equivalence group `idx`:
-// the bottom of a touching honor sequence if the group's top card is part of
-// a touching honor run (e.g. Q from KQ), or the lowest rank in the group
-// otherwise (4th-best / low spot).
+// the top of a touching honor sequence if the group's top card is part of a
+// touching honor run (e.g. K from KQ, or Q from QJ10), or the lowest rank in
+// the group otherwise (4th-best / low spot).
 int LeadRankInGroup(const futureTricks &futp, int idx) {
   int low_r = LowestRankInGroup(futp, idx);
   int top_r = futp.rank[idx];
   bool touching_honors =
       top_r >= 10 && ((futp.equals[idx] >> (top_r - 1)) & 1) != 0;
-  if (!touching_honors) {
-    return low_r;
-  }
-  int seq_low = top_r;
-  while (seq_low - 1 >= 2 && ((futp.equals[idx] >> (seq_low - 1)) & 1) != 0) {
-    --seq_low;
-  }
-  return seq_low;
+  return touching_honors ? top_r : low_r;
 }
 
 // Picks the equivalence group whose lowest rank is minimal across all optimal
