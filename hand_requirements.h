@@ -122,6 +122,12 @@ class AnyOfRequirement : public HandRequirements {
   std::vector<std::shared_ptr<HandRequirements>> reqs_;
 };
 
+// Evaluates whether a 13-card hand would make `bid` after the space-separated
+// first-round call sequence `after` under Standard American Yellow Card (SAYC)
+// heuristics. Rule priorities and negative-inference Pass logic are modeled
+// after SAYCBridge (https://github.com/eseidel/saycbridge, Copyright (c) 2013
+// The SAYCBridge Authors, BSD-3-Clause) and Yarborough
+// (https://github.com/saycbridge/yarborough, Apache-2.0).
 class WouldBid : public HandRequirements {
  public:
   WouldBid(const std::string &bid, const std::string &after = "");
