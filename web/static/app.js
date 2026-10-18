@@ -6963,11 +6963,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (foundIdx !== -1) {
           winningCardIdx = foundIdx;
           if (explicitWinnerCard) {
-            // Update the played card for this seat if specified in the branch condition
-            const updatedCard = parseSingleCardToken(explicitWinnerCard, leadSuit, trumpCode);
-            updatedCard.seatIdx = explicitWinnerSeat;
-            updatedCard.seatName = getSeatName(explicitWinnerSeat);
-            parsedCards[foundIdx] = updatedCard;
+            const existingRaw = (parsedCards[foundIdx].raw || '').replace(/[\(\)]/g, '');
+            const isWildcardSlot = !existingRaw ||
+              existingRaw.includes('_') ||
+              existingRaw.includes('x') ||
+              existingRaw.includes('X');
+            if (isWildcardSlot || existingRaw.toUpperCase() === explicitWinnerCard.toUpperCase()) {
+              // Update the played card for this seat if specified in the branch condition
+              const updatedCard = parseSingleCardToken(explicitWinnerCard, leadSuit, trumpCode);
+              updatedCard.seatIdx = explicitWinnerSeat;
+              updatedCard.seatName = getSeatName(explicitWinnerSeat);
+              parsedCards[foundIdx] = updatedCard;
+            }
           }
         }
       }

@@ -875,3 +875,64 @@ TEST(ConditionalLineTest, AdversarialDefenderCountsUnmakeableBoards) {
   ASSERT_TRUE(rescore_trace.leaf ==
           opp1_counts.begin()->first->conditions()[0].second.get());
 }
+
+TEST(ConditionalLineTest,
+     DefenderLeadSingleSuitPatternRelaxedAgainstWildcardSibling) {
+  // Mirrors Trick #6 in 9-Card Hearts where East is on lead:
+  // Sibling 1: (SX) SK (S_) S5 -> if S wins, continue to next trick.
+  // Sibling 2: (__) D5 (__) HT -> if N wins (ruffing in dummy), continue.
+  // When East holds a small spade S4 (which wouldn't match SX), DeepCloneChildren
+  // relaxes (SX) to (S_) because it is the only S-lead branch alongside (__),
+  // and AreCandidateDeclarerCardsLegalForTrick prevents (__) D5 (__) HT from
+  // matching a spade lead when South and North hold spades.
+  BoardState bs_s_wins = MakeBoardState(
+      {ParseHand("S 5 H T D 6 C 6"), ParseHand("S 94 C J9"),
+       ParseHand("S K D 765"), ParseHand("S 83 D T9")},
+      1, HEARTS);
+  BoardState bs_w_wins_sa = MakeBoardState(
+      {ParseHand("S 5 H T D 6 C 6"), ParseHand("S 94 C J9"),
+       ParseHand("S K D 765"), ParseHand("S A D T98")},
+      1, HEARTS);
+
+  GeneralizedTrick gt_spade(
+      {"SX", "SK", {0}}, {"S_", "S5", {0}}, {0}, 1);
+  ConditionalLine leaf_spade({0});
+  ConditionalLine node_spade;
+  node_spade.SetAction(gt_spade);
+  node_spade.AddCondition(new WinnerPlayCondition(2), leaf_spade);
+
+  GeneralizedTrick gt_other(
+      {"__", "D5", {1}}, {"__", "HT", {1}}, {1}, 1);
+  ConditionalLine leaf_other({1});
+  ConditionalLine node_other;
+  node_other.SetAction(gt_other);
+  node_other.AddCondition(new WinnerPlayCondition(0), leaf_other);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("(SX) SK (S_) S5"), node_spade);
+  root.AddCondition(new TrickPlayCondition("(__) D5 (__) HT"), node_other);
+  root.set_min_tricks(1);
+  root.set_sample_board(bs_s_wins);
+  root.DeepCloneChildren();
+
+  // Verify DeepCloneChildren relaxed (SX) to (S_).
+  ASSERT_EQ(root.conditions()[0].second->do_first().demi1.opp_card, "S_");
+  ASSERT_EQ(root.conditions()[0].first->Describe(false),
+            "after (S_) SK (S_) S5");
+
+  // On bs_s_wins, East leads S4, South plays SK and wins Trick #1!
+  ConditionalLine::RescoreBoardTrace trace_win;
+  int tricks_won = root.ResultsOnHandAdversarial(bs_s_wins, nullptr, &trace_win);
+  EXPECT_GE(tricks_won, 1);
+  EXPECT_EQ(trace_win.leaf,
+            root.conditions()[0].second->conditions()[0].second.get());
+
+  // On bs_w_wins_sa, East leads S4, South plays SK, West overtakes with SA.
+  // TraceOnBoard must record the failure on node_spade (not node_other!).
+  ConditionalLine::BoardPlayTrace trace_fail = root.TraceOnBoard(bs_w_wins_sa);
+  ASSERT_EQ(trace_fail.steps.size(), 1u);
+  EXPECT_EQ(trace_fail.steps[0].node, root.conditions()[0].second.get());
+  EXPECT_EQ(trace_fail.steps[0].trick_str, "S4 SK SA S5");
+  EXPECT_EQ(trace_fail.steps[0].winner, 3);
+}
+

@@ -723,6 +723,7 @@ TEST(ServerTest, UnmatchedDefenderPlayAttachesToConditionNode) {
   ASSERT_TRUE(var1_node->children.size() == 2);
   ASSERT_TRUE(var1_node->children[1]->failure == true);
   ASSERT_TRUE(var1_node->children[1]->condition == "if W wins the CQ");
+  ASSERT_TRUE(var1_node->children[1]->board_to_trick.at("2") == "C6 C2 CJ CQ");
 
   auto ck_fail = tree->children[2];
   ASSERT_TRUE(ck_fail->failure == true);

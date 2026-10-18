@@ -151,10 +151,10 @@ std::shared_ptr<DecisionTreeNode> MakeFailureLeaf(
     leaf->leader = group.leader;
     leaf->winner = group.winner;
     leaf->trick = group.trick_str;
-    leaf->board_to_trick = group.board_to_trick;
   } else {
     leaf->branch_winner = group.winner;
   }
+  leaf->board_to_trick = group.board_to_trick;
   leaf->ns_tricks = group.max_ns_tricks;
   int cnt = 0;
   bool has_actual = false;
@@ -630,6 +630,7 @@ FailureIndex IndexFailures(const ConditionalLine &line,
       FailureIndex::Group &group = index.leaves[last.node][key];
       group.condition = FormatBranchCondition(&cond, false);
       group.winner = last.winner;
+      group.board_to_trick[board_key] = last.trick_str;
       add_to_group(group, trace.board_id, trace.final_ns_tricks);
     }
   }
@@ -1066,6 +1067,7 @@ ConditionalLine::BoardPlayTrace AttachActualBoardToFailures(
         group.condition = FormatBranchCondition(&cond, false);
       }
       group.winner = last.winner;
+      group.board_to_trick["-1"] = last.trick_str;
       add_to_group(group, -1, trace.final_ns_tricks);
     }
   }
