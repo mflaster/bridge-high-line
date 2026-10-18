@@ -4318,6 +4318,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window !== 'undefined') {
     window.setStatus = setStatus;
     window.openFeedbackModal = openFeedbackModal;
+    window.submitSentryFeedback = submitSentryFeedback;
     window.initWasmWorker = initWasmWorker;
   }
 
@@ -12488,55 +12489,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  function formatExplorerSnapshotSummary(explorerSnapshot) {
-    if (!explorerSnapshot) return '';
-    const dt = explorerSnapshot.decision_tree || {};
-    const le = explorerSnapshot.line_explorer || {};
-    const lines = [
-      '',
-      '--- Explorer State ---',
-      `Tab: ${dt.active_tab}, View: ${dt.view_mode}, Tree nodes: ${dt.visible_nodes}/${dt.total_nodes} visible (zoom ${dt.zoom_level}x)`
-    ];
-    if (dt.selected_node) {
-      const sn = dt.selected_node;
-      const nodeDesc = sn.trick || sn.label || 'root';
-      const condDesc = sn.condition ? ` (${sn.condition})` : '';
-      const dealsDesc = sn.deals ? ` [${sn.deals}]` : '';
-      lines.push(
-        `Selected Node (depth ${sn.depth}${sn.is_leaf ? ', leaf' : ''}${sn.failure ? ', failure' : ''}): ${nodeDesc}${condDesc}${dealsDesc}`
-      );
-      if (Array.isArray(sn.path_from_root) && sn.path_from_root.length > 0) {
-        lines.push(`Node Path: ${sn.path_from_root.join(' -> ')}`);
-      }
-    } else {
-      lines.push('Selected Node: none');
-    }
-    if (le.active_line_label) {
-      lines.push(
-        `Active Line (${le.active_line_index + 1}/${le.total_selectable_lines}): ${le.active_line_label}`
-      );
-    }
-    lines.push(
-      `Inspector: ${le.inspector_open ? 'open' : 'closed'}, Selected Trick: ${
-        le.selected_trick_num !== null ? '#' + le.selected_trick_num : 'none'
-      }, Traced Hand: ${
-        le.traced_hand !== null
-          ? '#' + le.traced_hand + (le.traced_hand_makes === false ? ' (FAILS)' : ' (MAKES)')
-          : 'none'
-      }`
-    );
-    if (Array.isArray(le.trick_line) && le.trick_line.length > 0) {
-      lines.push(`Line Tricks: ${le.trick_line.join(' | ')}`);
-    }
-    if (le.propose_line && Array.isArray(le.propose_line.proposed_cards) &&
-        le.propose_line.proposed_cards.length > 0) {
-      lines.push(
-        `Proposed Trick #${le.propose_line.trick_num}: ${le.propose_line.proposed_cards.join(' ')}`
-      );
-    }
-    return '\n' + lines.join('\n');
-  }
-
   function initSentryRuntimeErrorReporting() {
     if (!window.Sentry) return;
     const runInit = () => {
@@ -12627,15 +12579,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
     const anonUserId = getOrCreateAnonUserId();
 
-    const dealSummaryText = dealSnapshot
-      ? `\n\n--- Deal State ---\nPreset: ${dealSnapshot.preset}${
-          dealSnapshot.loaded_hand_source
-            ? `\nSource File: ${dealSnapshot.loaded_hand_source.file_name} (Hand ${dealSnapshot.loaded_hand_source.board_label})`
-            : ''
-        }\nN: ${dealSnapshot.hands.N}\nE: ${dealSnapshot.hands.E}\nS: ${dealSnapshot.hands.S}\nW: ${dealSnapshot.hands.W}\nUnknown: ${dealSnapshot.unknown_cards || '-'}\nTrump: ${dealSnapshot.trump}, Leader: ${dealSnapshot.leader}, Target: ${dealSnapshot.min_tricks}, Rand deals: ${dealSnapshot.num_iters}`
-      : '';
-    const explorerSummaryText = formatExplorerSnapshotSummary(explorerSnapshot);
-
     const userObj = {
       id: anonUserId,
       ip_address: '{{auto}}',
@@ -12643,8 +12586,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ...(email ? { email } : {})
     };
 
-    const feedbackMessage =
-      `${message}${dealSummaryText}${explorerSummaryText}`.slice(0, 4096);
+    const feedbackMessage = (message || '').slice(0, 4096);
     const feedbackPayload = {
       event_id: feedbackEventId,
       timestamp: nowIso,

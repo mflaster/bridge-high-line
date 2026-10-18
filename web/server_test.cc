@@ -106,6 +106,7 @@ TEST_CASE("WebServer Health and Static Assets") {
   REQUIRE(res_js->body.find("function handleProposeCardClick") != std::string::npos);
   REQUIRE(res_js->body.find("function zoomAroundPoint") != std::string::npos);
   REQUIRE(res_js->body.find("function submitSentryFeedback") != std::string::npos);
+  REQUIRE(res_js->body.find("const feedbackMessage = (message || '').slice(0, 4096);") != std::string::npos);
   REQUIRE(res_js->body.find("const WASM_NUM_THREADS = 4;") != std::string::npos);
   REQUIRE(res_js->body.find("function ensureCrossOriginIsolation") != std::string::npos);
 
