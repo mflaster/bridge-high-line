@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusProgressFill = document.getElementById('statusProgressFill');
   const execTime = document.getElementById('execTime');
   let lastStatusErrorText = '';
+  let lastSolveRequestInfo = null;
+  let lastSentryErrorEventId = null;
   const resultsSummary = document.getElementById('resultsSummary');
   const statTricks = document.getElementById('statTricks');
   const statLeadLabel = document.getElementById('statLeadLabel');
@@ -5826,6 +5828,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
 
     try {
+      lastSolveRequestInfo = {
+        solve_kind: 'main',
+        payload: JSON.parse(JSON.stringify(payload))
+      };
       const response = await apiSolve(payload, activeSolveAbortController.signal);
 
       const data = await response.json();
@@ -5844,7 +5850,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (!response.ok || !data.success) {
-        setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
+        const errMsg = data.error || `HTTP ${response.status || 'error'}`;
+        setStatus('error', 'Solver failed: ' + errMsg, `${elapsed} ms`);
+        reportRuntimeErrorToSentry(new Error('Solver failed: ' + errMsg), {
+          source: 'solve_error',
+          solve_kind: 'main',
+          http_status: response.status || 400,
+          solve_payload: lastSolveRequestInfo ? lastSolveRequestInfo.payload : payload
+        });
         emitSentryMetricCount('solve_failed', 1, {
           solve_kind: 'main',
           backend_mode: backendMode || 'unknown'
@@ -5950,6 +5963,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         console.error(err);
         setStatus('error', 'Network or server error: ' + err.message);
+        reportRuntimeErrorToSentry(err, {
+          source: 'solve_network_or_server_error',
+          solve_kind: 'main',
+          solve_payload: lastSolveRequestInfo ? lastSolveRequestInfo.payload : payload
+        });
         emitSentryMetricCount('solve_failed', 1, {
           solve_kind: 'main',
           backend_mode: backendMode || 'unknown'
@@ -6387,7 +6405,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       };
-      prefixTricksToSplice.forEach(pt => recordVoidIfShowedOut(pt.cards));
       if (proposedCards.length > 1 && proposedCards.length < 4) {
         recordVoidIfShowedOut(proposedCards);
       }
@@ -6427,6 +6444,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 200);
 
       try {
+        lastSolveRequestInfo = {
+          solve_kind: 'proposed_line',
+          trick_num: ctx.trickNum,
+          proposed_cards: proposedCards.map(
+            c => `${c.seatName}:${c.suit || ''}${c.rankStr || c.rank || ''}`
+          ),
+          payload: JSON.parse(JSON.stringify(payload))
+        };
         const response = await apiSolve(payload, activeSolveAbortController.signal);
 
         const data = await response.json();
@@ -6445,7 +6470,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!response.ok || !data.success) {
-          setStatus('error', 'Solver failed: ' + (data.error || 'Unknown error'), `${elapsed} ms`);
+          const errMsg = data.error || `HTTP ${response.status || 'error'}`;
+          setStatus('error', 'Solver failed: ' + errMsg, `${elapsed} ms`);
+          reportRuntimeErrorToSentry(new Error('Solver failed: ' + errMsg), {
+            source: 'solve_error',
+            solve_kind: 'proposed_line',
+            http_status: response.status || 400,
+            solve_payload: lastSolveRequestInfo ? lastSolveRequestInfo.payload : payload
+          });
           emitSentryMetricCount('solve_failed', 1, {
             solve_kind: 'proposed_line',
             backend_mode: backendMode || 'unknown'
@@ -6575,6 +6607,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           console.error(err);
           setStatus('error', 'Network or server error: ' + err.message);
+          reportRuntimeErrorToSentry(err, {
+            source: 'solve_network_or_server_error',
+            solve_kind: 'proposed_line',
+            solve_payload: lastSolveRequestInfo ? lastSolveRequestInfo.payload : payload
+          });
           emitSentryMetricCount('solve_failed', 1, {
             solve_kind: 'proposed_line',
             backend_mode: backendMode || 'unknown'
@@ -8724,6 +8761,12 @@ document.addEventListener('DOMContentLoaded', () => {
         best_lead: currentSolveData.best_lead || ''
       };
     }
+    if (lastStatusErrorText) {
+      snap.last_error = lastStatusErrorText;
+    }
+    if (lastSolveRequestInfo) {
+      snap.last_solve_request = lastSolveRequestInfo;
+    }
     return snap;
   }
 
@@ -8920,7 +8963,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
-    window.Sentry.captureException(errorObj, { tags, extra: extraData });
+    const evId = window.Sentry.captureException(errorObj, { tags, extra: extraData });
+    if (typeof evId === 'string' && evId) {
+      lastSentryErrorEventId = evId;
+    }
   }
 
   initSentryRuntimeErrorReporting();
@@ -8973,7 +9019,8 @@ document.addEventListener('DOMContentLoaded', () => {
           name: name || 'Anonymous',
           ...(email ? { contact_email: email } : {}),
           message: feedbackMessage,
-          url: window.location.href
+          url: window.location.href,
+          ...(lastSentryErrorEventId ? { associated_event_id: lastSentryErrorEventId } : {})
         },
         ...(dealSnapshot ? { deal: dealSnapshot } : {}),
         ...(explorerSnapshot ? {
@@ -9048,11 +9095,31 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetVal = targetTricks ? targetTricks.value : '1';
       const itersVal = numIters ? numIters.value : '100';
       const backendVal = backendMode || 'unknown';
+      const nHand = inputNorth ? inputNorth.value.trim() : '';
+      const eHand = inputEast ? inputEast.value.trim() : '';
+      const sHand = inputSouth ? inputSouth.value.trim() : '';
+      const wHand = inputWest ? inputWest.value.trim() : '';
+      const uHand = inputUnknownCards ? inputUnknownCards.value.trim() : '';
 
-      const reportText = `[Status Error Report]
-Error: ${errorMsg}
-Backend: ${backendVal}
-Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`;
+      const lines = [
+        '[Status Error Report]',
+        `Error: ${errorMsg}`,
+        `Backend: ${backendVal}`,
+        `Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`,
+        `Hands: N="${nHand}" | E="${eHand}" | S="${sHand}" | W="${wHand}"${uHand ? ` | U="${uHand}"` : ''}`
+      ];
+      if (lastSolveRequestInfo) {
+        lines.push(`Last Solve Kind: ${lastSolveRequestInfo.solve_kind || 'main'}`);
+        if (lastSolveRequestInfo.trick_num) {
+          lines.push(
+            `Proposed Trick #${lastSolveRequestInfo.trick_num}: ${(lastSolveRequestInfo.proposed_cards || []).join(' ')}`
+          );
+        }
+        if (lastSolveRequestInfo.payload) {
+          lines.push(`Request Payload: ${JSON.stringify(lastSolveRequestInfo.payload)}`);
+        }
+      }
+      const reportText = lines.join('\n');
 
       openFeedbackModal(reportText);
     });

@@ -69,8 +69,8 @@ FetchContent_Declare(
 )
 
 if(EMSCRIPTEN)
-  add_compile_options(-pthread)
-  add_link_options(-pthread)
+  add_compile_options(-pthread -fwasm-exceptions)
+  add_link_options(-pthread -fwasm-exceptions)
   FetchContent_MakeAvailable(boost_headers glog)
 else()
   FetchContent_MakeAvailable(boost_headers glog googletest)
