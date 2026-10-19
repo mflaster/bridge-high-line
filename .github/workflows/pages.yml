@@ -51,18 +51,20 @@ jobs:
         with:
           path: build-wasm/_deps
           key: >-
-            wasm-deps-v2-${{ runner.os }}-${{
+            wasm-deps-v3-${{ runner.os }}-${{
             hashFiles('CMakeLists.txt', 'third_party/patch_dds.py') }}
-          restore-keys: |
-            wasm-deps-v2-${{ runner.os }}-
 
       - name: Cache ccache
         uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-wasm-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'third_party/gen_sayc_bids.py', '*.cc', '*.h', 'web/*.cc', 'web/*.h', 'perf/*.cc') }}
+          key: >-
+            ccache-wasm-v2-${{ runner.os }}-${{
+            hashFiles('CMakeLists.txt', 'third_party/patch_dds.py',
+            'third_party/gen_sayc_bids.py', '*.cc', '*.h', 'web/*.cc',
+            'web/*.h', 'perf/*.cc') }}
           restore-keys: |
-            ccache-wasm-v1-${{ runner.os }}-
+            ccache-wasm-v2-${{ runner.os }}-
 
       - name: Configure and build bridge_wasm
         run: |
@@ -73,17 +75,31 @@ jobs:
 
       - name: Smoke-test bridge_wasm in Node.js
         run: |
-          node -e '
+          node -e '(() => {
+            const fs = require("fs");
             const path = require("path");
+            const vm = require("vm");
+            let ran = false;
+            process.on("exit", () => {
+              if (!ran) {
+                console.error("Wasm smoke test did not run!");
+                process.exitCode = 1;
+              }
+            });
+            const wasmJs = path.resolve("build-wasm/bridge_wasm.js");
+            global.require = require;
+            global.__filename = wasmJs;
+            global.__dirname = path.dirname(wasmJs);
             global.self = global;
             const statuses = [];
             global.self.onBridgeSolverProgress = (st, prog) => {
               statuses.push({ st, prog });
             };
             global.Module = {
+              locateFile: (p) => path.resolve("build-wasm", p),
               onRuntimeInitialized() {
                 setImmediate(() => {
-                  const req = JSON.stringify({
+                  const req1 = JSON.stringify({
                     hands: {
                       N: "S AQ; H -; D -; C -;",
                       E: "S 54; H -; D -; C -;",
@@ -96,25 +112,54 @@ jobs:
                     num_iters: 4,
                     num_threads: 4
                   });
-                  const raw = global.Module.ccall(
-                    "wasm_solve_json", "string", ["string"], [req]
-                  );
-                  const out = JSON.parse(raw);
-                  if (!out.success || out.tricks_won !== 1 ||
-                      out.best_lead !== "SA" || out.num_threads !== 4) {
-                    console.error("Unexpected Wasm solve output:", out);
+                  const out1 = JSON.parse(global.Module.ccall(
+                    "wasm_solve_json", "string", ["string"], [req1]
+                  ));
+                  if (!out1.success || out1.tricks_won !== 1 ||
+                      out1.best_lead !== "SA" || out1.num_threads !== 4) {
+                    console.error("Unexpected Wasm solve output 1:", out1);
                     process.exit(1);
                   }
+                  const req2 = JSON.stringify({
+                    hands: {
+                      N: "S AJ8765; H J85; D -; C KJ86;",
+                      E: "S -; H AKQ; D -; C -;",
+                      S: "S KT9; H 93; D AQ853; C AQ9;",
+                      W: "S -; H 642; D -; C -;"
+                    },
+                    unknown_cards: "S Q432 H T7 D KJT97642 C T75432",
+                    trump: "SPADES",
+                    leader: "EAST",
+                    cur_trick: ["HA"],
+                    min_tricks: 11,
+                    num_iters: 2,
+                    num_threads: 4,
+                    requirements: {
+                      E: { would_bid: [{ bid: "X", after: "P 1S" }] },
+                      W: { would_bid: [{ bid: "P", after: "" }] }
+                    }
+                  });
+                  const out2 = JSON.parse(global.Module.ccall(
+                    "wasm_solve_json", "string", ["string"], [req2]
+                  ));
+                  if (!out2.success || out2.tricks_won !== 11) {
+                    console.error("Unexpected Wasm solve output 2:", out2);
+                    process.exit(1);
+                  }
+                  ran = true;
                   console.log(
-                    "Wasm smoke test passed:", out.best_lead,
-                    "threads:", out.num_threads, "statuses:", statuses.length
+                    "Wasm smoke test passed:", out1.best_lead,
+                    "Hand 6 solve_ms:", out2.solve_ms,
+                    "threads:", out2.num_threads, "statuses:", statuses.length
                   );
                   process.exit(0);
                 });
               }
             };
-            require(path.resolve("build-wasm/bridge_wasm.js"));
-          '
+            vm.runInThisContext(
+              fs.readFileSync(wasmJs, "utf8"), { filename: wasmJs }
+            );
+          })()'
 
       - name: Assemble static site bundle
         run: |
