@@ -38,10 +38,9 @@ def patch_memory_h(memory_h: pathlib.Path) -> None:
 
 def patch_solver_if_cpp(solver_if: pathlib.Path) -> None:
   text = solver_if.read_text(encoding="utf-8")
-  if "dealTablesValid" in text:
-    return
   nl = "\r\n" if "\r\n" in text else "\n"
   normalized = text.replace("\r\n", "\n")
+
   target = """  bool newDeal = false;
   bool newTrump = false;
   unsigned diffDeal = 0;
@@ -98,13 +97,13 @@ def patch_solver_if_cpp(solver_if: pathlib.Path) -> None:
     }
   }"""
 
-  target2 = """  if (newDeal)
+  target2_unpatched = """  if (newDeal)
   {
     SetDeal(thrp);
     SetDealTables(thrp);
   }"""
 
-  replacement2 = """  if (newDeal)
+  target2_prev = """  if (newDeal)
   {
     SetDeal(thrp);
     if (!subsetOfTables)
@@ -117,15 +116,80 @@ def patch_solver_if_cpp(solver_if: pathlib.Path) -> None:
     }
   }"""
 
-  if target not in normalized or target2 not in normalized:
-    raise RuntimeError(f"Could not find target block in {solver_if}")
+  replacement2 = """  if (newDeal)
+  {
+    SetDeal(thrp);
+    if (!subsetOfTables)
+    {
+      thrp->transTable->ResetMemory(
+        newTrump ? TT_RESET_NEW_TRUMP : TT_RESET_NEW_DEAL);
+      SetDealTables(thrp);
+      thrp->dealTablesValid = true;
+      for (int h = 0; h < DDS_HANDS; h++)
+        for (int s = 0; s < DDS_SUITS; s++)
+          thrp->tablesSuit[h][s] = thrp->suit[h][s];
+    }
+    else if (newTrump)
+    {
+      thrp->transTable->ResetMemory(TT_RESET_NEW_TRUMP);
+    }
+  }
+  else if (newTrump)
+  {
+    thrp->transTable->ResetMemory(TT_RESET_NEW_TRUMP);
+  }"""
 
-  patched = normalized.replace(target, replacement, 1).replace(
-      target2, replacement2, 1
-  )
+  if replacement2 in normalized:
+    return
+
+  if target in normalized:
+    normalized = normalized.replace(target, replacement, 1)
+  elif replacement not in normalized:
+    raise RuntimeError(f"Could not find target block 1 in {solver_if}")
+
+  if target2_unpatched in normalized:
+    normalized = normalized.replace(target2_unpatched, replacement2, 1)
+  elif target2_prev in normalized:
+    normalized = normalized.replace(target2_prev, replacement2, 1)
+  else:
+    raise RuntimeError(f"Could not find target block 2 in {solver_if}")
+
+  if nl == "\r\n":
+    normalized = normalized.replace("\n", "\r\n")
+  solver_if.write_text(normalized, encoding="utf-8")
+
+
+def patch_trans_table_s_cpp(tt_s_cpp: pathlib.Path) -> None:
+  text = tt_s_cpp.read_text(encoding="utf-8")
+  nl = "\r\n" if "\r\n" in text else "\n"
+  normalized = text.replace("\r\n", "\n")
+  target = """  for (int k = 1; k <= 13; k++)
+    for (int h = 0; h < DDS_HANDS; h++)
+    {
+      posSearch[k][h] = pl[k][h][0];
+      lenSetInd[k][h] = 0;
+      lcount[k][h] = 0;
+    }"""
+  replacement = """  for (int k = 1; k <= 13; k++)
+    for (int h = 0; h < DDS_HANDS; h++)
+    {
+      posSearch[k][h] = pl[k][h][0];
+      rootnp[k][h] = &(posSearch[k][h][0]);
+      posSearch[k][h][0].suitLengths = 0;
+      posSearch[k][h][0].posSearchPoint = NULL;
+      posSearch[k][h][0].left = NULL;
+      posSearch[k][h][0].right = NULL;
+      lenSetInd[k][h] = 1;
+      lcount[k][h] = 0;
+    }"""
+  if replacement in normalized:
+    return
+  if target not in normalized:
+    raise RuntimeError(f"Could not find target block in {tt_s_cpp}")
+  patched = normalized.replace(target, replacement, 1)
   if nl == "\r\n":
     patched = patched.replace("\n", "\r\n")
-  solver_if.write_text(patched, encoding="utf-8")
+  tt_s_cpp.write_text(patched, encoding="utf-8")
 
 
 def patch_system_cpp(system_cpp: pathlib.Path) -> None:
@@ -136,7 +200,7 @@ def patch_system_cpp(system_cpp: pathlib.Path) -> None:
       "  (void) System::GetCores(ncores);\n\n"
       "#ifdef __EMSCRIPTEN__\n"
       "#ifdef __EMSCRIPTEN_PTHREADS__\n"
-      "  kilobytesFree = 512ULL * 1024ULL;\n"
+      "  kilobytesFree = 1024ULL * 1024ULL;\n"
       "  ncores = 8;\n"
       "#else\n"
       "  kilobytesFree = 512ULL * 1024ULL;\n"
@@ -151,7 +215,7 @@ def patch_system_cpp(system_cpp: pathlib.Path) -> None:
       "  (void) System::GetCores(ncores);\n\n"
       "#ifdef __EMSCRIPTEN__\n"
       "#ifdef __EMSCRIPTEN_PTHREADS__\n"
-      "  kilobytesFree = 1024ULL * 1024ULL;\n"
+      "  kilobytesFree = 512ULL * 1024ULL;\n"
       "  ncores = 8;\n"
       "#else\n"
       "  kilobytesFree = 512ULL * 1024ULL;\n"
@@ -198,6 +262,7 @@ def main() -> int:
   dds_dir = pathlib.Path(sys.argv[1])
   patch_memory_h(dds_dir / "src" / "Memory.h")
   patch_solver_if_cpp(dds_dir / "src" / "SolverIF.cpp")
+  patch_trans_table_s_cpp(dds_dir / "src" / "TransTableS.cpp")
   patch_system_cpp(dds_dir / "src" / "System.cpp")
   patch_portab_h(dds_dir / "include" / "portab.h")
   return 0

@@ -114,3 +114,40 @@ TEST(DdsTest, Basic3) {
   ASSERT_TRUE(futp.cards == 1);
   ASSERT_TRUE(futp.score[0] == 2);
 }
+
+TEST(DdsTest, SmallTransTableMode2AndDealSwitch) {
+  SetResources(30, 1);
+
+  dealPBN d1{};
+  d1.trump = SPADES;
+  d1.first = EAST;
+  d1.currentTrickSuit[0] = HEARTS;
+  d1.currentTrickRank[0] = 14;
+  strcpy(d1.remainCards,
+         "N:AJ8765.J85..KJ86 2.KQT.J762.T742 "
+         "KT9.93.AQ853.AQ9 Q43.7642.KT94.53");
+
+  futureTricks fut_mode2{};
+  ASSERT_EQ(RETURN_NO_FAULT, SolveBoardPBN(d1, 11, 2, 2, &fut_mode2, 0));
+
+  futureTricks fut_mode1{};
+  ASSERT_EQ(RETURN_NO_FAULT, SolveBoardPBN(d1, 11, 2, 1, &fut_mode1, 0));
+  EXPECT_EQ(fut_mode1.score[0], fut_mode2.score[0]);
+
+  dealPBN d2 = d1;
+  strcpy(d2.remainCards,
+         "N:AJ8765.J85..KJ86 Q43.KQT.KT94.53 "
+         "KT9.93.AQ853.AQ9 2.7642.J762.T742");
+  futureTricks fut2_mode2{};
+  ASSERT_EQ(RETURN_NO_FAULT, SolveBoardPBN(d2, 11, 2, 2, &fut2_mode2, 0));
+
+  SetResources(30, 1);
+  futureTricks fut2_fresh{};
+  ASSERT_EQ(RETURN_NO_FAULT, SolveBoardPBN(d2, 11, 2, 1, &fut2_fresh, 0));
+  EXPECT_EQ(fut2_fresh.score[0], fut2_mode2.score[0]);
+
+#if defined(__linux) || defined(__APPLE__)
+  SetMaxThreads(0);
+#endif
+}
+
