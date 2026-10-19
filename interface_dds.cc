@@ -719,6 +719,13 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   int partner_after_suit[4] = {0, 0, 0, 0};
   uint16_t rho_led_mask = 0;
   if (pair_is_me) {
+    for (int i = 0; i < futp.cards; ++i) {
+      int r = futp.rank[i];
+      while (r - 1 >= 10 && ((futp.equals[i] >> (r - 1)) & 1) != 0) {
+        --r;
+      }
+      futp.rank[i] = r;
+    }
     Suit suit_led = bs.SuitLed();
     Suit trump = bs.GetTrump();
     uint64_t played = bs.played_cards();
