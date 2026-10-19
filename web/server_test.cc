@@ -974,6 +974,41 @@ TEST(ServerTest, WebServerSolveStatusLifecycleTest) {
     ASSERT_TRUE(alt_json["all_hands"][i]["W"] == base_json["all_hands"][i]["W"]);
   }
 
+  // Regression test: alternate line with reuse_deals=true, replay_tricks where
+  // some boards cannot follow the branch (!valid_for_branch), and initial-hand
+  // requirements (e.g. HighCardRange / WouldBid / contradictory SuitLength on
+  // remaining cards) does not crash in FuzzyBoardState::Randomize.
+  nlohmann::json alt_reqs_req = alt_req;
+  alt_reqs_req["replay_tricks"] =
+      nlohmann::json::array({nlohmann::json::array({"HA", "H4", "H2", "H3"})});
+  alt_reqs_req["requirements"]["W"]["hcp_low"] = 10;
+  alt_reqs_req["requirements"]["W"]["hcp_high"] = 37;
+  alt_reqs_req["requirements"]["W"]["would_bid"] =
+      nlohmann::json::array({{{"bid", "1NT"}, {"after", ""}}});
+  alt_reqs_req["requirements"]["E"]["suit_max"]["S"] = 0;
+
+  auto res_alt_reqs =
+      client.Post("/api/solve", alt_reqs_req.dump(), "application/json");
+  ASSERT_TRUE(res_alt_reqs);
+  ASSERT_TRUE(res_alt_reqs->status == 200);
+  nlohmann::json alt_reqs_json = nlohmann::json::parse(res_alt_reqs->body);
+  ASSERT_TRUE(alt_reqs_json["success"] == true);
+
+  // Regression test: if a solve request triggers a glog LOG(FATAL) (e.g. an
+  // invalid trump string passed to Card::ParseSuit), WebServer::SolveJson
+  // intercepts the fatal log and returns a clean HTTP 400 JSON error with the
+  // file/line/message instead of dumping core and killing the server.
+  nlohmann::json fatal_req = base_req;
+  fatal_req["trump"] = "INVALID_SUIT_STRING";
+  auto res_fatal =
+      client.Post("/api/solve", fatal_req.dump(), "application/json");
+  ASSERT_TRUE(res_fatal);
+  ASSERT_TRUE(res_fatal->status == 400);
+  nlohmann::json fatal_json = nlohmann::json::parse(res_fatal->body);
+  ASSERT_TRUE(fatal_json["success"] == false);
+  std::string fatal_err = fatal_json.value("error", "");
+  ASSERT_TRUE(fatal_err.find("Unknown suit string") != std::string::npos);
+
   // Test /api/stop_solve endpoint and subsequent solve recovery
   auto res_stop = client.Post("/api/stop_solve", "", "application/json");
   ASSERT_TRUE(res_stop);

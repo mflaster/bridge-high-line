@@ -41,8 +41,20 @@ BoardState FuzzyBoardState::Randomize(bool deal_missing_cards) {
       target_cards = (hand1_known + hand3_known + unk_cnt) / 2;
     }
     int hand1_needed = std::max(0, target_cards - hand1_known);
+    std::vector<std::shared_ptr<HandRequirements>> active_reqs1;
+    std::vector<std::shared_ptr<HandRequirements>> active_reqs3;
+    for (const auto &r : hand_reqs1_) {
+      if (r && (target_cards == 13 || r->AppliesToRemainingHand())) {
+        active_reqs1.push_back(r);
+      }
+    }
+    for (const auto &r : hand_reqs3_) {
+      if (r && (target_cards == 13 || r->AppliesToRemainingHand())) {
+        active_reqs3.push_back(r);
+      }
+    }
     auto [hand1, hand3] =
-        DealTwoRequiredHands(unknown_cards_, hand_reqs1_, hand_reqs3_,
+        DealTwoRequiredHands(unknown_cards_, active_reqs1, active_reqs3,
                              hand1_needed, hands[1], hands[3]);
 
     hands[1] = hands[1] | hand1;
@@ -197,8 +209,11 @@ std::vector<BoardState> LineFinder::SetupBoards(
       if (!valid_for_branch) {
         // Populate a valid placeholder board with the expected card count so
         // boards_[i] is well-formed, but omit `i` from `board_offsets` so it
-        // cannot be covered along this branch.
-        b = fuzzy_state_.Randomize(deal_missing_cards);
+        // cannot be covered along this branch. Do not enforce hand_reqs on
+        // this unused placeholder board.
+        FuzzyBoardState placeholder_fuzzy(fuzzy_state_.known_hands(),
+                                          fuzzy_state_.unknown_cards());
+        b = placeholder_fuzzy.Randomize(deal_missing_cards);
         b.set_board_id(static_cast<uint32_t>(i + 1));
         b.set_check_card_play(false);
         b.SetTrump(trump);
