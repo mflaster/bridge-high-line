@@ -5842,8 +5842,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
 
     try {
+      const solveHandInfo = getActivePresetAndHandInfo();
       lastSolveRequestInfo = {
         solve_kind: 'main',
+        preset: solveHandInfo.preset,
+        preset_name: solveHandInfo.preset_name,
+        hand_label: solveHandInfo.hand_label,
         payload: JSON.parse(JSON.stringify(payload))
       };
       const response = await apiSolve(payload, activeSolveAbortController.signal);
@@ -6458,8 +6462,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 200);
 
       try {
+        const solveHandInfo = getActivePresetAndHandInfo();
         lastSolveRequestInfo = {
           solve_kind: 'proposed_line',
+          preset: solveHandInfo.preset,
+          preset_name: solveHandInfo.preset_name,
+          hand_label: solveHandInfo.hand_label,
           trick_num: ctx.trickNum,
           proposed_cards: proposedCards.map(
             c => `${c.seatName}:${c.suit || ''}${c.rankStr || c.rank || ''}`
@@ -8730,9 +8738,54 @@ document.addEventListener('DOMContentLoaded', () => {
     window.Sentry.metrics.gauge(name, value, opts);
   }
 
+  function getActivePresetAndHandInfo() {
+    const presetKey = presetSelect ? presetSelect.value : '';
+    let presetName = '';
+    if (presetKey && PRESETS && PRESETS[presetKey] &&
+        PRESETS[presetKey].name) {
+      presetName = PRESETS[presetKey].name;
+    } else if (presetKey) {
+      const customEntry = sessionCustomHands.find(h => h.key === presetKey);
+      if (customEntry && customEntry.label) {
+        presetName = customEntry.label;
+      } else if (presetSelect && presetSelect.selectedIndex >= 0 &&
+                 presetSelect.options[presetSelect.selectedIndex]) {
+        presetName =
+          presetSelect.options[presetSelect.selectedIndex].textContent || '';
+      }
+    }
+    let handLabel = '';
+    if (loadedHandSource) {
+      const fName =
+        loadedHandSource.fileName || loadedHandSource.file_name || '';
+      const bLbl =
+        loadedHandSource.boardLabel || loadedHandSource.board_label || '';
+      if (fName && bLbl) {
+        handLabel = `Hand ${bLbl} from ${fName}`;
+      } else if (fName || bLbl) {
+        handLabel = fName || `Hand ${bLbl}`;
+      }
+    }
+    if (!handLabel) {
+      if (presetName && presetKey && presetName !== presetKey) {
+        handLabel = `${presetName} (${presetKey})`;
+      } else {
+        handLabel = presetName || presetKey || 'Custom Deal';
+      }
+    }
+    return {
+      preset: presetKey,
+      preset_name: presetName,
+      hand_label: handLabel
+    };
+  }
+
   function collectFeedbackDealSnapshot() {
+    const handInfo = getActivePresetAndHandInfo();
     const snap = {
-      preset: presetSelect ? presetSelect.value : '',
+      preset: handInfo.preset,
+      preset_name: handInfo.preset_name,
+      hand_label: handInfo.hand_label,
       loaded_hand_source: loadedHandSource ? {
         file_name: loadedHandSource.fileName || loadedHandSource.file_name || '',
         board_label: loadedHandSource.boardLabel || loadedHandSource.board_label || '',
@@ -8934,6 +8987,12 @@ document.addEventListener('DOMContentLoaded', () => {
             event.tags = {
               ...(event.tags || {}),
               preset: dealSnapshot.preset || 'custom',
+              ...(dealSnapshot.preset_name
+                ? { preset_name: dealSnapshot.preset_name }
+                : {}),
+              ...(dealSnapshot.hand_label
+                ? { hand_label: dealSnapshot.hand_label }
+                : {}),
               backend_mode: backendMode || 'unknown',
               trump: dealSnapshot.trump || '',
               leader: dealSnapshot.leader || '',
@@ -9009,6 +9068,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const feedbackMessage = (message || '').slice(0, 4096);
+    const fullFeedbackMessage =
+      (dealSnapshot && dealSnapshot.hand_label &&
+       !feedbackMessage.includes('Preset / Hand:'))
+        ? `${feedbackMessage}\n\n[Preset / Hand: ${dealSnapshot.hand_label}]`
+            .slice(0, 4096)
+        : feedbackMessage;
     const feedbackPayload = {
       event_id: feedbackEventId,
       timestamp: nowIso,
@@ -9018,6 +9083,8 @@ document.addEventListener('DOMContentLoaded', () => {
       user: userObj,
       tags: {
         preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+        preset_name: dealSnapshot ? (dealSnapshot.preset_name || '') : '',
+        hand_label: dealSnapshot ? (dealSnapshot.hand_label || '') : '',
         file_name: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.file_name : '',
         board_label: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.board_label : '',
         trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
@@ -9032,7 +9099,7 @@ document.addEventListener('DOMContentLoaded', () => {
         feedback: {
           name: name || 'Anonymous',
           ...(email ? { contact_email: email } : {}),
-          message: feedbackMessage,
+          message: fullFeedbackMessage,
           url: window.location.href,
           ...(lastSentryErrorEventId ? { associated_event_id: lastSentryErrorEventId } : {})
         },
@@ -9115,8 +9182,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const wHand = inputWest ? inputWest.value.trim() : '';
       const uHand = inputUnknownCards ? inputUnknownCards.value.trim() : '';
 
+      const handInfo = getActivePresetAndHandInfo();
+      const solveHandLabel =
+        (lastSolveRequestInfo && lastSolveRequestInfo.hand_label)
+          ? lastSolveRequestInfo.hand_label
+          : handInfo.hand_label;
+
       const lines = [
         '[Status Error Report]',
+        `Preset / Hand: ${solveHandLabel}`,
         `Error: ${errorMsg}`,
         `Backend: ${backendVal}`,
         `Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`,
