@@ -1493,7 +1493,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return wasmWorker;
   }
 
-  const WASM_NUM_THREADS = 4;
+  const WASM_NUM_THREADS =
+    (typeof navigator !== 'undefined' && navigator.hardwareConcurrency >= 8)
+      ? 8
+      : 4;
 
   async function ensureCrossOriginIsolation() {
     if (window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') {

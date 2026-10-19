@@ -196,7 +196,7 @@ if(EMSCRIPTEN)
     "-O3"
     "-fwasm-exceptions"
     "-pthread"
-    "-sPTHREAD_POOL_SIZE=4"
+    "-sPTHREAD_POOL_SIZE=8"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sINITIAL_MEMORY=134217728"
     "-sMAXIMUM_MEMORY=2147483648"
