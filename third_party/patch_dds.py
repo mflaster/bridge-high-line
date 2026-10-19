@@ -139,7 +139,7 @@ def patch_system_cpp(system_cpp: pathlib.Path) -> None:
       "#ifdef __EMSCRIPTEN__" + nl +
       "#ifdef __EMSCRIPTEN_PTHREADS__" + nl +
       "  kilobytesFree = 1024ULL * 1024ULL;" + nl +
-      "  ncores = 4;" + nl +
+      "  ncores = 8;" + nl +
       "#else" + nl +
       "  kilobytesFree = 512ULL * 1024ULL;" + nl +
       "  ncores = 1;" + nl +

@@ -69,8 +69,8 @@ FetchContent_Declare(
 )
 
 if(EMSCRIPTEN)
-  add_compile_options(-pthread)
-  add_link_options(-pthread)
+  add_compile_options(-pthread -fwasm-exceptions)
+  add_link_options(-pthread -fwasm-exceptions)
   FetchContent_MakeAvailable(boost_headers glog)
 else()
   FetchContent_MakeAvailable(boost_headers glog googletest)
@@ -108,7 +108,7 @@ if(NOT dds_POPULATED)
   )
   if(EMSCRIPTEN)
     target_compile_definitions(dds PRIVATE DDS_THREADS_STL)
-    target_compile_options(dds PRIVATE -O3 -msimd128 -fexceptions -pthread)
+    target_compile_options(dds PRIVATE -O3 -msimd128 -fno-exceptions -pthread)
     target_link_libraries(dds PUBLIC boost_headers)
   else()
     target_compile_definitions(dds PRIVATE DDS_THREADS_OPENMP)
@@ -180,7 +180,7 @@ if(EMSCRIPTEN)
   target_compile_options(bridge_lib PUBLIC
     -O3
     -msimd128
-    -fexceptions
+    -fwasm-exceptions
     -pthread
     -Wno-unknown-pragmas
   )
@@ -194,9 +194,9 @@ if(EMSCRIPTEN)
   target_link_libraries(bridge_wasm PRIVATE bridge_lib)
   target_link_options(bridge_wasm PRIVATE
     "-O3"
-    "-fexceptions"
+    "-fwasm-exceptions"
     "-pthread"
-    "-sPTHREAD_POOL_SIZE=4"
+    "-sPTHREAD_POOL_SIZE=8"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sINITIAL_MEMORY=134217728"
     "-sMAXIMUM_MEMORY=2147483648"

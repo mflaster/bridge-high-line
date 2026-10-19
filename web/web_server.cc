@@ -1624,6 +1624,58 @@ ParseHandRequirements(const nlohmann::json &reqs_json) {
   return reqs;
 }
 
+class FatalLogCaptureSink : public google::LogSink {
+ public:
+  void send(google::LogSeverity severity, const char * /*full_filename*/,
+            const char *base_filename, int line,
+            const google::LogMessageTime & /*time*/, const char *message,
+            size_t message_len) override {
+    if (severity == google::GLOG_FATAL) {
+      std::lock_guard<std::mutex> lock(mu_);
+      last_fatal_ = std::string("Fatal check failure at ") +
+                    (base_filename ? base_filename : "unknown") + ":" +
+                    std::to_string(line) + ": " +
+                    std::string(message, message_len);
+    }
+  }
+
+  std::string GetLastFatal() const {
+    std::lock_guard<std::mutex> lock(mu_);
+    return last_fatal_;
+  }
+
+ private:
+  mutable std::mutex mu_;
+  std::string last_fatal_;
+};
+
+FatalLogCaptureSink &GetFatalLogSink() {
+  static FatalLogCaptureSink sink;
+  return sink;
+}
+
+#if defined(__GNUC__)
+__attribute__((noreturn))
+#else
+[[noreturn]]
+#endif
+void ThrowOnGlogFatal() {
+  std::string msg = GetFatalLogSink().GetLastFatal();
+  if (msg.empty()) {
+    msg = "Fatal internal solver error (LOG(FATAL) / CHECK failure)";
+  }
+  throw std::runtime_error(msg);
+}
+
+void EnsureGlogFatalHandlerInstalled() {
+  static std::once_flag once;
+  std::call_once(once, []() {
+    google::AddLogSink(&GetFatalLogSink());
+    google::InstallFailureFunction(
+        reinterpret_cast<google::logging_fail_func_t>(&ThrowOnGlogFatal));
+  });
+}
+
 }  // namespace
 
 std::unique_ptr<LineFinder> WebServer::CheckoutLineFinder(
@@ -1666,6 +1718,7 @@ void WebServer::CheckinLineFinder(
 
 std::string WebServer::SolveJson(const std::string &req_body,
                                  int *http_status_out) {
+  EnsureGlogFatalHandlerInstalled();
   if (http_status_out) *http_status_out = 200;
   nlohmann::json response;
   try {

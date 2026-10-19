@@ -39,6 +39,8 @@ class FuzzyBoardState {
     if (r.size() > 1) hand_reqs1_ = r[1];
     if (r.size() > 3) hand_reqs3_ = r[3];
   }
+  const std::vector<uint64_t> &known_hands() const { return known_hands_; }
+  uint64_t unknown_cards() const { return unknown_cards_; }
   const std::vector<std::shared_ptr<HandRequirements>> &hand_reqs1() const {
     return hand_reqs1_;
   }
@@ -245,7 +247,7 @@ class LineFinder {
 
  private:
   static constexpr size_t kMemoShards = 64;
-  static constexpr size_t kMaxMemoPerShard = 4096;
+  static constexpr size_t kMaxMemoPerShard = 16384;
   struct MemoEntry {
     std::vector<ConditionalLine> lines;
     int fail_low_bound = 0;

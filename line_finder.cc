@@ -41,8 +41,20 @@ BoardState FuzzyBoardState::Randomize(bool deal_missing_cards) {
       target_cards = (hand1_known + hand3_known + unk_cnt) / 2;
     }
     int hand1_needed = std::max(0, target_cards - hand1_known);
+    std::vector<std::shared_ptr<HandRequirements>> active_reqs1;
+    std::vector<std::shared_ptr<HandRequirements>> active_reqs3;
+    for (const auto &r : hand_reqs1_) {
+      if (r && (target_cards == 13 || r->AppliesToRemainingHand())) {
+        active_reqs1.push_back(r);
+      }
+    }
+    for (const auto &r : hand_reqs3_) {
+      if (r && (target_cards == 13 || r->AppliesToRemainingHand())) {
+        active_reqs3.push_back(r);
+      }
+    }
     auto [hand1, hand3] =
-        DealTwoRequiredHands(unknown_cards_, hand_reqs1_, hand_reqs3_,
+        DealTwoRequiredHands(unknown_cards_, active_reqs1, active_reqs3,
                              hand1_needed, hands[1], hands[3]);
 
     hands[1] = hands[1] | hand1;
@@ -197,8 +209,11 @@ std::vector<BoardState> LineFinder::SetupBoards(
       if (!valid_for_branch) {
         // Populate a valid placeholder board with the expected card count so
         // boards_[i] is well-formed, but omit `i` from `board_offsets` so it
-        // cannot be covered along this branch.
-        b = fuzzy_state_.Randomize(deal_missing_cards);
+        // cannot be covered along this branch. Do not enforce hand_reqs on
+        // this unused placeholder board.
+        FuzzyBoardState placeholder_fuzzy(fuzzy_state_.known_hands(),
+                                          fuzzy_state_.unknown_cards());
+        b = placeholder_fuzzy.Randomize(deal_missing_cards);
         b.set_board_id(static_cast<uint32_t>(i + 1));
         b.set_check_card_play(false);
         b.SetTrump(trump);
@@ -329,6 +344,12 @@ int LineFinder::CountAtLeast(const std::multiset<int> &data, int thresh) {
   return ans;
 }
 
+static std::atomic<uint64_t> get_line_from_trick_calls{0};
+static std::atomic<uint64_t> g_play_trick_calls{0};
+static std::atomic<uint64_t> g_memo_hits{0};
+static std::atomic<uint64_t> g_memo_misses{0};
+static std::atomic<uint64_t> g_memo_evictions{0};
+
 namespace {
 std::mutex g_status_mutex;
 std::string g_solve_status = "Idle";
@@ -341,30 +362,61 @@ std::atomic<bool> g_stop_requested{false};
 LineFinder::ProgressCallback g_progress_cb;
 std::atomic<bool> g_has_progress_cb{false};
 std::atomic<uint32_t> g_progress_tick{0};
+std::atomic<int64_t> g_last_progress_notify_ms{0};
 
-void MaybeNotifyProgress() {
+int64_t NowSteadyMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+void MaybeNotifyProgress(bool force = false) {
   if (!g_has_progress_cb.load(std::memory_order_relaxed)) return;
+  if (!force) {
+    if (omp_get_thread_num() != 0) return;
+    int64_t now_ms = NowSteadyMs();
+    int64_t prev_ms =
+        g_last_progress_notify_ms.load(std::memory_order_relaxed);
+    if (now_ms - prev_ms < 100) return;
+    if (!g_last_progress_notify_ms.compare_exchange_strong(
+            prev_ms, now_ms, std::memory_order_relaxed)) {
+      return;
+    }
+  } else {
+    g_last_progress_notify_ms.store(NowSteadyMs(), std::memory_order_relaxed);
+  }
   LineFinder::ProgressCallback cb;
+  std::shared_ptr<SearchProgress> progress;
+  std::string base_status;
   {
     std::lock_guard<std::mutex> lock(g_status_mutex);
     cb = g_progress_cb;
+    progress = g_active_progress;
+    if (!progress) {
+      base_status = g_solve_status;
+    }
   }
-  if (cb) {
-    cb(LineFinder::GetSolveStatus(), LineFinder::GetSolveProgress());
+  if (!cb) return;
+  if (!progress) {
+    cb(base_status, -1.0);
+    return;
   }
+  double frac = progress->Fraction();
+  int pct = static_cast<int>(std::floor(frac * 100.0));
+  std::string status =
+      "Searching play trees: ~" + std::to_string(pct) +
+      "% done (best coverage: " + std::to_string(g_best_covered.load()) +
+      "/" + std::to_string(g_total_boards.load()) + " deals, " +
+      std::to_string(get_line_from_trick_calls.load()) + " branches)...";
+  cb(status, frac);
 }
 }  // namespace
-
-static std::atomic<uint64_t> get_line_from_trick_calls{0};
-static std::atomic<uint64_t> g_play_trick_calls{0};
-static std::atomic<uint64_t> g_memo_hits{0};
-static std::atomic<uint64_t> g_memo_misses{0};
-static std::atomic<uint64_t> g_memo_evictions{0};
 
 void LineFinder::SetProgressCallback(ProgressCallback cb) {
   std::lock_guard<std::mutex> lock(g_status_mutex);
   g_has_progress_cb.store(static_cast<bool>(cb), std::memory_order_relaxed);
   g_progress_cb = std::move(cb);
+  g_last_progress_notify_ms.store(0, std::memory_order_relaxed);
 }
 
 void LineFinder::RequestStop() {
@@ -379,8 +431,8 @@ bool LineFinder::IsStopRequested() {
   if (g_has_progress_cb.load(std::memory_order_relaxed)) {
     uint32_t tick =
         g_progress_tick.fetch_add(1, std::memory_order_relaxed) + 1;
-    if ((tick & 63u) == 0u) {
-      MaybeNotifyProgress();
+    if ((tick & 511u) == 0u) {
+      MaybeNotifyProgress(/*force=*/false);
     }
   }
   return g_stop_requested.load(std::memory_order_relaxed);
@@ -407,7 +459,7 @@ void LineFinder::SetSolveStatus(const std::string &status) {
     std::lock_guard<std::mutex> lock(g_status_mutex);
     g_solve_status = status;
   }
-  MaybeNotifyProgress();
+  MaybeNotifyProgress(/*force=*/true);
 }
 
 double LineFinder::GetSolveProgress() {
@@ -1613,6 +1665,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           req = std::max(
               req, (groupings[j].size() >= min_conds) ? (c_t1 + 1) : c_t1);
         }
+      } else if (lvl > 0 && most_boards_covered > 0) {
+        req = std::max(req, most_boards_covered);
       }
       return req;
     }
@@ -2200,13 +2254,9 @@ bool LineFinder::SolveMemo::Lookup(
 void LineFinder::SolveMemo::Insert(
     std::string key, int min_covered,
     const std::vector<ConditionalLine> &res, int top_k) {
+  (void)top_k;
   int achieved = res.empty() ? 0 : res[0].CoveredFinalBoards();
-  bool is_exact =
-      (min_covered <= 1) ||
-      (top_k <= 1
-           ? (achieved >= min_covered)
-           : (static_cast<int>(res.size()) >= top_k &&
-              res.back().CoveredFinalBoards() >= min_covered));
+  bool is_exact = (min_covered <= 1) || (achieved >= min_covered);
   if (!is_exact && achieved >= min_covered) {
     return;
   }

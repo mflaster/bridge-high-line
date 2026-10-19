@@ -98,7 +98,8 @@ std::pair<uint64_t, uint64_t> DealTwoRequiredHands(
       return std::make_pair(hand1, hand2);
     }
   }
-  LOG(FATAL) << "Couldn't meet requirements";
+  LOG(ERROR) << "Couldn't meet requirements";
+  throw std::runtime_error("Couldn't meet requirements");
 }
 
 
@@ -146,7 +147,8 @@ uint64_t DealOneRequiredHand(
       return hand;
     }
   }
-  LOG(FATAL) << "Couldn't meet requirements";
+  LOG(ERROR) << "Couldn't meet requirements";
+  throw std::runtime_error("Couldn't meet requirements");
 }
 
 
@@ -237,7 +239,8 @@ std::vector<uint64_t> DealMissingCards(
     VLOG(1) << "Met requirements on deal " << i;
     return final_hands;
   }
-  LOG(FATAL) << "Couldn't meet requirements";
+  LOG(ERROR) << "Couldn't meet requirements";
+  throw std::runtime_error("Couldn't meet requirements");
 }
 
 BoardState LoadDealFromKeyValueString(const std::string &content) {
