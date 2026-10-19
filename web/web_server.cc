@@ -1654,7 +1654,12 @@ FatalLogCaptureSink &GetFatalLogSink() {
   return sink;
 }
 
-[[noreturn]] void ThrowOnGlogFatal() {
+#if defined(__GNUC__)
+__attribute__((noreturn))
+#else
+[[noreturn]]
+#endif
+void ThrowOnGlogFatal() {
   std::string msg = GetFatalLogSink().GetLastFatal();
   if (msg.empty()) {
     msg = "Fatal internal solver error (LOG(FATAL) / CHECK failure)";
@@ -1666,7 +1671,8 @@ void EnsureGlogFatalHandlerInstalled() {
   static std::once_flag once;
   std::call_once(once, []() {
     google::AddLogSink(&GetFatalLogSink());
-    google::InstallFailureFunction(&ThrowOnGlogFatal);
+    google::InstallFailureFunction(
+        reinterpret_cast<google::logging_fail_func_t>(&ThrowOnGlogFatal));
   });
 }
 
