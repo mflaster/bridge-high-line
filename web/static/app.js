@@ -1436,10 +1436,16 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             const parsed = JSON.parse(msg.resultJson || '{}');
             if (parsed && parsed.success === false && typeof parsed.error === 'string' &&
-                parsed.error.startsWith('WebAssembly solver exception:')) {
+                (parsed.error.startsWith('WebAssembly solver exception:') ||
+                 parsed.error.startsWith('WebAssembly solver aborted:') ||
+                 parsed.aborted)) {
               reportRuntimeErrorToSentry(new Error(parsed.error), {
                 source: 'wasm_solver_exception'
               });
+              if (parsed.aborted && wasmWorker) {
+                try { wasmWorker.terminate(); } catch (_) {}
+                wasmWorker = null;
+              }
             }
             req.resolve({
               ok: parsed.success !== false,
@@ -1460,6 +1466,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const errMsg = msg.error || 'WebAssembly worker error';
         reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_abort' });
         setStatus('error', 'WebAssembly worker error: ' + errMsg);
+        if (wasmWorker) {
+          try { wasmWorker.terminate(); } catch (_) {}
+          wasmWorker = null;
+        }
         if (wasmActiveRequest) {
           const req = wasmActiveRequest;
           wasmActiveRequest = null;
@@ -1478,6 +1488,10 @@ document.addEventListener('DOMContentLoaded', () => {
         (err && err.message ? err.message : 'failed to load solver_worker.js');
       reportRuntimeErrorToSentry(new Error(errMsg), { source: 'wasm_worker_onerror' });
       setStatus('error', errMsg);
+      if (wasmWorker) {
+        try { wasmWorker.terminate(); } catch (_) {}
+        wasmWorker = null;
+      }
       if (wasmActiveRequest) {
         const req = wasmActiveRequest;
         wasmActiveRequest = null;

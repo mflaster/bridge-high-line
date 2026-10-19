@@ -14,6 +14,12 @@ self.onBridgeSolverProgress = function(status, progress) {
 
 self.Module = {
   mainScriptUrlOrBlob: new URL('bridge_wasm.js', self.location.href).href,
+  locateFile: function(path) {
+    if (path.endsWith('.wasm')) {
+      return new URL('bridge_wasm.wasm', self.location.href).href;
+    }
+    return path;
+  },
   onRuntimeInitialized: function() {
     wasmReady = true;
     self.postMessage({ type: 'ready' });
@@ -22,6 +28,7 @@ self.Module = {
     }
   },
   onAbort: function(reason) {
+    wasmReady = false;
     wasmLoadError = 'WebAssembly solver aborted: ' + String(reason || 'unknown');
     self.postMessage({ type: 'error', error: wasmLoadError });
   }
@@ -43,12 +50,18 @@ function handleWorkerMessage(msg) {
         resultJson: resultJson
       });
     } catch (err) {
+      const errDetail = (err && err.message) ? err.message : String(err);
+      const fullErr = wasmLoadError
+        ? (wasmLoadError + ' (' + errDetail + ')')
+        : ('WebAssembly solver exception: ' + errDetail);
       self.postMessage({
         type: 'solve_result',
         id: msg.id,
         resultJson: JSON.stringify({
           success: false,
-          error: 'WebAssembly solver exception: ' + (err && err.message ? err.message : String(err))
+          aborted: Boolean(wasmLoadError) ||
+            Boolean(err && err.name === 'RuntimeError'),
+          error: fullErr
         })
       });
     }

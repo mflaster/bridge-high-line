@@ -376,3 +376,49 @@ TEST(InterfaceDdsTest, DefenderSeatRules_FirstHandLeadSelection) {
     }
   }
 }
+
+TEST(InterfaceDdsTest, DeclarerSeatRules_PrunesRedundantLosingAndSpotPlays) {
+  ScopedDefenderNoise no_noise(0);
+  {  // Defender leads HA; North's non-touching losing H8 and H5 collapse to H5
+    std::vector<uint64_t> hands = {
+        ParseHand("S A; H 85;"),
+        ParseHand("S 32; H A;"),
+        ParseHand("S K9; H 3;"),
+        ParseHand("S 54; H 6;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(1, Card::ParseStringCard("HA"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 2, &lines, nullptr);
+    ASSERT_EQ(lines.size(), 1u);
+    ASSERT_EQ(*lines.begin(), "HA H3 H6 H5 ");
+  }
+
+  {  // South leads from D 85 opposite void when defenders hold D6; D8 -> D5
+    std::vector<uint64_t> hands = {
+        ParseHand("S A65; D -;"),
+        ParseHand("S 3; D K6;"),
+        ParseHand("S 2; D 85;"),
+        ParseHand("S 4; D T7;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(2);
+    bs.SetTrump(SPADES);
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 3, &lines, nullptr);
+    bool saw_d5 = false;
+    bool saw_d8 = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("D5 ", 0) == 0) saw_d5 = true;
+      if (line.rfind("D8 ", 0) == 0) saw_d8 = true;
+    }
+    ASSERT_TRUE(saw_d5);
+    ASSERT_FALSE(saw_d8);
+  }
+}

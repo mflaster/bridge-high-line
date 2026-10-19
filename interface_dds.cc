@@ -595,10 +595,47 @@ std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs) {
   return ans;
 }
 
+struct PartnerLeadInfo {
+  int lowest_lead_rank = 0;
+  int cheapest_master_lead_rank = 0;
+  uint16_t opp_suit_mask = 0;
+};
+
+bool CanNeedUnblockForPartner(uint16_t my_sm, uint16_t p_sm, int p_after,
+                              int cheapest_r, int r) {
+  if (p_after <= 0 || p_sm == 0 || r <= cheapest_r) {
+    return false;
+  }
+  uint16_t lower_mask =
+      (r > 2) ? static_cast<uint16_t>((1u << (r - 2)) - 1) : 0;
+  if ((p_sm & lower_mask) == 0) {
+    return false;
+  }
+  uint16_t my_rem_after =
+      my_sm & static_cast<uint16_t>(~(1u << (cheapest_r - 2)));
+  int my_after = __builtin_popcount(my_rem_after);
+  if (my_after == 0 || my_after >= p_after) {
+    return false;
+  }
+  int my_lowest_after = __builtin_ctz(my_rem_after) + 2;
+  int p_highest = 31 - __builtin_clz(p_sm) + 2;
+  return my_lowest_after > p_highest;
+}
+
+uint16_t RanksBetweenMask(int r1, int r2) {
+  if (r2 <= r1 + 1) {
+    return 0;
+  }
+  uint16_t below_r2 = static_cast<uint16_t>((1u << (r2 - 2)) - 1);
+  uint16_t at_or_below_r1 = static_cast<uint16_t>((1u << (r1 - 1)) - 1);
+  return below_r2 & ~at_or_below_r1;
+}
+
 int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
                    int level, OptimalLines *lines,
                    SolverCache *cache,
-                   futureTricks *solved_tricks = nullptr) {
+                   futureTricks *solved_tricks = nullptr,
+                   PartnerLeadInfo partner_lead = {}) {
   DoInit();
   VLOG(2) << "DDSSolveHelper level " << level;
   CHECK_LT(level, 4);
@@ -663,11 +700,101 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     CHECK_GE(card_to_play, 0) << futp.cards;
   }
   int lowest_discard_rank[4] = {100, 100, 100, 100};
-  if (pair_is_me && bs.SuitLed() != NOTRUMP) {
-    for (int i = 0; i < futp.cards; i++) {
-      int s = futp.suit[i];
-      if (s != bs.SuitLed() && s != bs.GetTrump()) {
-        lowest_discard_rank[s] = std::min(lowest_discard_rank[s], futp.rank[i]);
+  int lowest_losing_follow_rank = 100;
+  int cheapest_third_hand_win_rank[4] = {100, 100, 100, 100};
+  int cheapest_fourth_hand_win_rank[4] = {100, 100, 100, 100};
+  int lowest_lead_rank[4] = {100, 100, 100, 100};
+  int cheapest_master_lead_rank[4] = {100, 100, 100, 100};
+  int cur_winner = -1;
+  int cur_win_rank = 0;
+  Suit cur_win_suit = NOTRUMP;
+  bool trick_ruffed = false;
+  bool has_discard_in_futp = false;
+  uint16_t my_suit_mask[4] = {0, 0, 0, 0};
+  uint16_t partner_suit_mask[4] = {0, 0, 0, 0};
+  uint16_t east_suit_mask[4] = {0, 0, 0, 0};
+  uint16_t west_suit_mask[4] = {0, 0, 0, 0};
+  uint16_t opp_suit_mask[4] = {0, 0, 0, 0};
+  int opp_highest_rank[4] = {0, 0, 0, 0};
+  int partner_after_suit[4] = {0, 0, 0, 0};
+  uint16_t rho_led_mask = 0;
+  if (pair_is_me) {
+    Suit suit_led = bs.SuitLed();
+    Suit trump = bs.GetTrump();
+    uint64_t played = bs.played_cards();
+    for (int k = 0; k < level; ++k) {
+      played |= bs.trick_cards_played()[k];
+    }
+    int me = bs.CurPlayer();
+    int partner = me ^ 2;
+    uint64_t my_rem = bs.GetHand(me) & ~played;
+    uint64_t partner_rem = bs.GetHand(partner) & ~played;
+    uint64_t east_rem = bs.GetHand(1) & ~played;
+    uint64_t west_rem = bs.GetHand(3) & ~played;
+    for (int s = 0; s < 4; ++s) {
+      my_suit_mask[s] = static_cast<uint16_t>((my_rem >> (s * 16)) & 0xffff);
+      partner_suit_mask[s] =
+          static_cast<uint16_t>((partner_rem >> (s * 16)) & 0xffff);
+      east_suit_mask[s] =
+          static_cast<uint16_t>((east_rem >> (s * 16)) & 0xffff);
+      west_suit_mask[s] =
+          static_cast<uint16_t>((west_rem >> (s * 16)) & 0xffff);
+      opp_suit_mask[s] = east_suit_mask[s] | west_suit_mask[s];
+      opp_highest_rank[s] =
+          (opp_suit_mask[s] != 0) ? (31 - __builtin_clz(opp_suit_mask[s]) + 2)
+                                  : 0;
+      int p_after = __builtin_popcount(partner_suit_mask[s]);
+      if ((level == 0 || (level == 1 && s == suit_led)) && p_after > 0) {
+        --p_after;
+      }
+      partner_after_suit[s] = p_after;
+    }
+    if (level == 0) {
+      for (int i = 0; i < futp.cards; ++i) {
+        int s = futp.suit[i];
+        int r = futp.rank[i];
+        lowest_lead_rank[s] = std::min(lowest_lead_rank[s], r);
+        if (r > opp_highest_rank[s]) {
+          cheapest_master_lead_rank[s] =
+              std::min(cheapest_master_lead_rank[s], r);
+        }
+      }
+    } else if (suit_led != NOTRUMP) {
+      auto [win_offset, win_pair] = bs.TrickWinner();
+      cur_winner = (bs.cur_trick_leader() + win_offset) % 4;
+      cur_win_suit = win_pair.first;
+      cur_win_rank = win_pair.second + 2;
+      trick_ruffed =
+          (trump != NOTRUMP && suit_led != trump && cur_win_suit == trump);
+      int rho = (me + 1) % 4;
+      rho_led_mask =
+          (rho == 1) ? east_suit_mask[suit_led] : west_suit_mask[suit_led];
+      for (int i = 0; i < futp.cards; i++) {
+        int s = futp.suit[i];
+        int r = futp.rank[i];
+        if (s != suit_led && s != trump) {
+          lowest_discard_rank[s] = std::min(lowest_discard_rank[s], r);
+          has_discard_in_futp = true;
+        } else if (s == suit_led && (trick_ruffed || r < cur_win_rank)) {
+          lowest_losing_follow_rank = std::min(lowest_losing_follow_rank, r);
+        }
+        bool wins_so_far =
+            (s == suit_led && !trick_ruffed && r > cur_win_rank) ||
+            (s == trump && (cur_win_suit != trump || r > cur_win_rank));
+        if (level == 2 && wins_so_far) {
+          bool sure_third_win =
+              (s == suit_led && r > opp_highest_rank[suit_led]) ||
+              (s == trump && suit_led != trump &&
+               (rho_led_mask != 0 || r > opp_highest_rank[trump]));
+          if (sure_third_win) {
+            cheapest_third_hand_win_rank[s] =
+                std::min(cheapest_third_hand_win_rank[s], r);
+          }
+        }
+        if (level == 3 && wins_so_far) {
+          cheapest_fourth_hand_win_rank[s] =
+              std::min(cheapest_fourth_hand_win_rank[s], r);
+        }
       }
     }
   }
@@ -676,11 +803,151 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     if (!pair_is_me && i != card_to_play) {
       continue;
     }
-    if (pair_is_me && bs.SuitLed() != NOTRUMP) {
+    if (pair_is_me && level == 0) {
       int s = futp.suit[i];
-      if (s != bs.SuitLed() && s != bs.GetTrump() &&
-          futp.rank[i] > lowest_discard_rank[s]) {
+      int r = futp.rank[i];
+      if (r < 10 && r > lowest_lead_rank[s] && lowest_lead_rank[s] < 10 &&
+          partner_suit_mask[s] != 0 &&
+          (__builtin_ctz(partner_suit_mask[s]) + 2) > r) {
         continue;
+      }
+      bool pruned_lead = false;
+      for (int j = 0; j < futp.cards; ++j) {
+        if (futp.suit[j] != s || futp.rank[j] >= r) continue;
+        int r1 = futp.rank[j];
+        if ((r1 >= 10) != (r >= 10)) continue;
+        if ((opp_suit_mask[s] & RanksBetweenMask(r1, r)) != 0) continue;
+        uint16_t below_r1 =
+            (r1 > 2) ? static_cast<uint16_t>((1u << (r1 - 2)) - 1) : 0;
+        if ((partner_suit_mask[s] & below_r1) == 0) continue;
+        if (!CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
+                                      partner_after_suit[s], r1, r)) {
+          pruned_lead = true;
+          break;
+        }
+      }
+      if (pruned_lead) {
+        continue;
+      }
+    }
+    if (pair_is_me && bs.SuitLed() != NOTRUMP) {
+      Suit suit_led = bs.SuitLed();
+      Suit trump = bs.GetTrump();
+      int me = bs.CurPlayer();
+      int partner = me ^ 2;
+      int s = futp.suit[i];
+      int r = futp.rank[i];
+      int lead_rank =
+          (level >= 1)
+              ? (Card::DecodeCard(bs.trick_cards_played()[0]).second + 2)
+              : 0;
+      if (s != suit_led && s != trump && r > lowest_discard_rank[s]) {
+        continue;
+      }
+      if (s == suit_led && (trick_ruffed || r < cur_win_rank) &&
+          r > lowest_losing_follow_rank &&
+          !(level == 2 && !trick_ruffed && r >= 10 && r > lead_rank)) {
+        uint16_t higher_mask =
+            static_cast<uint16_t>(~((1u << (r - 1)) - 1) & 0x1fff);
+        int max_opp_higher =
+            std::max(__builtin_popcount(east_suit_mask[s] & higher_mask),
+                     __builtin_popcount(west_suit_mask[s] & higher_mask));
+        if (max_opp_higher >= partner_after_suit[s] ||
+            !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
+                                      partner_after_suit[s],
+                                      lowest_losing_follow_rank, r)) {
+          continue;
+        }
+      }
+      bool wins_so_far =
+          (s == suit_led && !trick_ruffed && r > cur_win_rank) ||
+          (s == trump && (cur_win_suit != trump || r > cur_win_rank));
+      if (level == 2) {
+        if (partner_lead.lowest_lead_rank > 0 &&
+            lead_rank > partner_lead.lowest_lead_rank) {
+          if (s == trump && suit_led != trump) {
+            continue;
+          }
+          if (s != suit_led && s != trump &&
+              (trick_ruffed || cur_win_rank > lead_rank)) {
+            continue;
+          }
+          if (s == suit_led && wins_so_far && r > lead_rank) {
+            uint16_t p_sm_before =
+                partner_suit_mask[s] |
+                static_cast<uint16_t>(1u << (lead_rank - 2));
+            uint16_t my_rem_after =
+                my_suit_mask[s] & static_cast<uint16_t>(~(1u << (r - 2)));
+            if ((partner_lead.opp_suit_mask &
+                 RanksBetweenMask(partner_lead.lowest_lead_rank, lead_rank)) ==
+                    0 &&
+                !CanNeedUnblockForPartner(p_sm_before, my_rem_after,
+                                          __builtin_popcount(my_rem_after),
+                                          partner_lead.lowest_lead_rank,
+                                          lead_rank)) {
+              continue;
+            }
+          }
+        }
+        if (s == suit_led && !trick_ruffed && cur_winner == partner &&
+            r < lead_rank && partner_lead.cheapest_master_lead_rank > 0 &&
+            lead_rank > partner_lead.cheapest_master_lead_rank &&
+            (partner_lead.cheapest_master_lead_rank >= 10) ==
+                (lead_rank >= 10)) {
+          uint16_t p_sm_before =
+              partner_suit_mask[s] |
+              static_cast<uint16_t>(1u << (lead_rank - 2));
+          uint16_t my_rem_after =
+              my_suit_mask[s] & static_cast<uint16_t>(~(1u << (r - 2)));
+          if (!CanNeedUnblockForPartner(
+                  p_sm_before, my_rem_after, __builtin_popcount(my_rem_after),
+                  partner_lead.cheapest_master_lead_rank, lead_rank)) {
+            continue;
+          }
+        }
+        bool sure_third_win =
+            wins_so_far &&
+            ((s == suit_led && r > opp_highest_rank[suit_led]) ||
+             (s == trump && suit_led != trump &&
+              (rho_led_mask != 0 || r > opp_highest_rank[trump])));
+        if (sure_third_win && r > cheapest_third_hand_win_rank[s] &&
+            !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
+                                      partner_after_suit[s],
+                                      cheapest_third_hand_win_rank[s], r)) {
+          continue;
+        }
+      }
+      if (level == 3) {
+        if (cur_winner == partner && !trick_ruffed && cur_win_rank == 14 &&
+            s == trump && suit_led != trump && has_discard_in_futp) {
+          continue;
+        }
+        if (wins_so_far && r > cheapest_fourth_hand_win_rank[s] &&
+            !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
+                                      partner_after_suit[s],
+                                      cheapest_fourth_hand_win_rank[s], r)) {
+          continue;
+        }
+      }
+      if (wins_so_far) {
+        bool pruned_equiv = false;
+        for (int j = 0; j < futp.cards; ++j) {
+          if (futp.suit[j] != s || futp.rank[j] >= r) continue;
+          int r1 = futp.rank[j];
+          bool j_wins =
+              (s == suit_led && !trick_ruffed && r1 > cur_win_rank) ||
+              (s == trump && (cur_win_suit != trump || r1 > cur_win_rank));
+          if (!j_wins) continue;
+          if ((opp_suit_mask[s] & RanksBetweenMask(r1, r)) != 0) continue;
+          if (!CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
+                                        partner_after_suit[s], r1, r)) {
+            pruned_equiv = true;
+            break;
+          }
+        }
+        if (pruned_equiv) {
+          continue;
+        }
       }
     }
     int rank_to_play = defense ? defender_rank_to_play : futp.rank[i];
@@ -697,7 +964,14 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
       dl.currentTrickSuit[level] = futp.suit[i];
       dl.currentTrickRank[level] = rank_to_play;
       strcpy(dl.remainCards, copy.GetPBNCards().c_str());
-      DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, cache);
+      PartnerLeadInfo next_lead =
+          (level == 0 && pair_is_me)
+              ? PartnerLeadInfo{lowest_lead_rank[futp.suit[i]],
+                                cheapest_master_lead_rank[futp.suit[i]],
+                                opp_suit_mask[futp.suit[i]]}
+              : partner_lead;
+      DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, cache, nullptr,
+                     next_lead);
     } else {
       rest.insert("");
     }
