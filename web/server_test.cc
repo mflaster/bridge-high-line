@@ -108,6 +108,9 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find("function zoomAroundPoint") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("function submitSentryFeedback") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("const feedbackMessage = (message || '').slice(0, 4096);") != std::string::npos);
+  ASSERT_TRUE(res_js->body.find("function getActivePresetAndHandInfo") !=
+              std::string::npos);
+  ASSERT_TRUE(res_js->body.find("Preset / Hand:") != std::string::npos);
   ASSERT_TRUE(res_js->body.find("const WASM_NUM_THREADS =") !=
               std::string::npos);
   ASSERT_TRUE(res_js->body.find("function ensureCrossOriginIsolation") != std::string::npos);
