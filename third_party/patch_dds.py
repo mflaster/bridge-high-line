@@ -130,26 +130,47 @@ def patch_solver_if_cpp(solver_if: pathlib.Path) -> None:
 
 def patch_system_cpp(system_cpp: pathlib.Path) -> None:
   text = system_cpp.read_text(encoding="utf-8")
-  if "__EMSCRIPTEN__" in text:
-    return
   nl = "\r\n" if "\r\n" in text else "\n"
-  target = "  (void) System::GetCores(ncores);"
-  replacement = (
-      "  (void) System::GetCores(ncores);" + nl + nl +
-      "#ifdef __EMSCRIPTEN__" + nl +
-      "#ifdef __EMSCRIPTEN_PTHREADS__" + nl +
-      "  kilobytesFree = 1024ULL * 1024ULL;" + nl +
-      "  ncores = 8;" + nl +
-      "#else" + nl +
-      "  kilobytesFree = 512ULL * 1024ULL;" + nl +
-      "  ncores = 1;" + nl +
-      "#endif" + nl +
-      "  return;" + nl +
+  normalized = text.replace("\r\n", "\n")
+  emscripten_block = (
+      "  (void) System::GetCores(ncores);\n\n"
+      "#ifdef __EMSCRIPTEN__\n"
+      "#ifdef __EMSCRIPTEN_PTHREADS__\n"
+      "  kilobytesFree = 512ULL * 1024ULL;\n"
+      "  ncores = 8;\n"
+      "#else\n"
+      "  kilobytesFree = 512ULL * 1024ULL;\n"
+      "  ncores = 1;\n"
+      "#endif\n"
+      "  return;\n"
       "#endif"
   )
-  if target not in text:
+  if emscripten_block in normalized:
+    return
+  old_block = (
+      "  (void) System::GetCores(ncores);\n\n"
+      "#ifdef __EMSCRIPTEN__\n"
+      "#ifdef __EMSCRIPTEN_PTHREADS__\n"
+      "  kilobytesFree = 1024ULL * 1024ULL;\n"
+      "  ncores = 8;\n"
+      "#else\n"
+      "  kilobytesFree = 512ULL * 1024ULL;\n"
+      "  ncores = 1;\n"
+      "#endif\n"
+      "  return;\n"
+      "#endif"
+  )
+  if old_block in normalized:
+    patched = normalized.replace(old_block, emscripten_block, 1)
+  elif "  (void) System::GetCores(ncores);" in normalized:
+    patched = normalized.replace(
+        "  (void) System::GetCores(ncores);", emscripten_block, 1
+    )
+  else:
     raise RuntimeError(f"Could not find target line in {system_cpp}")
-  system_cpp.write_text(text.replace(target, replacement, 1), encoding="utf-8")
+  if nl == "\r\n":
+    patched = patched.replace("\n", "\r\n")
+  system_cpp.write_text(patched, encoding="utf-8")
 
 
 def patch_portab_h(portab_h: pathlib.Path) -> None:

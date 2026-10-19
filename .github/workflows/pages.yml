@@ -50,9 +50,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build-wasm/_deps
-          key: wasm-deps-v1-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'third_party/patch_dds.py') }}
+          key: >-
+            wasm-deps-v2-${{ runner.os }}-${{
+            hashFiles('CMakeLists.txt', 'third_party/patch_dds.py') }}
           restore-keys: |
-            wasm-deps-v1-${{ runner.os }}-
+            wasm-deps-v2-${{ runner.os }}-
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -80,28 +82,35 @@ jobs:
             };
             global.Module = {
               onRuntimeInitialized() {
-                const req = JSON.stringify({
-                  hands: {
-                    N: "S AQ; H -; D -; C -;",
-                    E: "S 54; H -; D -; C -;",
-                    S: "S 87; H -; D -; C -;",
-                    W: "S KJ; H -; D -; C -;"
-                  },
-                  trump: "SPADES",
-                  leader: "NORTH",
-                  min_tricks: 1,
-                  num_iters: 4,
-                  num_threads: 4
+                setImmediate(() => {
+                  const req = JSON.stringify({
+                    hands: {
+                      N: "S AQ; H -; D -; C -;",
+                      E: "S 54; H -; D -; C -;",
+                      S: "S 87; H -; D -; C -;",
+                      W: "S KJ; H -; D -; C -;"
+                    },
+                    trump: "SPADES",
+                    leader: "NORTH",
+                    min_tricks: 1,
+                    num_iters: 4,
+                    num_threads: 4
+                  });
+                  const raw = global.Module.ccall(
+                    "wasm_solve_json", "string", ["string"], [req]
+                  );
+                  const out = JSON.parse(raw);
+                  if (!out.success || out.tricks_won !== 1 ||
+                      out.best_lead !== "SA" || out.num_threads !== 4) {
+                    console.error("Unexpected Wasm solve output:", out);
+                    process.exit(1);
+                  }
+                  console.log(
+                    "Wasm smoke test passed:", out.best_lead,
+                    "threads:", out.num_threads, "statuses:", statuses.length
+                  );
+                  process.exit(0);
                 });
-                const out = JSON.parse(
-                  global.Module.ccall("wasm_solve_json", "string", ["string"], [req])
-                );
-                if (!out.success || out.tricks_won !== 1 || out.best_lead !== "SA" || out.num_threads !== 4) {
-                  console.error("Unexpected Wasm solve output:", out);
-                  process.exit(1);
-                }
-                console.log("Wasm smoke test passed:", out.best_lead, "threads:", out.num_threads, "statuses:", statuses.length);
-                process.exit(0);
               }
             };
             require(path.resolve("build-wasm/bridge_wasm.js"));
@@ -129,6 +138,10 @@ jobs:
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|src=\"app.js\"|src=\"app.js?v=${VER}\"|g" _site/index.html
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" _site/help.html
           sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" _site/app.js
+          sed -i "s|'bridge_wasm.js'|'bridge_wasm.js?v=${VER}'|g" \
+            _site/solver_worker.js
+          sed -i "s|'bridge_wasm.wasm'|'bridge_wasm.wasm?v=${VER}'|g" \
+            _site/solver_worker.js
           touch _site/.nojekyll
           ls -lh _site/ _site/images/
 

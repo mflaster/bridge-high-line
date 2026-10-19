@@ -247,7 +247,11 @@ class LineFinder {
 
  private:
   static constexpr size_t kMemoShards = 64;
+#ifdef __EMSCRIPTEN__
+  static constexpr size_t kMaxMemoPerShard = 1024;
+#else
   static constexpr size_t kMaxMemoPerShard = 16384;
+#endif
   struct MemoEntry {
     std::vector<ConditionalLine> lines;
     int fail_low_bound = 0;

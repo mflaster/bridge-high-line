@@ -491,15 +491,14 @@ std::shared_ptr<OptimalPlayTree> DerivePlayTreeForForcedLead(
     return std::make_shared<OptimalPlayTree>(0, base_board, tr, min_tricks);
   }
   std::vector<const OptimalLine *> matching;
-  bool has_higher_same_suit = false;
+  bool has_same_suit = false;
   for (const auto &l : base_tree.GetLines()) {
     if (l.size() >= 3 && l.compare(0, 3, forced_lead_prefix) == 0) {
       matching.push_back(&l);
     } else if (l.size() >= 2) {
       auto c_dec = Card::DecodeCard(Card::ParseStringCard(l.substr(0, 2)));
-      if (c_dec.first == lead_decoded.first &&
-          c_dec.second > lead_decoded.second) {
-        has_higher_same_suit = true;
+      if (c_dec.first == lead_decoded.first) {
+        has_same_suit = true;
       }
     }
   }
@@ -511,7 +510,7 @@ std::shared_ptr<OptimalPlayTree> DerivePlayTreeForForcedLead(
     }
     return tree;
   }
-  if (!has_higher_same_suit) {
+  if (!has_same_suit) {
     return std::make_shared<OptimalPlayTree>(0, base_board, tr, min_tricks);
   }
   return OptimalPlayTree::FindOptimalPlayTree(cur_board, min_tricks, cache);
@@ -917,6 +916,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
                       board_offsets, leader, 0, progress->root());
   });
   SetActiveProgress(nullptr);
+#ifdef __EMSCRIPTEN__
+  solve_memo_.reset();
+#endif
   if (IsStopRequested()) {
     SetSolveStatus("Solve stopped.");
     return {};
@@ -1104,6 +1106,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
       return;
     }
     int next_leader = wb.next_leader;
+    int branch_top_k = (lvl == 0) ? top_k_lvl1_ : 1;
     int trick_won = (next_leader % 2 == 0) ? 1 : 0;
     int next_min_tricks = min_tricks - trick_won;
     int cards_left = board_trees.at(wb.entries[0]->board)->CardsLeft();
@@ -1120,8 +1123,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
       memo_key.reserve(3 + wb.entries.size() * 12);
       memo_key.push_back(static_cast<char>(next_leader));
       memo_key.push_back(static_cast<char>(std::max(next_min_tricks, 0)));
-      if (child_top_k > 1) {
-        memo_key.push_back(static_cast<char>(std::min(child_top_k, 127)));
+      if (branch_top_k > 1) {
+        memo_key.push_back(static_cast<char>(std::min(branch_top_k, 127)));
       }
       for (const auto *e : wb.entries) {
         uint32_t bid = static_cast<uint32_t>(e->board);
@@ -1190,7 +1193,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
         lvl + 1, branch_progress[idx], branch_min_cov);
     if (solve_memo_ != nullptr && !IsStopRequested()) {
       solve_memo_->Insert(std::move(memo_key), branch_min_cov,
-                          branch_results[idx], child_top_k);
+                          branch_results[idx], branch_top_k);
     }
   };
 
@@ -1514,7 +1517,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   auto top_k_prune_floor = [&]() -> int {
     int floor_cov = std::max(1, min_covered);
     if (static_cast<int>(top_candidates.size()) >= top_k && top_k > 0) {
-      floor_cov = std::max(floor_cov, top_candidates.back().covered);
+      int full_cov = top_candidates.back().covered;
+      floor_cov = std::max(floor_cov, (lvl > 0) ? (full_cov + 1) : full_cov);
     }
     return floor_cov;
   };
@@ -1607,7 +1611,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
                                          : most_boards_covered);
     }
     if (known_best_cov > 0) {
-      req = std::max(req, (skip_ties && j > known_best_idx)
+      req = std::max(req, (skip_ties && j != known_best_idx)
                               ? (known_best_cov + 1)
                               : known_best_cov);
     }
@@ -1887,7 +1891,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         };
 
     bool wide_top_batch =
-        omp_in_parallel() && (lvl == 0 && i == 0 && board_offsets.size() >= 30);
+        omp_in_parallel() &&
+        (lvl == 0 && i == 0 && leader % 2 == 0 && board_offsets.size() >= 30);
 
     std::vector<std::pair<std::string, const GeneralizedTrick *>> batch;
     std::set<std::string> batch_seen;
@@ -1903,8 +1908,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         int thresh = max_possible - (max_possible / 20);
         for (size_t j = i + 1; j < groupings.size(); ++j) {
           if (!is_pruned(j) && group_possible_boards[j] >= thresh &&
-              (group_uniform_t1[j].first.empty() ||
-               batch_t1_seen.count(group_uniform_t1[j]) == 0)) {
+              groupings[j].size() == 1 &&
+              !group_uniform_t1[j].first.empty() &&
+              batch_t1_seen.count(group_uniform_t1[j]) == 0) {
             add_group_to_batch(j, batch, batch_seen);
           }
         }
@@ -1921,13 +1927,13 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         if (best_j != i) {
           add_group_to_batch(best_j, batch, batch_seen);
         }
-        if (lvl <= 2 && i >= 1) {
-          size_t max_batch = (lvl == 0) ? 16 : ((lvl == 1) ? 12 : 8);
+        if (lvl == 0 && i >= 1) {
+          size_t max_batch = 16;
           for (size_t j = i + 1;
                j < groupings.size() && batch.size() < max_batch; ++j) {
-            if (!is_pruned(j) &&
-                (group_uniform_t1[j].first.empty() ||
-                 batch_t1_seen.count(group_uniform_t1[j]) == 0)) {
+            if (!is_pruned(j) && groupings[j].size() == 1 &&
+                !group_uniform_t1[j].first.empty() &&
+                batch_t1_seen.count(group_uniform_t1[j]) == 0) {
               add_group_to_batch(j, batch, batch_seen);
             }
           }
@@ -2375,6 +2381,12 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
       groupings[idxs[k]] = std::move(bucket_groups[k]);
     }
   }
+  std::stable_sort(
+      groupings.begin(), groupings.end(),
+      [&](const std::vector<GeneralizedTrick> &a,
+          const std::vector<GeneralizedTrick> &b) {
+        return group_total_boards(a) > group_total_boards(b);
+      });
 
   // Null-move leads are double-dummy optimal on nearly every board, so they
   // always carry the largest upper bound and would otherwise be searched
