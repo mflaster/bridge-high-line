@@ -11,11 +11,11 @@ Total Deals: 10
 Invariant Rules for 4 card ending:
   (None)
 
-  after SA (__) SQ (S_): SA (__) SQ (S_) [0,1,2,3,4,5,6,7,8,9] / SA S9 SQ ST / SA DT SQ S9 / SA DJ SQ S9 / SA DT SQ ST / SA ST SQ S9
-    when 0 wins the SA: 
-      after SK (__) SJ (__): SK (__) SJ (__) [0,1,2,3,4,5,6,7,8,9] / SK DJ SJ DT / SK DK SJ ST / SK DT SJ ST / SK DJ SJ S9 / SK DQ SJ DT
-        when 0 wins the SK: 
-          after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,4,5,6,7,8,9] / HA HT HQ DK / HA HT HQ DJ / HA DQ HQ HT / HA DQ HQ HT / HA HT HQ DA
-            when 0 wins the HA: 
-              after HK (__) HJ (__): HK (__) HJ (__) [0,1,2,3,4,5,6,7,8,9] / HK DA HJ DQ / HK DQ HJ DA / HK DA HJ DK / HK DA HJ DK / HK DJ HJ DK
-                when 0 wins the HK: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+  after SK (__) SJ (S_): SK (__) SJ (S_) [0,1,2,3,4,5,6,7,8,9] / SK S9 SJ ST / SK DT SJ S9 / SK DJ SJ S9 / SK DT SJ ST / SK ST SJ S9
+    when 0 wins the SK: 
+      after SA (__) SQ (__): SA (__) SQ (__) [0,1,2,3,4,5,6,7,8,9] / SA DJ SQ DT / SA DK SQ ST / SA DT SQ ST / SA DJ SQ S9 / SA DJ SQ DT
+        when 0 wins the SA: 
+          after HK (__) HJ (__): HK (__) HJ (__) [0,1,2,3,4,5,6,7,8,9] / HK HT HJ DK / HK HT HJ DJ / HK DQ HJ HT / HK DQ HJ HT / HK HT HJ DK
+            when 0 wins the HK: 
+              after HA (__) HQ (__): HA (__) HQ (__) [0,1,2,3,4,5,6,7,8,9] / HA DA HQ DQ / HA DQ HQ DA / HA DA HQ DK / HA DA HQ DK / HA DQ HQ DA
+                when 0 wins the HA: HAND SUCCEEDED FOR: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9

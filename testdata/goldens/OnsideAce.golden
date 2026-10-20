@@ -17,129 +17,129 @@ Invariant Rules for 7 card ending:
         when 1 wins the DA: 
           after (DJ) DK (DT) D3: (DJ) DK (DT) D3 [51] / DJ DK DT D3 
             when 2 wins the DK: 
-              after CQ (__) S3 (__): CQ (__) S3 (__) [51] / CQ H7 S3 S5 
-                when 2 wins the CQ: 
-                  after CJ (__) S7 (__): CJ (__) S7 (__) [51] / CJ DQ S7 SA 
+              after CT (__) S3 (__): CT (__) S3 (__) [51] / CT H7 S3 S5 
+                when 2 wins the CT: 
+                  after CJ (__) S7 (__): CJ (__) S7 (__) [51] / CJ DQ S7 S8 
                     when 2 wins the CJ: 
-                      after CT (__) SK (__): CT (__) SK (__) [51] / CT S4 SK S8 
-                        when 2 wins the CT: 
-                          after C4 (__) H2 (__): C4 (__) H2 (__) [51] / C4 H8 H2 ST 
+                      after CQ (__) SK (__): CQ (__) SK (__) [51] / CQ S4 SK ST 
+                        when 2 wins the CQ: 
+                          after C4 (__) H2 (__): C4 (__) H2 (__) [51] / C4 H8 H2 SA 
                             when 2 wins the C4: 
-          after (H_) CQ (__) H2: (H_) CQ (__) H2 [4,21,37] / H8 CQ H7 H2  / H7 CQ DT H2 / H7 CQ H8 H2
-            when 2 wins the CQ: 
-              after DK (D_) D3 (__): DK (D_) D3 (__) [4,21,37] / DK DQ D3 D8  / DK DQ D3 H8 / DK DJ D3 S4
+          after (H_) CT (__) H2: (H_) CT (__) H2 [4,21,37] / H8 CT H7 H2  / H7 CT DT H2 / H7 CT H8 H2
+            when 2 wins the CT: 
+              after DK (D_) D3 (__): DK (D_) D3 (__) [4,21,37] / DK DQ D3 D8  / DK DJ D3 H8 / DK DQ D3 S4
                 when 2 wins the DK: 
-                  after CJ (__) S3 (__): CJ (__) S3 (__) [4,21,37] / CJ S8 S3 DJ  / CJ DJ S3 S4 / CJ DT S3 S5
+                  after CJ (__) S3 (__): CJ (__) S3 (__) [4,21,37] / CJ SA S3 DJ  / CJ DQ S3 S4 / CJ DT S3 S5
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [4,21,37] / CT ST S7 DT  / CT S5 S7 S8 / CT DQ S7 ST
-                        when 2 wins the CT: 
-                          after C4 (__) SK (__): C4 (__) SK (__) [4,21,37] / C4 SA SK S4  / C4 ST SK SA / C4 S8 SK SA
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [4,21,37] / CQ S8 S7 DT  / CQ S5 S7 S8 / CQ DJ S7 ST
+                        when 2 wins the CQ: 
+                          after C4 (__) SK (__): C4 (__) SK (__) [4,21,37] / C4 ST SK S4  / C4 ST SK SA / C4 S8 SK SA
                             when 2 wins the C4: HAND SUCCEEDED FOR: 21, 37
       after D9 (DJ) DK (D_): D9 (DJ) DK (D_) [24] / D9 DJ DK D8
         when 2 wins the DK: 
           after D4 (D_) D3 (DX): D4 (D_) D3 (DX) [3,9,18,19,25,41,44,46] / D4 DQ D3 DT  / D4 DQ D3 DT  / D4 DQ D3 DA / D4 D7 D3 DT  / D4 DQ D3 DA
             if 1 wins the DA,DT: 
-              after (__) CQ (__) H2: (__) CQ (__) H2 [19,41] / DJ CQ S4 H2  / H7 CQ SA H2 
-                when 2 wins the CQ: 
+              after (__) CT (__) H2: (__) CT (__) H2 [19,41] / DJ CT S4 H2  / H7 CT SA H2 
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [19,41] / CJ H8 S3 DA  / CJ DJ S3 H8 
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [19,41] / CT S5 S7 ST  / CT S5 S7 S4 
-                        when 2 wins the CT: 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [19,41] / CQ S5 S7 ST  / CQ S5 S7 S4 
+                        when 2 wins the CQ: 
                           after C4 (__) SK (__): C4 (__) SK (__) [19,41] / C4 S8 SK SA  / C4 S8 SK ST 
                             when 2 wins the C4: HAND SUCCEEDED FOR: 4, 18, 24, 25, 44, 46, 51
             if 3 wins the DQ: 
-              after (H_) H2 (H_) CQ: (H_) H2 (H_) CQ [9,18] / H8 H2 H7 CQ  / H7 H2 H8 CQ 
-                when 2 wins the CQ: 
+              after (H_) H2 (H_) CT: (H_) H2 (H_) CT [9,18] / H8 H2 H7 CT  / H7 H2 H8 CT 
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [9,18] / CJ S4 S3 DA  / CJ S8 S3 DA 
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [9,18] / CT S8 S7 S5  / CT ST S7 S4 
-                        when 2 wins the CT: 
-                          after C4 (__) SK (__): C4 (__) SK (__) [9,18] / C4 ST SK SA  / C4 SA SK S5 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [9,18] / CQ S8 S7 SA  / CQ ST S7 S4 
+                        when 2 wins the CQ: 
+                          after C4 (__) SK (__): C4 (__) SK (__) [9,18] / C4 ST SK S5  / C4 SA SK S5 
                             when 2 wins the C4: 
-              after (__) S3 (__) CQ: (__) S3 (__) CQ [3,25,44,46] / DJ S3 DA CQ  / SA S3 S4 CQ  / S4 S3 SA CQ  / SA S3 ST CQ 
-                when 2 wins the CQ: 
-                  after CJ (__) S7 (__): CJ (__) S7 (__) [3,25,44,46] / CJ ST S7 SA  / CJ H7 S7 DA  / CJ H7 S7 DA  / CJ S4 S7 H7 
+              after (__) S3 (__) CT: (__) S3 (__) CT [3,25,44,46] / DJ S3 DA CT  / SA S3 S4 CT  / S4 S3 SA CT  / SA S3 ST CT 
+                when 2 wins the CT: 
+                  after CJ (__) S7 (__): CJ (__) S7 (__) [3,25,44,46] / CJ H7 S7 S5  / CJ H7 S7 DA  / CJ H7 S7 DA  / CJ S4 S7 H7 
                     when 2 wins the CJ: 
-                      after CT (__) SK (__): CT (__) SK (__) [3,25,44,46] / CT H7 SK S5  / CT ST SK S5  / CT S5 SK S8  / CT S5 SK DA 
-                        when 2 wins the CT: 
-                          after C4 (__) H2 (__): C4 (__) H2 (__) [3,25,44,46] / C4 H8 H2 S8  / C4 H8 H2 S8  / C4 H8 H2 ST  / C4 S8 H2 H8 
+                      after CQ (__) SK (__): CQ (__) SK (__) [3,25,44,46] / CQ H8 SK S8  / CQ H8 SK S5  / CQ S5 SK S8  / CQ S5 SK DA 
+                        when 2 wins the CQ: 
+                          after C4 (__) H2 (__): C4 (__) H2 (__) [3,25,44,46] / C4 ST H2 SA  / C4 ST H2 S8  / C4 H8 H2 ST  / C4 S8 H2 H8 
                             when 2 wins the C4: 
       after D9 (DQ) DK (D_): D9 (DQ) DK (D_) [20,32] / D9 DQ DK D7 / D9 DQ DK D7
         when 2 wins the DK: 
           after D4 (D_) D3 (DX): D4 (D_) D3 (DX) [3,9,18,19,25,41,44,46] / D4 DQ D3 DT  / D4 DQ D3 DT  / D4 DQ D3 DJ  / D4 D7 D3 DT  / D4 DQ D3 DJ 
             if 1 wins the DA,DT: 
-              after (__) CQ (__) H2: (__) CQ (__) H2 [19,41] / DJ CQ S4 H2  / H7 CQ SA H2 
-                when 2 wins the CQ: 
+              after (__) CT (__) H2: (__) CT (__) H2 [19,41] / DJ CT S4 H2  / H7 CT SA H2 
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [19,41] / CJ H8 S3 DA  / CJ DJ S3 H8 
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [19,41] / CT S5 S7 ST  / CT S5 S7 S4 
-                        when 2 wins the CT: 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [19,41] / CQ S5 S7 ST  / CQ S5 S7 S4 
+                        when 2 wins the CQ: 
                           after C4 (__) SK (__): C4 (__) SK (__) [19,41] / C4 S8 SK SA  / C4 S8 SK ST 
                             when 2 wins the C4: HAND SUCCEEDED FOR: 20, 32, 34
             if 3 wins the DQ: 
-              after (H_) H2 (H_) CQ: (H_) H2 (H_) CQ [9,18] / H8 H2 H7 CQ  / H7 H2 H8 CQ 
-                when 2 wins the CQ: 
+              after (H_) H2 (H_) CT: (H_) H2 (H_) CT [9,18] / H8 H2 H7 CT  / H7 H2 H8 CT 
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [9,18] / CJ S4 S3 DA  / CJ S8 S3 DA 
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [9,18] / CT S8 S7 S5  / CT ST S7 S4 
-                        when 2 wins the CT: 
-                          after C4 (__) SK (__): C4 (__) SK (__) [9,18] / C4 ST SK SA  / C4 SA SK S5 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [9,18] / CQ S8 S7 SA  / CQ ST S7 S4 
+                        when 2 wins the CQ: 
+                          after C4 (__) SK (__): C4 (__) SK (__) [9,18] / C4 ST SK S5  / C4 SA SK S5 
                             when 2 wins the C4: 
-              after (__) S3 (__) CQ: (__) S3 (__) CQ [3,25,44,46] / DJ S3 DA CQ  / SA S3 S4 CQ  / S4 S3 SA CQ  / SA S3 ST CQ 
-                when 2 wins the CQ: 
-                  after CJ (__) S7 (__): CJ (__) S7 (__) [3,25,44,46] / CJ ST S7 SA  / CJ H7 S7 DA  / CJ H7 S7 DA  / CJ S4 S7 H7 
+              after (__) S3 (__) CT: (__) S3 (__) CT [3,25,44,46] / DJ S3 DA CT  / SA S3 S4 CT  / S4 S3 SA CT  / SA S3 ST CT 
+                when 2 wins the CT: 
+                  after CJ (__) S7 (__): CJ (__) S7 (__) [3,25,44,46] / CJ H7 S7 S5  / CJ H7 S7 DA  / CJ H7 S7 DA  / CJ S4 S7 H7 
                     when 2 wins the CJ: 
-                      after CT (__) SK (__): CT (__) SK (__) [3,25,44,46] / CT H7 SK S5  / CT ST SK S5  / CT S5 SK S8  / CT S5 SK DA 
-                        when 2 wins the CT: 
-                          after C4 (__) H2 (__): C4 (__) H2 (__) [3,25,44,46] / C4 H8 H2 S8  / C4 H8 H2 S8  / C4 H8 H2 ST  / C4 S8 H2 H8 
+                      after CQ (__) SK (__): CQ (__) SK (__) [3,25,44,46] / CQ H8 SK S8  / CQ H8 SK S5  / CQ S5 SK S8  / CQ S5 SK DA 
+                        when 2 wins the CQ: 
+                          after C4 (__) H2 (__): C4 (__) H2 (__) [3,25,44,46] / C4 ST H2 SA  / C4 ST H2 S8  / C4 H8 H2 ST  / C4 S8 H2 H8 
                             when 2 wins the C4: 
       after D9 (DT) DK (D_): D9 (DT) DK (D_) [15,33,34,38,47] / D9 DT DK D7 / D9 DT DK D7 / D9 DT DK D8  / D9 DT DK D7 / D9 DT DK D7
         when 2 wins the DK: 
           after D4 (D_) D3 (DX): D4 (D_) D3 (DX) [15,33,34,38,47] / D4 DJ D3 DA / D4 DQ D3 DJ / D4 DJ D3 DQ  / D4 D8 D3 DJ / D4 D8 D3 DA
             if 1 wins the DA,DJ,DQ: 
-              after (__) CQ (__) H2: (__) CQ (__) H2 [15,34,38,47] / H8 CQ H7 H2 / H8 CQ H7 H2  / DA CQ H7 H2 / H8 CQ H7 H2
-                when 2 wins the CQ: 
-                  after CJ (__) S3 (__): CJ (__) S3 (__) [15,34,38,47] / CJ DQ S3 S5 / CJ SA S3 DA  / CJ H8 S3 S5 / CJ DJ S3 S8
+              after (__) CT (__) H2: (__) CT (__) H2 [15,34,38,47] / H8 CT H7 H2 / H8 CT H7 H2  / DA CT H7 H2 / H8 CT H7 H2
+                when 2 wins the CT: 
+                  after CJ (__) S3 (__): CJ (__) S3 (__) [15,34,38,47] / CJ DQ S3 S5 / CJ S5 S3 DA  / CJ H8 S3 S5 / CJ DJ S3 S8
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [15,34,38,47] / CT S4 S7 S8 / CT S5 S7 S4  / CT S4 S7 ST / CT DQ S7 ST
-                        when 2 wins the CT: 
-                          after C4 (__) SK (__): C4 (__) SK (__) [15,34,38,47] / C4 ST SK SA / C4 ST SK S8  / C4 S8 SK SA / C4 S5 SK SA
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [15,34,38,47] / CQ S4 S7 S8 / CQ ST S7 S4  / CQ S4 S7 ST / CQ DQ S7 ST
+                        when 2 wins the CQ: 
+                          after C4 (__) SK (__): C4 (__) SK (__) [15,34,38,47] / C4 ST SK SA / C4 SA SK S8  / C4 S8 SK SA / C4 S5 SK SA
                             when 2 wins the C4: HAND SUCCEEDED FOR: 3, 9, 15, 19, 38, 47
             if 3 wins the DQ: 
-              after (H_) H2 (H_) CQ: (H_) H2 (H_) CQ [33] / H8 H2 H7 CQ
-                when 2 wins the CQ: 
+              after (H_) H2 (H_) CT: (H_) H2 (H_) CT [33] / H8 H2 H7 CT
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [33] / CJ S8 S3 DA
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [33] / CT ST S7 S4
-                        when 2 wins the CT: 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [33] / CQ ST S7 S4
+                        when 2 wins the CQ: 
                           after C4 (__) SK (__): C4 (__) SK (__) [33] / C4 SA SK S5
                             when 2 wins the C4: HAND SUCCEEDED FOR: 33
       after D9 (Dx) DK (D_): D9 (Dx) DK (D_) [3,9,18,19,25,41,44,46] / D9 D7 DK D8  / D9 D7 DK DJ  / D9 D8 DK DT  / D9 D8 DK DQ  / D9 D8 DK DT 
         when 2 wins the DK: 
           after D4 (D_) D3 (DX): D4 (D_) D3 (DX) [3,9,18,19,25,41,44,46] / D4 DQ D3 DT  / D4 DQ D3 DT  / D4 DQ D3 DJ  / D4 D7 D3 DT  / D4 DQ D3 DJ 
             if 1 wins the DA,DT: 
-              after (__) CQ (__) H2: (__) CQ (__) H2 [19,41] / DJ CQ S4 H2  / H7 CQ DJ H2
-                when 2 wins the CQ: 
+              after (__) CT (__) H2: (__) CT (__) H2 [19,41] / DJ CT S4 H2  / H7 CT DJ H2
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [19,41] / CJ H8 S3 DA  / CJ S5 S3 H8
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [19,41] / CT S5 S7 ST  / CT S8 S7 S4
-                        when 2 wins the CT: 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [19,41] / CQ S5 S7 ST  / CQ S8 S7 S4
+                        when 2 wins the CQ: 
                           after C4 (__) SK (__): C4 (__) SK (__) [19,41] / C4 S8 SK SA  / C4 SA SK ST
                             when 2 wins the C4: HAND SUCCEEDED FOR: 41
             if 3 wins the DQ: 
-              after (H_) H2 (H_) CQ: (H_) H2 (H_) CQ [9,18] / H8 H2 H7 CQ  / H7 H2 H8 CQ 
-                when 2 wins the CQ: 
+              after (H_) H2 (H_) CT: (H_) H2 (H_) CT [9,18] / H8 H2 H7 CT  / H7 H2 H8 CT 
+                when 2 wins the CT: 
                   after CJ (__) S3 (__): CJ (__) S3 (__) [9,18] / CJ S4 S3 DA  / CJ S8 S3 DA 
                     when 2 wins the CJ: 
-                      after CT (__) S7 (__): CT (__) S7 (__) [9,18] / CT S8 S7 S5  / CT ST S7 S4 
-                        when 2 wins the CT: 
-                          after C4 (__) SK (__): C4 (__) SK (__) [9,18] / C4 ST SK SA  / C4 SA SK S5 
+                      after CQ (__) S7 (__): CQ (__) S7 (__) [9,18] / CQ S8 S7 SA  / CQ ST S7 S4 
+                        when 2 wins the CQ: 
+                          after C4 (__) SK (__): C4 (__) SK (__) [9,18] / C4 ST SK S5  / C4 SA SK S5 
                             when 2 wins the C4: 
-              after (__) S3 (__) CQ: (__) S3 (__) CQ [3,25,44,46] / DJ S3 DA CQ  / SA S3 S4 CQ  / S4 S3 SA CQ  / SA S3 ST CQ 
-                when 2 wins the CQ: 
-                  after CJ (__) S7 (__): CJ (__) S7 (__) [3,25,44,46] / CJ ST S7 SA  / CJ H7 S7 DA  / CJ H7 S7 DA  / CJ S4 S7 H7 
+              after (__) S3 (__) CT: (__) S3 (__) CT [3,25,44,46] / DJ S3 DA CT  / SA S3 S4 CT  / S4 S3 SA CT  / SA S3 ST CT 
+                when 2 wins the CT: 
+                  after CJ (__) S7 (__): CJ (__) S7 (__) [3,25,44,46] / CJ H7 S7 S5  / CJ H7 S7 DA  / CJ H7 S7 DA  / CJ S4 S7 H7 
                     when 2 wins the CJ: 
-                      after CT (__) SK (__): CT (__) SK (__) [3,25,44,46] / CT H7 SK S5  / CT ST SK S5  / CT S5 SK S8  / CT S5 SK DA 
-                        when 2 wins the CT: 
-                          after C4 (__) H2 (__): C4 (__) H2 (__) [3,25,44,46] / C4 H8 H2 S8  / C4 H8 H2 S8  / C4 H8 H2 ST  / C4 S8 H2 H8 
+                      after CQ (__) SK (__): CQ (__) SK (__) [3,25,44,46] / CQ H8 SK S8  / CQ H8 SK S5  / CQ S5 SK S8  / CQ S5 SK DA 
+                        when 2 wins the CQ: 
+                          after C4 (__) H2 (__): C4 (__) H2 (__) [3,25,44,46] / C4 ST H2 SA  / C4 ST H2 S8  / C4 H8 H2 ST  / C4 S8 H2 H8 
                             when 2 wins the C4: 

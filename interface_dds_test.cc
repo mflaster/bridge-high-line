@@ -138,6 +138,7 @@ struct ScopedDefenderNoise {
 
 TEST(InterfaceDdsTest, DefenderSeatRules_SecondHandLowAndEquals) {
   ScopedDefenderNoise no_noise(0);
+  // Hand 0 (declarer) holds touching AK on lead (plays low SK);
   // Hand 1 holds touching QJ in 2nd seat (random 50/50 between SQ and SJ);
   // Hand 3 holds touching spot cards 54 in 4th seat (always lowest S4).
   std::vector<uint64_t> hands = {
@@ -159,9 +160,9 @@ TEST(InterfaceDdsTest, DefenderSeatRules_SecondHandLowAndEquals) {
     DDSFindOptimalLines(bs, 2, &lines, nullptr);
     ASSERT_TRUE(lines.size() == 1);
     const std::string &line = *lines.begin();
-    if (line == "SA SJ S8 S4 ") {
+    if (line == "SK SJ S8 S4 ") {
       ++saw_sj;
-    } else if (line == "SA SQ S8 S4 ") {
+    } else if (line == "SK SQ S8 S4 ") {
       ++saw_sq;
     } else {
       FAIL() << "Unexpected line: " << line;
@@ -186,8 +187,8 @@ TEST(InterfaceDdsTest, DefenderSeatRules_SecondHandLowAndEquals) {
   for (int trial = 0; trial < 40; ++trial) {
     OptimalLines lines;
     DDSFindOptimalLines(bs_t9, 2, &lines, nullptr);
-    if (lines.count("SA S9 S8 S4 ")) ++saw_s9;
-    if (lines.count("SA ST S8 S4 ")) ++saw_st;
+    if (lines.count("SK S9 S8 S4 ")) ++saw_s9;
+    if (lines.count("SK ST S8 S4 ")) ++saw_st;
   }
   ASSERT_TRUE(saw_s9 > 5);
   ASSERT_TRUE(saw_st > 5);
@@ -420,5 +421,30 @@ TEST(InterfaceDdsTest, DeclarerSeatRules_PrunesRedundantLosingAndSpotPlays) {
     }
     ASSERT_TRUE(saw_d5);
     ASSERT_FALSE(saw_d8);
+  }
+  {  // North leads from H QJT: declarer leads the lowest of touching honors
+     // (HT rather than HQ).
+    SetDefenderNoisePct(0);
+    std::vector<uint64_t> hands = {
+        ParseHand("S A; H QJT;"),
+        ParseHand("S 2; H 432;"),
+        ParseHand("S 3; H 987;"),
+        ParseHand("S 4; H AK6;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(0);
+    bs.SetTrump(NOTRUMP);
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 2, &lines, nullptr);
+    bool saw_ht = false;
+    bool saw_hq = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("HT ", 0) == 0) saw_ht = true;
+      if (line.rfind("HQ ", 0) == 0) saw_hq = true;
+    }
+    ASSERT_TRUE(saw_ht);
+    ASSERT_FALSE(saw_hq);
   }
 }

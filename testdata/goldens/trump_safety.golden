@@ -12,24 +12,28 @@ Total Deals: 20
 Invariant Rules for 4 card ending:
   (None)
 
-  after SA (__) S8 (__): SA (__) S8 (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / SA D2 S8 S3 / SA D2 S8 S3 / SA S3 S8 D2 / SA D2 S8 S3 / SA S3 S8 D2
-    when 0 wins the SA: 
-      after ST (R_) SQ (SJ): ST (R_) SQ (SJ) [0,9] / ST D3 SQ SJ  / ST D3 SQ SJ 
+  after SK (__) S8 (__): SK (__) S8 (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / SK D2 S8 S3 / SK D2 S8 S3 / SK S3 S8 D2 / SK D2 S8 S3 / SK S3 S8 D2
+    when 0 wins the SK: 
+      after ST (R_) SQ (SJ): ST (R_) SQ (SJ) [17] / ST D3 SQ SJ 
         when 2 wins the SQ: 
-          after S7 (S_) SK (__): S7 (S_) SK (__) [0,9] / S7 S4 SK D4  / S7 S4 SK D4 
-            when 0 wins the SK: 
-              after S9 (__) S6 (S_): S9 (__) S6 (S_) [0,9] / S9 D5 S6 S5  / S9 D5 S6 S5 
+          after S7 (S_) SA (__): S7 (S_) SA (__) [17] / S7 S4 SA D4 
+            when 0 wins the SA: 
+              after S9 (__) S6 (S_): S9 (__) S6 (S_) [17] / S9 D5 S6 S5 
                 when 0 wins the S9: 
-      after ST (R_) SQ (Sx): ST (R_) SQ (Sx) [1,3,5,6,11,12,14,17,18] / ST D3 SQ S4 / ST D3 SQ S4 / ST D3 SQ S4 / ST D3 SQ S4 / ST D3 SQ S4
+      after ST (R_) SQ (Sx): ST (R_) SQ (Sx) [0,1,3,5,6,9,11,12,14,18] / ST D3 SQ S4 / ST D3 SQ S4 / ST D3 SQ S4 / ST D3 SQ S4 / ST D3 SQ S4
         when 2 wins the SQ: 
-          after S7 (S_) S9 (__): S7 (S_) S9 (__) [1,3,5,6,11,12,14,17] / S7 S5 S9 D4 / S7 S5 S9 D4 / S7 S5 S9 D4 / S7 S5 S9 D4 / S7 S5 S9 D4
+          after S7 (SJ) SA (__): S7 (SJ) SA (__) [3] / S7 SJ SA D4 
+            when 0 wins the SA: 
+              after S9 (__) S6 (S_): S9 (__) S6 (S_) [3] / S9 D5 S6 S5 
+                when 0 wins the S9: 
+          after S7 (Sx) S9 (__): S7 (Sx) S9 (__) [0,1,5,6,9,11,12,14] / S7 S5 S9 D4 / S7 S5 S9 D4 / S7 S5 S9 D4 / S7 S5 S9 D4 / S7 S5 S9 D4
             when 0 wins the S9: 
-              after SK (__) S6 (SJ): SK (__) S6 (SJ) [1,3,5,6,11,12,14,17] / SK D5 S6 SJ / SK D5 S6 SJ / SK D5 S6 SJ / SK D5 S6 SJ / SK D5 S6 SJ
-                when 0 wins the SK: HAND SUCCEEDED FOR: 0, 1, 3, 5, 6, 9, 11, 12, 14, 17, 18
+              after SA (__) S6 (SJ): SA (__) S6 (SJ) [0,1,5,6,9,11,12,14] / SA D5 S6 SJ / SA D5 S6 SJ / SA D5 S6 SJ / SA D5 S6 SJ / SA D5 S6 SJ
+                when 0 wins the SA: HAND SUCCEEDED FOR: 0, 1, 3, 5, 6, 9, 11, 12, 14, 17, 18
       after ST (S_) S7 (__): ST (S_) S7 (__) [2,4,7,8,10,13,15,16,19] / ST S4 S7 D3 / ST S4 S7 D3 / ST S4 S7 D3 / ST S4 S7 D3 / ST S4 S7 D3
         when 0 wins the ST: 
-          after SK (S_) S6 (__): SK (S_) S6 (__) [2,4,7,8,10,13,15,16,19] / SK S5 S6 D4 / SK S5 S6 D4 / SK S5 S6 D4 / SK S5 S6 D4 / SK S5 S6 D4
-            when 0 wins the SK: 
+          after SA (S_) S6 (__): SA (S_) S6 (__) [2,4,7,8,10,13,15,16,19] / SA S5 S6 D4 / SA S5 S6 D4 / SA S5 S6 D4 / SA S5 S6 D4 / SA S5 S6 D4
+            when 0 wins the SA: 
               after S9 (S_) SQ (__): S9 (S_) SQ (__) [2,4,7,8,10,13,15,16,19] / S9 SJ SQ D5 / S9 SJ SQ D5 / S9 SJ SQ D5 / S9 SJ SQ D5 / S9 SJ SQ D5
                 when 2 wins the SQ: HAND SUCCEEDED FOR: 2, 4, 7, 8, 10, 13, 15, 16, 19
 
@@ -44,23 +48,23 @@ Invariant Rules for 4 card ending:
     when 2 wins the SQ: 
       after S8 (S_) S9 (__): S8 (S_) S9 (__) [0,1,3,5,6,9,11,12,14,17] / S8 S4 S9 D3 / S8 S4 S9 D3 / S8 S4 S9 D3 / S8 S4 S9 D3 / S8 S4 S9 D3
         when 0 wins the S9: 
-          after SA (__) S7 (S_): SA (__) S7 (S_) [0,1,3,5,6,9,11,12,14,17] / SA D4 S7 S5 / SA D4 S7 S5 / SA D4 S7 S5 / SA D4 S7 S5 / SA D4 S7 S5
-            when 0 wins the SA: 
-              after SK (__) S6 (SJ): SK (__) S6 (SJ) [0,1,3,5,6,9,11,12,14,17] / SK D5 S6 SJ / SK D5 S6 SJ / SK D5 S6 SJ / SK D5 S6 SJ / SK D5 S6 SJ
-                when 0 wins the SK: HAND SUCCEEDED FOR: 0, 1, 3, 5, 6, 9, 11, 12, 14, 17, 18
+          after SK (__) S7 (S_): SK (__) S7 (S_) [0,1,3,5,6,9,11,12,14,17] / SK D4 S7 S5 / SK D4 S7 S5 / SK D4 S7 S5 / SK D4 S7 S5 / SK D4 S7 S5
+            when 0 wins the SK: 
+              after SA (__) S6 (SJ): SA (__) S6 (SJ) [0,1,3,5,6,9,11,12,14,17] / SA D5 S6 SJ / SA D5 S6 SJ / SA D5 S6 SJ / SA D5 S6 SJ / SA D5 S6 SJ
+                when 0 wins the SA: HAND SUCCEEDED FOR: 0, 1, 3, 5, 6, 9, 11, 12, 14, 17, 18
   after ST (SJ) SQ (__): ST (SJ) SQ (__) [7,10,19] / ST SJ SQ D2  / ST SJ SQ D2  / ST SJ SQ D2 
     when 2 wins the SQ: 
-      after S8 (__) SA (S_): S8 (__) SA (S_) [7,10,19] / S8 D3 SA S3  / S8 D3 SA S3  / S8 D3 SA S3 
-        when 0 wins the SA: 
-          after SK (S_) S7 (__): SK (S_) S7 (__) [7,10,19] / SK S4 S7 D4  / SK S4 S7 D4  / SK S4 S7 D4 
-            when 0 wins the SK: 
+      after S8 (__) SK (S_): S8 (__) SK (S_) [7,10,19] / S8 D3 SK S3  / S8 D3 SK S3  / S8 D3 SK S3 
+        when 0 wins the SK: 
+          after SA (S_) S7 (__): SA (S_) S7 (__) [7,10,19] / SA S4 S7 D4  / SA S4 S7 D4  / SA S4 S7 D4 
+            when 0 wins the SA: 
               after S9 (S_) S6 (__): S9 (S_) S6 (__) [7,10,19] / S9 S5 S6 D5  / S9 S5 S6 D5  / S9 S5 S6 D5 
                 when 0 wins the S9: 
   after ST (Sx) S8 (__): ST (Sx) S8 (__) [2,4,8,13,15,16] / ST S3 S8 D2 / ST S3 S8 D2 / ST S3 S8 D2 / ST S3 S8 D2 / ST S3 S8 D2
     when 0 wins the ST: 
-      after SA (S_) S7 (__): SA (S_) S7 (__) [2,4,8,13,15,16] / SA S4 S7 D3 / SA S4 S7 D3 / SA S4 S7 D3 / SA S4 S7 D3 / SA S4 S7 D3
-        when 0 wins the SA: 
-          after SK (S_) S6 (__): SK (S_) S6 (__) [2,4,8,13,15,16] / SK S5 S6 D4 / SK S5 S6 D4 / SK S5 S6 D4 / SK S5 S6 D4 / SK S5 S6 D4
-            when 0 wins the SK: 
+      after SK (S_) S7 (__): SK (S_) S7 (__) [2,4,8,13,15,16] / SK S4 S7 D3 / SK S4 S7 D3 / SK S4 S7 D3 / SK S4 S7 D3 / SK S4 S7 D3
+        when 0 wins the SK: 
+          after SA (S_) S6 (__): SA (S_) S6 (__) [2,4,8,13,15,16] / SA S5 S6 D4 / SA S5 S6 D4 / SA S5 S6 D4 / SA S5 S6 D4 / SA S5 S6 D4
+            when 0 wins the SA: 
               after S9 (SJ) SQ (__): S9 (SJ) SQ (__) [2,4,8,13,15,16] / S9 SJ SQ D5 / S9 SJ SQ D5 / S9 SJ SQ D5 / S9 SJ SQ D5 / S9 SJ SQ D5
                 when 2 wins the SQ: HAND SUCCEEDED FOR: 2, 4, 7, 8, 10, 13, 15, 16, 19

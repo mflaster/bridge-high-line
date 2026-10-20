@@ -132,10 +132,12 @@ double-dummy defense, defenders break ties using normal human carding rules:
 - **4th hand**: If declarer or dummy is currently winning the trick, 4th hand
   wins as cheaply as possible; if partner is already winning, 4th hand plays low
   unless forced to overtake.
-- **Touching honors**: When a defender holds touching equals (like **K Q** or
-  **Q J 10**), the solver randomizes uniformly among those touching honors using
-  a deterministic seed per board. That stops declarer from inferring that
-  "playing the King guarantees the defender does not hold the Queen."
+- **Touching honors**: When a defender following suit holds touching equals
+  (like **K Q** or **Q J 10**), the solver randomizes uniformly among those
+  touching honors using a deterministic seed per board. That stops declarer from
+  inferring that "playing the King guarantees the defender does not hold the
+  Queen." Declarer and dummy always lead and play the lowest of touching honors
+  (such as **K** from **A K** or **Q** from **A K Q**).
 - **Defensive noise**: A small configurable noise setting (default 10%)
   occasionally selects an alternative double-dummy-optimal play so declarer's
   line does not become brittle against slightly unusual but still sound defense.
