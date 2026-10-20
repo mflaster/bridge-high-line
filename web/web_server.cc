@@ -1831,7 +1831,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
           rch = 'T';
         }
         int seat = (leader + static_cast<int>(k)) % 4;
-        if (s != NOTRUMP && (rch == 'x' || rch == 'X' || rch == '_')) {
+        if (s != NOTRUMP &&
+            (rch == 'x' || rch == 'X' || rch == '_' || rch == '<')) {
           auto &vec = resolved_hand_wildcards[seat][static_cast<int>(s)];
           if (!vec.empty()) {
             CardType ct = vec.front();

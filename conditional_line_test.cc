@@ -936,3 +936,94 @@ TEST(ConditionalLineTest,
   EXPECT_EQ(trace_fail.steps[0].winner, 3);
 }
 
+TEST(ConditionalLineTest, SLtHonorPatternsAndCardsAreRedundant) {
+  // Verify DX and Dx are disjoint (non-redundant).
+  EXPECT_FALSE(CardsAreRedundant("DX", "Dx"));
+  EXPECT_FALSE(CardsAreRedundant("Dx", "DX"));
+
+  // Verify S<H patterns overlap iff their rank masks intersect.
+  EXPECT_TRUE(CardsAreRedundant("S<J", "ST"));
+  EXPECT_TRUE(CardsAreRedundant("S<J", "Sx"));
+  EXPECT_FALSE(CardsAreRedundant("S<J", "SJ"));
+  EXPECT_FALSE(CardsAreRedundant("S<J", "SQ"));
+
+  EXPECT_TRUE(CardsAreRedundant("S<K", "SQ"));
+  EXPECT_TRUE(CardsAreRedundant("S<K", "SJ"));
+  EXPECT_TRUE(CardsAreRedundant("S<K", "S<Q"));
+  EXPECT_FALSE(CardsAreRedundant("S<K", "SK"));
+  EXPECT_FALSE(CardsAreRedundant("S<K", "SA"));
+
+  EXPECT_TRUE(CardsAreRedundant("S<A", "SK"));
+  EXPECT_FALSE(CardsAreRedundant("S<A", "SA"));
+
+  // Cross-suit patterns are never redundant (except "__", and "R_" is only
+  // redundant with another "R_").
+  EXPECT_FALSE(CardsAreRedundant("S<K", "H<K"));
+  EXPECT_TRUE(CardsAreRedundant("__", "S<K"));
+  EXPECT_FALSE(CardsAreRedundant("__", "R_"));
+  EXPECT_TRUE(CardsAreRedundant("R_", "R_"));
+
+  // Verify GeneralizesTo for S<H patterns.
+  EXPECT_TRUE(GeneralizesTo("S2", "S<J"));
+  EXPECT_TRUE(GeneralizesTo("ST", "S<J"));
+  EXPECT_FALSE(GeneralizesTo("SJ", "S<J"));
+  EXPECT_TRUE(GeneralizesTo("SJ", "S<Q"));
+  EXPECT_FALSE(GeneralizesTo("SQ", "S<Q"));
+  EXPECT_TRUE(GeneralizesTo("SQ", "S<K"));
+  EXPECT_FALSE(GeneralizesTo("SK", "S<K"));
+  EXPECT_TRUE(GeneralizesTo("SK", "S<A"));
+  EXPECT_FALSE(GeneralizesTo("SA", "S<A"));
+}
+
+TEST(ConditionalLineTest, GeneralizedDemiPlayEmitsSLtHonor) {
+  GeneralizedDemiPlay demi(NOTRUMP);
+  // Record plays with S4 (low), ST (ten), and SJ (jack) paired with SQ,
+  // and SQ paired with BOTH SA and SQ on board 3 (so S_ has 4 boards while
+  // S<Q has 3 boards and S<J has 2 boards).
+  demi.RecordOptimalPlay("S4", "SQ", 0);
+  demi.RecordOptimalPlay("ST", "SQ", 1);
+  demi.RecordOptimalPlay("SJ", "SQ", 2);
+  demi.RecordOptimalPlay("SQ", "SA", 3);
+  demi.RecordOptimalPlay("SQ", "SQ", 4);
+
+  GeneralizedPlaysVector plays = demi.GetGeneralizedPlays(0, SPADES, 20);
+  bool found_s_lt_q = false;
+  bool found_s_lt_j = false;
+  for (const auto &p : plays) {
+    if (p.my_card == "SQ" && p.opp_card == "S<Q") {
+      found_s_lt_q = true;
+      EXPECT_EQ(p.boards, (std::set<int>{0, 1, 2}));
+    }
+    if (p.my_card == "SQ" && p.opp_card == "S<J") {
+      found_s_lt_j = true;
+      EXPECT_EQ(p.boards, (std::set<int>{0, 1}));
+    }
+  }
+  EXPECT_TRUE(found_s_lt_q);
+  EXPECT_TRUE(found_s_lt_j);
+}
+
+TEST(ConditionalLineTest, CollapseUniformInSuitSplitsRelaxesSingleBranch) {
+  std::set<int> deals = {0, 1};
+  GeneralizedTrick gt_sub(
+      GeneralizedDemiStruct("D<K", "DA", deals),
+      GeneralizedDemiStruct("D<J", "CK", deals), deals, 0);
+  ConditionalLine leaf(deals);
+  ConditionalLine child;
+  child.SetAction(gt_sub);
+  child.AddCondition(new WinnerPlayCondition(0), leaf);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("DA (D<K) CK (D<J)"), child);
+  root.set_min_tricks(1);
+
+  std::vector<BoardState> boards;
+  std::vector<int> active_boards = {0, 1};
+  root.CollapseUniformInSuitSplits(boards, active_boards, 1, nullptr);
+
+  ASSERT_EQ(root.conditions().size(), 1u);
+  EXPECT_EQ(root.conditions()[0].second->do_first().demi1.opp_card, "D_");
+  EXPECT_EQ(root.conditions()[0].second->do_first().demi2.opp_card, "D_");
+  EXPECT_EQ(root.conditions()[0].first->Describe(false),
+            "after DA (D_) CK (D_)");
+}

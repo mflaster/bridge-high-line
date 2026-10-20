@@ -82,14 +82,30 @@ bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
   if (card_str.size() < 2) return false;
   Suit suit = Card::ParseSuit(static_cast<char>(std::toupper(card_str[0])));
   if (suit == NOTRUMP) return false;
+  if (card_str.size() == 3 && card_str[1] == '<') {
+    std::string bound_str(1, static_cast<char>(std::toupper(card_str[0])));
+    bound_str += static_cast<char>(std::toupper(card_str[2]));
+    CardType bound_card = Card::ParseStringCard(bound_str);
+    if (bound_card == 0) return false;
+    auto [_, bound_rank] = Card::DecodeCard(bound_card);
+    for (CardType v : bs.ValidCardsToPlay()) {
+      auto [vs, vr] = Card::DecodeCard(v);
+      if (vs == suit && vr < bound_rank) {
+        bs.PlayCard(bs.CurPlayer(), v);
+        return true;
+      }
+    }
+    return false;
+  }
   char rch = card_str[1];
   if (card_str.size() >= 3 && card_str[1] == '1' && card_str[2] == '0') {
     rch = 'T';
   }
-  bool is_spot_wildcard = (rch == 'x' || rch == '_');
+  bool is_any_in_suit = (rch == '_');
+  bool is_spot_wildcard = (rch == 'x');
   bool is_honor_wildcard = (rch == 'X');
   CardType exact_card = 0;
-  if (!is_spot_wildcard && !is_honor_wildcard) {
+  if (!is_any_in_suit && !is_spot_wildcard && !is_honor_wildcard) {
     std::string norm_str(1, static_cast<char>(std::toupper(card_str[0])));
     norm_str += static_cast<char>(std::toupper(rch));
     exact_card = Card::ParseStringCard(norm_str);
@@ -118,6 +134,10 @@ bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
   for (CardType v : valid) {
     auto [vs, vr] = Card::DecodeCard(v);
     if (vs != suit) continue;
+    if (is_any_in_suit) {
+      bs.PlayCard(bs.CurPlayer(), v);
+      return true;
+    }
     if (is_spot_wildcard && vr <= 9) {
       bs.PlayCard(bs.CurPlayer(), v);
       return true;
@@ -654,6 +674,21 @@ void RescoreTopLinesAdversarial(
       }
     }
   }
+  std::vector<ConditionalLine::DefenderCardsCache> def_caches(num_boards);
+  ParallelForDynamic(num_boards, num_threads, [&](size_t b_i) {
+    if (LineFinder::IsStopRequested()) return;
+    int b = active_boards[b_i];
+    for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+      (*lines)[l_i].ResultsOnHandAdversarial(boards[b], &def_caches[b_i],
+                                             nullptr);
+    }
+  });
+  for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+    if (LineFinder::IsStopRequested()) break;
+    (*lines)[l_i].CollapseUniformInSuitSplits(boards, active_boards, min_tricks,
+                                              &def_caches);
+  }
+
   std::vector<std::vector<uint8_t>> board_line_ok(
       num_boards, std::vector<uint8_t>(num_lines, 0));
   std::vector<std::vector<ConditionalLine::RescoreBoardTrace>> board_line_trace(
@@ -662,11 +697,10 @@ void RescoreTopLinesAdversarial(
   ParallelForDynamic(num_boards, num_threads, [&](size_t b_i) {
     if (LineFinder::IsStopRequested()) return;
     int b = active_boards[b_i];
-    ConditionalLine::DefenderCardsCache def_cache;
     for (size_t l_i = 0; l_i < num_lines; ++l_i) {
       ConditionalLine::RescoreBoardTrace trace;
       int tricks = (*lines)[l_i].ResultsOnHandAdversarial(
-          boards[b], &def_cache, &trace);
+          boards[b], &def_caches[b_i], &trace);
       if (tricks >= min_tricks && trace.leaf != nullptr) {
         board_line_ok[b_i][l_i] = 1;
         board_line_trace[b_i][l_i] = std::move(trace);
@@ -1373,6 +1407,58 @@ Trick1CardPair GetUniformDeclarerPlay(
   return p;
 }
 
+// Counts extra branches in `group` that share the same declarer cards
+// (my1, my2), the same opponent suit/show-out category (opp1_cat, opp2_cat),
+// and the same winning side mask, i.e., splits that subdivide an in-suit
+// defender play without changing declarer's play on the current trick.
+int CountExtraUniformInSuitSplits(
+    const std::vector<GeneralizedTrick> &group) {
+  if (group.size() <= 1 || GetUniformDeclarerPlay(group).first.empty()) {
+    return 0;
+  }
+  struct BucketKey {
+    std::string my1;
+    std::string my2;
+    char opp1_cat;
+    char opp2_cat;
+    uint8_t win_side_mask;
+    bool operator<(const BucketKey &o) const {
+      if (my1 != o.my1) return my1 < o.my1;
+      if (my2 != o.my2) return my2 < o.my2;
+      if (opp1_cat != o.opp1_cat) return opp1_cat < o.opp1_cat;
+      if (opp2_cat != o.opp2_cat) return opp2_cat < o.opp2_cat;
+      return win_side_mask < o.win_side_mask;
+    }
+  };
+  std::map<BucketKey, int> counts;
+  for (const GeneralizedTrick &t : group) {
+    char suit_led_ch =
+        (t.leader % 2 == 0)
+            ? (t.demi1.my_card.empty() ? '_' : t.demi1.my_card[0])
+            : (t.demi1.opp_card.empty() ? '_' : t.demi1.opp_card[0]);
+    auto cat_for = [&](const std::string &opp) -> char {
+      if (opp.empty() || opp == "__") return suit_led_ch;
+      if (opp == "R_") return 'R';
+      return opp[0];
+    };
+    uint8_t win_side = 0;
+    for (const auto &e : t.board_entries) {
+      win_side |= static_cast<uint8_t>(1u << (e.winner % 2));
+    }
+    BucketKey key{t.demi1.my_card, t.demi2.my_card,
+                  cat_for(t.demi1.opp_card), cat_for(t.demi2.opp_card),
+                  win_side};
+    counts[key]++;
+  }
+  int extra = 0;
+  for (const auto &[_, c] : counts) {
+    if (c > 1) {
+      extra += (c - 1);
+    }
+  }
+  return extra;
+}
+
 int EncodeShortCardId(const std::string &c) {
   if (c.size() >= 2) {
     return (static_cast<unsigned char>(c[0]) << 8) |
@@ -1427,6 +1513,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   std::vector<std::vector<std::string>> keys(groupings.size());
   std::vector<std::vector<size_t>> group_trick_ids(groupings.size());
   std::vector<Trick1CardPair> group_uniform_t1(groupings.size());
+  std::vector<int> group_extra_insuit(groupings.size(), 0);
   std::vector<std::vector<double>> weights(
       progress != nullptr ? groupings.size() : 0);
   Suit trump_suit = board_offsets.empty()
@@ -1439,6 +1526,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   int max_board_id = board_offsets.empty() ? 0 : *board_offsets.rbegin();
   for (size_t i = 0; i < groupings.size(); ++i) {
     group_uniform_t1[i] = GetUniformDeclarerPlay(groupings[i]);
+    group_extra_insuit[i] = CountExtraUniformInSuitSplits(groupings[i]);
     keys[i].reserve(groupings[i].size());
     group_trick_ids[i].reserve(groupings[i].size());
     if (progress != nullptr) {
@@ -1498,6 +1586,10 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   };
   std::vector<TopCandidate> top_candidates;
   std::map<Trick1CardPair, std::pair<int, size_t>> best_t1_cov_conds;
+  std::map<Trick1CardPair, int> best_t1_zero_insuit_cov;
+  int best_zero_insuit_cov = 0;
+  int insuit_split_min_gain =
+      std::max(2, static_cast<int>(board_offsets.size()) / 30);
 
   std::multimap<int, ConditionalLine> best_lines;
   std::unordered_map<std::string, std::shared_ptr<ConditionalLine>> saved_work;
@@ -1581,6 +1673,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   };
 
   auto req_group_cov = [&](size_t j) -> int {
+    int extra_insuit = group_extra_insuit[j];
     if (top_k > 1) {
       int req = top_k_prune_floor();
       if (!group_uniform_t1[j].first.empty()) {
@@ -1590,6 +1683,13 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           size_t min_conds = it->second.second;
           req = std::max(
               req, (groupings[j].size() >= min_conds) ? (c_t1 + 1) : c_t1);
+        }
+        if (extra_insuit > 0) {
+          auto zit = best_t1_zero_insuit_cov.find(group_uniform_t1[j]);
+          if (zit != best_t1_zero_insuit_cov.end()) {
+            req = std::max(
+                req, zit->second + extra_insuit * insuit_split_min_gain);
+          }
         }
       } else if (lvl > 0 && most_boards_covered > 0) {
         req = std::max(req, most_boards_covered);
@@ -1614,6 +1714,19 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       req = std::max(req, (skip_ties && j != known_best_idx)
                               ? (known_best_cov + 1)
                               : known_best_cov);
+    }
+    if (extra_insuit > 0) {
+      if (!group_uniform_t1[j].first.empty()) {
+        auto zit = best_t1_zero_insuit_cov.find(group_uniform_t1[j]);
+        if (zit != best_t1_zero_insuit_cov.end()) {
+          req = std::max(
+              req, zit->second + extra_insuit * insuit_split_min_gain);
+        }
+      }
+      if (best_zero_insuit_cov > 0) {
+        req = std::max(
+            req, best_zero_insuit_cov + extra_insuit * insuit_split_min_gain);
+      }
     }
     return req;
   };
@@ -1844,7 +1957,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         }
       }
       group_possible_boards[j] = updated_possible;
-      if (all_known && updated_possible > known_best_cov) {
+      if (all_known && updated_possible >= req_group_cov(j) &&
+          updated_possible > known_best_cov) {
         known_best_cov = updated_possible;
         known_best_idx = j;
       }
@@ -1955,6 +2069,13 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         break;
       }
       sum_covered += saved_covered.at(keys[i][k]);
+    }
+    if (!group_failed_low && group_extra_insuit[i] == 0) {
+      best_zero_insuit_cov = std::max(best_zero_insuit_cov, sum_covered);
+      if (!group_uniform_t1[i].first.empty()) {
+        auto &z = best_t1_zero_insuit_cov[group_uniform_t1[i]];
+        z = std::max(z, sum_covered);
+      }
     }
     if (group_failed_low || sum_covered < req_group_cov(i)) {
       continue;
@@ -2372,9 +2493,18 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
           size_t tot_a = group_total_boards(a);
           size_t tot_b = group_total_boards(b);
           if (tot_a != tot_b) return tot_a > tot_b;
-          bool a_single = (a.size() == 1);
-          bool b_single = (b.size() == 1);
-          if (a_single != b_single) return a_single;
+          bool a_unif_no_split =
+              (a.size() == 1) ||
+              (!GetUniformDeclarerPlay(a).first.empty() &&
+               CountExtraUniformInSuitSplits(a) == 0);
+          bool b_unif_no_split =
+              (b.size() == 1) ||
+              (!GetUniformDeclarerPlay(b).first.empty() &&
+               CountExtraUniformInSuitSplits(b) == 0);
+          if (a_unif_no_split != b_unif_no_split) return a_unif_no_split;
+          if (a_unif_no_split && a.size() != b.size()) {
+            return a.size() < b.size();
+          }
           return a.size() > b.size();
         });
     for (size_t k = 0; k < idxs.size(); ++k) {

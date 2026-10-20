@@ -317,6 +317,14 @@ class ConditionalLine {  // ConditionalLineBranch
   // not share subtree nodes with other candidate lines.
   void DeepCloneChildren();
 
+  // Collapses in-suit opponent-card splits on uniform-declarer-play tricks
+  // when the split does not materially improve Step-2 adversarial coverage,
+  // and normalizes single-branch in-suit opponent patterns to S_.
+  void CollapseUniformInSuitSplits(
+      const std::vector<BoardState> &boards,
+      const std::vector<int> &active_boards, int min_tricks,
+      std::vector<DefenderCardsCache> *def_caches);
+
   // Updates leaf final_covered_boards_, action board_to_trick maps, and
   // bottom-up covered_count_ from Step-2 rescored results while preserving
   // step1_covered_count_.
@@ -470,3 +478,8 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     const std::vector<GeneralizedTrick> &input);
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     std::vector<GeneralizedTrick> &&input);
+
+bool CardsAreRedundant(const std::string &c1, const std::string &c2);
+bool GeneralizesTo(const std::string &actual_card,
+                   const std::string &gen_card,
+                   Suit suit_led = NOTRUMP, Suit trump = NOTRUMP);
