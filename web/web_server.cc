@@ -526,23 +526,11 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
   }
 }
 
-FailureIndex IndexFailures(const ConditionalLine &line,
-                           const std::vector<BoardState> &boards,
-                           const std::vector<int> &failed_board_ids,
-                           int num_threads) {
-  FailureIndex index;
-  if (failed_board_ids.empty()) {
-    return index;
-  }
-  int max_dds_threads = EnsureDDSInitialized();
-  int effective_threads = std::clamp(num_threads, 1, max_dds_threads);
-  std::vector<ConditionalLine::BoardPlayTrace> traces(failed_board_ids.size());
-  ParallelForDynamic(failed_board_ids.size(), effective_threads,
-                     [&](size_t i) {
-                       int b_idx = failed_board_ids[i];
-                       traces[i] = line.TraceOnBoard(boards[b_idx], b_idx);
-                     });
+namespace {
 
+void RecordFailureTraceOnIndex(const ConditionalLine::BoardPlayTrace &trace,
+                               Suit trump, FailureIndex *index) {
+  if (!index) return;
   auto add_to_group = [](FailureIndex::Group &group, int board_id,
                          int ns_tricks) {
     if (group.boards.empty()) {
@@ -555,85 +543,107 @@ FailureIndex IndexFailures(const ConditionalLine &line,
     group.boards.push_back(board_id);
   };
 
-  for (const auto &trace : traces) {
-    if (trace.steps.empty()) {
-      index.unplaced.condition = "no line applies";
-      add_to_group(index.unplaced, trace.board_id, trace.final_ns_tricks);
-      continue;
+  if (trace.steps.empty() || !trace.steps.back().node) {
+    if (index->unplaced.condition.empty()) {
+      index->unplaced.condition = "no line applies";
     }
-    std::string board_key = std::to_string(trace.board_id);
-    for (const auto &step : trace.steps) {
-      if (step.node && step.unmatched_seat < 0) {
-        index.tricks[step.node][board_key] = step.trick_str;
-      }
+    add_to_group(index->unplaced, trace.board_id, trace.final_ns_tricks);
+    return;
+  }
+
+  std::string board_key = std::to_string(trace.board_id);
+  for (const auto &step : trace.steps) {
+    if (step.node && step.unmatched_seat < 0) {
+      index->tricks[step.node][board_key] = step.trick_str;
     }
-    const auto &last = trace.steps.back();
-    if (last.unmatched_seat >= 0) {
-      // A defender produced a card the line had no pattern for during this
-      // trick; attach as a sibling under the trick's condition node.
-      Suit suit_led = last.trick_str.empty()
-                          ? NOTRUMP
-                          : Card::ParseSuit(last.trick_str[0]);
-      Suit trump = boards[trace.board_id].GetTrump();
-      Suit card_suit = last.unmatched_card.empty()
-                           ? NOTRUMP
-                           : Card::ParseSuit(last.unmatched_card[0]);
-      bool is_discard = (last.unmatched_seat != last.leader &&
-                         suit_led != NOTRUMP && card_suit != suit_led &&
-                         card_suit != trump);
-      std::string card_key = is_discard ? "R_" : last.unmatched_card;
-      std::string key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
-                        card_key + ":w" + std::to_string(last.winner);
-      FailureIndex::Group &group = index.unmatched_leaves[last.node][key];
+  }
+
+  const auto &last = trace.steps.back();
+  if (last.unmatched_seat >= 0) {
+    Suit suit_led = last.trick_str.empty()
+                        ? NOTRUMP
+                        : Card::ParseSuit(last.trick_str[0]);
+    Suit card_suit = last.unmatched_card.empty()
+                         ? NOTRUMP
+                         : Card::ParseSuit(last.unmatched_card[0]);
+    bool is_discard = (last.unmatched_seat != last.leader &&
+                       suit_led != NOTRUMP && card_suit != suit_led &&
+                       card_suit != trump);
+    std::string card_key = is_discard ? "R_" : last.unmatched_card;
+    std::string key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
+                      card_key + ":w" + std::to_string(last.winner);
+    FailureIndex::Group &group = index->unmatched_leaves[last.node][key];
+    if (group.condition.empty()) {
       group.condition = is_discard
                             ? ("if " + SeatLetter(last.unmatched_seat) +
                                " discards")
                             : ("if " + SeatLetter(last.unmatched_seat) +
                                " plays " + last.unmatched_card);
-      group.leader = last.leader;
-      group.winner = last.winner;
-      if (group.trick_str.empty()) {
-        group.trick_str = last.trick_str;
-      } else if (group.trick_str != last.trick_str) {
-        std::vector<std::string> t1 = SplitWords(group.trick_str);
-        std::vector<std::string> t2 = SplitWords(last.trick_str);
-        if (t1.size() == 4 && t2.size() == 4) {
-          int unmatched_pos = (last.unmatched_seat - last.leader + 4) % 4;
-          for (int i = 0; i < 4; ++i) {
-            if (t1[i] == t2[i]) continue;
-            if (i == unmatched_pos && is_discard) {
-              t1[i] = "(R_)";
+    }
+    group.leader = last.leader;
+    group.winner = last.winner;
+    if (group.trick_str.empty()) {
+      group.trick_str = last.trick_str;
+    } else if (group.trick_str != last.trick_str) {
+      std::vector<std::string> t1 = SplitWords(group.trick_str);
+      std::vector<std::string> t2 = SplitWords(last.trick_str);
+      if (t1.size() == 4 && t2.size() == 4) {
+        int unmatched_pos = (last.unmatched_seat - last.leader + 4) % 4;
+        for (int i = 0; i < 4; ++i) {
+          if (t1[i] == t2[i]) continue;
+          if (i == unmatched_pos && is_discard) {
+            t1[i] = "(R_)";
+          } else {
+            std::string c1 = CleanCardToken(t1[i]);
+            std::string c2 = CleanCardToken(t2[i]);
+            if (!c1.empty() && !c2.empty() && c1[0] == c2[0] &&
+                c1[0] != '_' && c1[0] != 'R') {
+              t1[i] = std::string("(") + c1[0] + "_)";
             } else {
-              std::string c1 = CleanCardToken(t1[i]);
-              std::string c2 = CleanCardToken(t2[i]);
-              if (!c1.empty() && !c2.empty() && c1[0] == c2[0] &&
-                  c1[0] != '_' && c1[0] != 'R') {
-                t1[i] = std::string("(") + c1[0] + "_)";
-              } else {
-                t1[i] = "(__)";
-              }
+              t1[i] = "(__)";
             }
           }
-          group.trick_str =
-              t1[0] + " " + t1[1] + " " + t1[2] + " " + t1[3];
         }
+        group.trick_str =
+            t1[0] + " " + t1[1] + " " + t1[2] + " " + t1[3];
       }
-      group.board_to_trick[board_key] = last.trick_str;
-      add_to_group(group, trace.board_id, trace.final_ns_tricks);
-    } else {
-      // The trick went as expected but the line has no continuation for
-      // this winner; attach as a child of the trick node.
-      std::string key =
-          "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
-      WinnerPlayCondition cond(last.winner,
-                               std::set<std::string>{last.winning_card});
-      FailureIndex::Group &group = index.leaves[last.node][key];
-      group.condition = FormatBranchCondition(&cond, false);
-      group.winner = last.winner;
-      group.board_to_trick[board_key] = last.trick_str;
-      add_to_group(group, trace.board_id, trace.final_ns_tricks);
     }
+    group.board_to_trick[board_key] = last.trick_str;
+    add_to_group(group, trace.board_id, trace.final_ns_tricks);
+  } else {
+    std::string key =
+        "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
+    WinnerPlayCondition cond(last.winner,
+                             std::set<std::string>{last.winning_card});
+    FailureIndex::Group &group = index->leaves[last.node][key];
+    if (group.condition.empty()) {
+      group.condition = FormatBranchCondition(&cond, false);
+    }
+    group.winner = last.winner;
+    group.board_to_trick[board_key] = last.trick_str;
+    add_to_group(group, trace.board_id, trace.final_ns_tricks);
   }
+}
+
+}  // namespace
+
+FailureIndex IndexFailures(const ConditionalLine &line,
+                           const std::vector<BoardState> &boards,
+                           const std::vector<int> &failed_board_ids,
+                           int num_threads, int min_tricks) {
+  FailureIndex index;
+  if (failed_board_ids.empty()) {
+    return index;
+  }
+  for (int b_idx : failed_board_ids) {
+    ConditionalLine::BoardPlayTrace trace =
+        line.TraceOnBoard(boards[b_idx], b_idx);
+    if (min_tricks > 0 && trace.final_ns_tricks >= min_tricks) {
+      trace.final_ns_tricks = min_tricks - 1;
+    }
+    RecordFailureTraceOnIndex(trace, boards[b_idx].GetTrump(), &index);
+  }
+  (void)num_threads;
   return index;
 }
 
@@ -972,105 +982,24 @@ ConditionalLine::BoardPlayTrace AttachActualBoardToFailures(
   ConditionalLine::BoardPlayTrace trace = line.TraceOnBoard(actual_bs, -1);
   if (!index) return trace;
 
-  for (const auto &step : trace.steps) {
-    if (step.node && step.unmatched_seat < 0) {
-      index->tricks[step.node]["-1"] = step.trick_str;
-    }
-  }
-
-  bool reached_line_end = false;
-  const ConditionalLine *reached_leaf = nullptr;
-  if (!trace.steps.empty()) {
-    const auto &last = trace.steps.back();
-    if (last.node && last.unmatched_seat < 0 && last.winner >= 0) {
-      for (const auto &cond : last.node->conditions()) {
-        const auto *wc =
-            dynamic_cast<const WinnerPlayCondition *>(cond.first.get());
-        if (!wc) continue;
-        if (wc->who() == last.winner) {
-          if (!cond.second) {
-            reached_line_end = true;
-          } else if (cond.second->do_first().Empty() &&
-                     cond.second->conditions().empty()) {
-            reached_line_end = true;
-            reached_leaf = cond.second.get();
-          }
-          break;
-        }
+  if (trace.leaf != nullptr && trace.final_ns_tricks >= min_tricks) {
+    for (const auto &step : trace.steps) {
+      if (step.node && step.unmatched_seat < 0) {
+        index->tricks[step.node]["-1"] = step.trick_str;
       }
     }
-  }
-
-  if (reached_line_end && trace.final_ns_tricks >= min_tricks) {
     index->actual_succeeded = true;
-    index->actual_last_node = trace.steps.back().node;
-    index->actual_success_leaf = reached_leaf;
+    index->actual_last_node =
+        trace.steps.empty() ? nullptr : trace.steps.back().node;
+    index->actual_success_leaf = trace.leaf;
     return trace;
   }
 
   index->actual_succeeded = false;
-  auto add_to_group = [](FailureIndex::Group &group, int board_id,
-                         int ns_tricks) {
-    if (group.boards.empty()) {
-      group.min_ns_tricks = ns_tricks;
-      group.max_ns_tricks = ns_tricks;
-    } else {
-      group.min_ns_tricks = std::min(group.min_ns_tricks, ns_tricks);
-      group.max_ns_tricks = std::max(group.max_ns_tricks, ns_tricks);
-    }
-    group.boards.push_back(board_id);
-  };
-
-  if (trace.steps.empty() || !trace.steps.back().node) {
-    if (index->unplaced.condition.empty()) {
-      index->unplaced.condition = "no line applies";
-    }
-    add_to_group(index->unplaced, -1, trace.final_ns_tricks);
-  } else {
-    const auto &last = trace.steps.back();
-    if (last.unmatched_seat >= 0) {
-      Suit suit_led = last.trick_str.empty()
-                          ? NOTRUMP
-                          : Card::ParseSuit(last.trick_str[0]);
-      Suit trump = actual_bs.GetTrump();
-      Suit card_suit = last.unmatched_card.empty()
-                           ? NOTRUMP
-                           : Card::ParseSuit(last.unmatched_card[0]);
-      bool is_discard = (last.unmatched_seat != last.leader &&
-                         suit_led != NOTRUMP && card_suit != suit_led &&
-                         card_suit != trump);
-      std::string card_key = is_discard ? "R_" : last.unmatched_card;
-      std::string key = "plays:" + std::to_string(last.unmatched_seat) + ":" +
-                        card_key + ":w" + std::to_string(last.winner);
-      FailureIndex::Group &group = index->unmatched_leaves[last.node][key];
-      if (group.condition.empty()) {
-        group.condition = is_discard
-                              ? ("if " + SeatLetter(last.unmatched_seat) +
-                                 " discards")
-                              : ("if " + SeatLetter(last.unmatched_seat) +
-                                 " plays " + last.unmatched_card);
-      }
-      group.leader = last.leader;
-      group.winner = last.winner;
-      if (group.trick_str.empty()) {
-        group.trick_str = last.trick_str;
-      }
-      group.board_to_trick["-1"] = last.trick_str;
-      add_to_group(group, -1, trace.final_ns_tricks);
-    } else {
-      std::string key =
-          "wins:" + std::to_string(last.winner) + ":" + last.winning_card;
-      WinnerPlayCondition cond(last.winner,
-                               std::set<std::string>{last.winning_card});
-      FailureIndex::Group &group = index->leaves[last.node][key];
-      if (group.condition.empty()) {
-        group.condition = FormatBranchCondition(&cond, false);
-      }
-      group.winner = last.winner;
-      group.board_to_trick["-1"] = last.trick_str;
-      add_to_group(group, -1, trace.final_ns_tricks);
-    }
+  if (min_tricks > 0 && trace.final_ns_tricks >= min_tricks) {
+    trace.final_ns_tricks = min_tricks - 1;
   }
+  RecordFailureTraceOnIndex(trace, actual_bs.GetTrump(), index);
   return trace;
 }
 
@@ -2111,11 +2040,16 @@ std::string WebServer::SolveJson(const std::string &req_body,
             }
           }
           FailureIndex line_failures = IndexFailures(
-              lines[i], boards, line_failed_ids, num_threads);
+              lines[i], boards, line_failed_ids, num_threads, min_tricks);
           if (has_actual_deal) {
             ConditionalLine::BoardPlayTrace actual_trace =
                 AttachActualBoardToFailures(lines[i], actual_bs, min_tricks,
                                             &line_failures);
+            int actual_tricks = actual_trace.final_ns_tricks;
+            if (!line_failures.actual_succeeded && min_tricks > 0 &&
+                actual_tricks >= min_tricks) {
+              actual_tricks = min_tricks - 1;
+            }
             line_actual_hands[i] = {
                 {"board_id", -1},
                 {"N", HandDebugString(actual_init_bs.GetHand(0), true)},
@@ -2123,7 +2057,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
                 {"S", HandDebugString(actual_init_bs.GetHand(2), true)},
                 {"W", HandDebugString(actual_init_bs.GetHand(3), true)},
                 {"succeeded", line_failures.actual_succeeded},
-                {"ns_tricks", initial_ns_tricks + actual_trace.final_ns_tricks},
+                {"ns_tricks", initial_ns_tricks + actual_tricks},
             };
           }
           if (initial_ns_tricks > 0) {
