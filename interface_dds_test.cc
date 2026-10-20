@@ -160,9 +160,9 @@ TEST(InterfaceDdsTest, DefenderSeatRules_SecondHandLowAndEquals) {
     DDSFindOptimalLines(bs, 2, &lines, nullptr);
     ASSERT_TRUE(lines.size() == 1);
     const std::string &line = *lines.begin();
-    if (line == "SK SJ S8 S4 ") {
+    if (line == "SK SJ S7 S4 ") {
       ++saw_sj;
-    } else if (line == "SK SQ S8 S4 ") {
+    } else if (line == "SK SQ S7 S4 ") {
       ++saw_sq;
     } else {
       FAIL() << "Unexpected line: " << line;
@@ -187,8 +187,8 @@ TEST(InterfaceDdsTest, DefenderSeatRules_SecondHandLowAndEquals) {
   for (int trial = 0; trial < 40; ++trial) {
     OptimalLines lines;
     DDSFindOptimalLines(bs_t9, 2, &lines, nullptr);
-    if (lines.count("SK S9 S8 S4 ")) ++saw_s9;
-    if (lines.count("SK ST S8 S4 ")) ++saw_st;
+    if (lines.count("SK S9 S7 S4 ")) ++saw_s9;
+    if (lines.count("SK ST S7 S4 ")) ++saw_st;
   }
   ASSERT_TRUE(saw_s9 > 5);
   ASSERT_TRUE(saw_st > 5);
@@ -446,5 +446,57 @@ TEST(InterfaceDdsTest, DeclarerSeatRules_PrunesRedundantLosingAndSpotPlays) {
     }
     ASSERT_TRUE(saw_ht);
     ASSERT_FALSE(saw_hq);
+  }
+  {  // North leads C6, East plays CQ, South holds C KJ: South must win CK and
+     // prune underplaying CJ under CQ.
+    std::vector<uint64_t> hands = {
+        ParseHand("S 32; C 6;"),
+        ParseHand("S 54; C Q;"),
+        ParseHand("S K; C KJ;"),
+        ParseHand("S 6; C 98;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(0);
+    bs.SetTrump(HEARTS);
+    bs.PlayCard(0, Card::ParseStringCard("C6"));
+    bs.PlayCard(1, Card::ParseStringCard("CQ"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 2, &lines, nullptr);
+    bool saw_ck = false;
+    bool saw_cj = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("C6 CQ CK ", 0) == 0) saw_ck = true;
+      if (line.rfind("C6 CQ CJ ", 0) == 0) saw_cj = true;
+    }
+    ASSERT_TRUE(saw_ck);
+    ASSERT_FALSE(saw_cj);
+  }
+  {  // South leads CK, West discards S4, North holds S 532 (with S4 no longer
+     // unplayed): North's DDS equivalence group {S5, S3, S2} lowers to S2.
+    std::vector<uint64_t> hands = {
+        ParseHand("S 532;"),
+        ParseHand("S A; C 83;"),
+        ParseHand("S K; C AK;"),
+        ParseHand("S QJ4;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(2);
+    bs.SetTrump(HEARTS);
+    bs.PlayCard(2, Card::ParseStringCard("CK"));
+    bs.PlayCard(3, Card::ParseStringCard("S4"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 2, &lines, nullptr);
+    bool saw_s2 = false;
+    bool saw_s5 = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("CK S4 S2 ", 0) == 0) saw_s2 = true;
+      if (line.rfind("CK S4 S5 ", 0) == 0) saw_s5 = true;
+    }
+    ASSERT_TRUE(saw_s2);
+    ASSERT_FALSE(saw_s5);
   }
 }
