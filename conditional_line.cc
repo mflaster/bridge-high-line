@@ -37,6 +37,19 @@ bool IsCardGoodCondition::Evaluate(const BoardState &bs) const {
   return (opp_suit & higher_mask) == 0;
 }
 
+std::string PlayerDiscardedCondition::Describe(bool only_choice) const {
+  std::string prefix = only_choice ? "when " : "if ";
+  std::string dir = PlayerDirectionDebugString(player_);
+  std::string seat = dir.empty() ? std::to_string(player_) : dir.substr(0, 1);
+  return prefix + seat +
+         (discarded_ ? " discarded on " : " did not discard on ") +
+         SuitDebugString(suit_);
+}
+
+bool PlayerDiscardedCondition::Evaluate(const BoardState &bs) const {
+  return bs.HasPlayerDiscardedOnSuit(player_, suit_);
+}
+
 static std::set<int> CoveredFinalBoardsSetHelper(const ConditionalLine *line_ptr, std::set<const ConditionalLine*> &visited) {
   if (!line_ptr || visited.count(line_ptr)) {
     return {};
@@ -587,6 +600,11 @@ void GeneralizedTrickFinder::RecordOptimalTrick(
       cur_win_val = v;
       win_idx = c;
     }
+    if (c > 0 && s != rt.suit_led && s != trump_suit_) {
+      int seat = (leader + c) % 4;
+      rt.discard_mask |= static_cast<uint16_t>(
+          1u << (seat * 4 + static_cast<int>(rt.suit_led)));
+    }
   }
   rt.trick_mask = mask;
   rt.winner = static_cast<uint8_t>((leader + win_idx) % 4);
@@ -940,6 +958,7 @@ GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
         entry.win_card[0] = wc.size() > 0 ? wc[0] : '\0';
         entry.win_card[1] = wc.size() > 1 ? wc[1] : '\0';
         entry.win_card[2] = '\0';
+        entry.discard_mask = rt.discard_mask;
         entry.trick_mask = rt.trick_mask;
         entry.trick_str = raw_tricks_[i];
         gt.board_entries.push_back(std::move(entry));
@@ -1200,45 +1219,30 @@ bool AreCardsDistinguishable(
   bool same_my2 = (my2_id1 >= 0 && my2_id2 >= 0)
                       ? (my2_id1 == my2_id2)
                       : (trick1.demi2.my_card == trick2.demi2.my_card);
-  bool any_defensive_diff = false;
   if (trick1.leader % 2 == 0) {
-    if (!same_my1) {
+    if (!same_my1 || same_my2) {
       return false;
     }
-    if (OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
-                               trick2.demi1.opp_card, 1)) {
-      any_defensive_diff = true;
-    }
-    if (!any_defensive_diff && !same_my2) {
-      return false;
-    }
-    if (!any_defensive_diff &&
-        OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
-                               trick2.demi2.opp_card, 3)) {
-      any_defensive_diff = true;
-    }
+    return OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
+                                  trick2.demi1.opp_card, 1,
+                                  masks1 ? &(*masks1)[0] : nullptr,
+                                  masks2 ? &(*masks2)[0] : nullptr);
   } else {
     if (OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
                                trick2.demi1.opp_card, 0,
                                masks1 ? &(*masks1)[0] : nullptr,
                                masks2 ? &(*masks2)[0] : nullptr)) {
-      any_defensive_diff = true;
+      return !same_my1 || !same_my2 ||
+             trick1.demi1.opp_card[0] != trick2.demi1.opp_card[0];
     }
-    if (!any_defensive_diff && !same_my1) {
+    if (!same_my1 || same_my2) {
       return false;
     }
-    if (!any_defensive_diff &&
-        OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
-                               trick2.demi2.opp_card, 2,
-                               masks1 ? &(*masks1)[1] : nullptr,
-                               masks2 ? &(*masks2)[1] : nullptr)) {
-      any_defensive_diff = true;
-    }
-    if (!any_defensive_diff && !same_my2) {
-      return false;
-    }
+    return OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
+                                  trick2.demi2.opp_card, 2,
+                                  masks1 ? &(*masks1)[1] : nullptr,
+                                  masks2 ? &(*masks2)[1] : nullptr);
   }
-  return any_defensive_diff;
 }
 }  // namespace
 
@@ -1460,6 +1464,57 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
     }
 
     if (any_new_groupings) {
+      auto pattern_subsumes = [](const std::string &sup,
+                                 const std::string &sub) {
+        if (sup == sub || sup == "__") return true;
+        if (sup.size() >= 2 && sub.size() >= 2 && sup[0] == sub[0] &&
+            sup[0] != 'R' && sup[0] != '_') {
+          uint16_t sup_m = InSuitPatternRankMask(sup);
+          uint16_t sub_m = InSuitPatternRankMask(sub);
+          return sub_m != 0 && (sub_m & ~sup_m) == 0;
+        }
+        return false;
+      };
+      auto group_subsumes = [&](const std::vector<int> &sup_grp,
+                                const std::vector<int> &sub_grp) {
+        for (int b_idx : sub_grp) {
+          const uint64_t *mb = &masks[b_idx * num_words];
+          bool found = false;
+          for (int a_idx : sup_grp) {
+            if (my1_id[a_idx] != my1_id[b_idx] ||
+                my2_id[a_idx] != my2_id[b_idx]) {
+              continue;
+            }
+            if (!pattern_subsumes(input[a_idx].demi1.opp_card,
+                                  input[b_idx].demi1.opp_card) ||
+                !pattern_subsumes(input[a_idx].demi2.opp_card,
+                                  input[b_idx].demi2.opp_card)) {
+              continue;
+            }
+            const uint64_t *ma = &masks[a_idx * num_words];
+            bool mask_sub = true;
+            for (size_t w = 0; w < num_words; ++w) {
+              if ((mb[w] & ~ma[w]) != 0) {
+                mask_sub = false;
+                break;
+              }
+            }
+            if (mask_sub) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) return false;
+        }
+        return true;
+      };
+      bool dominated = false;
+      for (const auto &existing_grp : group_idx_list) {
+        if (group_subsumes(existing_grp, group_indices)) {
+          dominated = true;
+          break;
+        }
+      }
       for (int idx : group_indices) {
         int kid = key_id[idx];
         if (!key_grouped[kid]) {
@@ -1469,9 +1524,13 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
             --ungrouped_by_my1[my1_id[idx]];
           }
         }
-        ref_count[idx]++;
       }
-      group_idx_list.push_back(group_indices);
+      if (!dominated) {
+        for (int idx : group_indices) {
+          ref_count[idx]++;
+        }
+        group_idx_list.push_back(group_indices);
+      }
     }
   }
 
@@ -1855,10 +1914,9 @@ void TraceUnmakeableBoardHelper(
     candidates.push_back(line);
   } else {
     for (const auto &[cond, child_line] : line->conditions()) {
-      if (!child_line) continue;
-      if (auto *good_cond =
-              dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
-        if (good_cond->Evaluate(copy) == good_cond->is_good()) {
+      if (!child_line || !cond) continue;
+      if (cond->IsStateCondition()) {
+        if (cond->EvaluateState(copy)) {
           TraceUnmakeableBoardHelper(child_line.get(), copy, board_num,
                                      in_step1_set, def_cache, out_trace);
           return;
@@ -2758,10 +2816,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::SimulateBoard(
     while (cur_line && cur_line->do_first().Empty()) {
       const ConditionalLine *good_branch = nullptr;
       for (const auto &[cond, child_line] : cur_line->conditions()) {
-        if (!child_line) continue;
-        if (auto *good_cond =
-                dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
-          if (good_cond->Evaluate(copy) == good_cond->is_good()) {
+        if (!child_line || !cond) continue;
+        if (cond->IsStateCondition()) {
+          if (cond->EvaluateState(copy)) {
             good_branch = child_line.get();
             break;
           }

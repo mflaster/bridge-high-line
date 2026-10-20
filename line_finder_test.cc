@@ -994,4 +994,35 @@ TEST(LineFinderTest, OmpCompatPool_FourThreadsNestedTasks) {
   ASSERT_TRUE((thread_mask.load() & ~0xF) == 0);
 }
 
-
+TEST(LineFinderTest, LineFinder_BranchOnPlayerDiscardedCondition) {
+  srand48(0);
+  // 4-card ending where South (2) leads C2 to North's CA on Trick 1:
+  // East (1) sits in 4th seat on Trick 1, so Rule (1) prevents Trick 1 from
+  // branching on East's 4th-seat card.
+  // The 2 unknown cards are C4 and SK (1 goes to East, 1 goes to West):
+  // - When East gets C4 and West gets SK, East follows suit on Trick 1
+  //   ("if E did not discard on C"), revealing that West holds singleton SK,
+  //   so on Trick 2 South must rise with SA to drop West's singleton SK.
+  // - When East gets SK and West gets C4, East is void in Clubs and discards H4
+  //   on Trick 1 ("if E discarded on C"), revealing that East holds S K54, so
+  //   on Trick 2 South must finesse SQ/SJ through East.
+  std::vector<uint64_t> hands = {
+      ParseHand("C A; S 32; H 2;"),
+      ParseHand("S 4; H 54;"),
+      ParseHand("C 2; S AQJ;"),
+      ParseHand("C 3; H AK;"),
+  };
+  uint64_t unknown_cards = ParseHand("C 4; S K;");
+  LineFinder lf(30);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(4, hands, unknown_cards, /*leader=*/2, NOTRUMP, {});
+  ASSERT_FALSE(lines.empty());
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 30);
+  std::string desc = lines[0].Describe();
+  std::cout << "BranchOnPlayerDiscardedCondition line:\n" << desc << "\n";
+  // Trick 1 must not split on East's 4th-seat card, and Trick 2 must branch
+  // on "if E discarded on C" / "if E did not discard on C".
+  EXPECT_EQ(lines[0].conditions().size(), 1u);
+  EXPECT_NE(desc.find("if E discarded on C"), std::string::npos);
+  EXPECT_NE(desc.find("if E did not discard on C"), std::string::npos);
+}

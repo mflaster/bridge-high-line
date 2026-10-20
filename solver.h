@@ -20,12 +20,14 @@ struct BoardCacheKey {
   uint8_t leader;
   uint8_t trump;
   uint8_t min_tricks;
+  uint16_t discarded_mask = 0;
   uint32_t salt = 0;
 
   bool operator==(const BoardCacheKey &o) const {
     return h0 == o.h0 && h1 == o.h1 && h2 == o.h2 && h3 == o.h3 &&
            leader == o.leader && trump == o.trump &&
-           min_tricks == o.min_tricks && salt == o.salt;
+           min_tricks == o.min_tricks &&
+           discarded_mask == o.discarded_mask && salt == o.salt;
   }
 };
 
@@ -35,7 +37,8 @@ struct BoardCacheKeyHash {
     h ^= k.h1 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
     h ^= k.h2 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
     h ^= k.h3 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-    h ^= (static_cast<uint64_t>(k.salt) << 24) |
+    h ^= (static_cast<uint64_t>(k.discarded_mask) << 40) |
+         (static_cast<uint64_t>(k.salt) << 24) |
          (static_cast<uint64_t>(k.min_tricks) << 16) |
          (static_cast<uint64_t>(k.leader) << 8) | k.trump;
     return static_cast<size_t>(h);

@@ -54,8 +54,9 @@ TEST(ConditionalLineTest, GroupTricks2) {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  ASSERT_TRUE(grouped_tricks.size() == 1);
-  ASSERT_TRUE(grouped_tricks[0].size() == 2);
+  ASSERT_TRUE(grouped_tricks.size() == 2);
+  ASSERT_TRUE(grouped_tricks[0].size() == 1);
+  ASSERT_TRUE(grouped_tricks[1].size() == 1);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_2.golden", "GroupTricks2: grouping spade/heart tricks");
 }
 
@@ -182,9 +183,9 @@ TEST(ConditionalLineTest, GroupTricksFinesse) {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  ASSERT_TRUE(grouped_tricks.size() == 3);
-  ASSERT_TRUE(grouped_tricks[0].size() == 3);
-  ASSERT_TRUE(grouped_tricks[1].size() == 4);
+  ASSERT_TRUE(grouped_tricks.size() == 5);
+  ASSERT_TRUE(grouped_tricks[0].size() == 2);
+  ASSERT_TRUE(grouped_tricks[1].size() == 2);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse.golden", "GroupTricksFinesse: grouping finesse tricks");
 }
 
@@ -235,13 +236,10 @@ TEST(ConditionalLineTest, GroupTricksFinesse2) {
       std::cout << "   " << trick.ToString() << "\n";
     }
   }
-  // The third group plays SK rather than SJ over a low card on board 0: a
-  // different play that happens to be feasible on an already-grouped board,
-  // so it must not be dropped as redundant.
-  ASSERT_TRUE(grouped_tricks.size() == 3);
-  ASSERT_TRUE(grouped_tricks[0].size() == 4);
-  ASSERT_TRUE(grouped_tricks[1].size() == 5);
-  ASSERT_TRUE(grouped_tricks[2].size() == 4);
+  ASSERT_TRUE(grouped_tricks.size() == 4);
+  ASSERT_TRUE(grouped_tricks[0].size() == 2);
+  ASSERT_TRUE(grouped_tricks[1].size() == 1);
+  ASSERT_TRUE(grouped_tricks[2].size() == 1);
   REQUIRE_GOLDEN_LINE_RESULT(FormatGroupedTricks(grouped_tricks), "group_tricks_finesse_2.golden", "GroupTricksFinesse2: grouping complex finesse tricks");
 }
 
@@ -1027,3 +1025,106 @@ TEST(ConditionalLineTest, CollapseUniformInSuitSplitsRelaxesSingleBranch) {
   EXPECT_EQ(root.conditions()[0].first->Describe(false),
             "after DA (D_) CK (D_)");
 }
+
+TEST(ConditionalLineTest,
+     GroupTricksOnlyBranchesWhenDeclarerPlayChanges) {
+  std::set<int> b0 = {0};
+  std::set<int> b1 = {1};
+
+  // Declarer leads (leader = 0):
+  // Same my1 ("S3") and same my2 ("SJ") with disjoint 2nd-seat ("Sx" vs "ST")
+  // must NOT group together into a branching trick.
+  GeneralizedTrick decl_same_my2_a({"Sx", "S3", b0}, {"__", "SJ", b0}, b0, 0);
+  GeneralizedTrick decl_same_my2_b({"ST", "S3", b1}, {"__", "SJ", b1}, b1, 0);
+  EXPECT_EQ(GroupTricks({decl_same_my2_a, decl_same_my2_b}).size(), 2u);
+
+  // Disjoint 2nd-seat ("S<Q" vs "SQ") WITH different 3rd-seat ("SJ" vs "SA")
+  // DOES group into a single branching trick.
+  GeneralizedTrick decl_diff_my2_a({"S<Q", "S3", b0}, {"__", "SJ", b0}, b0, 0);
+  GeneralizedTrick decl_diff_my2_b({"SQ", "S3", b1}, {"__", "SA", b1}, b1, 0);
+  auto grp_decl_diff = GroupTricks({decl_diff_my2_a, decl_diff_my2_b});
+  ASSERT_EQ(grp_decl_diff.size(), 1u);
+  EXPECT_EQ(grp_decl_diff[0].size(), 2u);
+
+  // Disjoint 4th-seat ("Sx" vs "SQ") when declarer leads NEVER branches.
+  GeneralizedTrick decl_4th_a({"Sx", "S2", b0}, {"Sx", "SJ", b0}, b0, 0);
+  GeneralizedTrick decl_4th_b({"Sx", "S2", b1}, {"SQ", "SJ", b1}, b1, 0);
+  EXPECT_EQ(GroupTricks({decl_4th_a, decl_4th_b}).size(), 2u);
+
+  // Defender leads (leader = 1):
+  // Same opening-lead suit ("Hx" vs "HT") and identical declarer cards
+  // ("H9" and "H8") must NOT branch (Hand 6 regression case).
+  GeneralizedTrick def_same_suit_a({"Hx", "H9", b0}, {"H_", "H8", b0}, b0, 1);
+  GeneralizedTrick def_same_suit_b({"HT", "H9", b1}, {"H_", "H8", b1}, b1, 1);
+  EXPECT_EQ(GroupTricks({def_same_suit_a, def_same_suit_b}).size(), 2u);
+
+  // Different opening-lead suit ("S_" vs "H_") DOES branch even if declarer
+  // discards the same cards.
+  GeneralizedTrick def_diff_suit_a({"S_", "C2", b0}, {"S_", "D2", b0}, b0, 1);
+  GeneralizedTrick def_diff_suit_b({"H_", "C2", b1}, {"H_", "D2", b1}, b1, 1);
+  auto grp_def_suit = GroupTricks({def_diff_suit_a, def_diff_suit_b});
+  ASSERT_EQ(grp_def_suit.size(), 1u);
+  EXPECT_EQ(grp_def_suit[0].size(), 2u);
+
+  // Same opening-lead suit ("Hx" vs "HQ") where 2nd-seat declarer plays a
+  // different card ("H9" vs "HA") DOES branch.
+  GeneralizedTrick def_diff_my1_a({"Hx", "H9", b0}, {"H_", "H8", b0}, b0, 1);
+  GeneralizedTrick def_diff_my1_b({"HQ", "HA", b1}, {"H_", "H8", b1}, b1, 1);
+  auto grp_def_my1 = GroupTricks({def_diff_my1_a, def_diff_my1_b});
+  ASSERT_EQ(grp_def_my1.size(), 1u);
+  EXPECT_EQ(grp_def_my1[0].size(), 2u);
+}
+
+TEST(ConditionalLineTest, PlayerDiscardedConditionEvaluateAndResults) {
+  PlayerDiscardedCondition cond_e_c(1, CLUBS, true);
+  PlayerDiscardedCondition cond_not_e_c(1, CLUBS, false);
+  EXPECT_TRUE(cond_e_c.IsStateCondition());
+  EXPECT_EQ(cond_e_c.Describe(false), "if E discarded on C");
+  EXPECT_EQ(cond_e_c.Describe(true), "when E discarded on C");
+  EXPECT_EQ(cond_not_e_c.Describe(false), "if E did not discard on C");
+  EXPECT_EQ(cond_not_e_c.Describe(true), "when E did not discard on C");
+
+  // Board 0: East (1) discards S3 on Trick 1 when CA is led in Hearts trump.
+  BoardState bs_discard_s = MakeBoardState(
+      {ParseHand("C A; S A;"), ParseHand("S 32;"),
+       ParseHand("C 2; S 2;"), ParseHand("C 43;")},
+      0, HEARTS);
+  // Board 1: East (1) ruffs with H2 on Trick 1 when CA is led in Hearts trump
+  // (a ruff is NOT a discard).
+  BoardState bs_ruff = MakeBoardState(
+      {ParseHand("C A; S A;"), ParseHand("H 2; S 3;"),
+       ParseHand("C 2; S 2;"), ParseHand("C 43;")},
+      0, HEARTS);
+  // Board 2: East (1) follows suit with C5 on Trick 1.
+  BoardState bs_follow = MakeBoardState(
+      {ParseHand("C A; S A;"), ParseHand("C 5; S 3;"),
+       ParseHand("C 2; S 2;"), ParseHand("C 43;")},
+      0, HEARTS);
+
+  bs_discard_s.PlayCard(0, Card::ParseStringCard("CA"));
+  bs_discard_s.PlayCard(1, Card::ParseStringCard("S3"));
+  bs_discard_s.PlayCard(2, Card::ParseStringCard("C2"));
+  bs_discard_s.PlayCard(3, Card::ParseStringCard("C3"));
+  EXPECT_TRUE(bs_discard_s.HasPlayerDiscardedOnSuit(1, CLUBS));
+  EXPECT_FALSE(bs_discard_s.HasPlayerDiscardedOnSuit(1, SPADES));
+  EXPECT_TRUE(cond_e_c.EvaluateState(bs_discard_s));
+  EXPECT_FALSE(cond_not_e_c.EvaluateState(bs_discard_s));
+
+  bs_ruff.PlayCard(0, Card::ParseStringCard("CA"));
+  bs_ruff.PlayCard(1, Card::ParseStringCard("H2"));
+  bs_ruff.PlayCard(2, Card::ParseStringCard("C2"));
+  bs_ruff.PlayCard(3, Card::ParseStringCard("C3"));
+  EXPECT_FALSE(bs_ruff.HasPlayerDiscardedOnSuit(1, CLUBS));
+  EXPECT_FALSE(bs_ruff.HasPlayerDiscardedOnSuit(1, HEARTS));
+  EXPECT_FALSE(cond_e_c.EvaluateState(bs_ruff));
+  EXPECT_TRUE(cond_not_e_c.EvaluateState(bs_ruff));
+
+  bs_follow.PlayCard(0, Card::ParseStringCard("CA"));
+  bs_follow.PlayCard(1, Card::ParseStringCard("C5"));
+  bs_follow.PlayCard(2, Card::ParseStringCard("C2"));
+  bs_follow.PlayCard(3, Card::ParseStringCard("C3"));
+  EXPECT_FALSE(bs_follow.HasPlayerDiscardedOnSuit(1, CLUBS));
+  EXPECT_FALSE(cond_e_c.EvaluateState(bs_follow));
+  EXPECT_TRUE(cond_not_e_c.EvaluateState(bs_follow));
+}
+

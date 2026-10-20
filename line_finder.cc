@@ -1160,7 +1160,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
 
     std::string memo_key;
     if (solve_memo_ != nullptr) {
-      memo_key.reserve(3 + wb.entries.size() * 12);
+      memo_key.reserve(3 + wb.entries.size() * 14);
       memo_key.push_back(static_cast<char>(next_leader));
       memo_key.push_back(static_cast<char>(std::max(next_min_tricks, 0)));
       if (branch_top_k > 1) {
@@ -1168,12 +1168,13 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
       }
       for (const auto *e : wb.entries) {
         uint32_t bid = static_cast<uint32_t>(e->board);
-        uint64_t played =
-            board_trees.at(e->board)->MyBoard()->played_cards() |
-            e->trick_mask;
+        const BoardState *bs_ptr = board_trees.at(e->board)->MyBoard();
+        uint64_t played = bs_ptr->played_cards() | e->trick_mask;
+        uint16_t disc = bs_ptr->discarded_suits_mask() | e->discard_mask;
         memo_key.append(reinterpret_cast<const char *>(&bid), sizeof(bid));
         memo_key.append(reinterpret_cast<const char *>(&played),
                         sizeof(played));
+        memo_key.append(reinterpret_cast<const char *>(&disc), sizeof(disc));
       }
       if (solve_memo_->Lookup(memo_key, branch_min_cov,
                               &branch_results[idx])) {
@@ -2210,13 +2211,70 @@ void LineFinder::TryBranchOnGoodCards(
           : nullptr;
   SearchProgress::Completer split_completer(split_progress);
 
+  auto try_state_split = [&](const std::set<int> &true_boards,
+                             const std::set<int> &false_boards,
+                             auto make_cond) {
+    if (true_boards.empty() || false_boards.empty()) {
+      return;
+    }
+    int cur_target = std::max(best_covered + 1, min_covered);
+    if (cur_target > static_cast<int>(solvable_boards.size())) {
+      return;
+    }
+    int req_true =
+        std::max(1, cur_target - static_cast<int>(false_boards.size()));
+    std::vector<SearchProgress::Node *> half_progress =
+        split_progress != nullptr
+            ? SearchProgress::AddChildren(
+                  split_progress,
+                  {static_cast<double>(true_boards.size()),
+                   static_cast<double>(false_boards.size())})
+            : std::vector<SearchProgress::Node *>{nullptr, nullptr};
+    std::vector<ConditionalLine> true_lines =
+        SolveHelper(min_tricks, cache_in, board_trees, true_boards,
+                    leader, lvl + 1, half_progress[0], req_true);
+    int true_cov = true_lines.empty() ? 0 : true_lines[0].CoveredFinalBoards();
+    if (true_lines.empty() || true_cov < req_true) {
+      // SolveHelper completes the nodes it runs; this one never runs.
+      SearchProgress::Complete(half_progress[1]);
+      return;
+    }
+    int req_false = std::max(1, cur_target - true_cov);
+    std::vector<ConditionalLine> false_lines =
+        SolveHelper(min_tricks, cache_in, board_trees, false_boards,
+                    leader, lvl + 1, half_progress[1], req_false);
+    int false_cov =
+        false_lines.empty() ? 0 : false_lines[0].CoveredFinalBoards();
+    if (false_lines.empty() || false_cov < req_false) return;
+    int total_cov = true_cov + false_cov;
+    if (total_cov >= cur_target) {
+      ConditionalLine split_line;
+      split_line.AddCondition(
+          make_cond(true),
+          std::make_shared<ConditionalLine>(std::move(true_lines[0])));
+      split_line.AddCondition(
+          make_cond(false),
+          std::make_shared<ConditionalLine>(std::move(false_lines[0])));
+      best_covered = total_cov;
+      if (lvl == 1 && top_k_lvl1_ > 1) {
+        ans.insert(ans.begin(), std::move(split_line));
+        if (static_cast<int>(ans.size()) > top_k_lvl1_) {
+          ans.resize(top_k_lvl1_);
+        }
+      } else {
+        ans = {std::move(split_line)};
+      }
+    }
+  };
+
   const BoardState *first_bs =
       board_trees.at(*solvable_boards.begin())->MyBoard();
   uint64_t mask = ~first_bs->played_cards();
   uint64_t decl_cards =
       (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask;
   for (int suit = 0; suit < 4; ++suit) {
-    if (IsStopRequested()) {
+    if (IsStopRequested() ||
+        best_covered >= static_cast<int>(solvable_boards.size())) {
       break;
     }
     uint16_t suit_bits = (decl_cards >> (suit * 16)) & 0xffff;
@@ -2235,53 +2293,34 @@ void LineFinder::TryBranchOnGoodCards(
         not_good_boards.insert(b);
       }
     }
-    if (good_boards.empty() || not_good_boards.empty()) {
-      continue;
-    }
-    int cur_target = std::max(best_covered + 1, min_covered);
-    int req_good =
-        std::max(1, cur_target - static_cast<int>(not_good_boards.size()));
-    std::vector<SearchProgress::Node *> half_progress =
-        split_progress != nullptr
-            ? SearchProgress::AddChildren(
-                  split_progress,
-                  {static_cast<double>(good_boards.size()),
-                   static_cast<double>(not_good_boards.size())})
-            : std::vector<SearchProgress::Node *>{nullptr, nullptr};
-    std::vector<ConditionalLine> good_lines =
-        SolveHelper(min_tricks, cache_in, board_trees, good_boards,
-                    leader, lvl + 1, half_progress[0], req_good);
-    int good_cov = good_lines.empty() ? 0 : good_lines[0].CoveredFinalBoards();
-    if (good_lines.empty() || good_cov < req_good) {
-      // SolveHelper completes the nodes it runs; this one never runs.
-      SearchProgress::Complete(half_progress[1]);
-      continue;
-    }
-    int req_not_good = std::max(1, cur_target - good_cov);
-    std::vector<ConditionalLine> not_good_lines =
-        SolveHelper(min_tricks, cache_in, board_trees, not_good_boards,
-                    leader, lvl + 1, half_progress[1], req_not_good);
-    int not_good_cov =
-        not_good_lines.empty() ? 0 : not_good_lines[0].CoveredFinalBoards();
-    if (not_good_lines.empty() || not_good_cov < req_not_good) continue;
-    int total_cov = good_cov + not_good_cov;
-    if (total_cov >= cur_target) {
-      ConditionalLine split_line;
-      split_line.AddCondition(
-          new IsCardGoodCondition(top_card, true),
-          std::make_shared<ConditionalLine>(std::move(good_lines[0])));
-      split_line.AddCondition(
-          new IsCardGoodCondition(top_card, false),
-          std::make_shared<ConditionalLine>(std::move(not_good_lines[0])));
-      best_covered = total_cov;
-      if (lvl == 1 && top_k_lvl1_ > 1) {
-        ans.insert(ans.begin(), std::move(split_line));
-        if (static_cast<int>(ans.size()) > top_k_lvl1_) {
-          ans.resize(top_k_lvl1_);
-        }
-      } else {
-        ans = {std::move(split_line)};
+    try_state_split(good_boards, not_good_boards,
+                    [top_card](bool is_good) -> PlayCondition * {
+                      return new IsCardGoodCondition(top_card, is_good);
+                    });
+  }
+
+  for (int player : {1, 3}) {
+    for (int suit = 0; suit < 4; ++suit) {
+      if (IsStopRequested() ||
+          best_covered >= static_cast<int>(solvable_boards.size())) {
+        break;
       }
+      Suit s = static_cast<Suit>(suit);
+      PlayerDiscardedCondition cond_true(player, s, true);
+      std::set<int> disc_boards;
+      std::set<int> no_disc_boards;
+      for (int b : solvable_boards) {
+        if (cond_true.Evaluate(*board_trees.at(b)->MyBoard())) {
+          disc_boards.insert(b);
+        } else {
+          no_disc_boards.insert(b);
+        }
+      }
+      try_state_split(disc_boards, no_disc_boards,
+                      [player, s](bool discarded) -> PlayCondition * {
+                        return new PlayerDiscardedCondition(player, s,
+                                                            discarded);
+                      });
     }
   }
 }
@@ -2374,7 +2413,7 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
   bool use_memo = (lvl > 0 && solve_memo_ != nullptr);
   std::string key;
   if (use_memo) {
-    key.reserve(3 + board_offsets.size() * 12);
+    key.reserve(3 + board_offsets.size() * 14);
     key.push_back(static_cast<char>(leader));
     key.push_back(static_cast<char>(std::max(min_tricks, 0)));
     if (cur_top_k > 1) {
@@ -2391,9 +2430,12 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
       solvable_boards.insert(solvable_boards.end(), b);
       if (use_memo) {
         uint32_t bid = static_cast<uint32_t>(b);
-        uint64_t played = play_tree->MyBoard()->played_cards();
+        const BoardState *bs_ptr = play_tree->MyBoard();
+        uint64_t played = bs_ptr->played_cards();
+        uint16_t disc = bs_ptr->discarded_suits_mask();
         key.append(reinterpret_cast<const char *>(&bid), sizeof(bid));
         key.append(reinterpret_cast<const char *>(&played), sizeof(played));
+        key.append(reinterpret_cast<const char *>(&disc), sizeof(disc));
       }
     }
   }

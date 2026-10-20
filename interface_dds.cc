@@ -1068,6 +1068,7 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
         static_cast<uint8_t>(bs.CurPlayer()),
         static_cast<uint8_t>(bs.GetTrump()),
         static_cast<uint8_t>(std::max(0, min_tricks)),
+        bs.discarded_suits_mask(),
         need_board_id ? bs.board_id() : 0u};
     shard = BoardCacheKeyHash{}(key) & (SolverCache::kNumShards - 1);
     std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);

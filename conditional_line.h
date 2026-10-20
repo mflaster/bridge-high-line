@@ -69,6 +69,7 @@ struct GeneralizedTrick {
     int board = 0;
     uint8_t winner = 0;
     char win_card[3] = {0, 0, 0};
+    uint16_t discard_mask = 0;
     uint64_t trick_mask = 0;
     std::string trick_str;
   };
@@ -125,6 +126,7 @@ class GeneralizedTrickFinder {
     int board = 0;
     uint8_t winner = 0;
     uint8_t win_card_idx = 0;
+    uint16_t discard_mask = 0;
     Suit suit_led = NOTRUMP;
     uint64_t trick_mask = 0;
   };
@@ -151,6 +153,9 @@ class PlayCondition {
 
   // Formats human-readable description of condition (e.g. "when 0 wins", "after S2 (S9) SA (S3)").
   virtual std::string Describe(bool only_choice) const = 0;
+
+  virtual bool IsStateCondition() const { return false; }
+  virtual bool EvaluateState(const BoardState &bs) const { return false; }
 };
 
 // ConditionalLine represents a node in a decision tree that encodes an optimal (or candidate optimal)
@@ -480,6 +485,10 @@ class IsCardGoodCondition : public PlayCondition {
       : card_(card), is_good_(is_good) {}
 
   std::string Describe(bool only_choice) const override;
+  bool IsStateCondition() const override { return true; }
+  bool EvaluateState(const BoardState &bs) const override {
+    return Evaluate(bs) == is_good_;
+  }
 
   CardType card() const { return card_; }
   bool is_good() const { return is_good_; }
@@ -488,6 +497,28 @@ class IsCardGoodCondition : public PlayCondition {
  private:
   CardType card_;
   bool is_good_;
+};
+
+class PlayerDiscardedCondition : public PlayCondition {
+ public:
+  PlayerDiscardedCondition(int player, Suit suit, bool discarded)
+      : player_(player), suit_(suit), discarded_(discarded) {}
+
+  std::string Describe(bool only_choice) const override;
+  bool IsStateCondition() const override { return true; }
+  bool EvaluateState(const BoardState &bs) const override {
+    return Evaluate(bs) == discarded_;
+  }
+
+  int player() const { return player_; }
+  Suit suit() const { return suit_; }
+  bool discarded() const { return discarded_; }
+  bool Evaluate(const BoardState &bs) const;
+
+ private:
+  int player_;
+  Suit suit_;
+  bool discarded_;
 };
 
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(
