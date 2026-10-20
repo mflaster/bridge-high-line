@@ -10,6 +10,11 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 10
 Invariant Rules for 4 card ending:
   (None)
+Example Play (Board 0):
+  #1: SK S9 SJ ST
+  #2: SA DJ SQ DT
+  #3: HK HT HJ DK
+  #4: HA DA HQ DQ
 
   after SK (__) SJ (S_): SK (__) SJ (S_) [0,1,2,3,4,5,6,7,8,9] / SK S9 SJ ST / SK DT SJ S9 / SK DJ SJ S9 / SK DT SJ ST / SK ST SJ S9
     when 0 wins the SK: 

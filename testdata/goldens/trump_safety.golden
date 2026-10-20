@@ -11,6 +11,11 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 4 card ending:
   (None)
+Example Play (Board 0):
+  #1: SK D2 S8 S3
+  #2: ST D3 SQ S4
+  #3: S7 S5 S9 D4
+  #4: SA D5 S6 SJ
 
   after SK (__) S8 (__): SK (__) S8 (__) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19] / SK D2 S8 S3 / SK D2 S8 S3 / SK S3 S8 D2 / SK D2 S8 S3 / SK S3 S8 D2
     when 0 wins the SK: 
@@ -43,6 +48,11 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 4 card ending:
   (None)
+Example Play (Board 0):
+  #1: ST D2 SQ S3
+  #2: S8 S4 S9 D3
+  #3: SK D4 S7 S5
+  #4: SA D5 S6 SJ
 
   after ST (R_) SQ (S_): ST (R_) SQ (S_) [0,1,3,5,6,9,11,12,14,17,18] / ST D2 SQ S3 / ST D2 SQ S3 / ST D2 SQ S3 / ST D2 SQ S3 / ST D2 SQ S3
     when 2 wins the SQ: 

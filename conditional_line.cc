@@ -110,6 +110,116 @@ std::map<int, std::string> ConditionalLine::DeclarerPlaySignature() const {
   return ans;
 }
 
+std::string ConditionalLine::ExamplePlay() const {
+  std::vector<const ConditionalLine *> action_path;
+  const ConditionalLine *curr = this;
+  while (curr != nullptr) {
+    if (!curr->do_first_.Empty()) {
+      action_path.push_back(curr);
+    }
+    if (curr->conditions_.empty()) {
+      break;
+    }
+    const ConditionalLine *best_child = nullptr;
+    int best_cov = -1;
+    std::string best_desc;
+    bool only_choice = (curr->conditions_.size() == 1);
+    for (const auto &[cond, child] : curr->conditions_) {
+      if (!child) continue;
+      int cov = child->CoveredFinalBoards();
+      if (cov == 0 && !child->do_first_.Empty()) {
+        cov = static_cast<int>(child->do_first_.NumBoards());
+      }
+      std::string desc = cond ? cond->Describe(only_choice) : "";
+      if (best_child == nullptr || cov > best_cov ||
+          (cov == best_cov && desc < best_desc)) {
+        best_child = child.get();
+        best_cov = cov;
+        best_desc = std::move(desc);
+      }
+    }
+    curr = best_child;
+  }
+
+  if (action_path.empty()) {
+    return "";
+  }
+
+  auto get_trick_for_board = [&](const ConditionalLine *node,
+                                 int b) -> std::string {
+    const auto &gt = node->do_first_;
+    auto it = gt.demi2.board_to_trick.find(b);
+    if (it != gt.demi2.board_to_trick.end() && !it->second.empty()) {
+      return it->second;
+    }
+    for (const auto &entry : gt.board_entries) {
+      if (entry.board == b && !entry.trick_str.empty()) {
+        return entry.trick_str;
+      }
+    }
+    auto tr_it = board_traces_.find(b);
+    if (tr_it != board_traces_.end()) {
+      for (const auto &step : tr_it->second.steps) {
+        if (step.node == node && !step.trick_str.empty()) {
+          return step.trick_str;
+        }
+      }
+    }
+    return "";
+  };
+
+  std::vector<int> candidates;
+  if (curr != nullptr && !curr->final_covered_boards_.empty()) {
+    candidates.assign(curr->final_covered_boards_.begin(),
+                      curr->final_covered_boards_.end());
+  }
+  std::set<int> fallback_set = action_path.back()->CoveredBoardsSet();
+  for (int b : fallback_set) {
+    if (std::find(candidates.begin(), candidates.end(), b) ==
+        candidates.end()) {
+      candidates.push_back(b);
+    }
+  }
+  for (int b : action_path.back()->do_first_.boards) {
+    if (std::find(candidates.begin(), candidates.end(), b) ==
+        candidates.end()) {
+      candidates.push_back(b);
+    }
+  }
+
+  int chosen_board = -1;
+  std::vector<std::string> chosen_tricks;
+  for (int b : candidates) {
+    std::vector<std::string> tricks;
+    tricks.reserve(action_path.size());
+    bool all_found = true;
+    for (const ConditionalLine *node : action_path) {
+      std::string t = get_trick_for_board(node, b);
+      if (t.empty()) {
+        all_found = false;
+        break;
+      }
+      tricks.push_back(std::move(t));
+    }
+    if (all_found) {
+      chosen_board = b;
+      chosen_tricks = std::move(tricks);
+      break;
+    }
+  }
+
+  if (chosen_board < 0 || chosen_tricks.empty()) {
+    return "";
+  }
+
+  std::string out =
+      "Example Play (Board " + std::to_string(chosen_board) + "):\n";
+  for (size_t i = 0; i < chosen_tricks.size(); ++i) {
+    out += "  #" + std::to_string(i + 1) + ": " + chosen_tricks[i] + "\n";
+  }
+  return out;
+}
+
 std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
   if (!final_covered_boards_.empty()) {
     return "HAND SUCCEEDED FOR: " + StrJoin(final_covered_boards_);
@@ -129,6 +239,10 @@ std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
     }
     if (has_summary()) {
       ans += summary_.ToString();
+    }
+    std::string example = ExamplePlay();
+    if (!example.empty()) {
+      ans += example;
     }
   }
   if (!do_first_.Empty()) {
