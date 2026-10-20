@@ -324,7 +324,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
         if (all_same && !common_card.empty()) {
           root_node->label = common_card + " is led";
         } else {
-          root_node->label = "Defender leads";
+          root_node->label = "Declarer leads";
         }
       }
 
@@ -823,7 +823,7 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromOptimalLines(
   } else if (all_same && !common_card.empty()) {
     root_node->label = common_card + " is led";
   } else {
-    root_node->label = "Defender leads";
+    root_node->label = "Declarer leads";
   }
 
   return root_node;
@@ -897,11 +897,13 @@ void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
 void SetDefaultCollapsedState(std::shared_ptr<DecisionTreeNode> &node, bool is_root = true) {
   if (!node) return;
 
-  // A container root node (e.g. "Defender leads" or "<Card> is led") has no trick of its own
-  // and multiple child branches. It remains expanded (collapsed = false) so its child
-  // branches (the first trick in each branch) are visible.
+  // A container root node (e.g. "Defender leads", "Declarer leads", or
+  // "<Card> is led") has no trick of its own and multiple child branches. It
+  // remains expanded (collapsed = false) so its child branches (the first
+  // trick in each branch) are visible.
   if (is_root && node->trick.empty() && node->children.size() > 1 &&
       (node->label.find("Defender leads") != std::string::npos ||
+       node->label.find("Declarer leads") != std::string::npos ||
        node->label.find("Solve Lines") != std::string::npos ||
        node->label.find("Failure Lines") != std::string::npos ||
        node->label.find("Optimal Lines") != std::string::npos ||
