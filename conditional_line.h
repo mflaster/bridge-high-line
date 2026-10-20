@@ -326,6 +326,10 @@ class ConditionalLine {  // ConditionalLineBranch
       const std::unordered_map<const ConditionalLine *,
                                std::map<int, std::string>>
           &node_board_tricks = {});
+  // Attaches a terminal success leaf under WinnerPlayCondition(winner) on
+  // this action node if no continuation exists for `winner`. Returns a pointer
+  // to the new or existing leaf.
+  const ConditionalLine *EnsureWinnerSuccessLeaf(int winner);
   bool has_rescored_boards() const { return has_rescored_boards_; }
   int step1_covered_boards() const {
     return has_rescored_boards_ ? step1_covered_count_ : covered_count_;
@@ -352,11 +356,26 @@ class ConditionalLine {  // ConditionalLineBranch
     int board_id = 0;
     std::vector<PlayedTrickStep> steps;
     int final_ns_tricks = 0;
+    const ConditionalLine *leaf = nullptr;
   };
+
+  // Canonical single-pass simulator: replays this ConditionalLine on a
+  // BoardState up to the trick where it diverges or terminates, populating the
+  // step-by-step trace, terminal leaf (if reached), and final_ns_tricks.
+  BoardPlayTrace SimulateBoard(const BoardState &bs, int board_id = 0,
+                               bool adversarial = false,
+                               DefenderCardsCache *def_cache = nullptr) const;
 
   // Traces play of this ConditionalLine on a BoardState up to the trick where
   // it diverges or terminates, computing final_ns_tricks.
   BoardPlayTrace TraceOnBoard(const BoardState &bs, int board_id = 0) const;
+
+  void set_board_traces(std::map<int, BoardPlayTrace> traces) {
+    board_traces_ = std::move(traces);
+  }
+  const std::map<int, BoardPlayTrace> &board_traces() const {
+    return board_traces_;
+  }
 
   // Returns total distinct final boards covered across all leaf subtrees.
   int CoveredFinalBoards() const { return covered_count_; }
@@ -415,6 +434,7 @@ class ConditionalLine {  // ConditionalLineBranch
   BoardState sample_board_;
   bool has_sample_board_ = false;
   int min_tricks_ = 0;
+  std::map<int, BoardPlayTrace> board_traces_;
 };
 
 // WinnerPlayCondition represents a trick-outcome condition based on which player

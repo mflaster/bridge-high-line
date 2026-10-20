@@ -1232,3 +1232,83 @@ TEST(ServerTest, WebServerSolveJsonWouldBidRequirements) {
   }
 }
 
+TEST(ServerTest, WebServerSolveJsonNineCardHeartsNoFalseFailureNodes) {
+  WebServer engine;
+  nlohmann::json req = {
+      {"hands",
+       {{"N", "S 532; H T7; D T32; C 6;"},
+        {"E", ""},
+        {"S", "S K9; H -; D A854; C AKJ;"},
+        {"W", ""}}},
+      {"unknown_cards", "S AJTQ64 D KQJ976 C T43Q98"},
+      {"trump", "HEARTS"},
+      {"leader", "NORTH"},
+      {"min_tricks", 6},
+      {"num_iters", 200},
+      {"num_threads", 16}};
+
+  int status_code = 0;
+  std::string body = engine.SolveJson(req.dump(), &status_code);
+  ASSERT_EQ(status_code, 200);
+  nlohmann::json res = nlohmann::json::parse(body);
+  ASSERT_TRUE(res["success"] == true);
+  ASSERT_TRUE(res.contains("tree"));
+
+  int min_tricks = res["tricks_won"].get<int>();
+  ASSERT_EQ(min_tricks, 6);
+
+  int failure_leaf_boards = 0;
+  std::function<void(const nlohmann::json &)> verify_node =
+      [&](const nlohmann::json &n) {
+        bool is_fail = n.value("failure", false);
+        int ns = n.value("ns_tricks", 0);
+        std::string lbl = n.value("label", "");
+        std::string cond = n.value("condition", "");
+        if (is_fail) {
+          EXPECT_LT(ns, min_tricks)
+              << "Failure node claims N/S won >= target tricks (" << ns
+              << " >= " << min_tricks << "): label=" << lbl
+              << " cond=" << cond;
+          if (n.contains("boards")) {
+            failure_leaf_boards += static_cast<int>(n["boards"].size());
+          }
+        }
+        if (n.contains("children")) {
+          // Sibling branches must not have contradictory/duplicate conditions
+          // where one says "if <seat> plays <CARD>" and a sibling trick node
+          // starts with "(<CARD>)".
+          std::vector<std::string> fail_play_cards;
+          std::vector<std::string> action_lead_cards;
+          for (const auto &c : n["children"]) {
+            std::string c_cond = c.value("condition", "");
+            if (c.value("failure", false) &&
+                c_cond.find(" plays ") != std::string::npos) {
+              size_t pos = c_cond.rfind(' ');
+              if (pos != std::string::npos) {
+                fail_play_cards.push_back(c_cond.substr(pos + 1));
+              }
+            } else if (!c.value("failure", false) &&
+                       c_cond.size() >= 4 && c_cond[0] == '(' &&
+                       c_cond[3] == ')') {
+              action_lead_cards.push_back(c_cond.substr(1, 2));
+            }
+          }
+          for (const auto &fc : fail_play_cards) {
+            for (const auto &ac : action_lead_cards) {
+              EXPECT_NE(fc, ac)
+                  << "Failure condition 'plays " << fc
+                  << "' contradicts sibling action condition starting with '("
+                  << ac << ")' under node: " << lbl;
+            }
+          }
+          for (const auto &c : n["children"]) {
+            verify_node(c);
+          }
+        }
+      };
+
+  verify_node(res["tree"]);
+  EXPECT_EQ(failure_leaf_boards, res["failure_boards"].get<int>());
+}
+
+

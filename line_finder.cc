@@ -657,21 +657,21 @@ void RescoreTopLinesAdversarial(
   }
   std::vector<std::vector<uint8_t>> board_line_ok(
       num_boards, std::vector<uint8_t>(num_lines, 0));
-  std::vector<std::vector<ConditionalLine::RescoreBoardTrace>> board_line_trace(
-      num_boards, std::vector<ConditionalLine::RescoreBoardTrace>(num_lines));
+  std::vector<std::vector<ConditionalLine::BoardPlayTrace>> board_line_trace(
+      num_boards, std::vector<ConditionalLine::BoardPlayTrace>(num_lines));
 
   ParallelForDynamic(num_boards, num_threads, [&](size_t b_i) {
     if (LineFinder::IsStopRequested()) return;
     int b = active_boards[b_i];
     ConditionalLine::DefenderCardsCache def_cache;
     for (size_t l_i = 0; l_i < num_lines; ++l_i) {
-      ConditionalLine::RescoreBoardTrace trace;
-      int tricks = (*lines)[l_i].ResultsOnHandAdversarial(
-          boards[b], &def_cache, &trace);
-      if (tricks >= min_tricks && trace.leaf != nullptr) {
+      ConditionalLine::BoardPlayTrace trace =
+          (*lines)[l_i].SimulateBoard(boards[b], b, /*adversarial=*/true,
+                                      &def_cache);
+      if (trace.final_ns_tricks >= min_tricks && trace.leaf != nullptr) {
         board_line_ok[b_i][l_i] = 1;
-        board_line_trace[b_i][l_i] = std::move(trace);
       }
+      board_line_trace[b_i][l_i] = std::move(trace);
     }
   });
 
@@ -679,16 +679,35 @@ void RescoreTopLinesAdversarial(
     std::unordered_map<const ConditionalLine *, std::set<int>> leaf_boards;
     std::unordered_map<const ConditionalLine *, std::map<int, std::string>>
         node_board_tricks;
+    std::map<int, ConditionalLine::BoardPlayTrace> line_traces;
     for (size_t b_i = 0; b_i < num_boards; ++b_i) {
-      if (!board_line_ok[b_i][l_i]) continue;
       int b = active_boards[b_i];
-      const auto &tr = board_line_trace[b_i][l_i];
-      leaf_boards[tr.leaf].insert(b);
-      for (const auto &[node_ptr, trick_str] : tr.node_tricks) {
-        node_board_tricks[node_ptr][b] = trick_str;
+      auto &tr = board_line_trace[b_i][l_i];
+      if (tr.leaf == nullptr && !tr.steps.empty() &&
+          tr.steps.back().unmatched_seat < 0 &&
+          tr.steps.back().node != nullptr &&
+          !tr.steps.back().node->do_first().Empty() &&
+          tr.steps.back().ns_tricks_so_far >= min_tricks) {
+        auto *mutable_node =
+            const_cast<ConditionalLine *>(tr.steps.back().node);
+        tr.leaf = mutable_node->EnsureWinnerSuccessLeaf(tr.steps.back().winner);
+        if (tr.leaf != nullptr) {
+          tr.steps.back().diverged_after = false;
+          board_line_ok[b_i][l_i] = 1;
+        }
       }
+      if (board_line_ok[b_i][l_i]) {
+        leaf_boards[tr.leaf].insert(b);
+        for (const auto &step : tr.steps) {
+          if (step.node != nullptr && step.unmatched_seat < 0) {
+            node_board_tricks[step.node][b] = step.trick_str;
+          }
+        }
+      }
+      line_traces.emplace(b, std::move(tr));
     }
     (*lines)[l_i].ApplyRescoredBoards(leaf_boards, node_board_tricks);
+    (*lines)[l_i].set_board_traces(std::move(line_traces));
   }
 
   std::stable_sort(lines->begin(), lines->end(),
