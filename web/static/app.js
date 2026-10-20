@@ -8252,6 +8252,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (trimmed.length > 0 &&
           !/^solve/i.test(trimmed) &&
           !/^defender/i.test(trimmed) &&
+          !/^declarer/i.test(trimmed) &&
           !/^optimal/i.test(trimmed) &&
           !/is led/i.test(trimmed) &&
           !/variants/i.test(trimmed) &&

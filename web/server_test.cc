@@ -588,27 +588,51 @@ TEST(ServerTest, BuildTreeFromConditionalLineCommonLeadCardLabel) {
   ASSERT_TRUE(node != nullptr);
   ASSERT_TRUE(node->label == "H7 is led");
 
-  // Test fallback when children have different lead cards
+  // Test fallback when declarer children have different lead cards (e.g.
+  // IsCardGoodCondition in squeeze deals)
   ConditionalLine root_diff;
   ConditionalLine child_diff_1;
   child_diff_1.SetAction(GeneralizedTrick(
-      GeneralizedDemiStruct("H2", "H7", boards),
-      GeneralizedDemiStruct("H9", "HK", boards),
-      boards, 0));
+      GeneralizedDemiStruct("__", "HK", boards),
+      GeneralizedDemiStruct("__", "S3", boards),
+      boards, 2));
 
   ConditionalLine child_diff_2;
   child_diff_2.SetAction(GeneralizedTrick(
-      GeneralizedDemiStruct("S2", "SA", boards),
-      GeneralizedDemiStruct("S9", "SK", boards),
-      boards, 0));
+      GeneralizedDemiStruct("S_", "S2", boards),
+      GeneralizedDemiStruct("__", "SA", boards),
+      boards, 2));
 
-  root_diff.AddCondition(new WinnerPlayCondition(0), child_diff_1);
-  root_diff.AddCondition(new WinnerPlayCondition(1), child_diff_2);
+  CardType hk = Card::ParseStringCard("HK");
+  root_diff.AddCondition(new IsCardGoodCondition(hk, true), child_diff_1);
+  root_diff.AddCondition(new IsCardGoodCondition(hk, false), child_diff_2);
 
   int node_id2 = 0;
   auto node_diff = BuildTreeFromConditionalLine(root_diff, node_id2);
   ASSERT_TRUE(node_diff != nullptr);
-  ASSERT_TRUE(node_diff->label == "Defender leads");
+  ASSERT_EQ(node_diff->label, "Declarer leads");
+
+  // Test when a defender is on lead across branches
+  ConditionalLine root_def;
+  ConditionalLine child_def_1;
+  child_def_1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("H_", "H7", boards),
+      GeneralizedDemiStruct("H_", "HK", boards),
+      boards, 1));
+
+  ConditionalLine child_def_2;
+  child_def_2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("S_", "SA", boards),
+      GeneralizedDemiStruct("S_", "SK", boards),
+      boards, 1));
+
+  root_def.AddCondition(new TrickPlayCondition("(H_) H7 (H_) HK"), child_def_1);
+  root_def.AddCondition(new TrickPlayCondition("(S_) SA (S_) SK"), child_def_2);
+
+  int node_id3 = 0;
+  auto node_def = BuildTreeFromConditionalLine(root_def, node_id3);
+  ASSERT_TRUE(node_def != nullptr);
+  ASSERT_EQ(node_def->label, "Defender leads");
 }
 
 TEST(ServerTest, FormatWinnerConditionAndFormatBranchConditionFormatting) {
