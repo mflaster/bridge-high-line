@@ -89,7 +89,7 @@ std::string FormatBranchCondition(const PlayCondition *cond_ptr,
 FailureIndex IndexFailures(const ConditionalLine &line,
                            const std::vector<BoardState> &boards,
                            const std::vector<int> &failed_board_ids,
-                           int num_threads = 16);
+                           int num_threads = 16, int min_tricks = 0);
 std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     const ConditionalLine &line, int &node_id, int trick_num = 1,
     int root_total = 1, int ns_tricks = 0,
