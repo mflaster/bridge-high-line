@@ -662,6 +662,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const baseSuccess = baseData.success_boards !== undefined
         ? baseData.success_boards
         : (baseData.covered_boards || 0);
+      const baseActiveIds =
+        Array.isArray(baseData.active_board_ids) &&
+        baseData.active_board_ids.length > 0
+          ? baseData.active_board_ids
+          : Array.from({ length: baseTotal }, (_, b) => b);
       const origLines = Array.isArray(baseData.lines) ? baseData.lines : [];
       if (origLines.length > 1) {
         origLines.forEach((lineObj, idx) => {
@@ -686,6 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
             coveredBoards: lineSucc,
             totalBoards: baseTotal,
             coveredBoardIds: covIds || [],
+            activeBoardIds: baseActiveIds,
             lineObj: lineObj,
             baseData: baseData
           });
@@ -720,6 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
           coveredBoards: lineSucc,
           totalBoards: baseTotal,
           coveredBoardIds: covIds || [],
+          activeBoardIds: baseActiveIds,
           lineObj: singleLineObj,
           baseData: baseData
         });
@@ -743,6 +750,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!covIds && altData.tree) {
           covIds = Array.from(extractCoveredBoardIdsFromTree(altData.tree));
         }
+        const altActiveIds =
+          Array.isArray(altData.active_board_ids) &&
+          altData.active_board_ids.length > 0
+            ? altData.active_board_ids
+            : Array.from({ length: altTotal }, (_, b) => b);
         entries.push({
           kind: 'alt',
           rawTitle: altEntry.label,
@@ -750,6 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
           coveredBoards: altSuccess,
           totalBoards: altTotal,
           coveredBoardIds: covIds || [],
+          activeBoardIds: altActiveIds,
           altData: altEntry.data
         });
       });
@@ -829,7 +842,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderComparePairSection(entryA, idxA, entryB, idxB, allEntries) {
-    const total = Math.max(1, entryA.totalBoards || entryB.totalBoards || 1);
+    const activeA = Array.isArray(entryA.activeBoardIds) &&
+        entryA.activeBoardIds.length > 0
+      ? entryA.activeBoardIds
+      : Array.from(
+          { length: Math.max(1, entryA.totalBoards || 1) },
+          (_, b) => b
+        );
+    const activeB = Array.isArray(entryB.activeBoardIds) &&
+        entryB.activeBoardIds.length > 0
+      ? entryB.activeBoardIds
+      : Array.from(
+          { length: Math.max(1, entryB.totalBoards || 1) },
+          (_, b) => b
+        );
+    const activeSetB = new Set(activeB);
+    let compareBoards = activeA.filter(b => activeSetB.has(b));
+    if (compareBoards.length === 0) {
+      const unionSet = new Set([...activeA, ...activeB]);
+      compareBoards = Array.from(unionSet).sort((x, y) => x - y);
+    }
+    const total = Math.max(1, compareBoards.length);
     const setA = new Set(entryA.coveredBoardIds || []);
     const setB = new Set(entryB.coveredBoardIds || []);
 
@@ -838,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const onlyB = []; // Fails in A, succeeds in B
     const bothFail = [];
 
-    for (let b = 0; b < total; b++) {
+    for (const b of compareBoards) {
       const inA = setA.has(b);
       const inB = setB.has(b);
       if (inA && inB) bothPass.push(b);
@@ -6063,16 +6096,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return names[((seatIdx % 4) + 4) % 4];
   }
 
-  function splicePrefixTricksOntoTree(prefixTricks, continuationTree, totalBoards, successBoards, failureBoards) {
+  function splicePrefixTricksOntoTree(
+    prefixTricks,
+    continuationTree,
+    totalBoards,
+    successBoards,
+    failureBoards,
+    activeBoardIds
+  ) {
     if (!prefixTricks || prefixTricks.length === 0) {
       return continuationTree;
     }
 
     let root = null;
     let prevNode = null;
-    const allBoards = [-1];
-    for (let i = 0; i < totalBoards; i++) allBoards.push(i);
-    const boardIdStr = totalBoards > 0 ? '0' : null;
+    const activeIds =
+      Array.isArray(activeBoardIds) && activeBoardIds.length > 0
+        ? activeBoardIds.filter(b => typeof b === 'number' && b >= 0)
+        : Array.from({ length: totalBoards }, (_, i) => i);
+    const allBoards = [-1, ...activeIds];
+    const boardIdStr = activeIds.length > 0 ? String(activeIds[0]) : null;
 
     prefixTricks.forEach((pt, idx) => {
       const trickTokens = pt.cards.map(c => {
@@ -6103,7 +6146,16 @@ document.addEventListener('DOMContentLoaded', () => {
         children: []
       };
       node.board_to_trick = { '-1': trickStr };
-      if (boardIdStr !== null) {
+      if (!pt.isProposedTrick && pt.boardToTrick &&
+          typeof pt.boardToTrick === 'object') {
+        activeIds.forEach(bid => {
+          const k = String(bid);
+          if (pt.boardToTrick[k]) {
+            node.board_to_trick[k] = pt.boardToTrick[k];
+          }
+        });
+      }
+      if (boardIdStr !== null && !node.board_to_trick[boardIdStr]) {
         node.board_to_trick[boardIdStr] = trickStr;
       }
 
@@ -6200,7 +6252,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
       if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
       if (traceHandInput) {
-        traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
+        const maxHand = Math.max(
+          total,
+          Array.isArray(data.all_hands) ? data.all_hands.length : 0
+        );
+        traceHandInput.placeholder = data.actual_hand ? `0..${maxHand}` : `1..${maxHand}`;
       }
 
       setStatus('success', 'Restored original solved line.');
@@ -6313,7 +6369,8 @@ document.addEventListener('DOMContentLoaded', () => {
           cards: completedCards,
           winningCardIdx: winningIdx,
           winnerSeat: winnerSeatName,
-          winnerSeatIdx: winnerSeatIdx
+          winnerSeatIdx: winnerSeatIdx,
+          isProposedTrick: true
         });
 
         startTrickNumForSolve = ctx.trickNum + 1;
@@ -6349,7 +6406,19 @@ document.addEventListener('DOMContentLoaded', () => {
           return `${c.suit || 'S'}${r}`;
         })
       );
+      const replayBoardTricksPayload = prefixTricksToSplice.map(pt =>
+        (!pt.isProposedTrick && pt.boardToTrick &&
+         typeof pt.boardToTrick === 'object')
+          ? pt.boardToTrick
+          : {}
+      );
+      const hasAnyBoardTrickMap = replayBoardTricksPayload.some(
+        m => Object.keys(m).length > 0
+      );
 
+      const parsedNumIters = isNaN(parseInt(numIters.value, 10))
+        ? 100
+        : parseInt(numIters.value, 10);
       const payload = {
         hands: {
           N: formatSuitsToHandStr(remainingBeforeTrickK.N, false),
@@ -6360,7 +6429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         trump: trumpSelect.value,
         leader: leaderForSolve,
         min_tricks: remainingMinTricks,
-        num_iters: isNaN(parseInt(numIters.value, 10)) ? 100 : parseInt(numIters.value, 10),
+        num_iters: parsedNumIters,
         num_threads: isNaN(parsedThreads) ? 16 : parsedThreads,
         cur_trick: curTrickForSolve,
         start_trick_num: startTrickNumForSolve,
@@ -6368,6 +6437,49 @@ document.addEventListener('DOMContentLoaded', () => {
         reuse_deals: true,
         replay_tricks: replayTricksPayload
       };
+      if (hasAnyBoardTrickMap) {
+        payload.replay_board_tricks = replayBoardTricksPayload;
+      }
+
+      const defIdx = (ctx.leaderIdx % 2 !== 0) ? 0 : 1;
+      let keptDefenderBranchInTrick = false;
+      if (Array.isArray(ctx.branchTrickCards) &&
+          proposedCards.length > defIdx &&
+          ctx.branchTrickCards.length > defIdx) {
+        keptDefenderBranchInTrick = true;
+        for (let j = 0; j <= defIdx; j++) {
+          const pCard = proposedCards[j];
+          const bCard = ctx.branchTrickCards[j];
+          if (!pCard || !bCard) {
+            keptDefenderBranchInTrick = false;
+            break;
+          }
+          const pRank = (pCard.clickedToken || pCard.rankStr || '');
+          const bRank = (bCard.rankStr || '');
+          const normP = (pRank === '10' ? 'T' : pRank).toUpperCase();
+          const normB = (bRank === '10' ? 'T' : bRank).toUpperCase();
+          if (pCard.suit !== bCard.suit || normP !== normB) {
+            keptDefenderBranchInTrick = false;
+            break;
+          }
+        }
+      }
+      const candidateBranchIds =
+        (keptDefenderBranchInTrick &&
+         Array.isArray(ctx.branchInTrickIds) &&
+         ctx.branchInTrickIds.length > 0)
+          ? ctx.branchInTrickIds
+          : ctx.branchBeforeTrickIds;
+      const baseTotalDeals =
+        (originalSolveSnapshot && originalSolveSnapshot.data &&
+         originalSolveSnapshot.data.total_boards)
+          ? originalSolveSnapshot.data.total_boards
+          : parsedNumIters;
+      if (Array.isArray(candidateBranchIds) &&
+          candidateBranchIds.length > 0 &&
+          candidateBranchIds.length < baseTotalDeals) {
+        payload.branch_board_ids = candidateBranchIds;
+      }
 
       const remUnknownStr = formatSuitsToHandStr(remainingBeforeTrickK.U, true);
       if (remUnknownStr) {
@@ -6531,7 +6643,8 @@ document.addEventListener('DOMContentLoaded', () => {
             data.tree,
             total,
             success,
-            failure
+            failure,
+            data.active_board_ids
           );
           if (Array.isArray(data.lines)) {
             data.lines.forEach(lineObj => {
@@ -6541,7 +6654,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   lineObj.tree,
                   total,
                   success,
-                  failure
+                  failure,
+                  data.active_board_ids
                 );
               }
             });
@@ -6576,7 +6690,11 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTracedHandStateOnly();
         if (traceHandInput) {
           traceHandInput.value = '';
-          traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
+          const maxHand = Math.max(
+            total,
+            Array.isArray(data.all_hands) ? data.all_hands.length : 0
+          );
+          traceHandInput.placeholder = data.actual_hand ? `0..${maxHand}` : `1..${maxHand}`;
         }
         updateProposeLineBarUI();
         const allEntries = buildSelectableLinesList();
@@ -6827,9 +6945,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const cleaned = String(rawInput !== undefined && rawInput !== null ? rawInput : '').replace(/^#/, '').trim();
     const handNum = parseInt(cleaned, 10);
     const totalBoards = currentSolveData.total_boards || 1;
+    const maxHandNum = Math.max(
+      totalBoards,
+      Array.isArray(currentSolveData.all_hands)
+        ? currentSolveData.all_hands.length
+        : 0
+    );
     const minHandNum = currentSolveData.actual_hand ? 0 : 1;
-    if (!cleaned || isNaN(handNum) || handNum < minHandNum || handNum > totalBoards) {
-      setTraceHandError(`Enter a hand number between ${minHandNum} and ${totalBoards}.`);
+    if (!cleaned || isNaN(handNum) || handNum < minHandNum || handNum > maxHandNum) {
+      setTraceHandError(`Enter a hand number between ${minHandNum} and ${maxHandNum}.`);
       return false;
     }
 
@@ -7953,7 +8077,10 @@ document.addEventListener('DOMContentLoaded', () => {
           cards: resolvedCards.map(c => Object.assign({}, c)),
           winningCardIdx: tr.winningCardIdx,
           winnerSeat: tr.winnerSeat,
-          winnerSeatIdx: (tr.cards[tr.winningCardIdx] ? tr.cards[tr.winningCardIdx].seatIdx : tr.leadSeatIdx)
+          winnerSeatIdx: (tr.cards[tr.winningCardIdx] ? tr.cards[tr.winningCardIdx].seatIdx : tr.leadSeatIdx),
+          boardToTrick: (tr.node && tr.node.board_to_trick)
+            ? Object.assign({}, tr.node.board_to_trick)
+            : null
         });
       }
 
@@ -7962,6 +8089,45 @@ document.addEventListener('DOMContentLoaded', () => {
       const currentResolvedCards = resolveActualCardsForTrick(selectedTrickRow);
       currentResolvedCards.forEach((c, idx) => recordCard(c, 'current', idx === 0));
       const selectedTrickStates = clonePlayStates(states);
+
+      const collectSubtreeBoardIds = (rootNode) => {
+        const set = new Set();
+        const walk = (n) => {
+          if (!n) return;
+          if (Array.isArray(n.boards)) {
+            n.boards.forEach(b => {
+              if (typeof b === 'number' && b >= 0) set.add(b);
+            });
+          }
+          if (Array.isArray(n.children)) {
+            n.children.forEach(walk);
+          }
+        };
+        walk(rootNode);
+        return Array.from(set).sort((a, b) => a - b);
+      };
+
+      const trickNode = selectedTrickRow.node;
+      let startOfTrickNode = trickNode;
+      if (trickNode && trickNode._parent &&
+          !extractTrickString(trickNode._parent) &&
+          trickNode.condition &&
+          trickNode.condition === trickNode.trick) {
+        startOfTrickNode = trickNode._parent;
+      }
+      const branchBeforeTrickIds = collectSubtreeBoardIds(startOfTrickNode);
+
+      let inTrickNode = trickNode;
+      const trickPathIdx = path.indexOf(trickNode);
+      if (trickPathIdx !== -1 && trickPathIdx + 1 < path.length) {
+        const nextPathNode = path[trickPathIdx + 1];
+        if (nextPathNode && nextPathNode.condition &&
+            (/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+(?:plays|discards)/i.test(nextPathNode.condition) ||
+             /(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+wins/i.test(nextPathNode.condition))) {
+          inTrickNode = nextPathNode;
+        }
+      }
+      const branchInTrickIds = collectSubtreeBoardIds(inTrickNode);
 
       const initCur = (selectedIdx === 0 && selectedTrickRow.trickNum === 1)
         ? getActiveInitialCurTrick()
@@ -7990,6 +8156,9 @@ document.addEventListener('DOMContentLoaded', () => {
         playedStates: playedBeforeSelected,
         selectedTrickStates: selectedTrickStates,
         prefixTrickRows: prefixTrickRows,
+        branchBeforeTrickIds: branchBeforeTrickIds,
+        branchInTrickIds: branchInTrickIds,
+        branchTrickCards: currentResolvedCards.map(c => Object.assign({}, c)),
         initialCurCount: initialProposedCards.length,
         proposedCards: initialProposedCards.slice()
       };
