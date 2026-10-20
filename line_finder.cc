@@ -683,19 +683,6 @@ void RescoreTopLinesAdversarial(
     for (size_t b_i = 0; b_i < num_boards; ++b_i) {
       int b = active_boards[b_i];
       auto &tr = board_line_trace[b_i][l_i];
-      if (tr.leaf == nullptr && !tr.steps.empty() &&
-          tr.steps.back().unmatched_seat < 0 &&
-          tr.steps.back().node != nullptr &&
-          !tr.steps.back().node->do_first().Empty() &&
-          tr.steps.back().ns_tricks_so_far >= min_tricks) {
-        auto *mutable_node =
-            const_cast<ConditionalLine *>(tr.steps.back().node);
-        tr.leaf = mutable_node->EnsureWinnerSuccessLeaf(tr.steps.back().winner);
-        if (tr.leaf != nullptr) {
-          tr.steps.back().diverged_after = false;
-          board_line_ok[b_i][l_i] = 1;
-        }
-      }
       if (board_line_ok[b_i][l_i]) {
         leaf_boards[tr.leaf].insert(b);
         for (const auto &step : tr.steps) {

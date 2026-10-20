@@ -326,10 +326,6 @@ class ConditionalLine {  // ConditionalLineBranch
       const std::unordered_map<const ConditionalLine *,
                                std::map<int, std::string>>
           &node_board_tricks = {});
-  // Attaches a terminal success leaf under WinnerPlayCondition(winner) on
-  // this action node if no continuation exists for `winner`. Returns a pointer
-  // to the new or existing leaf.
-  const ConditionalLine *EnsureWinnerSuccessLeaf(int winner);
   bool has_rescored_boards() const { return has_rescored_boards_; }
   int step1_covered_boards() const {
     return has_rescored_boards_ ? step1_covered_count_ : covered_count_;
