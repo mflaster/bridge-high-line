@@ -10,6 +10,11 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 30
 Invariant Rules for 4 card ending:
   (None)
+Example Play (Board 0):
+  #1 (S) S6 S4 SQ* S3
+  #2 (N) ST S5 S7 SK*
+  #3 (W) S9 SA* SJ S8
+  #4 (N) H2 D4 HA* D3
 
   after S6 (S_) SQ (S_): S6 (S_) SQ (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20,21,22,23,24,26,28,29] / S6 S4 SQ S3 / S6 S3 SQ S5 / S6 S3 SQ S9 / S6 S3 SQ S9 / S6 S3 SQ S4
     if 0 wins the SQ: 

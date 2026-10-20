@@ -116,12 +116,321 @@ void DeclarerPlaySignatureHelper(const ConditionalLine &line,
     }
   }
 }
+std::string SeatLetter(int player) {
+  switch ((player % 4 + 4) % 4) {
+    case NORTH: return "N";
+    case EAST: return "E";
+    case SOUTH: return "S";
+    case WEST: return "W";
+    default: return std::to_string(player);
+  }
+}
+
+std::string FormatTrickLine(size_t trick_num, int leader,
+                            const std::string &trick_str, int winner,
+                            Suit trump) {
+  std::vector<std::string> cards = SplitWords(trick_str);
+  if (cards.size() == 4) {
+    int win_idx = -1;
+    if (winner >= 0 && winner < 4) {
+      win_idx = (winner - leader + 4) % 4;
+    } else {
+      Suit cur_win_suit = NOTRUMP;
+      int cur_win_val = -1;
+      win_idx = 0;
+      for (int c = 0; c < 4; ++c) {
+        if (cards[c].size() != 2) continue;
+        CardType ct = Card::ParseStringCard(cards[c]);
+        auto [s, v] = Card::DecodeCard(ct);
+        if (c == 0) {
+          cur_win_suit = s;
+          cur_win_val = v;
+          win_idx = 0;
+        } else if (s == cur_win_suit) {
+          if (v > cur_win_val) {
+            cur_win_val = v;
+            win_idx = c;
+          }
+        } else if (s == trump) {
+          cur_win_suit = s;
+          cur_win_val = v;
+          win_idx = c;
+        }
+      }
+    }
+    cards[win_idx] += "*";
+    return "  #" + std::to_string(trick_num) + " (" + SeatLetter(leader) +
+           ") " + cards[0] + " " + cards[1] + " " + cards[2] + " " +
+           cards[3] + "\n";
+  }
+  return "  #" + std::to_string(trick_num) + " (" + SeatLetter(leader) + ") " +
+         trick_str + "\n";
+}
 }  // namespace
 
 std::map<int, std::string> ConditionalLine::DeclarerPlaySignature() const {
   std::map<int, std::string> ans;
   DeclarerPlaySignatureHelper(*this, ans);
   return ans;
+}
+
+std::string ConditionalLine::ExamplePlay(bool success) const {
+  Suit trump = has_sample_board_ ? sample_board_.GetTrump() : NOTRUMP;
+  if (!success) {
+    std::set<int> covered = CoveredBoardsSet();
+    std::vector<const BoardPlayTrace *> current;
+    for (const auto &[b, tr] : board_traces_) {
+      if (covered.count(b) == 0 && !tr.steps.empty()) {
+        current.push_back(&tr);
+      }
+    }
+    if (current.size() <= 1) {
+      return "";
+    }
+    for (size_t step_idx = 0; !current.empty(); ++step_idx) {
+      struct Stage1Group {
+        const ConditionalLine *node = nullptr;
+        int unmatched_seat = -1;
+        std::string card_key;
+        int winner = -1;
+        bool terminates = false;
+        std::vector<const BoardPlayTrace *> traces;
+      };
+      std::vector<Stage1Group> stage1_groups;
+      for (const BoardPlayTrace *tr : current) {
+        if (step_idx >= tr->steps.size()) continue;
+        const PlayedTrickStep &step = tr->steps[step_idx];
+        bool term = false;
+        std::string card_key;
+        int win_key = -1;
+        if (step.unmatched_seat >= 0) {
+          term = true;
+          win_key = step.winner;
+          Suit suit_led = step.trick_str.empty()
+                              ? NOTRUMP
+                              : Card::ParseSuit(step.trick_str[0]);
+          Suit card_suit = step.unmatched_card.empty()
+                               ? NOTRUMP
+                               : Card::ParseSuit(step.unmatched_card[0]);
+          bool is_discard = (step.unmatched_seat != step.leader &&
+                             suit_led != NOTRUMP && card_suit != suit_led &&
+                             card_suit != trump);
+          card_key = is_discard ? "R_" : step.unmatched_card;
+        }
+        auto it = std::find_if(
+            stage1_groups.begin(), stage1_groups.end(),
+            [&](const Stage1Group &g) {
+              return g.node == step.node &&
+                     g.unmatched_seat == step.unmatched_seat &&
+                     g.card_key == card_key && g.winner == win_key;
+            });
+        if (it == stage1_groups.end()) {
+          stage1_groups.push_back(Stage1Group{
+              step.node, step.unmatched_seat, card_key, win_key, term, {tr}});
+        } else {
+          it->traces.push_back(tr);
+        }
+      }
+      if (stage1_groups.empty()) break;
+      const Stage1Group *best_s1 = &stage1_groups[0];
+      for (size_t i = 1; i < stage1_groups.size(); ++i) {
+        if (stage1_groups[i].traces.size() > best_s1->traces.size()) {
+          best_s1 = &stage1_groups[i];
+        }
+      }
+      current = best_s1->traces;
+      if (best_s1->terminates) {
+        break;
+      }
+
+      struct Stage2Group {
+        bool terminates = false;
+        int winner = -1;
+        std::vector<const BoardPlayTrace *> traces;
+      };
+      std::vector<Stage2Group> stage2_groups;
+      for (const BoardPlayTrace *tr : current) {
+        const PlayedTrickStep &step = tr->steps[step_idx];
+        bool term = (step_idx + 1 >= tr->steps.size());
+        auto it = std::find_if(
+            stage2_groups.begin(), stage2_groups.end(),
+            [&](const Stage2Group &g) {
+              return g.terminates == term && g.winner == step.winner;
+            });
+        if (it == stage2_groups.end()) {
+          stage2_groups.push_back(Stage2Group{term, step.winner, {tr}});
+        } else {
+          it->traces.push_back(tr);
+        }
+      }
+      if (stage2_groups.empty()) break;
+      const Stage2Group *best_s2 = &stage2_groups[0];
+      for (size_t i = 1; i < stage2_groups.size(); ++i) {
+        if (stage2_groups[i].traces.size() > best_s2->traces.size()) {
+          best_s2 = &stage2_groups[i];
+        }
+      }
+      current = best_s2->traces;
+      if (best_s2->terminates) {
+        std::vector<std::pair<std::string, std::vector<const BoardPlayTrace *>>>
+            card_groups;
+        for (const BoardPlayTrace *tr : current) {
+          const std::string &wc = tr->steps[step_idx].winning_card;
+          auto it = std::find_if(card_groups.begin(), card_groups.end(),
+                                 [&](const auto &p) { return p.first == wc; });
+          if (it == card_groups.end()) {
+            card_groups.push_back({wc, {tr}});
+          } else {
+            it->second.push_back(tr);
+          }
+        }
+        if (!card_groups.empty()) {
+          const auto *best_cg = &card_groups[0].second;
+          for (size_t i = 1; i < card_groups.size(); ++i) {
+            if (card_groups[i].second.size() > best_cg->size()) {
+              best_cg = &card_groups[i].second;
+            }
+          }
+          current = *best_cg;
+        }
+        break;
+      }
+    }
+    if (current.empty()) {
+      return "";
+    }
+    const BoardPlayTrace *chosen_trace = current[0];
+    std::string out = "Example Failed Play (Board " +
+                      std::to_string(chosen_trace->board_id) + "):\n";
+    for (size_t i = 0; i < chosen_trace->steps.size(); ++i) {
+      const PlayedTrickStep &step = chosen_trace->steps[i];
+      out += FormatTrickLine(i + 1, step.leader, step.trick_str, step.winner,
+                             trump);
+    }
+    return out;
+  }
+
+  struct ActionStep {
+    const ConditionalLine *node = nullptr;
+    int branch_winner = -1;
+  };
+  std::vector<ActionStep> action_path;
+  const ConditionalLine *curr = this;
+  while (curr != nullptr) {
+    if (!curr->do_first_.Empty()) {
+      action_path.push_back(ActionStep{curr, -1});
+    }
+    if (curr->conditions_.empty()) {
+      break;
+    }
+    const ConditionalLine *best_child = nullptr;
+    const PlayCondition *best_cond = nullptr;
+    int best_cov = -1;
+    std::string best_desc;
+    bool only_choice = (curr->conditions_.size() == 1);
+    for (const auto &[cond, child] : curr->conditions_) {
+      if (!child) continue;
+      int cov = child->CoveredFinalBoards();
+      if (cov == 0 && !child->do_first_.Empty()) {
+        cov = static_cast<int>(child->do_first_.NumBoards());
+      }
+      std::string desc = cond ? cond->Describe(only_choice) : "";
+      if (best_child == nullptr || cov > best_cov ||
+          (cov == best_cov && desc < best_desc)) {
+        best_child = child.get();
+        best_cond = cond.get();
+        best_cov = cov;
+        best_desc = std::move(desc);
+      }
+    }
+    if (!action_path.empty() && action_path.back().node == curr) {
+      if (auto *wc = dynamic_cast<const WinnerPlayCondition *>(best_cond)) {
+        action_path.back().branch_winner = wc->who();
+      }
+    }
+    curr = best_child;
+  }
+
+  if (action_path.empty()) {
+    return "";
+  }
+
+  auto get_trick_for_board =
+      [&](const ActionStep &step_info, int b) -> std::pair<std::string, int> {
+    const ConditionalLine *node = step_info.node;
+    auto tr_it = board_traces_.find(b);
+    if (tr_it != board_traces_.end()) {
+      for (const auto &step : tr_it->second.steps) {
+        if (step.node == node && !step.trick_str.empty()) {
+          return {step.trick_str, step.winner};
+        }
+      }
+    }
+    const auto &gt = node->do_first_;
+    for (const auto &entry : gt.board_entries) {
+      if (entry.board == b && !entry.trick_str.empty()) {
+        return {entry.trick_str, static_cast<int>(entry.winner)};
+      }
+    }
+    auto it = gt.demi2.board_to_trick.find(b);
+    if (it != gt.demi2.board_to_trick.end() && !it->second.empty()) {
+      return {it->second, step_info.branch_winner};
+    }
+    return {"", -1};
+  };
+
+  std::vector<int> candidates;
+  if (curr != nullptr && !curr->final_covered_boards_.empty()) {
+    candidates.assign(curr->final_covered_boards_.begin(),
+                      curr->final_covered_boards_.end());
+  }
+  std::set<int> fallback_set = action_path.back().node->CoveredBoardsSet();
+  for (int b : fallback_set) {
+    if (std::find(candidates.begin(), candidates.end(), b) ==
+        candidates.end()) {
+      candidates.push_back(b);
+    }
+  }
+  for (int b : action_path.back().node->do_first_.boards) {
+    if (std::find(candidates.begin(), candidates.end(), b) ==
+        candidates.end()) {
+      candidates.push_back(b);
+    }
+  }
+
+  int chosen_board = -1;
+  std::vector<std::pair<std::string, int>> chosen_tricks;
+  for (int b : candidates) {
+    std::vector<std::pair<std::string, int>> tricks;
+    tricks.reserve(action_path.size());
+    bool all_found = true;
+    for (const ActionStep &step_info : action_path) {
+      auto t = get_trick_for_board(step_info, b);
+      if (t.first.empty()) {
+        all_found = false;
+        break;
+      }
+      tricks.push_back(std::move(t));
+    }
+    if (all_found) {
+      chosen_board = b;
+      chosen_tricks = std::move(tricks);
+      break;
+    }
+  }
+
+  if (chosen_board < 0 || chosen_tricks.empty()) {
+    return "";
+  }
+
+  std::string out =
+      "Example Play (Board " + std::to_string(chosen_board) + "):\n";
+  for (size_t i = 0; i < chosen_tricks.size(); ++i) {
+    out += FormatTrickLine(i + 1, action_path[i].node->do_first_.leader,
+                           chosen_tricks[i].first, chosen_tricks[i].second,
+                           trump);
+  }
+  return out;
 }
 
 std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
@@ -143,6 +452,14 @@ std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
     }
     if (has_summary()) {
       ans += summary_.ToString();
+    }
+    std::string example = ExamplePlay(true);
+    if (!example.empty()) {
+      ans += example;
+    }
+    std::string failed_example = ExamplePlay(false);
+    if (!failed_example.empty()) {
+      ans += failed_example;
     }
   }
   if (!do_first_.Empty()) {

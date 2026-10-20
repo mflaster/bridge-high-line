@@ -1128,3 +1128,76 @@ TEST(ConditionalLineTest, PlayerDiscardedConditionEvaluateAndResults) {
   EXPECT_TRUE(cond_not_e_c.EvaluateState(bs_follow));
 }
 
+TEST(ConditionalLineTest, ExamplePlayFollowsMostCommonBranch) {
+  GeneralizedDemiStruct d1_t1("S_", "S3", {0, 1, 2});
+  GeneralizedDemiStruct d2_t1("S_", "SQ", {0, 1, 2});
+  d2_t1.board_to_trick = {
+      {0, "S3 S7 SQ SK"},
+      {1, "S3 S7 SQ S8"},
+      {2, "S3 S9 SQ S7"},
+  };
+  GeneralizedTrick gt1(d1_t1, d2_t1, {0, 1, 2}, 0);
+
+  // Branch A: 3 wins (1 board: {0})
+  GeneralizedDemiStruct d1_a("S_", "SA", {0});
+  GeneralizedDemiStruct d2_a("S_", "S2", {0});
+  d2_a.board_to_trick = {{0, "S8 SA S9 S2"}};
+  ConditionalLine branch_a;
+  branch_a.SetAction(GeneralizedTrick(d1_a, d2_a, {0}, 3));
+  branch_a.AddCondition(new WinnerPlayCondition(0), ConditionalLine({0}));
+
+  // Branch B: 2 wins (2 boards: {1, 2}) -> most common branch
+  GeneralizedDemiStruct d1_b("S_", "SA", {1, 2});
+  GeneralizedDemiStruct d2_b("S_", "S2", {1, 2});
+  d2_b.board_to_trick = {
+      {1, "SA S9 S2 SK"},
+      {2, "SA S8 S2 SK"},
+  };
+  ConditionalLine branch_b;
+  branch_b.SetAction(GeneralizedTrick(d1_b, d2_b, {1, 2}, 2));
+  branch_b.AddCondition(new WinnerPlayCondition(2), ConditionalLine({1, 2}));
+
+  ConditionalLine root;
+  root.SetAction(gt1);
+  root.AddCondition(new WinnerPlayCondition(3), branch_a);
+  root.AddCondition(new WinnerPlayCondition(2), branch_b);
+
+  EXPECT_EQ(root.ExamplePlay(true),
+            "Example Play (Board 1):\n"
+            "  #1 (N) S3 S7 SQ* S8\n"
+            "  #2 (S) SA* S9 S2 SK\n");
+  EXPECT_EQ(root.ExamplePlay(false), "");
+
+  // Populate failure traces: 1 board (3) fails when E wins SK at Trick #1,
+  // and 2 boards (4, 5) fail when W wins SK at Trick #1.
+  std::map<int, ConditionalLine::BoardPlayTrace> traces;
+  ConditionalLine::PlayedTrickStep step3;
+  step3.leader = 0;
+  step3.trick_str = "S3 SK SQ S7";
+  step3.winner = 1;
+  step3.winning_card = "SK";
+  step3.node = &root;
+  traces[3] = ConditionalLine::BoardPlayTrace{3, {step3}, 1, nullptr};
+  root.set_board_traces(traces);
+  // With only 1 failure board, ExamplePlay(false) returns empty string.
+  EXPECT_EQ(root.ExamplePlay(false), "");
+
+  ConditionalLine::PlayedTrickStep step4;
+  step4.leader = 0;
+  step4.trick_str = "S3 S7 SQ SK";
+  step4.winner = 3;
+  step4.winning_card = "SK";
+  step4.node = &root;
+  traces[4] = ConditionalLine::BoardPlayTrace{4, {step4}, 1, nullptr};
+
+  ConditionalLine::PlayedTrickStep step5 = step4;
+  step5.trick_str = "S3 S8 SQ SK";
+  traces[5] = ConditionalLine::BoardPlayTrace{5, {step5}, 1, nullptr};
+  root.set_board_traces(traces);
+
+  EXPECT_EQ(root.ExamplePlay(false),
+            "Example Failed Play (Board 4):\n"
+            "  #1 (N) S3 S7 SQ SK*\n");
+}
+
+

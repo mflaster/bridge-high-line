@@ -754,6 +754,21 @@ void PopulateDealSummaries(const std::vector<BoardState> &boards,
     line.set_min_tricks(min_tricks);
     if (!boards.empty()) {
       line.set_sample_board(boards[0]);
+      std::map<int, ConditionalLine::BoardPlayTrace> traces =
+          line.board_traces();
+      ConditionalLine::DefenderCardsCache def_cache;
+      bool traces_updated = false;
+      for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
+        if (traces.find(b_idx) == traces.end()) {
+          traces.emplace(b_idx, line.SimulateBoard(boards[b_idx], b_idx,
+                                                   line.has_rescored_boards(),
+                                                   &def_cache));
+          traces_updated = true;
+        }
+      }
+      if (traces_updated) {
+        line.set_board_traces(std::move(traces));
+      }
     }
     std::set<int> covered = line.CoveredBoardsSet();
     std::vector<PairedDeal> covered_deals;

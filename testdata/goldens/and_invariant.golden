@@ -12,6 +12,16 @@ Total Deals: 4
 Invariant Rules for 5 card ending:
   - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
   - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
+Example Play (Board 1):
+  #1 (N) S2 S4 SQ* S6
+  #2 (S) D4 H4 DA* S5
+  #3 (N) H2 HK HA* H5
+  #4 (S) SA* H6 S3 S7
+  #5 (S) HQ* H7 H3 SK
+Example Failed Play (Board 0):
+  #1 (N) S2 S4 SQ* S5
+  #2 (S) D4 H4 DA* H5
+  #3 (N) H2 H6 HQ HK*
 
   after S2 (S_) SQ (S_): S2 (S_) SQ (S_) [1,3,4,6] / S2 S4 SQ S6 / S2 S7 SQ S4 / S2 S6 SQ S4 / S2 S6 SQ S4
     when 2 wins the SQ: 
@@ -37,6 +47,14 @@ Total Deals: 4
 Invariant Rules for 5 card ending:
   - AndInvariant(E has the HK, E has the SK) (holds: 40%, success when holds: 100%)
   - hand 1 always contains the HK (holds: 50%, success when holds: 80%)
+Example Play (Board 3):
+  #1 (N) H2 H5 HQ* H4
+  #2 (S) HA* H7 H3 H6
+  #3 (S) D4 S4 DA* HK
+  #4 (N) S2 S7 SQ* S5
+  #5 (S) SA* S6 S3 SK
+Example Failed Play (Board 0):
+  #1 (N) H2 H5 HQ HK*
 
   after H2 (HK) HA (H_): H2 (HK) HA (H_) [1] / H2 HK HA H4
     when 2 wins the HA: 

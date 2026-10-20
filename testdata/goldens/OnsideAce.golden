@@ -10,6 +10,17 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 20
 Invariant Rules for 7 card ending:
   - hand 1 always contains the DA (holds: 38%, success when holds: 100%)
+Example Play (Board 15):
+  #1 (S) C4 C7 C9* D8
+  #2 (N) D9 DT DK* D7
+  #3 (S) D4 DJ D3 DA*
+  #4 (E) H8 CT* H7 H2
+  #5 (S) CJ* DQ S3 S5
+  #6 (S) CQ* S4 S7 S8
+  #7 (S) C6* ST SK SA
+Example Failed Play (Board 0):
+  #1 (S) C4 H7 C9* C7
+  #2 (N) D9 D7 DK DA*
 
   after C4 (__) C9 (__): C4 (__) C9 (__) [3,4,9,15,18,19,20,21,24,25,32,33,34,37,38,41,44,46,47,51] / C4 C7 C9 S4 / C4 S5 C9 C7 / C4 D8 C9 C7 / C4 C7 C9 D8 / C4 C7 C9 D7
     when 0 wins the C9: 
