@@ -12,13 +12,18 @@ Total Deals: 7
 Invariant Rules for 7 card ending:
   - OrInvariant(E has the HK, E has the SK) (holds: 70%, success when holds: 100%)
 Example Play (Board 1):
-  #1: ST S4 S3 S5
-  #2: SJ S9 S2 S6
-  #3: SQ SK SA S7
-  #4: HA H7 HT H4
-  #5: H3 H8 HJ HK
-  #6: H5 H2 H9 HQ
-  #7: DA H6 D4 S8
+  #1 (N) ST* S4 S3 S5
+  #2 (N) SJ* S9 S2 S6
+  #3 (N) SQ SK SA* S7
+  #4 (S) HA* H7 HT H4
+  #5 (S) H3 H8 HJ HK*
+  #6 (E) H5 H2 H9 HQ*
+  #7 (N) DA* H6 D4 S8
+Example Failed Play (Board 3):
+  #1 (N) ST S4 S3 SK*
+  #2 (W) S7 SJ S5 SA*
+  #3 (S) S2 S9 SQ* S6
+  #4 (N) HT H4 H3 HK*
 
   after ST (S_) S3 (S_): ST (S_) S3 (S_) [0,1,2,4,5,6,9] / ST S4 S3 SK / ST S4 S3 S5 / ST S4 S3 S6 / ST S4 S3 S5 / ST S4 S3 SK
     if 0 wins the ST: 
@@ -86,13 +91,18 @@ Total Deals: 7
 Invariant Rules for 7 card ending:
   - OrInvariant(E has the HK, E has the SK) (holds: 70%, success when holds: 100%)
 Example Play (Board 0):
-  #1: HT H4 H3 H5
-  #2: ST S4 SA S5
-  #3: S3 S7 SJ S6
-  #4: SQ S8 S2 SK
-  #5: S9 HJ H7 D4
-  #6: HA H6 HQ H8
-  #7: H2 H9 DA HK
+  #1 (N) HT* H4 H3 H5
+  #2 (N) ST S4 SA* S5
+  #3 (S) S3 S7 SJ* S6
+  #4 (N) SQ S8 S2 SK*
+  #5 (W) S9 HJ H7 D4*
+  #6 (S) HA* H6 HQ H8
+  #7 (S) H2 H9 DA* HK
+Example Failed Play (Board 3):
+  #1 (N) HT H4 H3 HK*
+  #2 (W) H5 HJ H6 HA*
+  #3 (S) H2 H7 HQ* H9
+  #4 (N) ST S4 S3 SK*
 
   after HT (H_) H3 (H_): HT (H_) H3 (H_) [0,1,2,4,5,6,9] / HT H4 H3 H5 / HT H4 H3 H7 / HT H5 H3 HK / HT H5 H3 H4 / HT H4 H3 H6
     if 0 wins the HT: 
@@ -161,13 +171,19 @@ Total Deals: 7
 Invariant Rules for 7 card ending:
   - OrInvariant(E has the HK, E has the SK) (holds: 70%, success when holds: 100%)
 Example Play (Board 1):
-  #1: DA H4 D4 S5
-  #2: ST S4 S3 S6
-  #3: SJ S9 S2 S7
-  #4: HT H5 HA H7
-  #5: H3 H8 HJ HK
-  #6: SK SA S8 SQ
-  #7: H2 H9 HQ H6
+  #1 (N) DA* H4 D4 S5
+  #2 (N) ST* S4 S3 S6
+  #3 (N) SJ* S9 S2 S7
+  #4 (N) HT H5 HA* H7
+  #5 (S) H3 H8 HJ HK*
+  #6 (E) SK SA* S8 SQ
+  #7 (S) H2 H9 HQ* H6
+Example Failed Play (Board 3):
+  #1 (N) DA* S4 D4 H5
+  #2 (N) ST S5 S3 SK*
+  #3 (W) S7 SJ S6 SA*
+  #4 (S) S2 S9 SQ* S8
+  #5 (N) HT H4 H3 HK*
 
   after DA (__) D4 (__): DA (__) D4 (__) [0,1,2,4,5,6,9] / DA H4 D4 S5 / DA H4 D4 S5 / DA S4 D4 H4 / DA H5 D4 S5 / DA H4 D4 S5
     when 0 wins the DA: 

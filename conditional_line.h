@@ -231,8 +231,9 @@ class ConditionalLine {  // ConditionalLineBranch
   std::string Describe(int lvl = 0, bool sort_branches = false) const;
 
   // Formats a 1-line-per-trick concrete example play for a board on the most
-  // common branch of the decision tree.
-  std::string ExamplePlay() const;
+  // common successful (or unsuccessful, when success is false and > 1 failure
+  // boards exist) branch of the decision tree.
+  std::string ExamplePlay(bool success = true) const;
 
   // Returns the number of conditional branches out of this node.
   int num_conditions() const { return conditions_.size(); }

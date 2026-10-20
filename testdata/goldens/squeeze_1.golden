@@ -11,12 +11,19 @@ Total Deals: 11
 Invariant Rules for 6 card ending:
   - the hand with the HA also has at most 2 H (holds: 18%, success when holds: 100%)
 Example Play (Board 4):
-  #1: DQ H8 D4 S7
-  #2: DK HT D3 H9
-  #3: DA HQ D2 HA
-  #4: S4 S8 SK S9
-  #5: HK SQ S3 HJ
-  #6: S2 SJ SA ST
+  #1 (N) DQ* H8 D4 S7
+  #2 (N) DK* HT D3 H9
+  #3 (N) DA* HQ D2 HA
+  #4 (N) S4 S8 SK* S9
+  #5 (S) HK* SQ S3 HJ
+  #6 (S) S2 SJ SA* ST
+Example Failed Play (Board 0):
+  #1 (N) DQ* H9 D4 H8
+  #2 (N) DK* HQ D3 HT
+  #3 (N) DA* S7 D2 HJ
+  #4 (N) S4 S9 SK* S8
+  #5 (S) S2 ST SA* SJ
+  #6 (N) S3 HA HK SQ*
 
   after DQ (__) D4 (__): DQ (__) D4 (__) [4,5,14,19,21,27,35,45,47,49,53] / DQ H8 D4 S7 / DQ H8 D4 S7 / DQ HT D4 S8 / DQ S7 D4 H9 / DQ H8 D4 SJ
     when 0 wins the DQ: 
