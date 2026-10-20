@@ -1336,6 +1336,76 @@ TEST(ServerTest, WebServerSolveJsonNineCardHeartsNoFalseFailureNodes) {
 
   verify_node(res["tree"]);
   EXPECT_EQ(failure_leaf_boards, res["failure_boards"].get<int>());
+
+  // Verify Trick 1 children have winner conditions ("if ... wins ...") rather
+  // than raw trick strings like "(D_) DA (D_) D3", and "if S wins the CJ" has
+  // a single collapsed CK -> CA line without splitting on equivalent spot cards
+  // S5/S3/S2.
+  const auto &root_children = res["tree"]["children"];
+  ASSERT_FALSE(root_children.empty());
+  for (const auto &t1 : root_children) {
+    if (!t1.contains("children") || t1["children"].size() <= 1) continue;
+    for (const auto &branch : t1["children"]) {
+      std::string b_cond = branch.value("condition", "");
+      EXPECT_NE(b_cond.find("wins"), std::string::npos)
+          << "Expected winner condition under " << t1.value("label", "")
+          << ", got: " << b_cond;
+      if (b_cond == "if S wins the CJ") {
+        // Because Trick 2 is collapsed directly into the 'if S wins the CJ'
+        // node rather than splitting into S3 vs S5 spot-card variants,
+        // branch itself is the #2 trick node (not an '<Card> is led' container).
+        std::string b_label = branch.value("label", "");
+        EXPECT_EQ(b_label.rfind("#2: ", 0), 0u)
+            << "Expected single collapsed #2 node under 'if S wins the CJ'"
+            << ", got: " << b_label;
+      }
+    }
+  }
 }
 
+TEST(ServerTest,
+     CollapseRedundantNodesPreservesConditionWhenChildConditionIsRedundant) {
+  std::set<int> b0 = {0};
+  std::set<int> b1 = {1};
+  ConditionalLine leaf0(b0);
+  ConditionalLine leaf1(b1);
+
+  // Under "if E wins the CQ", a container ConditionalLine has a single
+  // TrickPlayCondition("(D_) DA (D_) D3") child.
+  ConditionalLine trick2_e;
+  trick2_e.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("D_", "DA", b0),
+      GeneralizedDemiStruct("D_", "D3", b0), b0, /*ldr=*/1));
+  trick2_e.AddCondition(new WinnerPlayCondition(2), leaf0);
+
+  ConditionalLine e_wins_container;
+  e_wins_container.AddCondition(
+      new TrickPlayCondition("(D_) DA (D_) D3"), trick2_e);
+
+  ConditionalLine trick2_s;
+  trick2_s.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "CK", b1),
+      GeneralizedDemiStruct("C_", "S2", b1), b1, /*ldr=*/2));
+  trick2_s.AddCondition(new WinnerPlayCondition(2), leaf1);
+
+  ConditionalLine trick1;
+  trick1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("C_", "C6", {0, 1}),
+      GeneralizedDemiStruct("__", "CJ", {0, 1}), {0, 1}, /*ldr=*/0));
+  trick1.AddCondition(
+      new WinnerPlayCondition(1, std::vector<std::string>{"CQ"}),
+      e_wins_container);
+  trick1.AddCondition(
+      new WinnerPlayCondition(2, std::vector<std::string>{"CJ"}),
+      trick2_s);
+
+  int node_id = 0;
+  auto tree = BuildTreeFromConditionalLine(trick1, node_id);
+  ASSERT_NE(tree, nullptr);
+  ASSERT_EQ(tree->children.size(), 2u);
+  EXPECT_EQ(tree->children[0]->label, "#2: (D_) DA (D_) D3");
+  EXPECT_EQ(tree->children[0]->condition, "if E wins the CQ");
+  EXPECT_EQ(tree->children[1]->label, "#2: CK (__) S2 (C_)");
+  EXPECT_EQ(tree->children[1]->condition, "if S wins the CJ");
+}
 

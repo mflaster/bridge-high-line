@@ -3,6 +3,7 @@
 #include "interface_dds.h"
 
 #include <algorithm>
+#include <functional>
 #include <iomanip>
 #include <sstream>
 #include <tuple>
@@ -34,6 +35,19 @@ bool IsCardGoodCondition::Evaluate(const BoardState &bs) const {
   uint16_t opp_suit = (opp_cards >> (suit * 16)) & 0xffff;
   uint16_t higher_mask = ~((1U << (val + 1)) - 1) & 0x1fff;
   return (opp_suit & higher_mask) == 0;
+}
+
+std::string PlayerDiscardedCondition::Describe(bool only_choice) const {
+  std::string prefix = only_choice ? "when " : "if ";
+  std::string dir = PlayerDirectionDebugString(player_);
+  std::string seat = dir.empty() ? std::to_string(player_) : dir.substr(0, 1);
+  return prefix + seat +
+         (discarded_ ? " discarded on " : " did not discard on ") +
+         SuitDebugString(suit_);
+}
+
+bool PlayerDiscardedCondition::Evaluate(const BoardState &bs) const {
+  return bs.HasPlayerDiscardedOnSuit(player_, suit_);
 }
 
 static std::set<int> CoveredFinalBoardsSetHelper(const ConditionalLine *line_ptr, std::set<const ConditionalLine*> &visited) {
@@ -491,35 +505,72 @@ std::string ConditionalLine::Describe(int lvl, bool sort_branches) const {
   return ans;
 }
 
+int PatternRankVal(char r) {
+  if (r >= '2' && r <= '9') return r - '2';
+  switch (r) {
+    case 'T': return 8;
+    case 'J': return 9;
+    case 'Q': return 10;
+    case 'K': return 11;
+    case 'A': return 12;
+    default: return -1;
+  }
+}
+
+uint16_t InSuitPatternRankMask(const std::string &c) {
+  if (c.size() == 2) {
+    char r = c[1];
+    if (r == '_') return 0x1fff;
+    if (r == 'x') return 0x00ff;
+    if (r == 'X') return 0x1f00;
+    int rv = PatternRankVal(r);
+    return (rv >= 0) ? static_cast<uint16_t>(1u << rv) : 0;
+  }
+  if (c.size() == 3 && c[1] == '<') {
+    int rv = PatternRankVal(c[2]);
+    if (rv > 0) {
+      return static_cast<uint16_t>((1u << rv) - 1u);
+    }
+  }
+  return 0;
+}
+
+int PatternSpecificity(const std::string &pattern) {
+  if (pattern == "__") return 1;
+  if (pattern == "R_") return 2;
+  if (pattern.size() == 2) {
+    if (pattern[1] == '_') return 3;
+    if (pattern[1] == 'x' || pattern[1] == 'X') return 8;
+    return 9;
+  }
+  if (pattern.size() == 3 && pattern[1] == '<') {
+    int rv = PatternRankVal(pattern[2]);
+    // 'A' (12) -> 4, 'K' (11) -> 5, 'Q' (10) -> 6, 'J' (9) -> 7.
+    if (rv >= 9 && rv <= 12) return 16 - rv;
+  }
+  return 0;
+}
+
 // Returns true if the card patterns can cover the same card.
 bool CardsAreRedundant(const std::string &c1, const std::string &c2) {
-  // First check suit
-  bool suit_redundant = (c1[0] == c2[0] || c1[0] == '_' || c2[0] == '_');
+  if (c1.size() < 2 || c2.size() < 2) {
+    return c1 == c2;
+  }
   // 'R' is only redundant with another discard.
   if (c1[0] == 'R' || c2[0] == 'R') {
-    suit_redundant = (c1[0] == c2[0]);
+    return c1[0] == c2[0];
   }
-  if (!suit_redundant) {
+  if (c1 == "__" || c2 == "__") {
+    return true;
+  }
+  if (c1[0] != c2[0] && c1[0] != '_' && c2[0] != '_') {
     return false;
   }
-  bool card_redundant = (c1[1] == c2[1] || c1[1] == '_' || c2[1] == '_');
-  if (card_redundant) {
-    return true;
-  }
-  // Have to check x / X too.
-  if ((c1[1] == 'x' && isdigit(c2[1])) ||
-      (c2[1] == 'x' && isdigit(c1[1]))) {
-    return true;
-  }
-  if ((c1[1] == 'X' && !isdigit(c2[1])) ||
-      (c2[1] == 'X' && !isdigit(c1[1]))) {
-    return true;
-  }
-  return false;
+  return (InSuitPatternRankMask(c1) & InSuitPatternRankMask(c2)) != 0;
 }
 
 Suit GetSuitOfCard(const std::string &c) {
-  CHECK_EQ(2, c.size()) << c;
+  CHECK(c.size() == 2 || (c.size() == 3 && c[1] == '<')) << c;
   if (c[0] == '_') {
     return NOTRUMP;
   }
@@ -529,7 +580,8 @@ Suit GetSuitOfCard(const std::string &c) {
 #define CONSIDER_DISCARDS 1
 
 std::vector<std::string> GeneralizeOppCard(const std::string &card,
-                                           Suit suit_led, Suit trump) {
+                                           Suit suit_led, Suit trump,
+                                           uint8_t upper_honor_mask = 0x0f) {
   VLOG(2) << "GeneralizeOppCard on " << card;
   if (card.empty()) {
     return std::vector<std::string>({card});
@@ -552,6 +604,19 @@ std::vector<std::string> GeneralizeOppCard(const std::string &card,
     }
     cards.push_back(honor_or_not);
 
+    int rv = PatternRankVal(card[1]);
+    static constexpr std::pair<char, int> kUpperHonors[] = {
+        {'A', 12}, {'K', 11}, {'Q', 10}, {'J', 9}};
+    for (const auto &[h_ch, h_rv] : kUpperHonors) {
+      if ((upper_honor_mask & (1u << (h_rv - 9))) != 0 &&
+          rv >= 0 && rv < h_rv) {
+        std::string lt_pat(1, card[0]);
+        lt_pat += '<';
+        lt_pat += h_ch;
+        cards.push_back(std::move(lt_pat));
+      }
+    }
+
     std::string suited = card;
     suited[1] = '_';
     cards.push_back(suited);
@@ -569,28 +634,24 @@ bool GeneralizesTo(const std::string& actual_card,
   if (actual_card.empty()) {
     return gen_card.empty();
   }
-  if (gen_card.size() != 2 || actual_card.size() < 2) {
+  if ((gen_card.size() != 2 &&
+       !(gen_card.size() == 3 && gen_card[1] == '<')) ||
+      actual_card.size() < 2) {
     return false;
   }
   char actual_suit = actual_card[0];
-  char actual_rank = actual_card[1];
   char gen_suit = gen_card[0];
-  char gen_rank = gen_card[1];
-  if (gen_suit == '_' && gen_rank == '_') {
+  if (gen_card == "__") {
     return true;
   }
   Suit card_suit = GetSuitOfCard(actual_card);
   bool is_discard =
       (suit_led != NOTRUMP && card_suit != suit_led && card_suit != trump);
   if (!is_discard && gen_suit == actual_suit) {
-    if (gen_rank == '_') return true;
-    if (isdigit(actual_rank)) {
-      return gen_rank == 'x';
-    } else {
-      return gen_rank == 'X' || gen_rank == actual_rank;
-    }
+    return (InSuitPatternRankMask(actual_card) &
+            InSuitPatternRankMask(gen_card)) != 0;
   }
-  if (gen_suit == 'R' && gen_rank == '_') {
+  if (gen_card == "R_") {
     return CONSIDER_DISCARDS && is_discard;
   }
   return false;
@@ -607,7 +668,28 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
     std::string opp_card;
     std::string my_card;
     std::vector<int> boards;
+    uint16_t rank_mask = 0;
   };
+  uint8_t honors_by_suit[4] = {0, 0, 0, 0};
+  for (const RawPlayBucket &b : buckets_) {
+    if (b.opp_card.size() < 2) continue;
+    Suit suit_led =
+        has_by_suit_
+            ? b.suit_led
+            : (known_suit_led != NOTRUMP
+                   ? known_suit_led
+                   : (leader % 2 == 0 ? GetSuitOfCard(b.my_card)
+                                      : GetSuitOfCard(b.opp_card)));
+    Suit cs = GetSuitOfCard(b.opp_card);
+    bool is_discard =
+        (suit_led != NOTRUMP && cs != suit_led && cs != trump_suit_);
+    if (!is_discard && cs >= 0 && cs < 4) {
+      int rv = PatternRankVal(b.opp_card[1]);
+      if (rv >= 9 && rv <= 12) {
+        honors_by_suit[cs] |= static_cast<uint8_t>(1u << (rv - 9));
+      }
+    }
+  }
   std::vector<GenBucket> generalized;
   generalized.reserve(buckets_.size() * 3);
   for (const RawPlayBucket &b : buckets_) {
@@ -618,25 +700,52 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
                    ? known_suit_led
                    : (leader % 2 == 0 ? GetSuitOfCard(b.my_card)
                                       : GetSuitOfCard(b.opp_card)));
+    Suit cs = b.opp_card.size() >= 2 ? GetSuitOfCard(b.opp_card) : NOTRUMP;
+    bool is_discard =
+        (suit_led != NOTRUMP && cs != suit_led && cs != trump_suit_);
+    uint16_t b_rank_mask =
+        (b.opp_card.size() >= 2 && !is_discard)
+            ? InSuitPatternRankMask(b.opp_card)
+            : 0;
+    uint8_t h_mask = (cs >= 0 && cs < 4) ? honors_by_suit[cs] : 0;
     auto opp_card_choices =
-        GeneralizeOppCard(b.opp_card, suit_led, trump_suit_);
+        GeneralizeOppCard(b.opp_card, suit_led, trump_suit_, h_mask);
     for (const auto &choice : opp_card_choices) {
-      std::vector<int> *dest = nullptr;
+      GenBucket *dest = nullptr;
       for (GenBucket &gb : generalized) {
         if (gb.opp_card == choice && gb.my_card == b.my_card) {
-          dest = &gb.boards;
+          dest = &gb;
           break;
         }
       }
       if (dest == nullptr) {
-        generalized.push_back(GenBucket{choice, b.my_card, b.boards});
+        generalized.push_back(
+            GenBucket{choice, b.my_card, b.boards, b_rank_mask});
       } else {
-        dest->insert(dest->end(), b.boards.begin(), b.boards.end());
+        dest->boards.insert(dest->boards.end(), b.boards.begin(),
+                            b.boards.end());
+        dest->rank_mask |= b_rank_mask;
       }
     }
   }
+  generalized.erase(
+      std::remove_if(generalized.begin(), generalized.end(),
+                     [](const GenBucket &gb) {
+                       return gb.opp_card.size() == 3 &&
+                              ((gb.rank_mask & 0x00ff) == 0 ||
+                               (gb.rank_mask & 0x0f00) == 0);
+                     }),
+      generalized.end());
   std::sort(generalized.begin(), generalized.end(),
             [](const GenBucket &a, const GenBucket &b) {
+              if (a.opp_card.size() != b.opp_card.size()) {
+                return a.opp_card.size() < b.opp_card.size();
+              }
+              if (a.opp_card.size() == 3 && a.opp_card[0] == b.opp_card[0]) {
+                int ra = PatternRankVal(a.opp_card[2]);
+                int rb = PatternRankVal(b.opp_card[2]);
+                if (ra != rb) return ra > rb;
+              }
               if (a.opp_card != b.opp_card) return a.opp_card < b.opp_card;
               return a.my_card < b.my_card;
             });
@@ -668,7 +777,10 @@ GeneralizedPlaysVector GeneralizedDemiPlay::GetGeneralizedPlays(
     bool redundant = false;
     for (size_t k = count_group_start; k < ans.size(); ++k) {
       if (ans[k].my_card == gb.my_card &&
-          CardsAreRedundant(ans[k].opp_card, gb.opp_card) &&
+          (CardsAreRedundant(ans[k].opp_card, gb.opp_card) ||
+           (ans[k].opp_card.size() == 2 && gb.opp_card.size() == 2 &&
+            ans[k].opp_card[0] == gb.opp_card[0] &&
+            ans[k].opp_card[1] == 'X' && gb.opp_card[1] == 'x')) &&
           ans[k].boards_vec == boards_vec) {
         redundant = true;
         break;
@@ -805,6 +917,11 @@ void GeneralizedTrickFinder::RecordOptimalTrick(
       cur_win_val = v;
       win_idx = c;
     }
+    if (c > 0 && s != rt.suit_led && s != trump_suit_) {
+      int seat = (leader + c) % 4;
+      rt.discard_mask |= static_cast<uint16_t>(
+          1u << (seat * 4 + static_cast<int>(rt.suit_led)));
+    }
   }
   rt.trick_mask = mask;
   rt.winner = static_cast<uint8_t>((leader + win_idx) % 4);
@@ -840,6 +957,21 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
       raw_d1_to_tricks.push_back(RawD1Bucket{opp1, my1, {i}});
     }
   }
+  uint8_t d1_honors_by_suit[4] = {0, 0, 0, 0};
+  for (const auto &rb : raw_d1_to_tricks) {
+    if (rb.opp1.size() < 2) continue;
+    Suit suit_led =
+        (leader_ % 2 == 0) ? GetSuitOfCard(rb.my1) : GetSuitOfCard(rb.opp1);
+    Suit cs = GetSuitOfCard(rb.opp1);
+    bool is_discard =
+        (suit_led != NOTRUMP && cs != suit_led && cs != trump_suit_);
+    if (!is_discard && cs >= 0 && cs < 4) {
+      int rv = PatternRankVal(rb.opp1[1]);
+      if (rv >= 9 && rv <= 12) {
+        d1_honors_by_suit[cs] |= static_cast<uint8_t>(1u << (rv - 9));
+      }
+    }
+  }
   struct GenD1Bucket {
     std::string opp1;
     std::string my1;
@@ -850,7 +982,10 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
   for (const auto &rb : raw_d1_to_tricks) {
     Suit suit_led =
         (leader_ % 2 == 0) ? GetSuitOfCard(rb.my1) : GetSuitOfCard(rb.opp1);
-    auto opp1_choices = GeneralizeOppCard(rb.opp1, suit_led, trump_suit_);
+    Suit cs = rb.opp1.size() >= 2 ? GetSuitOfCard(rb.opp1) : NOTRUMP;
+    uint8_t h_mask = (cs >= 0 && cs < 4) ? d1_honors_by_suit[cs] : 0;
+    auto opp1_choices =
+        GeneralizeOppCard(rb.opp1, suit_led, trump_suit_, h_mask);
     for (const auto &choice : opp1_choices) {
       std::vector<unsigned int> *dest = nullptr;
       for (GenD1Bucket &gb : d1_to_tricks) {
@@ -974,7 +1109,31 @@ GeneralizedTricksVector GeneralizedTrickFinder::GetGeneralizedTricks(
                                   /*populate_boards_set=*/false);
     const auto &demi2_plays = all_demi2_plays[d1_idx];
     for (size_t d2_idx = 0; d2_idx < demi2_plays.size(); ++d2_idx) {
-      int inter_count = static_cast<int>(demi2_plays[d2_idx].boards_vec.size());
+      const auto &d2 = demi2_plays[d2_idx];
+      if (leader_ % 2 == 0 && d2.opp_card.size() == 3) {
+        continue;
+      }
+      int inter_count = static_cast<int>(d2.boards_vec.size());
+      if (inter_count > 0 && d1.opp_card.size() == 3 && tricks_vec != nullptr) {
+        uint16_t opp1_mask = 0;
+        for (unsigned int i : *tricks_vec) {
+          const RecordedTrick &rt = tricks_[i];
+          const std::string &my2 =
+              (leader_ % 2 == 0) ? rt.cards[2] : rt.cards[3];
+          if (my2 != d2.my_card) continue;
+          const std::string &opp2 =
+              (leader_ % 2 == 0) ? rt.cards[3] : rt.cards[2];
+          if (!GeneralizesTo(opp2, d2.opp_card, rt.suit_led, trump_suit_)) {
+            continue;
+          }
+          const std::string &opp1 =
+              (leader_ % 2 == 0) ? rt.cards[1] : rt.cards[0];
+          opp1_mask |= InSuitPatternRankMask(opp1);
+        }
+        if ((opp1_mask & 0x00ff) == 0 || (opp1_mask & 0x0f00) == 0) {
+          continue;
+        }
+      }
       if (inter_count > 0) {
         sorted.push_back(TrickPairCand{inter_count, d1_idx, d2_idx});
         if (inter_count <= max_d1_size) {
@@ -1116,6 +1275,7 @@ GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
         entry.win_card[0] = wc.size() > 0 ? wc[0] : '\0';
         entry.win_card[1] = wc.size() > 1 ? wc[1] : '\0';
         entry.win_card[2] = '\0';
+        entry.discard_mask = rt.discard_mask;
         entry.trick_mask = rt.trick_mask;
         entry.trick_str = raw_tricks_[i];
         gt.board_entries.push_back(std::move(entry));
@@ -1221,52 +1381,24 @@ bool AnyIntersection(const set<int> &b1, const set<int> &b2) {
   return false;
 }
 
-int PatternSpecificity(const std::string &pattern) {
-  if (pattern.size() != 2) return 0;
-  if (pattern == "__") return 1;
-  if (pattern == "R_") return 2;
-  if (pattern[1] == '_') return 3;
-  if (pattern[1] == 'x' || pattern[1] == 'X') return 4;
-  return 5;
-}
-
-int PatternCharBit(char c) {
-  switch (c) {
-    case '_': return 0;
-    case 'x': return 1;
-    case 'X': return 2;
-    case 'T': return 3;
-    case 'J': return 4;
-    case 'Q': return 5;
-    case 'K': return 6;
-    case 'A': return 7;
-    default:
-      if (c >= '2' && c <= '9') return 8 + (c - '2');
-      return -1;
-  }
-}
-
 struct TrickOppPatternMask {
   bool computed = false;
   bool always_true = false;
   bool has_any = false;
   bool has_discard = false;
-  uint32_t suit_mask[4] = {0, 0, 0, 0};
+  uint16_t suit_mask[4] = {0, 0, 0, 0};
 
   bool Matches(const std::string &specific_pattern) const {
     if (always_true) return true;
-    if (specific_pattern.size() != 2) return false;
-    char gen_suit = specific_pattern[0];
-    char gen_rank = specific_pattern[1];
-    if (gen_suit == '_' && gen_rank == '_') return has_any;
-    if (gen_suit == 'R' && gen_rank == '_') {
+    if (specific_pattern == "__") return has_any;
+    if (specific_pattern == "R_") {
       return CONSIDER_DISCARDS && has_discard;
     }
-    Suit s = Card::ParseSuit(gen_suit);
+    if (specific_pattern.size() < 2) return false;
+    Suit s = Card::ParseSuit(specific_pattern[0]);
     if (s < 0 || s >= 4) return false;
-    int bit = PatternCharBit(gen_rank);
-    if (bit < 0) return false;
-    return (suit_mask[s] & (1u << bit)) != 0;
+    uint16_t pat_mask = InSuitPatternRankMask(specific_pattern);
+    return (suit_mask[s] & pat_mask) != 0;
   }
 };
 
@@ -1306,16 +1438,9 @@ bool AccumulateTrickStringIntoMask(const std::string &t_str, int opp_pos,
   if (is_discard) {
     mask->has_discard = true;
   } else if (card_suit >= 0 && card_suit < 4) {
-    uint32_t &sm = mask->suit_mask[card_suit];
-    sm |= (1u << 0);  // '_'
-    if (isdigit(opp_rank)) {
-      sm |= (1u << 1);  // 'x'
-    } else {
-      sm |= (1u << 2);  // 'X'
-      int bit = PatternCharBit(opp_rank);
-      if (bit >= 0) {
-        sm |= (1u << bit);
-      }
+    int rv = PatternRankVal(opp_rank);
+    if (rv >= 0) {
+      mask->suit_mask[card_suit] |= static_cast<uint16_t>(1u << rv);
     }
   }
   return true;
@@ -1370,11 +1495,6 @@ bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
   if (trick1.leader % 2 == 0) {
     return false;
   }
-  if (opp1[0] == opp2[0] &&
-      ((opp1[1] == 'X' && opp2[1] == 'x') ||
-        (opp1[1] == 'x' && opp2[1] == 'X'))) {
-    return true;
-  }
   if (opp1 == opp2 ||
       !trick1.HasBoardTricks() ||
       !trick2.HasBoardTricks()) {
@@ -1416,45 +1536,30 @@ bool AreCardsDistinguishable(
   bool same_my2 = (my2_id1 >= 0 && my2_id2 >= 0)
                       ? (my2_id1 == my2_id2)
                       : (trick1.demi2.my_card == trick2.demi2.my_card);
-  bool any_defensive_diff = false;
   if (trick1.leader % 2 == 0) {
-    if (!same_my1) {
+    if (!same_my1 || same_my2) {
       return false;
     }
-    if (OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
-                               trick2.demi1.opp_card, 1)) {
-      any_defensive_diff = true;
-    }
-    if (!any_defensive_diff && !same_my2) {
-      return false;
-    }
-    if (!any_defensive_diff &&
-        OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
-                               trick2.demi2.opp_card, 3)) {
-      any_defensive_diff = true;
-    }
+    return OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
+                                  trick2.demi1.opp_card, 1,
+                                  masks1 ? &(*masks1)[0] : nullptr,
+                                  masks2 ? &(*masks2)[0] : nullptr);
   } else {
     if (OppSlotDistinguishable(trick1, trick2, trick1.demi1.opp_card,
                                trick2.demi1.opp_card, 0,
                                masks1 ? &(*masks1)[0] : nullptr,
                                masks2 ? &(*masks2)[0] : nullptr)) {
-      any_defensive_diff = true;
+      return !same_my1 || !same_my2 ||
+             trick1.demi1.opp_card[0] != trick2.demi1.opp_card[0];
     }
-    if (!any_defensive_diff && !same_my1) {
+    if (!same_my1 || same_my2) {
       return false;
     }
-    if (!any_defensive_diff &&
-        OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
-                               trick2.demi2.opp_card, 2,
-                               masks1 ? &(*masks1)[1] : nullptr,
-                               masks2 ? &(*masks2)[1] : nullptr)) {
-      any_defensive_diff = true;
-    }
-    if (!any_defensive_diff && !same_my2) {
-      return false;
-    }
+    return OppSlotDistinguishable(trick1, trick2, trick1.demi2.opp_card,
+                                  trick2.demi2.opp_card, 2,
+                                  masks1 ? &(*masks1)[1] : nullptr,
+                                  masks2 ? &(*masks2)[1] : nullptr);
   }
-  return any_defensive_diff;
 }
 }  // namespace
 
@@ -1676,6 +1781,57 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
     }
 
     if (any_new_groupings) {
+      auto pattern_subsumes = [](const std::string &sup,
+                                 const std::string &sub) {
+        if (sup == sub || sup == "__") return true;
+        if (sup.size() >= 2 && sub.size() >= 2 && sup[0] == sub[0] &&
+            sup[0] != 'R' && sup[0] != '_') {
+          uint16_t sup_m = InSuitPatternRankMask(sup);
+          uint16_t sub_m = InSuitPatternRankMask(sub);
+          return sub_m != 0 && (sub_m & ~sup_m) == 0;
+        }
+        return false;
+      };
+      auto group_subsumes = [&](const std::vector<int> &sup_grp,
+                                const std::vector<int> &sub_grp) {
+        for (int b_idx : sub_grp) {
+          const uint64_t *mb = &masks[b_idx * num_words];
+          bool found = false;
+          for (int a_idx : sup_grp) {
+            if (my1_id[a_idx] != my1_id[b_idx] ||
+                my2_id[a_idx] != my2_id[b_idx]) {
+              continue;
+            }
+            if (!pattern_subsumes(input[a_idx].demi1.opp_card,
+                                  input[b_idx].demi1.opp_card) ||
+                !pattern_subsumes(input[a_idx].demi2.opp_card,
+                                  input[b_idx].demi2.opp_card)) {
+              continue;
+            }
+            const uint64_t *ma = &masks[a_idx * num_words];
+            bool mask_sub = true;
+            for (size_t w = 0; w < num_words; ++w) {
+              if ((mb[w] & ~ma[w]) != 0) {
+                mask_sub = false;
+                break;
+              }
+            }
+            if (mask_sub) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) return false;
+        }
+        return true;
+      };
+      bool dominated = false;
+      for (const auto &existing_grp : group_idx_list) {
+        if (group_subsumes(existing_grp, group_indices)) {
+          dominated = true;
+          break;
+        }
+      }
       for (int idx : group_indices) {
         int kid = key_id[idx];
         if (!key_grouped[kid]) {
@@ -1685,9 +1841,13 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
             --ungrouped_by_my1[my1_id[idx]];
           }
         }
-        ref_count[idx]++;
       }
-      group_idx_list.push_back(group_indices);
+      if (!dominated) {
+        for (int idx : group_indices) {
+          ref_count[idx]++;
+        }
+        group_idx_list.push_back(group_indices);
+      }
     }
   }
 
@@ -2071,10 +2231,9 @@ void TraceUnmakeableBoardHelper(
     candidates.push_back(line);
   } else {
     for (const auto &[cond, child_line] : line->conditions()) {
-      if (!child_line) continue;
-      if (auto *good_cond =
-              dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
-        if (good_cond->Evaluate(copy) == good_cond->is_good()) {
+      if (!child_line || !cond) continue;
+      if (cond->IsStateCondition()) {
+        if (cond->EvaluateState(copy)) {
           TraceUnmakeableBoardHelper(child_line.get(), copy, board_num,
                                      in_step1_set, def_cache, out_trace);
           return;
@@ -2433,7 +2592,7 @@ void ConditionalLine::DeepCloneChildren() {
         }
       }
       if (!another_same_suit) {
-        gt_k.demi1.opp_card[1] = '_';
+        gt_k.demi1.opp_card = std::string(1, opp1_k[0]) + "_";
         updated_cond_str = true;
       }
     }
@@ -2447,6 +2606,76 @@ void ConditionalLine::DeepCloneChildren() {
       }
     }
   }
+}
+
+void ConditionalLine::CollapseUniformInSuitSplits(
+    const std::vector<BoardState> & /*boards*/,
+    const std::vector<int> & /*active_boards*/, int /*min_tricks*/,
+    std::vector<DefenderCardsCache> * /*def_caches*/) {
+  auto is_uniform_declarer_lead =
+      [](const ConditionalLine *node, std::vector<size_t> *act_idxs) -> bool {
+    act_idxs->clear();
+    for (size_t i = 0; i < node->conditions_.size(); ++i) {
+      const auto &child = node->conditions_[i].second;
+      if (child && !child->do_first_.Empty()) {
+        act_idxs->push_back(i);
+      }
+    }
+    if (act_idxs->empty()) return false;
+    const GeneralizedTrick &gt0 =
+        node->conditions_[(*act_idxs)[0]].second->do_first_;
+    if (gt0.leader % 2 != 0 || gt0.demi1.my_card.size() < 2) return false;
+    for (size_t k = 1; k < act_idxs->size(); ++k) {
+      const GeneralizedTrick &gtk =
+          node->conditions_[(*act_idxs)[k]].second->do_first_;
+      if (gtk.leader != gt0.leader ||
+          gtk.demi1.my_card != gt0.demi1.my_card ||
+          gtk.demi2.my_card != gt0.demi2.my_card) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  std::function<void(ConditionalLine *)> relax_single_branch_buckets =
+      [&](ConditionalLine *node) {
+        for (auto &[_c, child] : node->conditions_) {
+          if (child) relax_single_branch_buckets(child.get());
+        }
+        std::vector<size_t> act_idxs;
+        if (!is_uniform_declarer_lead(node, &act_idxs)) return;
+        const GeneralizedTrick &gt0 =
+            node->conditions_[act_idxs[0]].second->do_first_;
+        std::string suit_wild = std::string(1, gt0.demi1.my_card[0]) + "_";
+        std::vector<size_t> bucket_idxs[4];
+        for (size_t idx : act_idxs) {
+          const GeneralizedTrick &gt = node->conditions_[idx].second->do_first_;
+          int b = (gt.demi1.opp_card == "R_" ? 2 : 0) |
+                  (gt.demi2.opp_card == "R_" ? 1 : 0);
+          bucket_idxs[b].push_back(idx);
+        }
+        for (int b = 0; b < 4; ++b) {
+          if (bucket_idxs[b].size() != 1) continue;
+          size_t idx = bucket_idxs[b][0];
+          GeneralizedTrick &gt = node->conditions_[idx].second->do_first_;
+          bool changed = false;
+          if (!(b & 2) && gt.demi1.opp_card.size() == 3) {
+            gt.demi1.opp_card = suit_wild;
+            changed = true;
+          }
+          if (!(b & 1) && gt.demi2.opp_card.size() == 3) {
+            gt.demi2.opp_card = suit_wild;
+            changed = true;
+          }
+          if (changed && dynamic_cast<const TrickPlayCondition *>(
+                             node->conditions_[idx].first.get()) != nullptr) {
+            node->conditions_[idx].first =
+                std::make_shared<TrickPlayCondition>(gt.ToString(true));
+          }
+        }
+      };
+
+  relax_single_branch_buckets(this);
 }
 
 void ConditionalLine::ApplyRescoredBoards(
@@ -2533,10 +2762,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::SimulateBoard(
     while (cur_line && cur_line->do_first().Empty()) {
       const ConditionalLine *good_branch = nullptr;
       for (const auto &[cond, child_line] : cur_line->conditions()) {
-        if (!child_line) continue;
-        if (auto *good_cond =
-                dynamic_cast<const IsCardGoodCondition *>(cond.get())) {
-          if (good_cond->Evaluate(copy) == good_cond->is_good()) {
+        if (!child_line || !cond) continue;
+        if (cond->IsStateCondition()) {
+          if (cond->EvaluateState(copy)) {
             good_branch = child_line.get();
             break;
           }
@@ -2720,7 +2948,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::SimulateBoard(
                     (pat == "__") ||
                     (led_char != '\0' && pat.size() == 2 &&
                      pat[0] == led_char &&
-                     (pat[1] == '_' || pat[1] == 'x' || pat[1] == 'X'));
+                     (pat[1] == '_' || pat[1] == 'x' || pat[1] == 'X')) ||
+                    (led_char != '\0' && pat.size() == 3 &&
+                     pat[0] == led_char && pat[1] == '<');
                 if (is_gen_suit &&
                     AreCandidateDeclarerCardsLegalForTrick(copy, cand, 2,
                                                            suit_led)) {

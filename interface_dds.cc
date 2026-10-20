@@ -459,6 +459,9 @@ DefenderPlayChoice ApplyDefenderNoise(const BoardState &bs, int level,
   if (noise_pct <= 0 || futp.cards <= 1) {
     return heur_choice;
   }
+  if (level >= 1 && bs.SuitLed() != NOTRUMP && futp.suit[0] == bs.SuitLed()) {
+    return heur_choice;
+  }
   if (level == 0 && lead_eval != nullptr) {
     std::vector<int> active_suits;
     for (int s = 0; s < 4; ++s) {
@@ -721,8 +724,14 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   if (pair_is_me) {
     for (int i = 0; i < futp.cards; ++i) {
       int r = futp.rank[i];
-      while (r - 1 >= 10 && ((futp.equals[i] >> (r - 1)) & 1) != 0) {
-        --r;
+      if (r < 10) {
+        if (futp.equals[i] != 0) {
+          r = __builtin_ctz(futp.equals[i]);
+        }
+      } else {
+        while (r - 1 >= 10 && ((futp.equals[i] >> (r - 1)) & 1) != 0) {
+          --r;
+        }
       }
       futp.rank[i] = r;
     }
@@ -790,7 +799,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
             (s == trump && (cur_win_suit != trump || r > cur_win_rank));
         if (level == 2 && wins_so_far) {
           bool sure_third_win =
-              (s == suit_led && r > opp_highest_rank[suit_led]) ||
+              (s == suit_led && (rho_led_mask >> (r - 1)) == 0) ||
               (s == trump && suit_led != trump &&
                (rho_led_mask != 0 || r > opp_highest_rank[trump]));
           if (sure_third_win) {
@@ -852,8 +861,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
         continue;
       }
       if (s == suit_led && (trick_ruffed || r < cur_win_rank) &&
-          r > lowest_losing_follow_rank &&
-          !(level == 2 && !trick_ruffed && r >= 10 && r > lead_rank)) {
+          r > lowest_losing_follow_rank) {
         uint16_t higher_mask =
             static_cast<uint16_t>(~((1u << (r - 1)) - 1) & 0x1fff);
         int max_opp_higher =
@@ -863,6 +871,23 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
             !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
                                       partner_after_suit[s],
                                       lowest_losing_follow_rank, r)) {
+          continue;
+        }
+      }
+      if (s == suit_led && !trick_ruffed && r < cur_win_rank &&
+          cur_winner != partner && r >= 10) {
+        bool pruned_underplay = false;
+        for (int j = 0; j < futp.cards; ++j) {
+          if (futp.suit[j] != s || futp.rank[j] <= cur_win_rank) continue;
+          int r_win = futp.rank[j];
+          if ((opp_suit_mask[s] & RanksBetweenMask(r, r_win)) != 0) continue;
+          if (!CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
+                                        partner_after_suit[s], r, r_win)) {
+            pruned_underplay = true;
+            break;
+          }
+        }
+        if (pruned_underplay) {
           continue;
         }
       }
@@ -914,7 +939,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
         }
         bool sure_third_win =
             wins_so_far &&
-            ((s == suit_led && r > opp_highest_rank[suit_led]) ||
+            ((s == suit_led && (rho_led_mask >> (r - 1)) == 0) ||
              (s == trump && suit_led != trump &&
               (rho_led_mask != 0 || r > opp_highest_rank[trump])));
         if (sure_third_win && r > cheapest_third_hand_win_rank[s] &&
@@ -1068,6 +1093,7 @@ std::shared_ptr<OptimalPlayTree> FindOptimalPlayTreeHelper(
         static_cast<uint8_t>(bs.CurPlayer()),
         static_cast<uint8_t>(bs.GetTrump()),
         static_cast<uint8_t>(std::max(0, min_tricks)),
+        bs.discarded_suits_mask(),
         need_board_id ? bs.board_id() : 0u};
     shard = BoardCacheKeyHash{}(key) & (SolverCache::kNumShards - 1);
     std::lock_guard<std::mutex> lock(cache->shard_mu[shard]);

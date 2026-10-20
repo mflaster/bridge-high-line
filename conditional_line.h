@@ -69,6 +69,7 @@ struct GeneralizedTrick {
     int board = 0;
     uint8_t winner = 0;
     char win_card[3] = {0, 0, 0};
+    uint16_t discard_mask = 0;
     uint64_t trick_mask = 0;
     std::string trick_str;
   };
@@ -125,6 +126,7 @@ class GeneralizedTrickFinder {
     int board = 0;
     uint8_t winner = 0;
     uint8_t win_card_idx = 0;
+    uint16_t discard_mask = 0;
     Suit suit_led = NOTRUMP;
     uint64_t trick_mask = 0;
   };
@@ -151,6 +153,9 @@ class PlayCondition {
 
   // Formats human-readable description of condition (e.g. "when 0 wins", "after S2 (S9) SA (S3)").
   virtual std::string Describe(bool only_choice) const = 0;
+
+  virtual bool IsStateCondition() const { return false; }
+  virtual bool EvaluateState(const BoardState &bs) const { return false; }
 };
 
 // ConditionalLine represents a node in a decision tree that encodes an optimal (or candidate optimal)
@@ -322,6 +327,14 @@ class ConditionalLine {  // ConditionalLineBranch
   // not share subtree nodes with other candidate lines.
   void DeepCloneChildren();
 
+  // Collapses in-suit opponent-card splits on uniform-declarer-play tricks
+  // when the split does not materially improve Step-2 adversarial coverage,
+  // and normalizes single-branch in-suit opponent patterns to S_.
+  void CollapseUniformInSuitSplits(
+      const std::vector<BoardState> &boards,
+      const std::vector<int> &active_boards, int min_tricks,
+      std::vector<DefenderCardsCache> *def_caches);
+
   // Updates leaf final_covered_boards_, action board_to_trick maps, and
   // bottom-up covered_count_ from Step-2 rescored results while preserving
   // step1_covered_count_.
@@ -477,6 +490,10 @@ class IsCardGoodCondition : public PlayCondition {
       : card_(card), is_good_(is_good) {}
 
   std::string Describe(bool only_choice) const override;
+  bool IsStateCondition() const override { return true; }
+  bool EvaluateState(const BoardState &bs) const override {
+    return Evaluate(bs) == is_good_;
+  }
 
   CardType card() const { return card_; }
   bool is_good() const { return is_good_; }
@@ -487,7 +504,34 @@ class IsCardGoodCondition : public PlayCondition {
   bool is_good_;
 };
 
+class PlayerDiscardedCondition : public PlayCondition {
+ public:
+  PlayerDiscardedCondition(int player, Suit suit, bool discarded)
+      : player_(player), suit_(suit), discarded_(discarded) {}
+
+  std::string Describe(bool only_choice) const override;
+  bool IsStateCondition() const override { return true; }
+  bool EvaluateState(const BoardState &bs) const override {
+    return Evaluate(bs) == discarded_;
+  }
+
+  int player() const { return player_; }
+  Suit suit() const { return suit_; }
+  bool discarded() const { return discarded_; }
+  bool Evaluate(const BoardState &bs) const;
+
+ private:
+  int player_;
+  Suit suit_;
+  bool discarded_;
+};
+
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     const std::vector<GeneralizedTrick> &input);
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(
     std::vector<GeneralizedTrick> &&input);
+
+bool CardsAreRedundant(const std::string &c1, const std::string &c2);
+bool GeneralizesTo(const std::string &actual_card,
+                   const std::string &gen_card,
+                   Suit suit_led = NOTRUMP, Suit trump = NOTRUMP);

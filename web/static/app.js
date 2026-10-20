@@ -1973,7 +1973,8 @@ document.addEventListener('DOMContentLoaded', () => {
           proposedCards.forEach(c => {
             const pill = document.createElement('span');
             pill.className = 'propose-card-pill';
-            pill.innerHTML = `${c.seatName}: <span class="${c.suitClass}">${c.suitSym}</span>${c.rankStr}`;
+            const safeRank = String(c.rankStr || '').replace(/</g, '&lt;');
+            pill.innerHTML = `${c.seatName}: <span class="${c.suitClass}">${c.suitSym}</span>${safeRank}`;
             proposeLineCards.appendChild(pill);
           });
         }
@@ -2074,6 +2075,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (actualRankToken === 'X' || 'AKQJT'.includes(normActual)) {
         return true;
       }
+    } else if (normPat && normPat.startsWith('<') && normPat.length === 2) {
+      const boundVal = rankOrderValue(normPat.charAt(1));
+      const actVal = rankOrderValue(actualRankToken);
+      if (boundVal > 0 && actVal > 0 && actVal < boundVal) {
+        return true;
+      }
     } else if (normPat === '_') {
       return true;
     }
@@ -2103,8 +2110,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return i;
       }
     }
-    // 2. If pattern is wildcard ('x' or '_'), match lowest spot card / 'x' from the right
-    if (normPat === 'x' || normPat === 'X' || normPat === '_') {
+    // 2. If pattern is wildcard ('x', 'X', '<H', or '_'), match lowest valid card from the right
+    if (normPat === 'x' || normPat === 'X' || normPat === '_' || normPat.startsWith('<')) {
       for (let i = rankTokens.length - 1; i >= 0; i--) {
         if (usedMask[i]) continue;
         if (rankMatchesPattern(rankTokens[i], suitKey, normPat, suitKey)) {
@@ -4441,7 +4448,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         scanInitialPlayedList.classList.remove('hidden');
         const formatCardsHtml = (cards) => cards.map(c =>
-          `<span class="${c.suitClass}">${c.suitSym}</span>${c.rankStr}`
+          `<span class="${c.suitClass}">${c.suitSym}</span>${String(c.rankStr || '').replace(/</g, '&lt;')}`
         ).join(' ');
 
         sim.completedTricks.forEach(tr => {
@@ -7866,9 +7873,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return tr.cards.map((origCard, idx) => {
           const actualParsed = parseSingleCardToken(rawToks[idx], leadSuit, trumpCode);
           if (idx === 0) leadSuit = actualParsed.suit;
-          // If the generalized card was unsuited ('__') or wildcard ('x'/'_'), use the concrete card from the board
+          // If the generalized card was unsuited ('__') or wildcard ('x'/'_'/'<H'), use the concrete card from the board
           if (!origCard.suit || origCard.rankStr === '__' || origCard.rankStr === '_' ||
-              origCard.rankStr === 'x' || origCard.rankStr === 'X') {
+              origCard.rankStr === 'x' || origCard.rankStr === 'X' ||
+              (origCard.rankStr && origCard.rankStr.startsWith('<'))) {
             return Object.assign({}, origCard, {
               suit: actualParsed.suit,
               rankStr: actualParsed.rankStr,
@@ -7916,7 +7924,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 uUsedMasks[sKey][uIdx] = true;
                 const matchedTok = uSuitTokens[sKey][uIdx];
                 const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' ||
-                                   entry.rankStr === '_' || entry.rankStr === '__');
+                                   entry.rankStr === '_' || entry.rankStr === '__' ||
+                                   (entry.rankStr && entry.rankStr.startsWith('<')));
                 entry.movedToken = isPatWild ? matchedTok : entry.rankStr;
               }
             }
@@ -8091,9 +8100,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           chip.className = classes.join(' ');
           chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+          const safeRankHtml = String(c.rankStr || '').replace(/</g, '&lt;');
           const innerHtml = c.suitSym
-            ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${c.rankStr}</span>`
-            : `<span class="card-rank">${c.rankStr}</span>`;
+            ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${safeRankHtml}</span>`
+            : `<span class="card-rank">${safeRankHtml}</span>`;
           chip.innerHTML = `<span class="card-chip-content">${innerHtml}</span>`;
           chipsRow.appendChild(chip);
         });
@@ -8169,7 +8179,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function tokenizeTrick(trickStr) {
     if (!trickStr) return [];
     const cleaned = trickStr.replace(/,/g, ' ');
-    const regex = /\([^\)]+\)|[S|H|D|C][A|K|Q|J|T|10|9|8|7|6|5|4|3|2|x|_]+|[A|K|Q|J|T|10|9|8|7|6|5|4|3|2]+[S|H|D|C]|\S+/gi;
+    const regex = /\([^\)]+\)|[S|H|D|C][<A|K|Q|J|T|10|9|8|7|6|5|4|3|2|X|x|_]+|[A|K|Q|J|T|10|9|8|7|6|5|4|3|2]+[S|H|D|C]|\S+/gi;
     const matches = cleaned.match(regex) || [];
     return matches.filter(m => m.trim().length > 0);
   }

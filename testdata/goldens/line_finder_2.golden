@@ -11,12 +11,12 @@ Total Deals: 5
 Invariant Rules for 2 card ending:
   - hand 1 always contains the SK (holds: 50%, success when holds: 100%)
 Example Play (Board 1):
-  #1 (N) S3 S7 SQ* S8
-  #2 (S) SA* S9 S2 SK
+  #1 (N) S2 S7 SQ* S8
+  #2 (S) SA* S9 S3 SK
 Example Failed Play (Board 0):
-  #1 (N) S3 S7 SQ SK*
+  #1 (N) S2 S7 SQ SK*
 
-  after S3 (S_) SQ (S_): S3 (S_) SQ (S_) [1,2,4,5,6] / S3 S7 SQ S8 / S3 S9 SQ S7 / S3 S8 SQ S7 / S3 S8 SQ S7 / S3 S7 SQ S8
+  after S2 (S_) SQ (S_): S2 (S_) SQ (S_) [1,2,4,5,6] / S2 S7 SQ S8 / S2 S9 SQ S7 / S2 S8 SQ S7 / S2 S8 SQ S7 / S2 S7 SQ S8
     when 2 wins the SQ: 
-      after SA (S_) S2 (SK): SA (S_) S2 (SK) [1,2,4,5,6] / SA S9 S2 SK / SA S8 S2 SK / SA S9 S2 SK / SA S9 S2 SK / SA S9 S2 SK
+      after SA (S_) S3 (SK): SA (S_) S3 (SK) [1,2,4,5,6] / SA S9 S3 SK / SA S8 S3 SK / SA S9 S3 SK / SA S9 S3 SK / SA S9 S3 SK
         when 2 wins the SA: HAND SUCCEEDED FOR: 1, 2, 4, 5, 6

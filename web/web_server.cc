@@ -878,8 +878,13 @@ void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node) {
       break;
     }
 
-    if (child->condition.empty() && !node->condition.empty()) {
-      child->condition = node->condition;
+    if (!node->condition.empty()) {
+      if (child->condition.empty() ||
+          IsRedundantLabel(child->condition, child->label)) {
+        child->condition = node->condition;
+      } else if (!IsRedundantLabel(node->condition, child->condition)) {
+        break;
+      }
     }
     if (child->branch_winner < 0 && node->branch_winner >= 0) {
       child->branch_winner = node->branch_winner;
@@ -1762,7 +1767,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
           rch = 'T';
         }
         int seat = (leader + static_cast<int>(k)) % 4;
-        if (s != NOTRUMP && (rch == 'x' || rch == 'X' || rch == '_')) {
+        if (s != NOTRUMP &&
+            (rch == 'x' || rch == 'X' || rch == '_' || rch == '<')) {
           auto &vec = resolved_hand_wildcards[seat][static_cast<int>(s)];
           if (!vec.empty()) {
             CardType ct = vec.front();
