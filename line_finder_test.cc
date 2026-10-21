@@ -746,6 +746,21 @@ TEST(LineFinderTest, LineFinder_Simple9CardHearts) {
   });
 }
 
+TEST(LineFinderTest, LineFinder_Hand6_9Card) {
+  RunLineFinderTestCase({
+    .name = "hand_6_9_card",
+    .trump = SPADES,
+    .leader = 2,
+    .min_tricks = 9,
+    .num_iters = 200,
+    .hand0 = "S AJ8765; C KJ8;",
+    .hand2 = "S K9; D AQ853; C AQ;",
+    .unknown_cards = "S Q432; H T7; D KJT97642; C T754;",
+    .description =
+        "Hand 6 9-card ending: branch on E discard on SK before club entry",
+  });
+}
+
 TEST(LineFinderTest, LineFinder_MidTrickSolveAndPreassignedDefenderCard) {
   srand48(0);
   // 2-card Spades finesse deal: N has SAQ, S has S87, E/W share SK543.
