@@ -163,6 +163,12 @@ add_custom_command(
     ${CMAKE_CURRENT_SOURCE_DIR}/web/static/help.html
     ${CMAKE_CURRENT_SOURCE_DIR}/web/static/styles.css
     ${CMAKE_CURRENT_SOURCE_DIR}/web/static/app.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/solver_api.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/deal_svg.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/analysis_tabs.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/photo_scanner.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/decision_tree.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/telemetry_and_help.js
     ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/bridge-strategy.md
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/user-guide.md
