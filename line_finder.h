@@ -98,9 +98,13 @@ class LineFinder {
 
   void SetPredealtBoards(
       const std::vector<BoardState> &predealt_boards,
-      const std::vector<std::vector<std::string>> &replay_tricks = {}) {
+      const std::vector<std::vector<std::string>> &replay_tricks = {},
+      const std::set<int> &branch_board_ids = {},
+      const std::vector<std::map<int, std::string>> &replay_board_tricks = {}) {
     predealt_boards_ = predealt_boards;
     replay_tricks_ = replay_tricks;
+    branch_board_ids_ = branch_board_ids;
+    replay_board_tricks_ = replay_board_tricks;
   }
 
   void SetSharedCache(std::shared_ptr<SolverCache> cache) {
@@ -165,6 +169,7 @@ class LineFinder {
   const std::vector<BoardState> &initial_boards() const {
     return initial_boards_;
   }
+  const std::set<int> &board_offsets() const { return board_offsets_; }
   const std::shared_ptr<SolverCache> &shared_cache() const {
     return solver_cache_;
   }
@@ -278,8 +283,11 @@ class LineFinder {
   FuzzyBoardState fuzzy_state_;
   std::vector<BoardState> boards_;
   std::vector<BoardState> initial_boards_;
+  std::set<int> board_offsets_;
   std::vector<BoardState> predealt_boards_;
   std::vector<std::vector<std::string>> replay_tricks_;
+  std::set<int> branch_board_ids_;
+  std::vector<std::map<int, std::string>> replay_board_tricks_;
   std::vector<BoardState> base_boards_;
   std::vector<std::shared_ptr<OptimalPlayTree>> base_init_trees_;
   std::vector<uint64_t> base_hands_;

@@ -1409,3 +1409,69 @@ TEST(ServerTest,
   EXPECT_EQ(tree->children[1]->condition, "if S wins the CJ");
 }
 
+TEST(ServerTest, BranchSolveUsesBranchDealCountAsDenominator) {
+  WebServer engine;
+  nlohmann::json base_req = {
+      {"hands",
+       {{"N", "S A2; H A2; D -; C -;"},
+        {"E", ""},
+        {"S", "S 43; H 43; D -; C -;"},
+        {"W", ""}}},
+      {"unknown_cards", "S KQJT H KQJT"},
+      {"trump", "NOTRUMP"},
+      {"leader", "SOUTH"},
+      {"min_tricks", 2},
+      {"num_iters", 20},
+      {"num_threads", 4}};
+
+  int status_code = 0;
+  std::string base_body = engine.SolveJson(base_req.dump(), &status_code);
+  ASSERT_EQ(status_code, 200);
+  nlohmann::json base_res = nlohmann::json::parse(base_body);
+  ASSERT_TRUE(base_res["success"] == true);
+  EXPECT_EQ(base_res["total_boards"].get<int>(), 20);
+
+  // Pick a branch subset of 10 boards out of the 20 deals.
+  std::vector<int> branch_ids = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18};
+  std::set<int> branch_set(branch_ids.begin(), branch_ids.end());
+
+  nlohmann::json branch_req = {
+      {"hands",
+       {{"N", "S 2; H A2; D -; C -;"},
+        {"E", ""},
+        {"S", "S 4; H 43; D -; C -;"},
+        {"W", ""}}},
+      {"unknown_cards", "S JT H KQJT"},
+      {"trump", "NOTRUMP"},
+      {"leader", "NORTH"},
+      {"min_tricks", 1},
+      {"num_iters", 20},
+      {"num_threads", 4},
+      {"start_trick_num", 2},
+      {"initial_ns_tricks", 1},
+      {"reuse_deals", true},
+      {"replay_tricks", nlohmann::json::array({{"S3", "__", "SA", "__"}})},
+      {"branch_board_ids", branch_ids},
+      {"cur_trick", {"HA"}}};
+
+  status_code = 0;
+  std::string branch_body = engine.SolveJson(branch_req.dump(), &status_code);
+  ASSERT_EQ(status_code, 200) << branch_body;
+  nlohmann::json branch_res = nlohmann::json::parse(branch_body);
+  ASSERT_TRUE(branch_res["success"] == true);
+  EXPECT_EQ(branch_res["total_boards"].get<int>(), 10);
+  EXPECT_EQ(branch_res["success_boards"].get<int>() +
+                branch_res["failure_boards"].get<int>(),
+            10);
+  ASSERT_TRUE(branch_res.contains("active_board_ids"));
+  EXPECT_EQ(branch_res["active_board_ids"].get<std::vector<int>>(), branch_ids);
+  ASSERT_TRUE(branch_res.contains("tree"));
+  EXPECT_EQ(branch_res["tree"]["total_boards"].get<int>(), 10);
+
+  for (const auto &fh : branch_res["failure_sample_hands"]) {
+    int bid = fh["board_id"].get<int>();
+    EXPECT_GT(branch_set.count(bid), 0u)
+        << "Non-branch board " << bid << " included in failure_sample_hands";
+  }
+}
+

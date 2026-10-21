@@ -1819,6 +1819,34 @@ std::string WebServer::SolveJson(const std::string &req_body,
         }
       }
     }
+    std::set<int> branch_board_ids;
+    if (req_json.contains("branch_board_ids") &&
+        req_json["branch_board_ids"].is_array()) {
+      for (const auto &id_json : req_json["branch_board_ids"]) {
+        if (id_json.is_number_integer()) {
+          int bid = id_json.get<int>();
+          if (bid >= 0) branch_board_ids.insert(bid);
+        }
+      }
+    }
+    std::vector<std::map<int, std::string>> replay_board_tricks;
+    if (req_json.contains("replay_board_tricks") &&
+        req_json["replay_board_tricks"].is_array()) {
+      for (const auto &m_json : req_json["replay_board_tricks"]) {
+        std::map<int, std::string> bmap;
+        if (m_json.is_object()) {
+          for (auto it = m_json.begin(); it != m_json.end(); ++it) {
+            if (!it.value().is_string()) continue;
+            try {
+              int bid = std::stoi(it.key());
+              if (bid >= 0) bmap[bid] = it.value().get<std::string>();
+            } catch (...) {
+            }
+          }
+        }
+        replay_board_tricks.push_back(std::move(bmap));
+      }
+    }
 
     bool has_actual_deal = false;
     BoardState actual_init_bs;
@@ -1895,14 +1923,17 @@ std::string WebServer::SolveJson(const std::string &req_body,
       bool reused_lf = false;
       std::unique_ptr<LineFinder> lf = CheckoutLineFinder(
           num_iters, hands, unknown_cards, trump_suit, leader,
-          replay_tricks.empty() ? cur_trick : std::vector<CardType>{},
+          (replay_tricks.empty() && branch_board_ids.empty())
+              ? cur_trick
+              : std::vector<CardType>{},
           reqs_json, &reused_lf);
       if (reused_lf) {
         lf->SetPredealtBoards({}, {});
       } else if (reuse_deals) {
         std::lock_guard<std::mutex> lock(cached_lf_mu_);
         if (static_cast<int>(last_initial_boards_.size()) == num_iters) {
-          lf->SetPredealtBoards(last_initial_boards_, replay_tricks);
+          lf->SetPredealtBoards(last_initial_boards_, replay_tricks,
+                                branch_board_ids, replay_board_tricks);
           if (last_solver_cache_) {
             lf->SetSharedCache(last_solver_cache_);
           }
@@ -1929,13 +1960,18 @@ std::string WebServer::SolveJson(const std::string &req_body,
       std::vector<BoardState> boards = lf->boards();
       std::vector<BoardState> display_boards =
           !lf->initial_boards().empty() ? lf->initial_boards() : boards;
+      std::set<int> active_offsets = lf->board_offsets();
+      if (!active_offsets.empty()) {
+        total_boards = static_cast<int>(active_offsets.size());
+      }
       if (!reuse_deals && !reused_lf && !lf->initial_boards().empty()) {
         std::lock_guard<std::mutex> lock(cached_lf_mu_);
         last_initial_boards_ = lf->initial_boards();
         last_solver_cache_ = lf->shared_cache();
       }
       if (reused_lf ||
-          (!reuse_deals && cur_trick.empty() && replay_tricks.empty())) {
+          (!reuse_deals && cur_trick.empty() && replay_tricks.empty() &&
+           branch_board_ids.empty())) {
         CheckinLineFinder(std::move(lf), num_iters, hands, unknown_cards,
                           trump_suit, leader, std::move(reqs_json));
       }
@@ -1945,6 +1981,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
       }
       response["covered_board_ids"] =
           std::vector<int>(covered_set.begin(), covered_set.end());
+      response["active_board_ids"] =
+          std::vector<int>(active_offsets.begin(), active_offsets.end());
 
       constexpr size_t kMaxSampleHands = 100;
       nlohmann::json sample_hands_json = nlohmann::json::array();
@@ -1952,8 +1990,10 @@ std::string WebServer::SolveJson(const std::string &req_body,
       nlohmann::json all_hands_json = nlohmann::json::array();
       std::vector<int> failed_board_ids;
       for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
-        bool is_covered = (covered_set.count(b_idx) > 0);
-        if (!is_covered) {
+        bool is_active =
+            active_offsets.empty() || (active_offsets.count(b_idx) > 0);
+        bool is_covered = is_active && (covered_set.count(b_idx) > 0);
+        if (is_active && !is_covered) {
           failed_board_ids.push_back(b_idx);
         }
         const BoardState &disp_b =
@@ -1967,11 +2007,12 @@ std::string WebServer::SolveJson(const std::string &req_body,
             {"S", HandDebugString(disp_b.GetHand(2), true)},
             {"W", HandDebugString(disp_b.GetHand(3), true)},
             {"succeeded", is_covered},
+            {"active", is_active},
         };
         all_hands_json.push_back(hand_entry);
         if (is_covered && sample_hands_json.size() < kMaxSampleHands) {
           sample_hands_json.push_back(hand_entry);
-        } else if (!is_covered &&
+        } else if (is_active && !is_covered &&
                    failure_sample_hands_json.size() < kMaxSampleHands) {
           failure_sample_hands_json.push_back(hand_entry);
         }
@@ -2042,7 +2083,9 @@ std::string WebServer::SolveJson(const std::string &req_body,
           line_failed_ids.reserve(boards.size());
           for (int b_idx = 0; b_idx < static_cast<int>(boards.size());
                ++b_idx) {
-            if (line_covered_sets[i].count(b_idx) == 0) {
+            bool is_active =
+                active_offsets.empty() || (active_offsets.count(b_idx) > 0);
+            if (is_active && line_covered_sets[i].count(b_idx) == 0) {
               line_failed_ids.push_back(b_idx);
             }
           }
@@ -2201,9 +2244,14 @@ std::string WebServer::SolveJson(const std::string &req_body,
         success_boards = 0;
         failure_boards = total_boards;
         covered_boards = 0;
-        std::vector<int> all_failed_ids(boards.size());
+        std::vector<int> all_failed_ids;
+        all_failed_ids.reserve(boards.size());
         for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
-          all_failed_ids[b_idx] = b_idx;
+          bool is_active =
+              active_offsets.empty() || (active_offsets.count(b_idx) > 0);
+          if (is_active) {
+            all_failed_ids.push_back(b_idx);
+          }
         }
         ConditionalLine empty_line;
         FailureIndex line_failures =

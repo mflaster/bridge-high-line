@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <mutex>
+#include <sstream>
 #include "cross_hand_summarizer.h"
 #include "deal.h"
 #include "glog/logging.h"
@@ -80,6 +81,19 @@ void PlayTrick(const std::string &trick, BoardState &bs) {
 // played, or false if the board cannot follow this play.
 bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
   if (card_str.size() < 2) return false;
+  std::vector<CardType> valid = bs.ValidCardsToPlay();
+  if (valid.empty()) return false;
+  if (card_str == "__" || card_str == "R_") {
+    for (CardType v : valid) {
+      auto [vs, _] = Card::DecodeCard(v);
+      if (vs != bs.GetTrump()) {
+        bs.PlayCard(bs.CurPlayer(), v);
+        return true;
+      }
+    }
+    bs.PlayCard(bs.CurPlayer(), valid.front());
+    return true;
+  }
   Suit suit = Card::ParseSuit(static_cast<char>(std::toupper(card_str[0])));
   if (suit == NOTRUMP) return false;
   if (card_str.size() == 3 && card_str[1] == '<') {
@@ -88,7 +102,7 @@ bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
     CardType bound_card = Card::ParseStringCard(bound_str);
     if (bound_card == 0) return false;
     auto [_, bound_rank] = Card::DecodeCard(bound_card);
-    for (CardType v : bs.ValidCardsToPlay()) {
+    for (CardType v : valid) {
       auto [vs, vr] = Card::DecodeCard(v);
       if (vs == suit && vr < bound_rank) {
         bs.PlayCard(bs.CurPlayer(), v);
@@ -111,7 +125,6 @@ bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
     exact_card = Card::ParseStringCard(norm_str);
   }
 
-  std::vector<CardType> valid = bs.ValidCardsToPlay();
   if (exact_card != 0) {
     for (CardType v : valid) {
       if (v == exact_card) {
@@ -165,8 +178,23 @@ std::vector<BoardState> LineFinder::SetupBoards(
       sim.set_check_card_play(false);
       sim.SetTrump(trump);
 
-      bool valid_for_branch = true;
-      for (const auto &trick_cards : replay_tricks_) {
+      bool valid_for_branch =
+          branch_board_ids_.empty() || (branch_board_ids_.count(i) > 0);
+      for (size_t t_idx = 0;
+           valid_for_branch && t_idx < replay_tricks_.size(); ++t_idx) {
+        std::vector<std::string> board_cards;
+        if (t_idx < replay_board_tricks_.size()) {
+          auto bt_it = replay_board_tricks_[t_idx].find(i);
+          if (bt_it != replay_board_tricks_[t_idx].end()) {
+            std::istringstream iss(bt_it->second);
+            std::string tok;
+            while (iss >> tok) {
+              board_cards.push_back(tok);
+            }
+          }
+        }
+        const auto &trick_cards =
+            (board_cards.size() == 4) ? board_cards : replay_tricks_[t_idx];
         if (trick_cards.size() != 4) {
           valid_for_branch = false;
           break;
@@ -177,7 +205,6 @@ std::vector<BoardState> LineFinder::SetupBoards(
             break;
           }
         }
-        if (!valid_for_branch) break;
       }
 
       if (valid_for_branch && sim.CurPlayer() != leader) {
@@ -744,21 +771,33 @@ void RescoreTopLinesAdversarial(
 }
 
 void PopulateDealSummaries(const std::vector<BoardState> &boards,
+                           const std::set<int> &board_offsets,
                            int num_iters, int min_tricks,
                            std::vector<ConditionalLine> *lines) {
+  int active_total = board_offsets.empty()
+                         ? num_iters
+                         : static_cast<int>(board_offsets.size());
   CrossHandDealSetSummarizer summarizer;
   for (size_t line_idx = 0; line_idx < lines->size(); ++line_idx) {
     if (LineFinder::IsStopRequested()) break;
     auto &line = (*lines)[line_idx];
-    line.set_total_boards(num_iters);
+    line.set_total_boards(active_total);
     line.set_min_tricks(min_tricks);
     if (!boards.empty()) {
-      line.set_sample_board(boards[0]);
+      int sample_idx = board_offsets.empty() ? 0 : *board_offsets.begin();
+      if (sample_idx >= 0 && sample_idx < static_cast<int>(boards.size())) {
+        line.set_sample_board(boards[sample_idx]);
+      } else {
+        line.set_sample_board(boards[0]);
+      }
       std::map<int, ConditionalLine::BoardPlayTrace> traces =
           line.board_traces();
       ConditionalLine::DefenderCardsCache def_cache;
       bool traces_updated = false;
       for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
+        if (!board_offsets.empty() && board_offsets.count(b_idx) == 0) {
+          continue;
+        }
         if (traces.find(b_idx) == traces.end()) {
           traces.emplace(b_idx, line.SimulateBoard(boards[b_idx], b_idx,
                                                    line.has_rescored_boards(),
@@ -782,6 +821,9 @@ void PopulateDealSummaries(const std::vector<BoardState> &boards,
 
     std::vector<PairedDeal> failure_deals;
     for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
+      if (!board_offsets.empty() && board_offsets.count(b_idx) == 0) {
+        continue;
+      }
       if (covered.find(b_idx) == covered.end()) {
         failure_deals.emplace_back(boards[b_idx].GetHand(1),
                                    boards[b_idx].GetHand(3));
@@ -868,8 +910,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << "Hands simulated: " << num_iters_
             << " (threads: " << effective_threads << ")\n\n";
   bool can_reuse_deals =
-      replay_tricks_.empty() && predealt_boards_.empty() &&
-      !cur_trick.empty() &&
+      replay_tricks_.empty() && branch_board_ids_.empty() &&
+      predealt_boards_.empty() && !cur_trick.empty() &&
       base_boards_.size() == static_cast<size_t>(num_iters_) &&
       hands == base_hands_ && unknown_cards == base_unknown_cards_ &&
       trump == base_trump_ && leader == base_leader_;
@@ -900,6 +942,11 @@ std::vector<ConditionalLine> LineFinder::Solve(
     }
   }
   boards_ = boards;
+  board_offsets_ = board_offsets;
+  int active_total = board_offsets.empty()
+                         ? num_iters_
+                         : static_cast<int>(board_offsets.size());
+  g_total_boards = active_total;
 
   SolverCache &cache = *solver_cache_;
   auto start_init_trees = std::chrono::high_resolution_clock::now();
@@ -943,7 +990,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
     SetSolveStatus("Solve stopped.");
     return {};
   }
-  if (cur_trick.empty() && replay_tricks_.empty() && predealt_boards_.empty()) {
+  if (cur_trick.empty() && replay_tricks_.empty() &&
+      branch_board_ids_.empty() && predealt_boards_.empty()) {
     base_boards_ = boards;
     base_init_trees_ = init_trees;
     base_hands_ = hands;
@@ -962,7 +1010,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
       end_init_trees - start_init_trees).count();
 
   SetSolveStatus("Searching play trees across " +
-                 std::to_string(boards.size()) + " deals...");
+                 std::to_string(active_total) + " deals...");
   auto progress = std::make_shared<SearchProgress>();
   SetActiveProgress(progress);
   std::vector<ConditionalLine> ans;
@@ -1051,7 +1099,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
   }
 
   auto start_invariant = std::chrono::high_resolution_clock::now();
-  PopulateDealSummaries(boards, num_iters_, min_tricks, &ans);
+  PopulateDealSummaries(boards, board_offsets, num_iters_, min_tricks, &ans);
   auto end_invariant = std::chrono::high_resolution_clock::now();
   invariant_ms_ = std::chrono::duration<double, std::milli>(
       end_invariant - start_invariant).count();
