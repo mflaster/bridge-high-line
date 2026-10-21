@@ -1025,4 +1025,18 @@ TEST(LineFinderTest, LineFinder_BranchOnPlayerDiscardedCondition) {
   EXPECT_EQ(lines[0].conditions().size(), 1u);
   EXPECT_NE(desc.find("if E discarded on C"), std::string::npos);
   EXPECT_NE(desc.find("if E did not discard on C"), std::string::npos);
+
+  // Verify that the condition node immediately follows the Club trick
+  // (where C was led).
+  const auto &t1_child = lines[0].conditions().begin()->second;
+  ASSERT_NE(t1_child, nullptr);
+  ASSERT_EQ(t1_child->conditions().size(), 1u);
+  const auto &t1_winner_child = t1_child->conditions().begin()->second;
+  ASSERT_NE(t1_winner_child, nullptr);
+  EXPECT_TRUE(t1_winner_child->do_first().Empty());
+  EXPECT_EQ(t1_winner_child->conditions().size(), 2u);
+  for (const auto &kv : t1_winner_child->conditions()) {
+    EXPECT_TRUE(kv.first->IsStateCondition());
+    EXPECT_NE(kv.first->Describe(false).find("discard"), std::string::npos);
+  }
 }
