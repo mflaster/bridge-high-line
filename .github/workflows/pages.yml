@@ -167,9 +167,7 @@ jobs:
           cp web/static/index.html _site/
           cp web/static/help.html _site/
           cp web/static/styles.css _site/
-          cp web/static/app.js _site/
-          cp web/static/solver_worker.js _site/
-          cp web/static/coi_serviceworker.js _site/
+          cp web/static/*.js _site/
           cp web/presets.json _site/
           cp docs/bridge-strategy.md _site/bridge-strategy.md
           cp docs/user-guide.md _site/user-guide.md
@@ -180,9 +178,13 @@ jobs:
             cp build-wasm/bridge_wasm.worker.js _site/
           fi
           VER="${GITHUB_SHA::8}"
-          sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|src=\"app.js\"|src=\"app.js?v=${VER}\"|g" _site/index.html
+          sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g" \
+            _site/index.html
+          sed -i -E "s|src=\"([a-z_]+\\.js)\"|src=\"\\1?v=${VER}\"|g" \
+            _site/index.html
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" _site/help.html
-          sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" _site/app.js
+          sed -i "s|'presets.json'|'presets.json?v=${VER}'|g; s|'solver_worker.js'|'solver_worker.js?v=${VER}'|g; s|'bridge-strategy.md'|'bridge-strategy.md?v=${VER}'|g; s|'user-guide.md'|'user-guide.md?v=${VER}'|g" \
+            _site/app.js _site/solver_api.js _site/telemetry_and_help.js
           sed -i "s|'bridge_wasm.js'|'bridge_wasm.js?v=${VER}'|g" \
             _site/solver_worker.js
           sed -i "s|'bridge_wasm.wasm'|'bridge_wasm.wasm?v=${VER}'|g" \

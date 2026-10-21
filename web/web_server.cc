@@ -1399,6 +1399,41 @@ void WebServer::RegisterRoutes() {
     res.set_content(web_assets::APP_JS, "application/javascript");
   });
 
+  svr_.Get("/solver_api.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::SOLVER_API_JS,
+                             "application/javascript");
+           });
+
+  svr_.Get("/deal_svg.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::DEAL_SVG_JS, "application/javascript");
+           });
+
+  svr_.Get("/analysis_tabs.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::ANALYSIS_TABS_JS,
+                             "application/javascript");
+           });
+
+  svr_.Get("/photo_scanner.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::PHOTO_SCANNER_JS,
+                             "application/javascript");
+           });
+
+  svr_.Get("/decision_tree.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::DECISION_TREE_JS,
+                             "application/javascript");
+           });
+
+  svr_.Get("/telemetry_and_help.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::TELEMETRY_AND_HELP_JS,
+                             "application/javascript");
+           });
+
   svr_.Get("/presets.json", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::PRESETS_JSON, "application/json");
   });

@@ -87,37 +87,88 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
 
-  // Test JS serving
+  // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");
   ASSERT_TRUE(res_js);
   ASSERT_TRUE(res_js->status == 200);
-  ASSERT_TRUE(res_js->body.find("const nodeDetailBanner = document.getElementById('nodeDetailBanner');") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("const nodeDetailContent = document.getElementById('nodeDetailContent');") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function traceHandByNumber") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function selectEquivalentLine") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function formatLineSuccessPctPrefix") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function buildSelectableLinesList") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function renderCompareLinesTab") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function renderComparePairSection") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("Original line") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("Alt line") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("leadSeatIdx") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("trick-columns-header") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function handleProposeCardClick") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function zoomAroundPoint") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function submitSentryFeedback") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("const feedbackMessage = (message || '').slice(0, 4096);") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function getActivePresetAndHandInfo") !=
+  ASSERT_TRUE(res_js->body.find(
+                  "const nodeDetailBanner = "
+                  "document.getElementById('nodeDetailBanner');") !=
               std::string::npos);
-  ASSERT_TRUE(res_js->body.find("Preset / Hand:") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("const WASM_NUM_THREADS =") !=
+  ASSERT_TRUE(res_js->body.find(
+                  "const nodeDetailContent = "
+                  "document.getElementById('nodeDetailContent');") !=
               std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function ensureCrossOriginIsolation") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("function getNodeFillProportions") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("node-fill-pat-") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("selectedTrickStates") != std::string::npos);
-  ASSERT_TRUE(res_js->body.find("parseModalFirstRoundCalls") !=
+  ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") !=
+              std::string::npos);
+
+  auto res_solver_api_js = client.Get("/solver_api.js");
+  ASSERT_TRUE(res_solver_api_js);
+  ASSERT_TRUE(res_solver_api_js->status == 200);
+  ASSERT_TRUE(res_solver_api_js->body.find("const WASM_NUM_THREADS =") !=
+              std::string::npos);
+  ASSERT_TRUE(res_solver_api_js->body.find(
+                  "function ensureCrossOriginIsolation") != std::string::npos);
+
+  auto res_deal_svg_js = client.Get("/deal_svg.js");
+  ASSERT_TRUE(res_deal_svg_js);
+  ASSERT_TRUE(res_deal_svg_js->status == 200);
+  ASSERT_TRUE(res_deal_svg_js->body.find("function handleProposeCardClick") !=
+              std::string::npos);
+
+  auto res_analysis_tabs_js = client.Get("/analysis_tabs.js");
+  ASSERT_TRUE(res_analysis_tabs_js);
+  ASSERT_TRUE(res_analysis_tabs_js->status == 200);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find(
+                  "function selectEquivalentLine") != std::string::npos);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find(
+                  "function formatLineSuccessPctPrefix") != std::string::npos);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find(
+                  "function buildSelectableLinesList") != std::string::npos);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find("Original line") !=
+              std::string::npos);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find("Alt line") != std::string::npos);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find(
+                  "function renderCompareLinesTab") != std::string::npos);
+  ASSERT_TRUE(res_analysis_tabs_js->body.find(
+                  "function renderComparePairSection") != std::string::npos);
+
+  auto res_photo_scanner_js = client.Get("/photo_scanner.js");
+  ASSERT_TRUE(res_photo_scanner_js);
+  ASSERT_TRUE(res_photo_scanner_js->status == 200);
+  ASSERT_TRUE(res_photo_scanner_js->body.find("parseModalFirstRoundCalls") !=
+              std::string::npos);
+
+  auto res_decision_tree_js = client.Get("/decision_tree.js");
+  ASSERT_TRUE(res_decision_tree_js);
+  ASSERT_TRUE(res_decision_tree_js->status == 200);
+  ASSERT_TRUE(res_decision_tree_js->body.find("function traceHandByNumber") !=
+              std::string::npos);
+  ASSERT_TRUE(res_decision_tree_js->body.find("leadSeatIdx") !=
+              std::string::npos);
+  ASSERT_TRUE(res_decision_tree_js->body.find("trick-columns-header") !=
+              std::string::npos);
+  ASSERT_TRUE(res_decision_tree_js->body.find("function zoomAroundPoint") !=
+              std::string::npos);
+  ASSERT_TRUE(res_decision_tree_js->body.find(
+                  "function getNodeFillProportions") != std::string::npos);
+  ASSERT_TRUE(res_decision_tree_js->body.find("node-fill-pat-") !=
+              std::string::npos);
+  ASSERT_TRUE(res_decision_tree_js->body.find("selectedTrickStates") !=
+              std::string::npos);
+
+  auto res_telemetry_js = client.Get("/telemetry_and_help.js");
+  ASSERT_TRUE(res_telemetry_js);
+  ASSERT_TRUE(res_telemetry_js->status == 200);
+  ASSERT_TRUE(res_telemetry_js->body.find("function submitSentryFeedback") !=
+              std::string::npos);
+  ASSERT_TRUE(
+      res_telemetry_js->body.find(
+          "const feedbackMessage = (message || '').slice(0, 4096);") !=
+      std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find(
+                  "function getActivePresetAndHandInfo") != std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("Preset / Hand:") !=
               std::string::npos);
 
   // Test Presets Endpoints
@@ -1067,13 +1118,17 @@ TEST(ServerTest, WebServerSolveStatusLifecycleTest) {
 
   auto res_app_js = client.Get("/app.js");
   ASSERT_TRUE(res_app_js);
-  ASSERT_TRUE(res_app_js->body.find("recognizeBoardFromImageData") !=
-          std::string::npos);
-  ASSERT_TRUE(res_app_js->body.find("applyDeclarerRotation") != std::string::npos);
-  ASSERT_TRUE(res_app_js->body.find("openPhotoScanModalWithPdfFile") !=
-          std::string::npos);
-  ASSERT_TRUE(res_app_js->body.find("extractPbnBoardsFromPdfBuffer") !=
-          std::string::npos);
+  ASSERT_TRUE(res_app_js->body.find("applyDeclarerRotation") !=
+              std::string::npos);
+
+  auto res_scanner_js = client.Get("/photo_scanner.js");
+  ASSERT_TRUE(res_scanner_js);
+  ASSERT_TRUE(res_scanner_js->body.find("recognizeBoardFromImageData") !=
+              std::string::npos);
+  ASSERT_TRUE(res_scanner_js->body.find("openPhotoScanModalWithPdfFile") !=
+              std::string::npos);
+  ASSERT_TRUE(res_scanner_js->body.find("extractPbnBoardsFromPdfBuffer") !=
+              std::string::npos);
 
   // Test partial-trick proposal with wildcard 'x' moved from Unknown Cards
   // into West's hand (e.g. Simple Finesse preset: S7, Sx, SA).
