@@ -243,6 +243,18 @@ class ConditionalLine {  // ConditionalLineBranch
   // Returns the number of conditional branches out of this node.
   int num_conditions() const { return conditions_.size(); }
 
+  // Returns total extra branches (sum of max(0, conditions_.size() - 1))
+  // across this node and all descendant nodes.
+  size_t ExtraBranches() const {
+    size_t extra = (conditions_.size() > 1) ? (conditions_.size() - 1) : 0;
+    for (const auto &[_cond, child] : conditions_) {
+      if (child) {
+        extra += child->ExtraBranches();
+      }
+    }
+    return extra;
+  }
+
   // Returns total number of covered boards at this node.
   int CoveredBoards() const { return CoveredFinalBoards(); }
 

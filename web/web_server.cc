@@ -272,7 +272,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
   if (line.do_first().Empty()) {
     const auto &conds = line.conditions();
     if (!conds.empty()) {
-      if (conds.size() == 1 && conds[0].second) {
+      if (conds.size() == 1 && conds[0].second &&
+          !HasUnmatchedFailuresAt(line, failures)) {
         return BuildTreeFromConditionalLine(*conds[0].second, node_id,
                                             trick_num, total, ns_tricks,
                                             failures);
