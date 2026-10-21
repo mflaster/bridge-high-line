@@ -1396,10 +1396,11 @@ TEST(ServerTest, WebServerSolveJsonNineCardHeartsNoFalseFailureNodes) {
   // than raw trick strings like "(D_) DA (D_) D3", and "if S wins the CJ" has
   // a single collapsed CK -> CA line without splitting on equivalent spot cards
   // S5/S3/S2.
-  const auto &root_children = res["tree"]["children"];
-  ASSERT_FALSE(root_children.empty());
-  for (const auto &t1 : root_children) {
-    if (!t1.contains("children") || t1["children"].size() <= 1) continue;
+  const auto &tree_root = res["tree"];
+  ASSERT_TRUE(tree_root.contains("children"));
+  ASSERT_FALSE(tree_root["children"].empty());
+  auto check_t1_node = [](const nlohmann::json &t1) {
+    if (!t1.contains("children") || t1["children"].size() <= 1) return;
     for (const auto &branch : t1["children"]) {
       std::string b_cond = branch.value("condition", "");
       EXPECT_NE(b_cond.find("wins"), std::string::npos)
@@ -1413,6 +1414,15 @@ TEST(ServerTest, WebServerSolveJsonNineCardHeartsNoFalseFailureNodes) {
         EXPECT_EQ(b_label.rfind("#2: ", 0), 0u)
             << "Expected single collapsed #2 node under 'if S wins the CJ'"
             << ", got: " << b_label;
+      }
+    }
+  };
+  if (tree_root.value("label", "").rfind("#1: ", 0) == 0) {
+    check_t1_node(tree_root);
+  } else {
+    for (const auto &rc : tree_root["children"]) {
+      if (rc.value("label", "").rfind("#1: ", 0) == 0) {
+        check_t1_node(rc);
       }
     }
   }

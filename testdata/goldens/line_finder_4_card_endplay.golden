@@ -12,27 +12,19 @@ Invariant Rules for 4 card ending:
   (None)
 Example Play (Board 0):
   #1 (S) S6 S4 SQ* S3
-  #2 (N) ST S5 S7 SK*
-  #3 (W) S9 SA* SJ S8
-  #4 (N) H2 D4 HA* D3
+  #2 (N) SA* S5 S7 S9
+  #3 (N) H2 D4 HA* D3
+  #4 (S) S8 SK* ST SJ
 
   after S6 (S_) SQ (S_): S6 (S_) SQ (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20,21,22,23,24,26,28,29] / S6 S4 SQ S3 / S6 S3 SQ S5 / S6 S3 SQ S9 / S6 S3 SQ S9 / S6 S3 SQ S4
     if 0 wins the SQ: 
-      after ST (S_) S7 (S_): ST (S_) S7 (S_) [0,5,6,7,8,10,15,17,20,23,26] / ST S5 S7 SK / ST S9 S7 SK / ST S9 S7 SK / ST S5 S7 SK / ST S5 S7 SK
-        if 1 wins the SJ: 
-          after (D_) S8 (__) H2: (D_) S8 (__) H2 [10,23] / D3 S8 S5 H2  / D3 S8 S9 H2 
-            when 0 wins the H2: 
-              after SA (__) HA (SK): SA (__) HA (SK) [10,23] / SA D4 HA SK  / SA D4 HA SK 
-                when 2 wins the HA: HAND SUCCEEDED FOR: 2, 3, 4, 13, 21
-        if 3 wins the SK: 
-          after (D_) SA (D_) HA: (D_) SA (D_) HA [5,6,8,15,17] / D4 SA D3 HA  / D4 SA D3 HA  / D4 SA D3 HA  / D3 SA D4 HA  / D3 SA D4 HA 
+      after SA (S_) S7 (S_): SA (S_) S7 (S_) [0,5,6,7,8,10,15,17,20,23,26] / SA S5 S7 S9 / SA S9 S7 S4 / SA S9 S7 S5 / SA S5 S7 S9 / SA S5 S7 S9
+        when 0 wins the SA: 
+          after H2 (__) HA (__): H2 (__) HA (__) [0,5,6,7,8,10,15,17,20,23,26] / H2 D4 HA D3 / H2 D3 HA D4 / H2 D3 HA D4 / H2 D3 HA D4 / H2 D3 HA D4
             when 2 wins the HA: 
-              after S8 (S_) H2 (SJ): S8 (S_) H2 (SJ) [5,6,8,15,17] / S8 S4 H2 SJ  / S8 S5 H2 SJ  / S8 S9 H2 SJ  / S8 S4 H2 SJ  / S8 S4 H2 SJ 
-                when 0 wins the H2: HAND SUCCEEDED FOR: 14, 22
-          after (S_) SA (SJ) S8: (S_) SA (SJ) S8 [0,7,20,26] / S9 SA SJ S8 / S9 SA SJ S8 / S5 SA SJ S8 / S5 SA SJ S8
-            when 0 wins the SA: 
-              after H2 (__) HA (__): H2 (__) HA (__) [0,7,20,26] / H2 D4 HA D3 / H2 D3 HA D4 / H2 D4 HA D3 / H2 D3 HA D4
-                when 2 wins the HA: HAND SUCCEEDED FOR: 0, 1, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 20, 23, 25, 26, 27, 28, 29
+              after S8 (__) ST (__): S8 (__) ST (__) [0,5,6,7,8,10,15,17,20,23,26] / S8 SK ST SJ / S8 SK ST SJ / S8 SK ST SJ / S8 SK ST SJ / S8 SK ST SJ
+                if 1 wins the SJ: HAND SUCCEEDED FOR: 1, 2, 3, 4, 9, 11, 12, 13, 14, 16, 19, 22, 28, 29
+                if 3 wins the SK: HAND SUCCEEDED FOR: 0, 5, 6, 7, 8, 10, 15, 17, 18, 20, 21, 23, 25, 26, 27
     if 1 wins the SK: 
       after (D_) S7 (__) H2: (D_) S7 (__) H2 [3,9,11,12,16,19,21,24,28,29] / D4 S7 D3 H2  / D3 S7 D4 H2  / D3 S7 D4 H2  / D4 S7 D3 H2  / D4 S7 D3 H2 
         when 0 wins the H2: 

@@ -200,7 +200,7 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int top_k = -1);
 
   // Evaluates groups of generalized tricks and constructs top-level or branch ConditionalLine nodes.
   // Filters and returns all ConditionalLine options that achieve the maximum board coverage count.
@@ -212,7 +212,7 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int top_k = -1);
 
   // Attempts to improve board coverage when single-trick groupings do not
   // cover all solvable boards by branching on IsCardGoodCondition for the
@@ -225,7 +225,7 @@ class LineFinder {
       int cards_left, int leader, int lvl,
       std::vector<ConditionalLine> &ans,
       SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int top_k = -1);
 
   // Recursive workhorse for finding optimal play lines.
   // - Base case (cards_left == 0): returns empty vector if min_tricks > 0 (failure), or a single leaf
@@ -240,7 +240,7 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int top_k = -1);
 
   std::vector<ConditionalLine> SolveHelperUncached(
       int min_tricks,
@@ -248,7 +248,9 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
+      int min_covered = 0, int top_k = -1);
+
+  int TopKForLevel(int lvl, size_t num_boards) const;
 
  private:
   static constexpr size_t kMemoShards = 64;
@@ -260,6 +262,7 @@ class LineFinder {
   struct MemoEntry {
     std::vector<ConditionalLine> lines;
     int fail_low_bound = 0;
+    int exact_min_cov = 0;
     bool exact = false;
   };
   struct SolveMemo {
@@ -269,7 +272,7 @@ class LineFinder {
     size_t cursor[kMemoShards] = {};
 
     bool Lookup(const std::string &key, int min_covered,
-                std::vector<ConditionalLine> *out);
+                std::vector<ConditionalLine> *out, int top_k = 1);
     void Insert(std::string key, int min_covered,
                 const std::vector<ConditionalLine> &res,
                 int top_k = 1);

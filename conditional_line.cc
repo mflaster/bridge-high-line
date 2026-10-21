@@ -1489,7 +1489,9 @@ bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
                             int opp_pos,
                             TrickOppPatternMask *mask1 = nullptr,
                             TrickOppPatternMask *mask2 = nullptr) {
-  if (!CardsAreRedundant(opp1, opp2)) {
+  bool is_any_vs_discard =
+      (opp1 == "__" && opp2 == "R_") || (opp1 == "R_" && opp2 == "__");
+  if (!CardsAreRedundant(opp1, opp2) && !is_any_vs_discard) {
     return true;
   }
   if (trick1.leader % 2 == 0) {

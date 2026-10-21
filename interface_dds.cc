@@ -107,6 +107,22 @@ std::vector<std::string> FindBestCardsToPlay(
 }
 
 int FindOptimalTricks(const BoardState &bs) {
+  DoInit();
+  uint64_t cur_hand = bs.GetHand(bs.CurPlayer()) & ~bs.played_cards();
+  int cards_left = __builtin_popcountll(cur_hand);
+  if (cards_left <= 0) {
+    return 0;
+  }
+  if (cards_left == 1 && bs.CardsPlayedThisTrick() == 0) {
+    BoardState copy = bs;
+    for (int i = 0; i < 4; ++i) {
+      std::vector<CardType> valid = copy.ValidCardsToPlay();
+      if (valid.empty()) break;
+      copy.PlayCard(copy.CurPlayer(), valid[0]);
+    }
+    int won_even = copy.tricks_won_even() - bs.tricks_won_even();
+    return (bs.CurPlayer() % 2 == 0) ? won_even : (1 - won_even);
+  }
   dealPBN dl;
   PopulatePBNDeal(bs, &dl);
 
@@ -114,14 +130,12 @@ int FindOptimalTricks(const BoardState &bs) {
   int solutions = 2; // Return all optimum cards and their scores.
   int mode = 1;  // automatic reuse of state / always search
   int threadindex = omp_get_thread_num();
-  futureTricks futp;
-  SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
-  std::vector<std::string> ans;
-  if (futp.cards <= 0) {
+  futureTricks futp{};
+  int rc = SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  if (rc != RETURN_NO_FAULT || futp.cards <= 0 || futp.score[0] < 0) {
     return 0;
   }
-  int result = futp.score[0];
-  return result;
+  return futp.score[0];
 }
 
 namespace {
@@ -725,9 +739,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     for (int i = 0; i < futp.cards; ++i) {
       int r = futp.rank[i];
       if (r < 10) {
-        if (futp.equals[i] != 0) {
-          r = __builtin_ctz(futp.equals[i]);
-        }
+        r = LowestRankInGroup(futp, i);
       } else {
         while (r - 1 >= 10 && ((futp.equals[i] >> (r - 1)) & 1) != 0) {
           --r;

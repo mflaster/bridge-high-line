@@ -1051,6 +1051,12 @@ TEST(ConditionalLineTest,
   GeneralizedTrick decl_4th_b({"Sx", "S2", b1}, {"SQ", "SJ", b1}, b1, 0);
   EXPECT_EQ(GroupTricks({decl_4th_a, decl_4th_b}).size(), 2u);
 
+  // "__" and "R_" in 2nd seat overlap on discards and must NOT group together
+  // as distinguishable branches when declarer leads (Hand 6 300-deal case).
+  GeneralizedTrick decl_any_a({"__", "SJ", b0}, {"__", "D8", b0}, b0, 2);
+  GeneralizedTrick decl_disc_b({"R_", "SJ", b1}, {"__", "DQ", b1}, b1, 2);
+  EXPECT_EQ(GroupTricks({decl_any_a, decl_disc_b}).size(), 2u);
+
   // Defender leads (leader = 1):
   // Same opening-lead suit ("Hx" vs "HT") and identical declarer cards
   // ("H9" and "H8") must NOT branch (Hand 6 regression case).
