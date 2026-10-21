@@ -291,7 +291,11 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       root_node->failure_boards = failure_cnt;
       root_node->covered_boards = success_cnt;
       root_node->boards = std::vector<int>(boards_set.begin(), boards_set.end());
+      bool has_state_cond = false;
       for (const auto &[cond_ptr, child_ptr] : conds) {
+        if (cond_ptr && cond_ptr->IsStateCondition()) {
+          has_state_cond = true;
+        }
         if (child_ptr) {
           auto child = BuildTreeFromConditionalLine(
               *child_ptr, node_id, trick_num, total, ns_tricks, failures);
@@ -305,6 +309,8 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
       int branch_leader = GetLeaderFromNode(root_node);
       if (branch_leader >= 0 && branch_leader % 2 != 0) {
         root_node->label = "Defender leads";
+      } else if (has_state_cond) {
+        root_node->label = "Declarer leads";
       } else {
         std::string common_card = "";
         bool all_same = !root_node->children.empty();

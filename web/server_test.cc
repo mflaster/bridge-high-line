@@ -663,6 +663,31 @@ TEST(ServerTest, BuildTreeFromConditionalLineCommonLeadCardLabel) {
   ASSERT_TRUE(node_diff != nullptr);
   ASSERT_EQ(node_diff->label, "Declarer leads");
 
+  // Test state condition (e.g. PlayerDiscardedCondition) where both branches
+  // happen to lead the same card (CJ): must still use "Declarer leads" rather
+  // than "CJ is led".
+  ConditionalLine root_state_same_lead;
+  ConditionalLine child_state_1;
+  child_state_1.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("C_", "CJ", boards),
+      GeneralizedDemiStruct("C_", "CA", boards),
+      boards, 0));
+  ConditionalLine child_state_2;
+  child_state_2.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("C_", "CJ", boards),
+      GeneralizedDemiStruct("C_", "CQ", boards),
+      boards, 0));
+  root_state_same_lead.AddCondition(
+      new PlayerDiscardedCondition(1, SPADES, true), child_state_1);
+  root_state_same_lead.AddCondition(
+      new PlayerDiscardedCondition(1, SPADES, false), child_state_2);
+
+  int node_id_state = 0;
+  auto node_state =
+      BuildTreeFromConditionalLine(root_state_same_lead, node_id_state);
+  ASSERT_TRUE(node_state != nullptr);
+  ASSERT_EQ(node_state->label, "Declarer leads");
+
   // Test when a defender is on lead across branches
   ConditionalLine root_def;
   ConditionalLine child_def_1;

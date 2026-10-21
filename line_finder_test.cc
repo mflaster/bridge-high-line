@@ -746,6 +746,21 @@ TEST(LineFinderTest, LineFinder_Simple9CardHearts) {
   });
 }
 
+TEST(LineFinderTest, LineFinder_Hand6_9Card) {
+  RunLineFinderTestCase({
+    .name = "hand_6_9_card",
+    .trump = SPADES,
+    .leader = 2,
+    .min_tricks = 9,
+    .num_iters = 200,
+    .hand0 = "S AJ8765; C KJ8;",
+    .hand2 = "S K9; D AQ853; C AQ;",
+    .unknown_cards = "S Q432; H T7; D KJT97642; C T754;",
+    .description =
+        "Hand 6 9-card ending: branch on E discard on SK before club entry",
+  });
+}
+
 TEST(LineFinderTest, LineFinder_MidTrickSolveAndPreassignedDefenderCard) {
   srand48(0);
   // 2-card Spades finesse deal: N has SAQ, S has S87, E/W share SK543.
@@ -1025,4 +1040,18 @@ TEST(LineFinderTest, LineFinder_BranchOnPlayerDiscardedCondition) {
   EXPECT_EQ(lines[0].conditions().size(), 1u);
   EXPECT_NE(desc.find("if E discarded on C"), std::string::npos);
   EXPECT_NE(desc.find("if E did not discard on C"), std::string::npos);
+
+  // Verify that the condition node immediately follows the Club trick
+  // (where C was led).
+  const auto &t1_child = lines[0].conditions().begin()->second;
+  ASSERT_NE(t1_child, nullptr);
+  ASSERT_EQ(t1_child->conditions().size(), 1u);
+  const auto &t1_winner_child = t1_child->conditions().begin()->second;
+  ASSERT_NE(t1_winner_child, nullptr);
+  EXPECT_TRUE(t1_winner_child->do_first().Empty());
+  EXPECT_EQ(t1_winner_child->conditions().size(), 2u);
+  for (const auto &kv : t1_winner_child->conditions()) {
+    EXPECT_TRUE(kv.first->IsStateCondition());
+    EXPECT_NE(kv.first->Describe(false).find("discard"), std::string::npos);
+  }
 }
