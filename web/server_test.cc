@@ -1565,3 +1565,78 @@ TEST(ServerTest, BranchSolveUsesBranchDealCountAsDenominator) {
   }
 }
 
+TEST(ServerTest, PruneEmptyBranchesClearsSingleSurvivingStateCondition) {
+  std::set<int> empty_boards;
+  std::set<int> b0 = {0};
+  std::set<int> b1 = {1};
+  std::set<int> all_boards = {0, 1};
+
+  ConditionalLine leaf_empty(empty_boards);
+  ConditionalLine leaf0(b0);
+  ConditionalLine leaf1(b1);
+
+  // Empty branch: [if DQ is good] -> #9: DQ (D_) D2 (D_) (0 boards after Step 2)
+  ConditionalLine trick9_dq;
+  trick9_dq.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("D_", "DQ", empty_boards),
+      GeneralizedDemiStruct("D_", "D2", empty_boards), empty_boards,
+      /*ldr=*/0));
+  trick9_dq.AddCondition(new WinnerPlayCondition(0), leaf_empty);
+
+  // Surviving branch: [if DQ is not good] -> Declarer leads:
+  //   [if E discarded on S] #9: SJ (__) D5 (S_) (board 0)
+  //   [if E did not discard on S] #9: CK (C_) C9 (C_) (board 1)
+  ConditionalLine trick9_sj;
+  trick9_sj.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("__", "SJ", b0),
+      GeneralizedDemiStruct("S_", "D5", b0), b0, /*ldr=*/0));
+  trick9_sj.AddCondition(new WinnerPlayCondition(0), leaf0);
+
+  ConditionalLine trick9_ck;
+  trick9_ck.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("C_", "CK", b1),
+      GeneralizedDemiStruct("C_", "C9", b1), b1, /*ldr=*/0));
+  trick9_ck.AddCondition(new WinnerPlayCondition(0), leaf1);
+
+  ConditionalLine disc_split;
+  disc_split.AddCondition(new PlayerDiscardedCondition(1, SPADES, true),
+                          trick9_sj);
+  disc_split.AddCondition(new PlayerDiscardedCondition(1, SPADES, false),
+                          trick9_ck);
+
+  ConditionalLine dq_split;
+  CardType dq = Card::GetSuitedCard(DIAMONDS, 12);
+  dq_split.AddCondition(new IsCardGoodCondition(dq, true), trick9_dq);
+  dq_split.AddCondition(new IsCardGoodCondition(dq, false), disc_split);
+
+  ConditionalLine trick8;
+  trick8.SetAction(GeneralizedTrick(
+      GeneralizedDemiStruct("S_", "S9", all_boards),
+      GeneralizedDemiStruct("__", "SA", all_boards), all_boards, /*ldr=*/2));
+  trick8.AddCondition(new WinnerPlayCondition(0), dq_split);
+
+  int node_id = 0;
+  auto tree = BuildTreeFromConditionalLine(trick8, node_id, /*trick_num=*/8,
+                                           /*root_total=*/2);
+  ASSERT_NE(tree, nullptr);
+  AccumulateFailureCounts(tree);
+  PruneEmptyBranches(tree);
+  CollapseRedundantNodes(tree);
+
+  // Under #8, the vacuous "[if DQ is not good]" condition should be cleared and
+  // collapsed so the single "Declarer leads" node has an empty condition and
+  // directly holds the two "[if E discarded on S]" / "[if E did not discard on
+  // S]" children.
+  ASSERT_EQ(tree->label, "#8: S9 (S_) SA (__)");
+  ASSERT_EQ(tree->children.size(), 1u);
+  const auto &decl_leads = tree->children[0];
+  EXPECT_EQ(decl_leads->type, "condition");
+  EXPECT_EQ(decl_leads->label, "Declarer leads");
+  EXPECT_EQ(decl_leads->condition, "");
+  ASSERT_EQ(decl_leads->children.size(), 2u);
+  EXPECT_EQ(decl_leads->children[0]->condition, "if E discarded on S");
+  EXPECT_EQ(decl_leads->children[0]->label, "#9: SJ (__) D5 (S_)");
+  EXPECT_EQ(decl_leads->children[1]->condition, "if E did not discard on S");
+  EXPECT_EQ(decl_leads->children[1]->label, "#9: CK (C_) C9 (C_)");
+}
+

@@ -94,6 +94,9 @@ std::shared_ptr<DecisionTreeNode> BuildTreeFromConditionalLine(
     const ConditionalLine &line, int &node_id, int trick_num = 1,
     int root_total = 1, int ns_tricks = 0,
     const FailureIndex *failures = nullptr);
+int AccumulateFailureCounts(const std::shared_ptr<DecisionTreeNode> &node);
+void PruneEmptyBranches(const std::shared_ptr<DecisionTreeNode> &node);
+void CollapseRedundantNodes(std::shared_ptr<DecisionTreeNode> &node);
 void to_json(nlohmann::json &j, const DecisionTreeNode &node);
 
 class WebServer {

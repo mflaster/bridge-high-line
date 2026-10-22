@@ -983,10 +983,15 @@ void PruneEmptyBranches(const std::shared_ptr<DecisionTreeNode> &node) {
     }
   }
   if (any_non_empty) {
+    size_t prev_count = node->children.size();
     node->children.erase(
         std::remove_if(node->children.begin(), node->children.end(),
                        is_empty_branch),
         node->children.end());
+    if (node->type == "condition" && prev_count > 1 &&
+        node->children.size() == 1) {
+      node->children[0]->condition.clear();
+    }
   }
 }
 
