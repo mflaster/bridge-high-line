@@ -171,6 +171,19 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_telemetry_js->body.find("Preset / Hand:") !=
               std::string::npos);
 
+  ASSERT_TRUE(res_index->body.find("saveAnalysisBtn") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("pdf_export.js") != std::string::npos);
+
+  auto res_pdf_export_js = client.Get("/pdf_export.js");
+  ASSERT_TRUE(res_pdf_export_js);
+  ASSERT_TRUE(res_pdf_export_js->status == 200);
+  ASSERT_TRUE(res_pdf_export_js->body.find(
+                  "function generateAnalysisPdfPages") != std::string::npos);
+  ASSERT_TRUE(res_pdf_export_js->body.find(
+                  "function buildPdfFromPageCanvases") != std::string::npos);
+  ASSERT_TRUE(res_pdf_export_js->body.find("function saveAnalysisAsPdf") !=
+              std::string::npos);
+
   // Test Presets Endpoints
   auto res_presets_file = client.Get("/presets.json");
   ASSERT_TRUE(res_presets_file);

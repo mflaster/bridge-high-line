@@ -426,6 +426,9 @@ function renderSolveTree() {
         `<text x="50%" y="50%" text-anchor="middle" fill="#f87171">No decision tree generated.</text>`;
     }
   }
+  if (typeof updateSaveAnalysisButtonState === 'function') {
+    updateSaveAnalysisButtonState();
+  }
 }
 
 function updateActualStat(data) {
@@ -908,6 +911,9 @@ function clearPanels(keepOriginalSnapshot = false) {
   panY = 40;
   zoomLevel = 1.0;
   updateTransform();
+  if (typeof updateSaveAnalysisButtonState === 'function') {
+    updateSaveAnalysisButtonState();
+  }
 
   if (nodeDetailBanner) nodeDetailBanner.classList.add('hidden');
   if (nodeDetailContent) nodeDetailContent.textContent = '';

@@ -169,6 +169,7 @@ add_custom_command(
     ${CMAKE_CURRENT_SOURCE_DIR}/web/static/photo_scanner.js
     ${CMAKE_CURRENT_SOURCE_DIR}/web/static/decision_tree.js
     ${CMAKE_CURRENT_SOURCE_DIR}/web/static/telemetry_and_help.js
+    ${CMAKE_CURRENT_SOURCE_DIR}/web/static/pdf_export.js
     ${CMAKE_CURRENT_SOURCE_DIR}/web/presets.json
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/bridge-strategy.md
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/user-guide.md

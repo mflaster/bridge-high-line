@@ -1446,6 +1446,12 @@ void WebServer::RegisterRoutes() {
                              "application/javascript");
            });
 
+  svr_.Get("/pdf_export.js",
+           [](const httplib::Request &, httplib::Response &res) {
+             res.set_content(web_assets::PDF_EXPORT_JS,
+                             "application/javascript");
+           });
+
   svr_.Get("/presets.json", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::PRESETS_JSON, "application/json");
   });
