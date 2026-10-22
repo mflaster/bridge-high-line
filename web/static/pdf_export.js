@@ -869,7 +869,10 @@ function computeInspectorDataForNode(targetNode) {
         condition: cText,
         node: pathNode
       });
-      pendingConditions.push(cText);
+      pendingConditions.push({
+        text: cText,
+        parent: pathNode._parent || null
+      });
     }
 
     const rawTrick = extractTrickString(pathNode);
@@ -1023,7 +1026,7 @@ function computeInspectorDataForNode(targetNode) {
     const winnerCard = parsedCards[winningCardIdx];
     const leadSeatName = getSeatName(currentLeader);
     const rowConditions = pendingConditions.slice();
-    const condBeforeTrick = rowConditions.join(' → ');
+    const condBeforeTrick = rowConditions.map(c => c.text).join(' → ');
     pendingConditions = [];
 
     trickRows.push({
@@ -1670,26 +1673,98 @@ function drawLineInspectorSnapshotOnPdf(
 
   curY += 46;
 
-  const drawConditionBanner = (condStr) => {
+  const drawConditionBanner = (condItem) => {
+    const condStr = typeof condItem === 'string'
+      ? condItem
+      : (condItem && condItem.text ? condItem.text : '');
     if (!condStr) return;
-    const isNewCond = Boolean(
-      branch1ConditionSet && !branch1ConditionSet.has(condStr)
-    );
+    const parentNode = (condItem && typeof condItem === 'object')
+      ? condItem.parent
+      : null;
+
+    let b1CondStr = null;
+    if (branch1ConditionSet instanceof Map && parentNode) {
+      b1CondStr = branch1ConditionSet.get(parentNode) || null;
+    }
+    const isSameAsBranch1 = !branch1ConditionSet || (b1CondStr === condStr) ||
+      (branch1ConditionSet instanceof Set && branch1ConditionSet.has(condStr));
+
+    if (isSameAsBranch1) {
+      pdfFillStrokeCard(
+        ctx, x + 22, curY, w - 44, 28, 6, '#172554', '#3b82f6', 1
+      );
+      ctx.font = '600 14px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#93c5fd';
+      ctx.fillText(
+        pdfTruncateToWidth(ctx, `↳ Condition: ${condStr}`, w - 68),
+        x + 34,
+        curY + 14
+      );
+      curY += 34;
+      return;
+    }
+
+    const toks = condStr.trim().split(/\s+/);
+    const b1Toks = b1CondStr ? b1CondStr.trim().split(/\s+/) : [];
+    let commonPre = 0;
+    while (
+      commonPre < toks.length &&
+      commonPre < b1Toks.length &&
+      toks[commonPre] === b1Toks[commonPre]
+    ) {
+      commonPre++;
+    }
+    let commonSuf = 0;
+    while (
+      commonSuf < (toks.length - commonPre) &&
+      commonSuf < (b1Toks.length - commonPre) &&
+      toks[toks.length - 1 - commonSuf] ===
+        b1Toks[b1Toks.length - 1 - commonSuf]
+    ) {
+      commonSuf++;
+    }
+
+    if (commonPre >= 2 && commonPre + commonSuf < toks.length) {
+      pdfFillStrokeCard(
+        ctx, x + 22, curY, w - 44, 28, 6, '#172554', '#3b82f6', 1
+      );
+      const prefixTxt = `↳ Condition: ${toks.slice(0, commonPre).join(' ')} `;
+      const diffTxt = toks.slice(commonPre, toks.length - commonSuf).join(' ');
+      const suffixTxt = commonSuf > 0
+        ? ` ${toks.slice(toks.length - commonSuf).join(' ')}`
+        : '';
+
+      const tx = x + 34;
+      const ty = curY + 14;
+      ctx.font = '600 14px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#93c5fd';
+      ctx.fillText(prefixTxt, tx, ty);
+      const preW = ctx.measureText(prefixTxt).width;
+
+      ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+      const diffW = ctx.measureText(diffTxt).width;
+      const pillX = tx + preW + 2;
+      const pillW = diffW + 10;
+      pdfFillStrokeCard(
+        ctx, pillX, curY + 3, pillW, 22, 4, '#fde047', '#eab308', 1.2
+      );
+      ctx.fillStyle = '#000000';
+      ctx.fillText(diffTxt, pillX + 5, ty);
+
+      if (suffixTxt) {
+        ctx.font = '600 14px Inter, system-ui, sans-serif';
+        ctx.fillStyle = '#93c5fd';
+        ctx.fillText(suffixTxt, pillX + pillW + 2, ty);
+      }
+      curY += 34;
+      return;
+    }
+
     pdfFillStrokeCard(
-      ctx,
-      x + 22,
-      curY,
-      w - 44,
-      28,
-      6,
-      isNewCond ? '#fde047' : '#172554',
-      isNewCond ? '#eab308' : '#3b82f6',
-      isNewCond ? 1.8 : 1
+      ctx, x + 22, curY, w - 44, 28, 6, '#fde047', '#eab308', 1.8
     );
-    ctx.font = isNewCond
-      ? 'bold 14px Inter, system-ui, sans-serif'
-      : '600 14px Inter, system-ui, sans-serif';
-    ctx.fillStyle = isNewCond ? '#000000' : '#93c5fd';
+    ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+    ctx.fillStyle = '#000000';
     ctx.fillText(
       pdfTruncateToWidth(ctx, `↳ Condition: ${condStr}`, w - 68),
       x + 34,
@@ -2380,11 +2455,17 @@ function generateAnalysisPdfPages() {
   const firstInspectorData = snapshots.length > 0
     ? computeInspectorDataForNode(snapshots[0].node)
     : null;
-  const branch1ConditionSet = new Set(
-    firstInspectorData
-      ? firstInspectorData.pathConditions.map(pc => pc.condition)
-      : []
-  );
+  const branch1CondByParent = new Map();
+  if (firstInspectorData && Array.isArray(firstInspectorData.path)) {
+    firstInspectorData.path.forEach((n) => {
+      if (n && n._parent && n.condition) {
+        const cTxt = n.condition.startsWith('after ')
+          ? n.condition.substring(6)
+          : n.condition;
+        branch1CondByParent.set(n._parent, cTxt);
+      }
+    });
+  }
 
   snapshots.forEach((snap, idx) => {
     const p = createPdfPageCanvas();
@@ -2433,7 +2514,7 @@ function generateAnalysisPdfPages() {
       1960,
       snap.node,
       inspectorData,
-      idx > 0 ? branch1ConditionSet : null
+      idx > 0 ? branch1CondByParent : null
     );
 
     pages.push(p);
