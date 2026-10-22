@@ -1131,3 +1131,86 @@ TEST(LineFinderTest,
   }
   EXPECT_TRUE(found_falsecarded_ct_split);
 }
+
+TEST(LineFinderTest, LineFinder_PrefersDrawingTrumpsWhenAllElseEqual) {
+  // Case 1: Opponents hold trumps (Spades), and both drawing trumps first
+  // (SK -> SA -> CA -> CK) and cashing clubs first (CA -> CK -> SK -> SA)
+  // cover all 8 boards with 0 extra branches. The solver should prefer
+  // drawing trumps first.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S A2; C K2;"),
+        0,
+        ParseHand("S K3; C A3;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S 7654; C QT98;");
+    std::vector<BoardState> boards(8);
+    for (int i = 0; i < 8; ++i) {
+      std::vector<uint64_t> h = {
+          hands[0],
+          ParseHand((i % 2 == 0) ? "S 76; C 98;" : "S 75; C Q9;"),
+          hands[2],
+          ParseHand((i % 2 == 0) ? "S 54; C QT;" : "S 64; C T8;"),
+      };
+      boards[i].SetHands(h);
+      boards[i].SetTrump(SPADES);
+      boards[i].SetLead(2);
+      boards[i].set_board_id(i + 1);
+    }
+    LineFinder lf(8);
+    lf.SetPredealtBoards(boards);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(4, hands, unknown, /*leader=*/2, SPADES);
+    ASSERT_FALSE(lines.empty());
+    EXPECT_EQ(lines[0].CoveredFinalBoards(), 8);
+    ASSERT_EQ(lines[0].conditions().size(), 1u);
+    std::string t1 = lines[0].conditions()[0].first->Describe(true);
+    EXPECT_NE(t1.find("SK"), std::string::npos) << t1;
+    const auto &win1 = lines[0].conditions()[0].second;
+    ASSERT_NE(win1, nullptr);
+    ASSERT_EQ(win1->conditions().size(), 1u);
+    const auto &sub = win1->conditions()[0].second;
+    ASSERT_NE(sub, nullptr);
+    ASSERT_EQ(sub->conditions().size(), 1u);
+    std::string t2 = sub->conditions()[0].first->Describe(true);
+    EXPECT_NE(t2.find("SA"), std::string::npos) << t2;
+  }
+
+  // Case 2: Opponents are void in trumps (Spades). Cashing the trump SA
+  // does not draw any opponent trumps (it is an uninformative null-move lead),
+  // so the solver should lead the side suit (Clubs) to finesse CQ rather than
+  // cashing SA first.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S A; C AQ;"),
+        0,
+        ParseHand("S 2; C 32;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("D 432; C K98;");
+    std::vector<BoardState> boards(4);
+    for (int i = 0; i < 4; ++i) {
+      std::vector<uint64_t> h = {
+          hands[0],
+          ParseHand("D 43; C 9;"),
+          hands[2],
+          ParseHand("D 2; C K8;"),
+      };
+      boards[i].SetHands(h);
+      boards[i].SetTrump(SPADES);
+      boards[i].SetLead(2);
+      boards[i].set_board_id(i + 1);
+    }
+    LineFinder lf(4);
+    lf.SetPredealtBoards(boards);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(3, hands, unknown, /*leader=*/2, SPADES);
+    ASSERT_FALSE(lines.empty());
+    EXPECT_EQ(lines[0].CoveredFinalBoards(), 4);
+    ASSERT_EQ(lines[0].conditions().size(), 1u);
+    std::string t1 = lines[0].conditions()[0].first->Describe(true);
+    EXPECT_NE(t1.find("C"), std::string::npos) << t1;
+    EXPECT_EQ(t1.find("SA"), std::string::npos) << t1;
+  }
+}
