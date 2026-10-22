@@ -1653,3 +1653,327 @@ TEST(ServerTest, PruneEmptyBranchesClearsSingleSurvivingStateCondition) {
   EXPECT_EQ(decl_leads->children[1]->label, "#9: CK (C_) C9 (C_)");
 }
 
+TEST(ServerTest, RotatedDeclarerFrontendSeatMappingAndSolve) {
+  int port = 18089;
+  WebServer server("127.0.0.1", port);
+  ASSERT_TRUE(server.Start(/*async=*/true));
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+  httplib::Client client("127.0.0.1", port);
+  client.set_keep_alive(false);
+  client.set_read_timeout(60, 0);
+
+  auto res_index = client.Get("/");
+  ASSERT_TRUE(res_index);
+  ASSERT_EQ(res_index->status, 200);
+  EXPECT_NE(res_index->body.find("N=Decl · E=LHO · S=Dummy · W=RHO"),
+            std::string::npos);
+  EXPECT_NE(res_index->body.find("summaryBoundsHand1Header"),
+            std::string::npos);
+  EXPECT_NE(res_index->body.find("summaryBoundsHand2Header"),
+            std::string::npos);
+  EXPECT_NE(res_index->body.find("summaryHonorHand1Header"),
+            std::string::npos);
+  EXPECT_NE(res_index->body.find("summaryHonorHand2Header"),
+            std::string::npos);
+
+  auto res_app_js = client.Get("/app.js");
+  ASSERT_TRUE(res_app_js);
+  ASSERT_EQ(res_app_js->status, 200);
+  EXPECT_NE(res_app_js->body.find("function getRotationSeatMap"),
+            std::string::npos);
+  EXPECT_NE(res_app_js->body.find("function getTableCompassDealHands"),
+            std::string::npos);
+  EXPECT_NE(res_app_js->body.find("function formatInvariantRuleForRotation"),
+            std::string::npos);
+
+  auto res_tabs_js = client.Get("/analysis_tabs.js");
+  ASSERT_TRUE(res_tabs_js);
+  ASSERT_EQ(res_tabs_js->status, 200);
+  EXPECT_NE(res_tabs_js->body.find("getTableCompassDealHands"),
+            std::string::npos);
+  EXPECT_NE(res_tabs_js->body.find("formatInvariantRuleForRotation"),
+            std::string::npos);
+
+  auto res_tree_js = client.Get("/decision_tree.js");
+  ASSERT_TRUE(res_tree_js);
+  ASSERT_EQ(res_tree_js->status, 200);
+  EXPECT_NE(res_tree_js->body.find("getTableCompassDealHands(activeTracedDeal)"),
+            std::string::npos);
+
+  // Solve a rotated South-declarer finesse deal (South rotated to N, North to S,
+  // West/LHO in solver E/hand 1, East/RHO in solver W/hand 2).
+  nlohmann::json solve_req = {
+      {"hands",
+       {{"N", "S AQ; H -; D -; C -;"},
+        {"E", ""},
+        {"S", "S 87; H -; D -; C -;"},
+        {"W", ""}}},
+      {"unknown_cards", "S K432"},
+      {"trump", "SPADES"},
+      {"leader", "SOUTH"},
+      {"min_tricks", 2},
+      {"num_iters", 20},
+      {"num_threads", 2}};
+  auto res_solve =
+      client.Post("/api/solve", solve_req.dump(), "application/json");
+  ASSERT_TRUE(res_solve);
+  ASSERT_EQ(res_solve->status, 200);
+  nlohmann::json solve_json = nlohmann::json::parse(res_solve->body);
+  ASSERT_TRUE(solve_json["success"] == true);
+  ASSERT_TRUE(solve_json.contains("distribution_summary"));
+  ASSERT_TRUE(solve_json.contains("sample_hands"));
+  ASSERT_FALSE(solve_json["sample_hands"].empty());
+
+  server.Stop();
+
+  // Execute the frontend JS functions in Node (when available) to verify:
+  // 1) Declarer seat mapping hints for N, S, E, W
+  // 2) Reversible single-dummy N/S rotation in applyDeclarerRotation
+  // 3) Distribution Summary headers & single-pass composite rule replacement
+  // 4) Un-rotated Sample Hands, Compare Lines cards, and Inspector banner
+  if (std::system("command -v node >/dev/null 2>&1") == 0) {
+    std::string cmd = R"NODE(node -e '
+const fs = require("fs");
+const vm = require("vm");
+
+function makeEl(id = "") {
+  return {
+    id,
+    value: "",
+    textContent: "",
+    _innerHTML: "",
+    get innerHTML() { return this._innerHTML; },
+    set innerHTML(v) {
+      this._innerHTML = String(v);
+      if (v === "") this.children = [];
+    },
+    className: "",
+    style: { setProperty() {} },
+    dataset: {},
+    children: [],
+    classList: {
+      _set: new Set(),
+      add(...c) { c.forEach(x => this._set.add(x)); },
+      remove(...c) { c.forEach(x => this._set.delete(x)); },
+      toggle(c, force) {
+        if (force === undefined) {
+          if (this._set.has(c)) this._set.delete(c); else this._set.add(c);
+        } else if (force) this._set.add(c); else this._set.delete(c);
+      },
+      contains(c) { return this._set.has(c); }
+    },
+    appendChild(ch) { this.children.push(ch); return ch; },
+    addEventListener() {},
+    setAttribute() {},
+    getBoundingClientRect() { return { width: 500, height: 500 }; },
+    querySelector(sel) {
+      if (sel === "tbody") {
+        if (!this._tbody) this._tbody = makeEl("tbody");
+        return this._tbody;
+      }
+      return makeEl(sel);
+    }
+  };
+}
+
+const elements = {};
+function getEl(id) {
+  if (!elements[id]) elements[id] = makeEl(id);
+  return elements[id];
+}
+
+const sandbox = {
+  console,
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  performance: { now: () => 0 },
+  window: {
+    location: { search: "", hash: "" },
+    addEventListener() {},
+    dispatchEvent() {}
+  },
+  localStorage: { getItem: () => null, setItem: () => {} },
+  URLSearchParams,
+  document: {
+    body: makeEl("body"),
+    getElementById: (id) => getEl(id),
+    querySelector: () => makeEl(),
+    querySelectorAll: () => [],
+    createElement: (tag) => makeEl(tag),
+    createElementNS: (ns, tag) => makeEl(tag),
+    addEventListener: () => {}
+  },
+  updateDealSvg: () => {},
+  updateProposeLineBarUI: () => {},
+  updateLeadStat: () => {},
+  parseHandToSuits: (str) => {
+    const out = { S: "-", H: "-", D: "-", C: "-" };
+    (str || "").split(";").forEach(part => {
+      const m = part.trim().match(/^([SHDC])\s+(.+)$/i);
+      if (m) out[m[1].toUpperCase()] = m[2].trim();
+    });
+    return out;
+  },
+  countHandCards: (str) => {
+    const suits = sandbox.parseHandToSuits(str);
+    let n = 0;
+    ["S", "H", "D", "C"].forEach(s => {
+      if (suits[s] && suits[s] !== "-") n += suits[s].length;
+    });
+    return n;
+  },
+  getSeatIndex: (s) => ({ N: 0, NORTH: 0, E: 1, EAST: 1, S: 2, SOUTH: 2, W: 3, WEST: 3 }[String(s).toUpperCase()] || 0),
+  getSeatName: (idx) => ["N", "E", "S", "W"][((idx % 4) + 4) % 4],
+  getTrumpCode: () => "S",
+  extractTrickString: () => "",
+  tokenizeTrick: () => []
+};
+vm.createContext(sandbox);
+
+const staticDir = process.cwd().endsWith("/build")
+  ? "../web/static"
+  : "web/static";
+vm.runInContext(fs.readFileSync(staticDir + "/app.js", "utf8"), sandbox);
+vm.runInContext(fs.readFileSync(staticDir + "/analysis_tabs.js", "utf8"), sandbox);
+vm.runInContext(fs.readFileSync(staticDir + "/decision_tree.js", "utf8"), sandbox);
+
+const assert = (cond, msg) => {
+  if (!cond) {
+    console.error("Assertion failed:", msg);
+    process.exit(1);
+  }
+};
+
+// 1. Test single-dummy N/S rotation reversibility & idempotence
+getEl("inputNorth").value = "S AQ; H -; D -; C -;";
+getEl("inputSouth").value = "S 87; H -; D -; C -;";
+getEl("inputEast").value = "";
+getEl("inputWest").value = "";
+sandbox.updateDeclarerBarUI("N");
+assert(getEl("declarerMappingHint").textContent === "N=Decl · E=LHO · S=Dummy · W=RHO",
+       "N declarer hint");
+
+// Toggle N -> S: swaps N and S
+sandbox.applyDeclarerRotation("S", false);
+assert(getEl("inputNorth").value === "S 87; H -; D -; C -;", "N->S swap North");
+assert(getEl("inputSouth").value === "S AQ; H -; D -; C -;", "N->S swap South");
+assert(getEl("declarerMappingHint").textContent === "N=S(Decl) · E=W(LHO) · S=N(Dummy) · W=E(RHO)",
+       "S declarer hint");
+assert(getEl("modalDeclarerHint").textContent === "N=S(Decl) · E=W(LHO) · S=N(Dummy) · W=E(RHO)",
+       "S modal declarer hint");
+
+// Clicking S again is a no-op on single-dummy hands
+sandbox.applyDeclarerRotation("S", false);
+assert(getEl("inputNorth").value === "S 87; H -; D -; C -;", "S->S idempotent North");
+
+// Toggle S -> N: swaps back
+sandbox.applyDeclarerRotation("N", false);
+assert(getEl("inputNorth").value === "S AQ; H -; D -; C -;", "S->N restore North");
+assert(getEl("inputSouth").value === "S 87; H -; D -; C -;", "S->N restore South");
+
+// 2. Test invariant rule single-pass replacement for N, S, E, W
+const compositeRule = "OrInvariant(E has the SK, W has the SQ)";
+assert(sandbox.formatInvariantRuleForRotation(compositeRule, "N") ===
+       "OrInvariant(E has the SK, W has the SQ)", "Composite rule N");
+assert(sandbox.formatInvariantRuleForRotation(compositeRule, "S") ===
+       "OrInvariant(W has the SK, E has the SQ)", "Composite rule S no collision");
+assert(sandbox.formatInvariantRuleForRotation(compositeRule, "E") ===
+       "OrInvariant(S has the SK, N has the SQ)", "Composite rule E");
+assert(sandbox.formatInvariantRuleForRotation(compositeRule, "W") ===
+       "OrInvariant(N has the SK, S has the SQ)", "Composite rule W");
+
+const lengthRule = "OrInvariant(E length in Spades is always 2, hand 1 length in Hearts is between 1 and 3)";
+assert(sandbox.formatInvariantRuleForRotation(lengthRule, "S") ===
+       "OrInvariant(W length in Spades is always 2, Hand 1 (West) length in Hearts is between 1 and 3)",
+       "Length rule S");
+assert(sandbox.formatInvariantRuleForRotation("hand 2 always contains the DA", "S") ===
+       "Hand 2 (East) always contains the DA", "Hand 2 rule S");
+
+// 3. Test renderDistributionSummary updates headers and rules for N, S, E, W declarers
+const distInput = {
+  total_deals: 10,
+  invariant_rules: [
+    "hand 1 always contains the SK",
+    "hand 2 length in Spades is always 2",
+    "OrInvariant(E has the HA, W has the HK)"
+  ],
+  suit_bounds: { S: { min_hand1: 1, max_hand1: 3, min_hand2: 2, max_hand2: 2, min_combined: 3, max_combined: 5 } },
+  honor_stats: {}
+};
+
+for (const [seat, lhoName, rhoName, lhoShort, rhoShort] of [
+  ["N", "East", "West", "E", "W"],
+  ["S", "West", "East", "W", "E"],
+  ["E", "South", "North", "S", "N"],
+  ["W", "North", "South", "N", "S"]
+]) {
+  sandbox.updateDeclarerBarUI(seat);
+  sandbox.renderDistributionSummary(distInput);
+  assert(getEl("summaryBoundsHand1Header").textContent === `Hand 1 (${lhoName}) Range`, `Bounds H1 header ${seat}`);
+  assert(getEl("summaryBoundsHand2Header").textContent === `Hand 2 (${rhoName}) Range`, `Bounds H2 header ${seat}`);
+  assert(getEl("summaryHonorHand1Header").textContent === `Hand 1 (${lhoName}) %`, `Honor H1 header ${seat}`);
+  assert(getEl("summaryHonorHand2Header").textContent === `Hand 2 (${rhoName}) %`, `Honor H2 header ${seat}`);
+  const renderedRules = getEl("summaryRulesList").children.map(li => li.textContent);
+  assert(renderedRules[0] === `Hand 1 (${lhoName}) always contains the SK`, `Rendered rule 0 ${seat}`);
+  assert(renderedRules[1] === `Hand 2 (${rhoName}) length in Spades is always 2`, `Rendered rule 1 ${seat}`);
+  assert(renderedRules[2] === `OrInvariant(${lhoShort} has the HA, ${rhoShort} has the HK)`, `Rendered rule 2 ${seat}`);
+}
+
+// 4. Test getTableCompassDealHands, renderSampleHands, createCompareDealCard, and showNodeInspector for N, S, E, W
+const rotDeal = {
+  board_id: 0,
+  N: "S AK; H -; D -; C -;", // Declarer
+  E: "S QJ; H -; D -; C -;", // LHO (hand 1)
+  S: "S 32; H -; D -; C -;", // Dummy
+  W: "S T9; H -; D -; C -;"  // RHO (hand 2/3)
+};
+
+const extractBoxSeatMap = (cardEl) => {
+  const out = {};
+  const walk = (el) => {
+    if (!el) return;
+    if (el.className === "sample-hand-box") {
+      const seat = el.children[0].textContent;
+      const spades = el.children[1].children[1].textContent;
+      out[seat] = spades;
+    }
+    (el.children || []).forEach(walk);
+  };
+  walk(cardEl);
+  return out;
+};
+
+for (const [seat, expectedBoxes, expectedBanner] of [
+  ["N", { NORTH: "AK", EAST: "QJ", SOUTH: "32", WEST: "T9" }, ["W", "T9", "E", "QJ"]],
+  ["S", { SOUTH: "AK", WEST: "QJ", NORTH: "32", EAST: "T9" }, ["W", "QJ", "E", "T9"]],
+  ["E", { EAST: "AK", SOUTH: "QJ", WEST: "32", NORTH: "T9" }, ["S", "QJ", "N", "T9"]],
+  ["W", { WEST: "AK", NORTH: "QJ", EAST: "32", SOUTH: "T9" }, ["N", "QJ", "S", "T9"]]
+]) {
+  sandbox.updateDeclarerBarUI(seat);
+  sandbox.renderSampleHands([rotDeal]);
+  const sampleCardMap = extractBoxSeatMap(getEl("sampleHandsGrid").children[0]);
+  for (const [dir, ranks] of Object.entries(expectedBoxes)) {
+    assert(sampleCardMap[dir] === ranks, `SampleHands ${seat} ${dir} expected ${ranks}, got ${sampleCardMap[dir]}`);
+  }
+  const cmpCard = sandbox.createCompareDealCard(rotDeal, 0, 0);
+  const cmpCardMap = extractBoxSeatMap(cmpCard);
+  for (const [dir, ranks] of Object.entries(expectedBoxes)) {
+    assert(cmpCardMap[dir] === ranks, `CompareCard ${seat} ${dir} expected ${ranks}, got ${cmpCardMap[dir]}`);
+  }
+  vm.runInContext("activeTracedBoardId = 0; activeTracedDeal = " + JSON.stringify(rotDeal) + ";", sandbox);
+  sandbox.showNodeInspector({ label: "Leaf", boards: [0] });
+  const bannerHtml = getEl("inspectorContent").children[0].innerHTML;
+  assert(bannerHtml.includes(`<strong>${expectedBanner[0]}:</strong> <span class="card-suit-s">♠</span>${expectedBanner[1]}`),
+         `Inspector banner ${seat} first defender: ${bannerHtml}`);
+  assert(bannerHtml.includes(`<strong>${expectedBanner[2]}:</strong> <span class="card-suit-s">♠</span>${expectedBanner[3]}`),
+         `Inspector banner ${seat} second defender: ${bannerHtml}`);
+}
+' )NODE";
+    EXPECT_EQ(std::system(cmd.c_str()), 0);
+  }
+}
+
+

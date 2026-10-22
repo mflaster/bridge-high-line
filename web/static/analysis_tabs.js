@@ -190,20 +190,24 @@ function createCompareDealCard(deal, boardId, targetLineIdx) {
   idBadge.textContent = `#${boardNum}`;
   card.appendChild(idBadge);
 
+  const tableDeal = (typeof getTableCompassDealHands === 'function')
+    ? getTableCompassDealHands(deal)
+    : (deal || { N: '', E: '', S: '', W: '' });
+
   const rowNorth = document.createElement('div');
   rowNorth.className = 'sample-deal-row-center';
-  rowNorth.appendChild(createSampleHandBox('NORTH', deal ? deal.N : ''));
+  rowNorth.appendChild(createSampleHandBox('NORTH', tableDeal.N));
   card.appendChild(rowNorth);
 
   const rowWE = document.createElement('div');
   rowWE.className = 'sample-deal-row-we';
-  rowWE.appendChild(createSampleHandBox('WEST', deal ? deal.W : ''));
-  rowWE.appendChild(createSampleHandBox('EAST', deal ? deal.E : ''));
+  rowWE.appendChild(createSampleHandBox('WEST', tableDeal.W));
+  rowWE.appendChild(createSampleHandBox('EAST', tableDeal.E));
   card.appendChild(rowWE);
 
   const rowSouth = document.createElement('div');
   rowSouth.className = 'sample-deal-row-center';
-  rowSouth.appendChild(createSampleHandBox('SOUTH', deal ? deal.S : ''));
+  rowSouth.appendChild(createSampleHandBox('SOUTH', tableDeal.S));
   card.appendChild(rowSouth);
 
   return card;
@@ -662,6 +666,9 @@ function renderDistributionSummary(dist) {
   const rules = dist.invariant_rules || [];
   const bounds = dist.suit_bounds || {};
   const honors = dist.honor_stats || {};
+  const rotMap = (typeof getRotationSeatMap === 'function')
+    ? getRotationSeatMap()
+    : { lhoName: 'East', rhoName: 'West', lhoSeat: 'E', rhoSeat: 'W' };
 
   // Update Badge Counter
   if (ruleCounterBadge) {
@@ -679,8 +686,21 @@ function renderDistributionSummary(dist) {
     if (rules.length > 0) {
       rules.forEach(r => {
         const li = document.createElement('li');
-        let formattedRule = r.replace(/\bhand 1\b/gi, 'Hand 1 (East)')
-                             .replace(/\bhand [23]\b/gi, 'Hand 2 (West)');
+        const formattedRule = (typeof formatInvariantRuleForRotation === 'function')
+          ? formatInvariantRuleForRotation(r)
+          : r.replace(
+              /\b(hand 1|hand [23])\b|\b(E|W)(?=\s+(?:has the|has|length in)\b)/gi,
+              (match, handToken, compassToken) => {
+                if (handToken) {
+                  return /^hand 1$/i.test(handToken)
+                    ? `Hand 1 (${rotMap.lhoName})`
+                    : `Hand 2 (${rotMap.rhoName})`;
+                }
+                if (compassToken === 'E') return rotMap.lhoSeat;
+                if (compassToken === 'W') return rotMap.rhoSeat;
+                return match;
+              }
+            );
         li.textContent = formattedRule;
         summaryRulesList.appendChild(li);
       });
@@ -695,6 +715,18 @@ function renderDistributionSummary(dist) {
 
   // Suit Bounds
   if (summaryBoundsTable) {
+    const boundsH1Header =
+      document.getElementById('summaryBoundsHand1Header') ||
+      summaryBoundsTable.querySelector('thead th:nth-child(2)');
+    const boundsH2Header =
+      document.getElementById('summaryBoundsHand2Header') ||
+      summaryBoundsTable.querySelector('thead th:nth-child(3)');
+    if (boundsH1Header) {
+      boundsH1Header.textContent = `Hand 1 (${rotMap.lhoName}) Range`;
+    }
+    if (boundsH2Header) {
+      boundsH2Header.textContent = `Hand 2 (${rotMap.rhoName}) Range`;
+    }
     const boundsTbody = summaryBoundsTable.querySelector('tbody');
     if (boundsTbody) {
       boundsTbody.innerHTML = '';
@@ -722,6 +754,18 @@ function renderDistributionSummary(dist) {
 
   // Honor Stats
   if (summaryHonorTable) {
+    const honorH1Header =
+      document.getElementById('summaryHonorHand1Header') ||
+      summaryHonorTable.querySelector('thead th:nth-child(3)');
+    const honorH2Header =
+      document.getElementById('summaryHonorHand2Header') ||
+      summaryHonorTable.querySelector('thead th:nth-child(4)');
+    if (honorH1Header) {
+      honorH1Header.textContent = `Hand 1 (${rotMap.lhoName}) %`;
+    }
+    if (honorH2Header) {
+      honorH2Header.textContent = `Hand 2 (${rotMap.rhoName}) %`;
+    }
     const honorTbody = summaryHonorTable.querySelector('tbody');
     if (honorTbody) {
       honorTbody.innerHTML = '';
@@ -850,20 +894,24 @@ function renderSampleHands(handsList) {
       }
       card.appendChild(idBadge);
 
+      const tableDeal = (typeof getTableCompassDealHands === 'function')
+        ? getTableCompassDealHands(deal)
+        : (deal || { N: '', E: '', S: '', W: '' });
+
       const rowNorth = document.createElement('div');
       rowNorth.className = 'sample-deal-row-center';
-      rowNorth.appendChild(createSampleHandBox('NORTH', deal.N));
+      rowNorth.appendChild(createSampleHandBox('NORTH', tableDeal.N));
       card.appendChild(rowNorth);
 
       const rowWE = document.createElement('div');
       rowWE.className = 'sample-deal-row-we';
-      rowWE.appendChild(createSampleHandBox('WEST', deal.W));
-      rowWE.appendChild(createSampleHandBox('EAST', deal.E));
+      rowWE.appendChild(createSampleHandBox('WEST', tableDeal.W));
+      rowWE.appendChild(createSampleHandBox('EAST', tableDeal.E));
       card.appendChild(rowWE);
 
       const rowSouth = document.createElement('div');
       rowSouth.className = 'sample-deal-row-center';
-      rowSouth.appendChild(createSampleHandBox('SOUTH', deal.S));
+      rowSouth.appendChild(createSampleHandBox('SOUTH', tableDeal.S));
       card.appendChild(rowSouth);
 
       sampleHandsGrid.appendChild(card);
