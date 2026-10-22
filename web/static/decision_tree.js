@@ -1055,10 +1055,19 @@ function showNodeInspector(node, clickedNode = null) {
           `<span class="card-suit-c">♣</span>${suits.C || '-'}`
         ].join(' ');
       };
+      const rotMap = (typeof getRotationSeatMap === 'function')
+        ? getRotationSeatMap()
+        : { declSeat: 'N', lhoSeat: 'E', dummySeat: 'S', rhoSeat: 'W' };
+      const tableDeal = (typeof getTableCompassDealHands === 'function')
+        ? getTableCompassDealHands(activeTracedDeal)
+        : activeTracedDeal;
+      const defSeats = (rotMap.declSeat === 'E' || rotMap.declSeat === 'W')
+        ? [rotMap.lhoSeat, rotMap.rhoSeat]
+        : ['W', 'E'];
       holdingsHtml = `
         <div class="traced-hand-holdings">
-          <div><strong>W:</strong> ${formatCompactHand(activeTracedDeal.W)}</div>
-          <div><strong>E:</strong> ${formatCompactHand(activeTracedDeal.E)}</div>
+          <div><strong>${defSeats[0]}:</strong> ${formatCompactHand(tableDeal[defSeats[0]])}</div>
+          <div><strong>${defSeats[1]}:</strong> ${formatCompactHand(tableDeal[defSeats[1]])}</div>
         </div>
       `;
     }

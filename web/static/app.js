@@ -1023,36 +1023,104 @@ function getActiveActualDeal() {
   };
 }
 
-function updateDeclarerBarUI(seat) {
-  currentDeclarerSeat = seat;
+function getRotationSeatMap(seatOverride = null) {
   const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
   const order = ['N', 'E', 'S', 'W'];
-  const idx = order.indexOf(seat);
-  const dummySeat = order[(idx + 2) % 4];
+  const rawSeat = seatOverride ||
+    (currentSolveData && currentSolveData.declarer_seat) ||
+    currentDeclarerSeat ||
+    'N';
+  const idx = Math.max(0, order.indexOf(rawSeat));
+  const declSeat = order[idx];
   const lhoSeat = order[(idx + 1) % 4];
+  const dummySeat = order[(idx + 2) % 4];
   const rhoSeat = order[(idx + 3) % 4];
+  return {
+    declSeat,
+    lhoSeat,
+    dummySeat,
+    rhoSeat,
+    declName: seatNames[declSeat],
+    lhoName: seatNames[lhoSeat],
+    dummyName: seatNames[dummySeat],
+    rhoName: seatNames[rhoSeat],
+    solverToTable: {
+      N: declSeat,
+      E: lhoSeat,
+      S: dummySeat,
+      W: rhoSeat,
+      'hand 1': lhoSeat,
+      'hand 2': rhoSeat,
+      'hand 3': rhoSeat
+    },
+    tableToSolver: {
+      [declSeat]: 'N',
+      [lhoSeat]: 'E',
+      [dummySeat]: 'S',
+      [rhoSeat]: 'W'
+    }
+  };
+}
+
+function getTableCompassDealHands(deal, seatOverride = null) {
+  if (!deal) return { N: '', E: '', S: '', W: '' };
+  const map = getRotationSeatMap(seatOverride);
+  return {
+    [map.declSeat]: deal.N || '',
+    [map.lhoSeat]: deal.E || '',
+    [map.dummySeat]: deal.S || '',
+    [map.rhoSeat]: deal.W || ''
+  };
+}
+
+function formatInvariantRuleForRotation(rule, seatOverride = null) {
+  if (!rule || typeof rule !== 'string') return '';
+  const rotMap = getRotationSeatMap(seatOverride);
+  return rule.replace(
+    /\b(hand 1|hand [23])\b|\b(E|W)(?=\s+(?:has the|has|length in)\b)/gi,
+    (match, handToken, compassToken) => {
+      if (handToken) {
+        return /^hand 1$/i.test(handToken)
+          ? `Hand 1 (${rotMap.lhoName})`
+          : `Hand 2 (${rotMap.rhoName})`;
+      }
+      if (compassToken === 'E') return rotMap.lhoSeat;
+      if (compassToken === 'W') return rotMap.rhoSeat;
+      return match;
+    }
+  );
+}
+
+function updateDeclarerBarUI(seat) {
+  const rotMap = getRotationSeatMap(seat);
+  const { declSeat, lhoSeat, dummySeat, rhoSeat } = rotMap;
+  currentDeclarerSeat = declSeat;
+  if (currentSolveData) {
+    currentSolveData.declarer_seat = declSeat;
+  }
 
   document.querySelectorAll('.declarer-seat-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.seat === seat);
+    btn.classList.toggle('active', btn.dataset.seat === declSeat);
   });
   document.querySelectorAll('.modal-declarer-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.seat === seat);
+    btn.classList.toggle('active', btn.dataset.seat === declSeat);
   });
 
   const declarerMappingHint = document.getElementById('declarerMappingHint');
   if (declarerMappingHint) {
-    declarerMappingHint.textContent = (seat === 'N')
-      ? 'N=Decl · S=Dummy'
-      : `N=${seat}(Decl) · S=${dummySeat}(Dummy)`;
+    declarerMappingHint.textContent = (declSeat === 'N')
+      ? 'N=Decl · E=LHO · S=Dummy · W=RHO'
+      : `N=${declSeat}(Decl) · E=${lhoSeat}(LHO) · S=${dummySeat}(Dummy) · W=${rhoSeat}(RHO)`;
   }
 
   const modalDeclarerHint = document.getElementById('modalDeclarerHint');
   if (modalDeclarerHint) {
-    modalDeclarerHint.textContent = `${seatNames[seat]} → Hand 0 (N) · ${seatNames[dummySeat]} → Hand 2 (S)`;
+    modalDeclarerHint.textContent =
+      `N=${declSeat}(Decl) · E=${lhoSeat}(LHO) · S=${dummySeat}(Dummy) · W=${rhoSeat}(RHO)`;
   }
 
   const roleMap = {
-    [seat]: { text: 'Declarer (→ N)', cls: 'scan-role-tag role-declarer' },
+    [declSeat]: { text: 'Declarer (→ N)', cls: 'scan-role-tag role-declarer' },
     [dummySeat]: { text: 'Dummy (→ S)', cls: 'scan-role-tag role-dummy' },
     [lhoSeat]: { text: 'Defender (LHO → Unk)', cls: 'scan-role-tag' },
     [rhoSeat]: { text: 'Defender (RHO → Unk)', cls: 'scan-role-tag' }
@@ -1087,14 +1155,20 @@ function applyDeclarerRotation(seat, fromModal = false) {
     if (countHandCards(nVal) > 0 && countHandCards(eVal) > 0 &&
         countHandCards(sVal) > 0 && countHandCards(wVal) > 0) {
       loadedBoardHands = { N: nVal, E: eVal, S: sVal, W: wVal };
-    } else if (seat === 'S' && countHandCards(nVal) > 0 && countHandCards(sVal) > 0 &&
+    } else if ((seat === 'N' || seat === 'S') &&
+               countHandCards(nVal) > 0 && countHandCards(sVal) > 0 &&
                countHandCards(eVal) === 0 && countHandCards(wVal) === 0) {
-      // Flip N and S on single-dummy preset
-      inputNorth.value = sVal;
-      inputSouth.value = nVal;
-      updateDeclarerBarUI(seat);
-      clearPanels();
-      updateDealSvg();
+      const prevSeat = currentDeclarerSeat || 'N';
+      if ((prevSeat === 'N' || prevSeat === 'S') && seat !== prevSeat) {
+        // Flip N and S on single-dummy preset when toggling between N and S
+        inputNorth.value = sVal;
+        inputSouth.value = nVal;
+        updateDeclarerBarUI(seat);
+        clearPanels();
+        updateDealSvg();
+      } else {
+        updateDeclarerBarUI(seat);
+      }
       return;
     } else {
       updateDeclarerBarUI(seat);
@@ -1639,6 +1713,7 @@ solveBtn.addEventListener('click', async () => {
     execTime.textContent = timeStr;
 
     data.is_forced_lead = (initCurTrick.length > 0);
+    data.declarer_seat = currentDeclarerSeat || 'N';
     currentSolveData = data;
     currentSolveData.active_line_index = 0;
     hasComputedProposedLine = false;
@@ -1657,6 +1732,7 @@ solveBtn.addEventListener('click', async () => {
         targetTricks: targetTricks.value,
         numIters: numIters.value,
         curTrick: initCurTrick,
+        declarerSeat: currentDeclarerSeat || 'N',
         actualDeal: activeActualDeal ? Object.assign({}, activeActualDeal) : null
       }
     };
@@ -2377,6 +2453,11 @@ if (computeNewLineBtn) {
         originalSolveSnapshot.inputs.curTrick.length > 0
       );
       data.is_forced_lead = origForcedLead || (ctx.trickNum === 1 && proposedCards.length > 0);
+      data.declarer_seat =
+        (originalSolveSnapshot && originalSolveSnapshot.inputs && originalSolveSnapshot.inputs.declarerSeat) ||
+        (currentSolveData && currentSolveData.declarer_seat) ||
+        currentDeclarerSeat ||
+        'N';
 
       const altNumber = proposedAltLines.length + 1;
       const altDescriptor = formatProposedCardsDescriptor(proposedCards, ctx.trickNum);

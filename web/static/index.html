@@ -165,7 +165,7 @@
               <button type="button" class="declarer-seat-btn" data-seat="S">S</button>
               <button type="button" class="declarer-seat-btn" data-seat="W">W</button>
             </div>
-            <span id="declarerMappingHint" class="declarer-mapping-hint">N=Decl · S=Dummy</span>
+            <span id="declarerMappingHint" class="declarer-mapping-hint">N=Decl · E=LHO · S=Dummy · W=RHO</span>
           </div>
           <div class="hand-input-row">
             <div class="hand-input-group">
@@ -405,8 +405,8 @@
                   <thead>
                     <tr>
                       <th>Suit</th>
-                      <th>Hand 1 (East) Range</th>
-                      <th>Hand 2 (West) Range</th>
+                      <th id="summaryBoundsHand1Header">Hand 1 (East) Range</th>
+                      <th id="summaryBoundsHand2Header">Hand 2 (West) Range</th>
                       <th>Combined Range</th>
                     </tr>
                   </thead>
@@ -422,8 +422,8 @@
                     <tr>
                       <th>Suit</th>
                       <th>Honor</th>
-                      <th>Hand 1 (East) %</th>
-                      <th>Hand 2 (West) %</th>
+                      <th id="summaryHonorHand1Header">Hand 1 (East) %</th>
+                      <th id="summaryHonorHand2Header">Hand 2 (West) %</th>
                       <th>Both %</th>
                       <th>Neither %</th>
                     </tr>
@@ -512,7 +512,7 @@
           <div class="scan-declarer-box">
             <div class="scan-declarer-header">
               <span class="scan-declarer-title">Who is Declarer?</span>
-              <span id="modalDeclarerHint" class="scan-declarer-hint">North → Hand 0 (Declarer) · South → Hand 2 (Dummy)</span>
+              <span id="modalDeclarerHint" class="scan-declarer-hint">N=N(Decl) · E=E(LHO) · S=S(Dummy) · W=W(RHO)</span>
             </div>
             <div class="declarer-seat-group declarer-seat-group-lg" role="group" aria-label="Select Declarer in modal">
               <button type="button" class="modal-declarer-btn active" data-seat="N">North (N)</button>
