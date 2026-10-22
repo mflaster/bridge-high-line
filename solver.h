@@ -95,16 +95,6 @@ struct SolverCache {
   std::unordered_map<CacheKey, int, hash_pair> saved_results[4];
   std::unordered_map<CacheKey, std::string, hash_pair> saved_sequences[4];
   std::unordered_map<CacheKey, OptimalLines, hash_pair> saved_optimal_plays[4];
-
-  std::unordered_map<uint64_t, int> dds_results[4];
-  std::unordered_map<uint64_t, OptimalLines> dds_lines[4];
-  uint64_t dds_size() const {
-    uint64_t ans = 0;
-    for (int i = 0; i < 4; i++) {
-      ans += dds_results[i].size();
-    }
-    return ans;
-  }
 };
 
 
