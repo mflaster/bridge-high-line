@@ -104,13 +104,10 @@ function pdfTruncateToWidth(ctx, text, maxWidth) {
 }
 
 function createPdfPageCanvas() {
-  const canvas = document.createElement('canvas');
-  canvas.width = PDF_PAGE_W;
-  canvas.height = PDF_PAGE_H;
-  const ctx = canvas.getContext('2d');
+  const ctx = new PdfVectorContext(PDF_PAGE_W, PDF_PAGE_H, PDF_PT_W, PDF_PT_H);
   ctx.fillStyle = '#0b1120';
   ctx.fillRect(0, 0, PDF_PAGE_W, PDF_PAGE_H);
-  return { canvas, ctx };
+  return { canvas: ctx, ctx };
 }
 
 function drawPdfPageHeader(ctx, titleText, subText, rightMetaLines) {
@@ -1518,7 +1515,7 @@ function drawDecisionTreeSnapshotOnPdf(
 
     let rawTitle = node.label || node.trick || 'Node';
     if (rawTitle.startsWith('after ')) rawTitle = rawTitle.substring(6);
-    ctx.font = 'bold 13.5px "JetBrains Mono", Inter, sans-serif';
+    ctx.font = 'bold 13px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#f8fafc';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -1556,7 +1553,7 @@ function drawDecisionTreeSnapshotOnPdf(
       ctx.textBaseline = 'middle';
       ctx.font = 'bold 20px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#e2e8f0';
-      ctx.fillText('•••', el.x + el.w / 2, el.y + Math.round(el.h * 0.30));
+      ctx.fillText('...', el.x + el.w / 2, el.y + Math.round(el.h * 0.30));
 
       ctx.font = 'bold 12px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#94a3b8';
@@ -1837,21 +1834,373 @@ function drawLineInspectorSnapshotOnPdf(
 }
 
 // =========================================================================
-// Pure-JS Multi-Page PDF 1.4 Binary Encoder (DCTDecode / JPEG Streams)
+// Pure-JS Native Vector & Text PDF 1.4 Renderer (Base-14 Type1 Fonts)
 // =========================================================================
 
-function dataUrlToUint8Array(dataUrl) {
-  const commaIdx = dataUrl.indexOf(',');
-  const b64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
-  const binStr = atob(b64);
-  const bytes = new Uint8Array(binStr.length);
-  for (let i = 0; i < binStr.length; i++) {
-    bytes[i] = binStr.charCodeAt(i) & 0xff;
-  }
-  return bytes;
+// Standard Adobe AFM glyph widths (per 1000 units) for ASCII 32..126
+const PDF_HELV_WIDTHS = [
+  278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278,
+  278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584,
+  584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556,
+  833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278,
+  278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222,
+  500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500,
+  500, 334, 260, 334, 584
+];
+
+const PDF_HELV_BOLD_WIDTHS = [
+  278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278,
+  278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584,
+  584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611,
+  833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333,
+  278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278,
+  556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556,
+  500, 389, 280, 389, 584
+];
+
+function pdfFmt(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) < 1e-4) return '0';
+  const s = v.toFixed(2);
+  return s.replace(/\.?0+$/, '');
 }
 
-function buildPdfFromPageCanvases(canvases) {
+function pdfColorToRgb(colorStr) {
+  const s = String(colorStr || '#000000').trim();
+  if (s.startsWith('#')) {
+    let hex = s.slice(1);
+    if (hex.length === 3) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    return `${pdfFmt(r)} ${pdfFmt(g)} ${pdfFmt(b)}`;
+  }
+  const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (m) {
+    const r = Number(m[1]) / 255;
+    const g = Number(m[2]) / 255;
+    const b = Number(m[3]) / 255;
+    return `${pdfFmt(r)} ${pdfFmt(g)} ${pdfFmt(b)}`;
+  }
+  return '1 1 1';
+}
+
+function parsePdfFontSpec(fontStr) {
+  const s = String(fontStr || '16px sans-serif');
+  const m = s.match(/(\d+(?:\.\d+)?)px/i);
+  const sizePx = m ? parseFloat(m[1]) : 16;
+  const isMono = /JetBrains Mono|monospace|Courier/i.test(s);
+  const isBold = /\b(bold|[6789]00)\b/i.test(s);
+  const isItalic = /\b(italic|oblique)\b/i.test(s);
+  let fontKey = 'F1';
+  if (isMono) {
+    fontKey = isBold ? 'F5' : 'F4';
+  } else if (isBold) {
+    fontKey = 'F2';
+  } else if (isItalic) {
+    fontKey = 'F3';
+  }
+  return { sizePx, fontKey, isMono, isBold };
+}
+
+function escapePdfAsciiChar(ch) {
+  if (ch === '\\') return '\\\\';
+  if (ch === '(') return '\\(';
+  if (ch === ')') return '\\)';
+  return ch;
+}
+
+// Splits text into runs of Base-14 fonts (/F1../F5 for text, /F6 for /Symbol
+// suit/arrow glyphs, /F7 for /ZapfDingbats star) and computes exact AFM width.
+function tokenizePdfTextRuns(text, fontSpec) {
+  const str = String(text === undefined || text === null ? '' : text);
+  const { fontKey: baseFontKey, isMono, isBold, sizePx } = fontSpec;
+  const widthTable = isBold ? PDF_HELV_BOLD_WIDTHS : PDF_HELV_WIDTHS;
+  const runs = [];
+  let totalUnits = 0;
+
+  const appendRun = (fKey, pdfLit, units) => {
+    totalUnits += units;
+    if (runs.length > 0 && runs[runs.length - 1].fontKey === fKey) {
+      runs[runs.length - 1].pdfLiteral += pdfLit;
+    } else {
+      runs.push({ fontKey: fKey, pdfLiteral: pdfLit });
+    }
+  };
+
+  for (const ch of str) {
+    if (ch === '♠') {
+      appendRun('F6', '\\252', 750);
+    } else if (ch === '♥') {
+      appendRun('F6', '\\251', 750);
+    } else if (ch === '♦') {
+      appendRun('F6', '\\250', 750);
+    } else if (ch === '♣') {
+      appendRun('F6', '\\247', 750);
+    } else if (ch === '→' || ch === '↳') {
+      appendRun('F6', '\\256', 987);
+    } else if (ch === '★') {
+      appendRun('F7', 'H', 790);
+    } else if (ch === '•') {
+      appendRun(baseFontKey, '\\225', isMono ? 600 : 350);
+    } else if (ch === '–') {
+      appendRun(baseFontKey, '\\226', isMono ? 600 : 556);
+    } else if (ch === '—') {
+      appendRun(baseFontKey, '\\227', isMono ? 600 : 1000);
+    } else if (ch === '·') {
+      appendRun(baseFontKey, '\\267', isMono ? 600 : 278);
+    } else {
+      const code = ch.charCodeAt(0);
+      if (code >= 32 && code <= 126) {
+        const w = isMono ? 600 : (widthTable[code - 32] || 556);
+        appendRun(baseFontKey, escapePdfAsciiChar(ch), w);
+      } else if (code >= 160 && code <= 255) {
+        const oct = '\\' + code.toString(8).padStart(3, '0');
+        appendRun(baseFontKey, oct, isMono ? 600 : 556);
+      } else {
+        appendRun(baseFontKey, '-', isMono ? 600 : 333);
+      }
+    }
+  }
+
+  return {
+    runs,
+    widthPx: (totalUnits / 1000) * sizePx
+  };
+}
+
+class PdfVectorContext {
+  constructor(pageW, pageH, ptW, ptH) {
+    this.width = pageW;
+    this.height = pageH;
+    this._ptW = ptW;
+    this._ptH = ptH;
+    this._scalePt = ptW / pageW;
+    this._ops = [];
+    this._pathCmds = [];
+    this._curX = 0;
+    this._curY = 0;
+    this._tx = 0;
+    this._ty = 0;
+    this._sx = 1;
+    this._sy = 1;
+    this._lineDash = [];
+    this._stateStack = [];
+
+    this.fillStyle = '#000000';
+    this.strokeStyle = '#000000';
+    this.lineWidth = 1;
+    this.font = '16px Inter, sans-serif';
+    this.textAlign = 'left';
+    this.textBaseline = 'alphabetic';
+  }
+
+  _px(x) {
+    return (this._tx + x * this._sx) * this._scalePt;
+  }
+
+  _py(y) {
+    return this._ptH - (this._ty + y * this._sy) * this._scalePt;
+  }
+
+  save() {
+    this._stateStack.push({
+      tx: this._tx,
+      ty: this._ty,
+      sx: this._sx,
+      sy: this._sy,
+      lineDash: this._lineDash.slice(),
+      fillStyle: this.fillStyle,
+      strokeStyle: this.strokeStyle,
+      lineWidth: this.lineWidth,
+      font: this.font,
+      textAlign: this.textAlign,
+      textBaseline: this.textBaseline
+    });
+    this._ops.push('q');
+  }
+
+  restore() {
+    const st = this._stateStack.pop();
+    if (st) {
+      this._tx = st.tx;
+      this._ty = st.ty;
+      this._sx = st.sx;
+      this._sy = st.sy;
+      this._lineDash = st.lineDash;
+      this.fillStyle = st.fillStyle;
+      this.strokeStyle = st.strokeStyle;
+      this.lineWidth = st.lineWidth;
+      this.font = st.font;
+      this.textAlign = st.textAlign;
+      this.textBaseline = st.textBaseline;
+    }
+    this._ops.push('Q');
+  }
+
+  translate(dx, dy) {
+    this._tx += dx * this._sx;
+    this._ty += dy * this._sy;
+  }
+
+  scale(sx, sy) {
+    this._sx *= sx;
+    this._sy *= sy;
+  }
+
+  setLineDash(segments) {
+    this._lineDash = Array.isArray(segments) ? segments.slice() : [];
+  }
+
+  beginPath() {
+    this._pathCmds = [];
+  }
+
+  moveTo(x, y) {
+    this._curX = x;
+    this._curY = y;
+    this._pathCmds.push(`${pdfFmt(this._px(x))} ${pdfFmt(this._py(y))} m`);
+  }
+
+  lineTo(x, y) {
+    this._curX = x;
+    this._curY = y;
+    this._pathCmds.push(`${pdfFmt(this._px(x))} ${pdfFmt(this._py(y))} l`);
+  }
+
+  quadraticCurveTo(cpx, cpy, x, y) {
+    const x0 = this._curX;
+    const y0 = this._curY;
+    const cp1x = x0 + (2 / 3) * (cpx - x0);
+    const cp1y = y0 + (2 / 3) * (cpy - y0);
+    const cp2x = x + (2 / 3) * (cpx - x);
+    const cp2y = y + (2 / 3) * (cpy - y);
+    this.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y);
+  }
+
+  bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y) {
+    this._curX = x;
+    this._curY = y;
+    this._pathCmds.push(
+      `${pdfFmt(this._px(cp1x))} ${pdfFmt(this._py(cp1y))} ` +
+      `${pdfFmt(this._px(cp2x))} ${pdfFmt(this._py(cp2y))} ` +
+      `${pdfFmt(this._px(x))} ${pdfFmt(this._py(y))} c`
+    );
+  }
+
+  rect(x, y, w, h) {
+    this.moveTo(x, y);
+    this.lineTo(x + w, y);
+    this.lineTo(x + w, y + h);
+    this.lineTo(x, y + h);
+    this.closePath();
+  }
+
+  arc(cx, cy, r) {
+    const k = r * 0.552284749831;
+    this.moveTo(cx + r, cy);
+    this.bezierCurveTo(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
+    this.bezierCurveTo(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
+    this.bezierCurveTo(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
+    this.bezierCurveTo(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
+    this.closePath();
+  }
+
+  closePath() {
+    this._pathCmds.push('h');
+  }
+
+  fill() {
+    if (this._pathCmds.length === 0) return;
+    const rgb = pdfColorToRgb(this.fillStyle);
+    this._ops.push(`${rgb} rg ${this._pathCmds.join(' ')} f`);
+  }
+
+  stroke() {
+    if (this._pathCmds.length === 0) return;
+    const rgb = pdfColorToRgb(this.strokeStyle);
+    const lw = Math.max(0.2, this.lineWidth * this._sx * this._scalePt);
+    let dashOp = '[] 0 d';
+    if (this._lineDash && this._lineDash.length > 0) {
+      const dStr = this._lineDash
+        .map(d => pdfFmt(d * this._sx * this._scalePt))
+        .join(' ');
+      dashOp = `[${dStr}] 0 d`;
+    }
+    this._ops.push(
+      `${rgb} RG ${pdfFmt(lw)} w 1 J 1 j ${dashOp} ` +
+      `${this._pathCmds.join(' ')} S`
+    );
+  }
+
+  clip() {
+    if (this._pathCmds.length === 0) return;
+    this._ops.push(`${this._pathCmds.join(' ')} W n`);
+  }
+
+  fillRect(x, y, w, h) {
+    const rgb = pdfColorToRgb(this.fillStyle);
+    const rx = this._px(x);
+    const ry = this._py(y + h);
+    const rw = w * this._sx * this._scalePt;
+    const rh = h * this._sy * this._scalePt;
+    this._ops.push(
+      `${rgb} rg ${pdfFmt(rx)} ${pdfFmt(ry)} ${pdfFmt(rw)} ${pdfFmt(rh)} re f`
+    );
+  }
+
+  measureText(text) {
+    const fontSpec = parsePdfFontSpec(this.font);
+    const { widthPx } = tokenizePdfTextRuns(text, fontSpec);
+    return { width: widthPx };
+  }
+
+  fillText(text, x, y) {
+    const fontSpec = parsePdfFontSpec(this.font);
+    const { runs, widthPx } = tokenizePdfTextRuns(text, fontSpec);
+    if (runs.length === 0) return;
+
+    let startX = x;
+    if (this.textAlign === 'center') {
+      startX = x - widthPx / 2;
+    } else if (this.textAlign === 'right' || this.textAlign === 'end') {
+      startX = x - widthPx;
+    }
+
+    let baseY = y;
+    if (this.textBaseline === 'middle') {
+      baseY = y + fontSpec.sizePx * 0.34;
+    } else if (
+      this.textBaseline === 'top' || this.textBaseline === 'hanging'
+    ) {
+      baseY = y + fontSpec.sizePx * 0.78;
+    } else if (
+      this.textBaseline === 'bottom' || this.textBaseline === 'ideographic'
+    ) {
+      baseY = y - fontSpec.sizePx * 0.15;
+    }
+
+    const txPt = this._px(startX);
+    const tyPt = this._py(baseY);
+    const fontPt = fontSpec.sizePx * this._sx * this._scalePt;
+    const rgb = pdfColorToRgb(this.fillStyle);
+
+    const tjOps = runs
+      .map(r => `/${r.fontKey} ${pdfFmt(fontPt)} Tf (${r.pdfLiteral}) Tj`)
+      .join(' ');
+    this._ops.push(
+      `BT ${rgb} rg ${pdfFmt(txPt)} ${pdfFmt(tyPt)} Td ${tjOps} ET`
+    );
+  }
+
+  toPdfStream() {
+    return this._ops.join('\n') + '\n';
+  }
+}
+
+function buildPdfFromPageCanvases(pages) {
   const enc = new TextEncoder();
   const chunks = [];
   let offset = 0;
@@ -1861,16 +2210,18 @@ function buildPdfFromPageCanvases(canvases) {
     chunks.push(b);
     offset += b.length;
   };
-  const pushBytes = (b) => {
-    chunks.push(b);
-    offset += b.length;
-  };
 
-  const numPages = canvases.length;
-  const totalObjs = 2 + numPages * 3;
+  const numPages = pages.length;
+  // Objects:
+  // 1: Catalog
+  // 2: Pages
+  // 3..9: 7 Base-14 Type1 Font objects (/F1../F7)
+  // 10 + i*2: Page object i
+  // 11 + i*2: Content stream object i
+  const firstPageObjId = 10;
+  const totalObjs = 9 + numPages * 2;
   const xrefOffsets = new Array(totalObjs + 1).fill(0);
 
-  // PDF Header (with high-bit comment bytes for binary stream compatibility)
   pushStr('%PDF-1.4\n%\xFF\xFF\xFF\xFF\n');
 
   // Object 1: Catalog
@@ -1880,7 +2231,7 @@ function buildPdfFromPageCanvases(canvases) {
   // Object 2: Pages
   const kidsRefs = [];
   for (let i = 0; i < numPages; i++) {
-    kidsRefs.push(`${3 + i * 3} 0 R`);
+    kidsRefs.push(`${firstPageObjId + i * 2} 0 R`);
   }
   xrefOffsets[2] = offset;
   pushStr(
@@ -1888,43 +2239,54 @@ function buildPdfFromPageCanvases(canvases) {
     `/Count ${numPages} >>\nendobj\n`
   );
 
-  for (let i = 0; i < numPages; i++) {
-    const canvas = canvases[i];
-    const jpegBytes = dataUrlToUint8Array(
-      canvas.toDataURL('image/jpeg', 0.92)
+  // Objects 3..9: Base-14 Type1 Fonts
+  const fontDefs = [
+    [3, 'Helvetica', true],
+    [4, 'Helvetica-Bold', true],
+    [5, 'Helvetica-Oblique', true],
+    [6, 'Courier', true],
+    [7, 'Courier-Bold', true],
+    [8, 'Symbol', false],
+    [9, 'ZapfDingbats', false]
+  ];
+  fontDefs.forEach(([objId, baseFont, useWinAnsi]) => {
+    xrefOffsets[objId] = offset;
+    const encPart = useWinAnsi ? ' /Encoding /WinAnsiEncoding' : '';
+    pushStr(
+      `${objId} 0 obj\n` +
+      `<< /Type /Font /Subtype /Type1 /BaseFont /${baseFont}${encPart} >>\n` +
+      `endobj\n`
     );
-    const pageObjId = 3 + i * 3;
-    const contentObjId = 4 + i * 3;
-    const imgObjId = 5 + i * 3;
+  });
 
-    // Page object
+  const fontResDict =
+    '/Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R ' +
+    '/F5 7 0 R /F6 8 0 R /F7 9 0 R >>';
+
+  for (let i = 0; i < numPages; i++) {
+    const pageCtx = pages[i];
+    const streamStr = (pageCtx && typeof pageCtx.toPdfStream === 'function')
+      ? pageCtx.toPdfStream()
+      : '';
+    const streamBytes = enc.encode(streamStr);
+    const pageObjId = firstPageObjId + i * 2;
+    const contentObjId = firstPageObjId + i * 2 + 1;
+
     xrefOffsets[pageObjId] = offset;
     pushStr(
       `${pageObjId} 0 obj\n` +
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_PT_W} ${PDF_PT_H}] ` +
-      `/Resources << /XObject << /Im0 ${imgObjId} 0 R >> >> ` +
+      `/Resources << ${fontResDict} >> ` +
       `/Contents ${contentObjId} 0 R >>\nendobj\n`
     );
 
-    // Content stream object
-    const streamCmd = `q ${PDF_PT_W} 0 0 ${PDF_PT_H} 0 0 cm /Im0 Do Q\n`;
     xrefOffsets[contentObjId] = offset;
     pushStr(
-      `${contentObjId} 0 obj\n<< /Length ${streamCmd.length} >>\nstream\n` +
-      `${streamCmd}endstream\nendobj\n`
+      `${contentObjId} 0 obj\n<< /Length ${streamBytes.length} >>\nstream\n`
     );
-
-    // Image XObject
-    xrefOffsets[imgObjId] = offset;
-    pushStr(
-      `${imgObjId} 0 obj\n` +
-      `<< /Type /XObject /Subtype /Image ` +
-      `/Width ${canvas.width} /Height ${canvas.height} ` +
-      `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode ` +
-      `/Length ${jpegBytes.length} >>\nstream\n`
-    );
-    pushBytes(jpegBytes);
-    pushStr('\nendstream\nendobj\n');
+    chunks.push(streamBytes);
+    offset += streamBytes.length;
+    pushStr('endstream\nendobj\n');
   }
 
   const xrefStart = offset;
