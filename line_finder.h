@@ -180,19 +180,11 @@ class LineFinder {
       const std::vector<CardType> &cur_trick,
       bool deal_missing_cards = false);
 
-  // Constructs an intermediate action ConditionalLine node for a specific GeneralizedTrick.
-  // Sets a_line.do_first_ = gen_trick, plays the trick on each board tree, and adds WinnerPlayCondition
-  // branches ("when 0 wins", "if 1 wins") for each trick winner pointing to recursive SolveHelper subtrees.
-  // `progress`, if set, is this trick's node in the search progress tree.
-  ConditionalLine GetLineFromTrick(
-      const GeneralizedTrick &gen_trick,
-      int min_tricks,
-      SolverCache &cache,
-      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
-      const std::set<int> &board_offsets,
-      int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0);
-
+  // Constructs intermediate action ConditionalLine nodes for a GeneralizedTrick.
+  // Sets a_line.do_first_ = gen_trick, plays the trick on each board tree, and
+  // adds WinnerPlayCondition branches ("when 0 wins", "if 1 wins") for each
+  // trick winner pointing to recursive SolveHelper subtrees. `progress`, if
+  // set, is this trick's node in the search progress tree.
   std::vector<ConditionalLine> GetLinesFromTrick(
       const GeneralizedTrick &gen_trick,
       int min_tricks,

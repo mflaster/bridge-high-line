@@ -2,8 +2,7 @@
 
 This document provides a complete technical inventory of the heuristics,
 tie-breakers, pruning rules, and special-case mechanisms across the solver
-pipeline (`interface_dds.cc`, `conditional_line.cc`, and `line_finder.cc`),
-along with an audit of legacy special cases that can be simplified or removed.
+pipeline (`interface_dds.cc`, `conditional_line.cc`, and `line_finder.cc`).
 
 ---
 
@@ -69,13 +68,13 @@ size_t ExtraBranches() const {
 ### The 5 Places `ExtraBranches()` Is Used
 
 #### 1. Tie-Breaking Equal-Coverage Lines (`is_better_meta` & Step-2 Sort)
-- **Step 1 (`GetLinesFromGroups`, `line_finder.cc:1849–1861`)**:
+- **Step 1 (`GetLinesFromGroups`, `line_finder.cc`)**:
   When two candidates cover the same number of boards (`covered`),
   `is_better_meta` prefers:
   1. Fewer immediate branches at the current trick (`num_conds` ASC),
   2. Fewer total subtree extra branches (`extra_branches` ASC),
   3. Drawing opponent trumps (`draws_trump` DESC).
-- **Step 2 (`RescoreTopLinesAdversarial`, `line_finder.cc:760–775`)**:
+- **Step 2 (`RescoreTopLinesAdversarial`, `line_finder.cc`)**:
   After adversarial rescoring, top-level lines are ranked by:
   1. Step-2 adversarial coverage (`CoveredFinalBoards()` DESC),
   2. Immediate Trick-1 branches (`conditions().size()` ASC),
@@ -85,7 +84,7 @@ size_t ExtraBranches() const {
 
 #### 2. Admitting Simpler Trees Inside the `top_k` Competitive Window
 - **Where**: `competitive_window_floor` and `add_top_candidate` in
-  `GetLinesFromGroups` (`line_finder.cc:1825–1911`).
+  `GetLinesFromGroups` (`line_finder.cc`).
 - **Why**: In Step 1, defenders follow deterministic seat conventions (e.g.,
   2nd-hand low), so branching on an opponent honor (such as `(CT)` vs `(Cx)`)
   can artificially inflate Step-1 board coverage by "peeking" at singleton
@@ -93,32 +92,28 @@ size_t ExtraBranches() const {
   to steer declarer into the wrong branch, collapsing the split line's
   coverage.
 - **Mechanism**:
-  - `competitive_window_floor(best_cov)` defines a coverage window below the
-    best Step-1 coverage seen so far:
-    $$\text{window} = \max\left(3, \lfloor \text{best\_cov} / 8 \rfloor\right), \quad \text{floor} = \max(1, \text{best\_cov} - \text{window}).$$
+  - `competitive_window_floor` defines a coverage window below the best Step-1
+    coverage seen so far:
+    $$\text{slack} = \max\left(2, \lfloor \text{most\_boards\_covered} / 6 \rfloor\right), \quad \text{floor} = \max(1, \text{most\_boards\_covered} - \text{slack}).$$
   - Even when `top_candidates` already has `top_k` entries with higher Step-1
     coverage, `add_top_candidate` admits a lower-coverage candidate (provided
-    `cov >= competitive_window_floor(best_cov_for_k)`) if its
-    `ExtraBranches()` is strictly less than `min_existing_extra` (the lowest
-    `ExtraBranches()` among all currently retained candidates with `>= cov`).
-  - When inserting such a lower-branch candidate into a full `top_candidates`
-    vector, it evicts the last candidate that does not uniquely hold the global
-    minimum `ExtraBranches()`.
+    `cov >= competitive_window_floor()`) if its `ExtraBranches()` is strictly
+    less than `min_existing_extra` (or ties `min_existing_extra` with better
+    metadata).
 
 #### 3. Preventing Premature Search-Loop Termination (`top_k_prune_floor`)
-- **Where**: `top_k_prune_floor` in `GetLinesFromGroups`
-  (`line_finder.cc:1834–1847`).
+- **Where**: `top_k_prune_floor` in `GetLinesFromGroups` (`line_finder.cc`).
 - **Why**: Groups are evaluated in descending order of total Step-1 board
-  count. Normally, once a 1-trick group achieves the theoretical maximum
-  coverage `full_cov`, the search raises its pruning floor to `full_cov` and
-  skips all groups with fewer boards. However, if that `full_cov` line has
-  `ExtraBranches() > 0` in its continuation subtree, a slightly smaller group
-  might achieve coverage within `competitive_window_floor(full_cov)` with
+  count. Normally, once `top_candidates` is full with lowest retained coverage
+  `full_cov`, the search raises its pruning floor to `full_cov` (or `full_cov +
+  1`) and skips smaller groups. However, if all retained candidates have
+  `ExtraBranches() > 0` (`min_eb > 0`), a slightly smaller 1-trick group might
+  achieve coverage within `competitive_window_floor()` with
   `ExtraBranches() == 0`.
-- **Mechanism**: When `min_eb > 0` among the `full_cov` candidates,
-  `top_k_prune_floor` lowers the pruning threshold from `full_cov` back down to
-  `competitive_window_floor()`, allowing subsequent groups to be searched for
-  simpler trees.
+- **Mechanism**: When `top_k > 1`, `group_size == 1`, and `min_eb > 0`,
+  `top_k_prune_floor` lowers the pruning threshold back down to
+  `competitive_window_floor()`, allowing subsequent 1-trick groups to be
+  searched for simpler trees.
 
 #### 4. Constructing Simpler Composite Subtrees (`alt_line` and `min_eb_line`)
 When a node has $m > 1$ branches (multiple `WinnerPlayCondition` outcomes in
@@ -135,19 +130,15 @@ Combining them builds:
    and keeping `[0]` elsewhere.
 3. **All-minimum-branch composite (`min_eb_line`)**: Simultaneously picks the
    child with the minimum `ExtraBranches()` at *every* branch $i$. If at least
-   two branches used a non-zero index (`diff_count >= 2`), adds `min_eb_line`
-   so the globally simplest combined subtree is always represented.
+   one branch (or both true/false branches in `TryBranchOnGoodCards`) used a
+   non-zero index, adds `min_eb_line` so the globally simplest combined subtree
+   is always represented.
 
-This pattern appears in three places:
-- `GetLinesFromTrick` (`line_finder.cc:1424–1464`)
-- `GetLinesFromGroups` (`line_finder.cc:2411–2459`)
-- `TryBranchOnGoodCards` (`line_finder.cc:2662–2705`)
-
-#### 5. Pareto-Frontier Deduplication and `min_extra` Slot Reservation
-Before returning up to `top_k` candidate lines from `GetLinesFromTrick`
-(`line_finder.cc:1465–1493`), `GetLinesFromGroups` (`line_finder.cc:1945–1973`),
-or `TryBranchOnGoodCards` (`line_finder.cc:2726–2754`), the candidate list is
-reduced as follows:
+#### 5. Pareto-Frontier Deduplication and `min_extra` Slot Reservation (`FinalizeTopKLines`)
+Before returning up to `top_k` candidate lines from `GetLinesFromTrick`,
+`GetLinesFromGroups`, or `TryBranchOnGoodCards`, `FinalizeTopKLines` (and the
+matching `TopCandidate` truncation in `add_top_candidate`) reduces the
+candidate list as follows:
 1. **Sort** by `(CoveredFinalBoards() DESC, ExtraBranches() ASC)`.
 2. **Pareto filter**: Walk the sorted list tracking `seen_eb` (`ExtraBranches()`
    values already present at higher or equal coverage). Any candidate whose
@@ -470,16 +461,21 @@ a defender is on play:
    card that minimizes the matched branch's empirical Step-1 success probability:
    $$P(\text{success}) = \frac{\text{step1\_covered\_boards}}{\text{step1\_denom} + \text{unmakeable\_denom}}.$$
 
-### 6.3 Single-Suit Lead Relaxation Against Wildcard Sibling (`DeepCloneChildren`, `conditional_line.cc:2792–2834`)
-When a defender is on lead (`leader % 2 != 0`) and a node has both a wildcard
-lead branch (`(__)`) and a single branch for a specific suit `S` (e.g., `(SX)`
-or `(DT)` with no other `S` or `D` sibling branch), `DeepCloneChildren` relaxes
-that suit branch's `demi1.opp_card` to `(S_)` (or `(D_)`). During simulation,
-`AreCandidateDeclarerCardsLegalForTrick` (`conditional_line.cc:1930–1957`)
-additionally filters out any `(__)` branch whose prescribed declarer cards
-would revoke (fail to follow `suit_led` when holding cards in `suit_led`).
+### 6.3 Single-Suit Lead and `<H` Pattern Relaxation (`DeepCloneChildren` & `CollapseUniformInSuitSplits`)
+- **Single-suit lead against wildcard sibling (`DeepCloneChildren`, `conditional_line.cc`)**:
+  When a defender is on lead (`leader % 2 != 0`) and a node has both a wildcard
+  lead branch (`(__)`) and a single branch for a specific suit `S` (e.g., `(SX)`
+  or `(DT)` with no other `S` or `D` sibling branch), `DeepCloneChildren` relaxes
+  that suit branch's `demi1.opp_card` to `(S_)` (or `(D_)`). During simulation,
+  `AreCandidateDeclarerCardsLegalForTrick` additionally filters out any `(__)`
+  branch whose prescribed declarer cards would revoke (fail to follow `suit_led`
+  when holding cards in `suit_led`).
+- **Single-branch `<H` relaxation (`CollapseUniformInSuitSplits`, `conditional_line.cc`)**:
+  When a node has a single `TrickPlayCondition` child on a declarer lead
+  (`leader % 2 == 0`), relaxes any upper-bounded in-suit opponent pattern
+  (`S<H`) on `opp1` or `opp2` to `S_`.
 
-### 6.4 Post-Rescore Pruning and Pattern Relaxation (`PruneEmptyBranches` & `CollapseRedundantNodes`, `line_finder.cc:619–707`)
+### 6.4 Post-Rescore Pruning and Pattern Relaxation (`PruneEmptyBranches` & `CollapseRedundantNodes`, `line_finder.cc`)
 After Step-2 adversarial rescoring updates every node's `CoveredFinalBoards()`:
 1. **`PruneEmptyBranches`**:
    - Removes any branch whose Step-2 `CoveredFinalBoards() == 0` (when the node
@@ -493,25 +489,26 @@ After Step-2 adversarial rescoring updates every node's `CoveredFinalBoards()`:
      `PlayerDiscardedCondition`) has only 1 surviving non-empty child, replaces
      the condition node directly with that child.
    - If both children of a state-condition node prescribe the exact same
-      subtree (`Describe()` strings match), merges their `CoveredFinalBoards()`
+     subtree (`Describe()` strings match), merges their `CoveredFinalBoards()`
      and `board_to_trick` maps and replaces the condition node with the merged
      child.
 
 ---
 
-## 7. Audit of Redundant, Dead, and Simplifiable Special Cases
+## 7. Removed Legacy Special Cases
 
-A systematic trace of `line_finder.cc` and `conditional_line.cc` shows that
-several bespoke mechanisms were written before `GroupTricks` prohibited
-same-declarer-play in-suit splits (`if (!same_my1 || same_my2) return false;`
-in `AreCardsDistinguishable`) or before `top_k` candidate tracking was added.
+The following legacy mechanisms became dead or redundant after `GroupTricks`
+prohibited same-declarer-play in-suit splits (`if (!same_my1 || same_my2)
+return false;` in `AreCardsDistinguishable`) and after `top_k` candidate
+tracking was introduced, and have been removed:
 
-| # | Mechanism & Location | Why It Was Added | Current Status / Why It Is Redundant | Action |
-|---|---|---|---|---|
-| **1** | **`GetUniformDeclarerPlay` & `uniform_buckets` pre-sort** (`line_finder.cc:1016–1034, 3073–3111`) | Intended to sort groups sharing the same `(my1, my2)` declarer play before the main group sort. | **100% Dead / No-op**: The comparator in `uniform_buckets` depends *only* on `tot_a`, `tot_b`, `a.size()`, and `b.size()`. Immediately after `uniform_buckets` finishes on line 3111, `std::stable_sort` (lines 3112–3123) re-sorts all of `groupings` by `(tot_a > tot_b, a.size() < b.size(), GroupDrawsTrump)`, completely overwriting `uniform_buckets` whenever `tot_a != tot_b` or `a.size() != b.size()`. | **Delete** (~60 lines). |
-| **2** | **`CountExtraUniformInSuitSplits` & `zero_insuit` candidate tracking** (`line_finder.cc:971–1014, 1806–2532`) | Penalized multi-branch groups where declarer led (`leader % 2 == 0`) and played the same `my1` and `my2` across in-suit opponent-card branches. | **100% Dead / Unreachable**: `AreCardsDistinguishable` (`conditional_line.cc:1542`) returns `false` whenever `leader % 2 == 0` and `same_my2` is true. Thus `GroupTricks` can *never* place two tricks with `leader % 2 == 0`, `same_my1`, and `same_my2` into the same group, so `CountExtraUniformInSuitSplits` always returns `0`. | **Delete** (~95 lines). |
-| **3** | **`DeepCloneChildren` `leader % 2 == 0` sibling-transplant block** (`conditional_line.cc:2719–2791`) | Transplanted winner subtrees between sibling action branches that had `leader % 2 == 0` and identical `my1` and `my2`. | **100% Dead / Unreachable**: Checks `if (gt_k.demi1.my_card != gt_m.demi1.my_card \|\| gt_k.demi2.my_card != gt_m.demi2.my_card) continue;` on sibling action children with `leader % 2 == 0`. Because `GroupTricks` forbids `same_my1 && same_my2` when `leader % 2 == 0`, this condition always `continue`s. | **Delete** (~73 lines). |
-| **4** | **`SimulateBoard` non-adversarial `pos == 1` `same_pos2` fallback** (`conditional_line.cc:3153–3187`) | In Step-1 simulation (`!adversarial`), when `pos == 1` (`leader % 2 == 0`) and all `candidates` had the same `pos == 2` (`my2`) card, appended general in-suit branches (`__`, `S_`, `Sx`, `SX`, `S<H`). | **100% Dead / Unreachable**: At `pos == 1`, `candidates` already share the same `pos == 0` (`my1`) card. Since `GroupTricks` forbids `same_my1 && same_my2` when `leader % 2 == 0`, `same_pos2` is always `false` when `candidates.size() > 1`. | **Delete** (~35 lines). |
-| **5** | **`CollapseUniformInSuitSplits` unused parameters & multi-branch buckets** (`conditional_line.h:345–348`, `conditional_line.cc:2837–2905`) | Originally collapsed multi-branch uniform declarer in-suit splits in Step 2; now only relaxes `<H` to `S_` when a `(R_, R_)` bucket has 1 branch. | Its 4 parameters (`boards`, `active_boards`, `min_tricks`, `def_caches`) are completely unused, and `act_idxs.size()` is only ever `1` on solver trees. | **Simplify** signature to `CollapseUniformInSuitSplits()` (no unused parameters or 4-bucket vectors). |
-| **6** | **Triplicated `ExtraBranches()` sort / Pareto-dedup / `min_extra` reservation** (`line_finder.cc:1465–1493, 1945–1973, 2726–2754`) | Copy-pasted in `GetLinesFromTrick`, `GetLinesFromGroups`, and `TryBranchOnGoodCards`. | Identical 28-line algorithm in all 3 functions. | **Extract helper** `FinalizeTopKLines(&lines, top_k)` (~55 lines saved). |
-| **7** | **Parallel `top_k == 1` vs. `top_k > 1` state machines in `GetLinesFromGroups` & `TryBranchOnGoodCards`** (`line_finder.cc:1805–2533, 2642–2764`) | `top_k > 1` was added alongside the original `top_k == 1` code path rather than generalizing it. | Maintaining separate `top_candidates` (`top_k > 1`) and `best_lines` / `skip_ties` / `known_best_cov` (`top_k == 1`) paths duplicates ~120 lines of pruning and candidate assembly logic. | **Unify** so `top_candidates` handles all `top_k >= 1`. |
+| # | Mechanism | Why It Was Redundant |
+|---|---|---|
+| **1** | **`uniform_buckets` pre-sort in `SolveHelperUncached`** | Re-sorted subsets of `groupings` by `(tot_a > tot_b, a.size() < b.size())` immediately before a full `std::stable_sort` over all of `groupings` by `(tot_a > tot_b, a.size() < b.size(), GroupDrawsTrump)`, which completely overwrote the pre-sort. |
+| **2** | **`CountExtraUniformInSuitSplits` & `zero_insuit` tracking** | Penalized multi-branch groups with `leader % 2 == 0`, `same_my1`, and `same_my2` across in-suit opponent branches. Unreachable because `AreCardsDistinguishable` forbids `same_my1 && same_my2` when `leader % 2 == 0` (always returned `0`). |
+| **3** | **`DeepCloneChildren` `leader % 2 == 0` sibling-transplant block** | Transplanted winner subtrees between sibling action branches with `leader % 2 == 0` and identical `(my1, my2)`. Unreachable because `GroupTricks` never produces such siblings. |
+| **4** | **`SimulateBoard` non-adversarial `pos == 1` `same_pos2` fallback** | Appended general in-suit branches when `!adversarial && pos == 1 && candidates.size() > 1` and all `candidates` shared the same `pos == 2` (`my2`) card. Unreachable because `same_pos2` is always `false` when `candidates.size() > 1` at `pos == 1`. |
+| **5** | **`CollapseUniformInSuitSplits` unused parameters & redundant `ResultsOnHandAdversarial` pass** | Simplified to `CollapseUniformInSuitSplits()` (no parameters) and removed the redundant pre-simulation `ParallelForDynamic` pass in `RescoreTopLinesAdversarial` that only populated `def_caches` for the unused parameter. |
+| **6** | **Triplicated `ExtraBranches()` sort / Pareto-dedup / `min_extra` reservation** | Extracted shared `FinalizeTopKLines(&lines, limit)` helper used by `GetLinesFromTrick` and `TryBranchOnGoodCards`, and removed unused `LineFinder::GetLineFromTrick`. |
+| **7** | **Parallel `top_k == 1` vs. `top_k > 1` paths in `GetLinesFromGroups` & `TryBranchOnGoodCards`** | Unified candidate tracking and state-split assembly so `top_candidates` and `FinalizeTopKLines` handle all `top_k >= 1`. |
+

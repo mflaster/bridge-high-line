@@ -1015,9 +1015,7 @@ TEST(ConditionalLineTest, CollapseUniformInSuitSplitsRelaxesSingleBranch) {
   root.AddCondition(new TrickPlayCondition("DA (D<K) CK (D<J)"), child);
   root.set_min_tricks(1);
 
-  std::vector<BoardState> boards;
-  std::vector<int> active_boards = {0, 1};
-  root.CollapseUniformInSuitSplits(boards, active_boards, 1, nullptr);
+  root.CollapseUniformInSuitSplits();
 
   ASSERT_EQ(root.conditions().size(), 1u);
   EXPECT_EQ(root.conditions()[0].second->do_first().demi1.opp_card, "D_");
