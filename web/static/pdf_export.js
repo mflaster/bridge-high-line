@@ -858,6 +858,8 @@ function computeInspectorDataForNode(targetNode) {
     ? getActiveInitialCurTrick()
     : [];
 
+  let pendingConditions = [];
+
   path.forEach((pathNode, stepIdx) => {
     if (pathNode.condition) {
       let cText = pathNode.condition;
@@ -867,6 +869,7 @@ function computeInspectorDataForNode(targetNode) {
         condition: cText,
         node: pathNode
       });
+      pendingConditions.push(cText);
     }
 
     const rawTrick = extractTrickString(pathNode);
@@ -1019,12 +1022,9 @@ function computeInspectorDataForNode(targetNode) {
 
     const winnerCard = parsedCards[winningCardIdx];
     const leadSeatName = getSeatName(currentLeader);
-    let condBeforeTrick = '';
-    if (pathNode.condition) {
-      condBeforeTrick = pathNode.condition.startsWith('after ')
-        ? pathNode.condition.substring(6)
-        : pathNode.condition;
-    }
+    const rowConditions = pendingConditions.slice();
+    const condBeforeTrick = rowConditions.join(' → ');
+    pendingConditions = [];
 
     trickRows.push({
       trickNum: trickRows.length + 1,
@@ -1034,6 +1034,7 @@ function computeInspectorDataForNode(targetNode) {
       winningCardIdx,
       winnerSeat: winnerCard ? winnerCard.seatName : '',
       condition: condBeforeTrick,
+      conditions: rowConditions,
       node: pathNode
     });
 
@@ -1042,7 +1043,8 @@ function computeInspectorDataForNode(targetNode) {
     }
   });
 
-  return { path, trickRows, pathConditions };
+  const trailingConditions = pendingConditions.slice();
+  return { path, trickRows, pathConditions, trailingConditions };
 }
 
 function selectSnapshotNodesForPdf(rootNode) {
@@ -1573,7 +1575,7 @@ function drawDecisionTreeSnapshotOnPdf(
 }
 
 function drawLineInspectorSnapshotOnPdf(
-  ctx, x, y, w, h, targetNode, inspectorData
+  ctx, x, y, w, h, targetNode, inspectorData, branch1ConditionSet = null
 ) {
   pdfFillStrokeCard(ctx, x, y, w, h, 16, '#111c33', '#283856', 2);
 
@@ -1583,7 +1585,7 @@ function drawLineInspectorSnapshotOnPdf(
   ctx.textBaseline = 'middle';
   ctx.fillText('Line Inspector (Trick-by-Trick Play)', x + 22, y + 32);
 
-  const { trickRows } = inspectorData;
+  const { trickRows, trailingConditions = [] } = inspectorData;
   const isFail = Boolean(targetNode && targetNode.failure);
   const total = (targetNode && targetNode.total_boards) ||
     (currentSolveData && currentSolveData.total_boards) || 1;
@@ -1668,21 +1670,39 @@ function drawLineInspectorSnapshotOnPdf(
 
   curY += 46;
 
+  const drawConditionBanner = (condStr) => {
+    if (!condStr) return;
+    const isNewCond = Boolean(
+      branch1ConditionSet && !branch1ConditionSet.has(condStr)
+    );
+    pdfFillStrokeCard(
+      ctx,
+      x + 22,
+      curY,
+      w - 44,
+      28,
+      6,
+      isNewCond ? '#fde047' : '#172554',
+      isNewCond ? '#eab308' : '#3b82f6',
+      isNewCond ? 1.8 : 1
+    );
+    ctx.font = isNewCond
+      ? 'bold 14px Inter, system-ui, sans-serif'
+      : '600 14px Inter, system-ui, sans-serif';
+    ctx.fillStyle = isNewCond ? '#000000' : '#93c5fd';
+    ctx.fillText(
+      pdfTruncateToWidth(ctx, `↳ Condition: ${condStr}`, w - 68),
+      x + 34,
+      curY + 14
+    );
+    curY += 34;
+  };
+
   trickRows.forEach((tr) => {
-    // Draw branch condition banner above trick if present
-    if (tr.condition) {
-      pdfFillStrokeCard(
-        ctx, x + 22, curY, w - 44, 28, 6, '#172554', '#3b82f6', 1
-      );
-      ctx.font = '600 14px Inter, system-ui, sans-serif';
-      ctx.fillStyle = '#93c5fd';
-      ctx.fillText(
-        pdfTruncateToWidth(ctx, `↳ Condition: ${tr.condition}`, w - 68),
-        x + 34,
-        curY + 14
-      );
-      curY += 34;
-    }
+    const condList = (Array.isArray(tr.conditions) && tr.conditions.length > 0)
+      ? tr.conditions
+      : (tr.condition ? [tr.condition] : []);
+    condList.forEach(drawConditionBanner);
 
     const rowH = 44;
     pdfFillStrokeCard(
@@ -1752,6 +1772,8 @@ function drawLineInspectorSnapshotOnPdf(
 
     curY += rowH + 8;
   });
+
+  trailingConditions.forEach(drawConditionBanner);
 
   // Representative Sample Deal(s) on this branch
   const boardIds = (targetNode && Array.isArray(targetNode.boards))
@@ -2355,9 +2377,20 @@ function generateAnalysisPdfPages() {
 
   // Pages 2..N: Decision Tree Panel + Line Inspector Snapshots
   const snapshots = selectSnapshotNodesForPdf(currentTreeData);
+  const firstInspectorData = snapshots.length > 0
+    ? computeInspectorDataForNode(snapshots[0].node)
+    : null;
+  const branch1ConditionSet = new Set(
+    firstInspectorData
+      ? firstInspectorData.pathConditions.map(pc => pc.condition)
+      : []
+  );
+
   snapshots.forEach((snap, idx) => {
     const p = createPdfPageCanvas();
-    const inspectorData = computeInspectorDataForNode(snap.node);
+    const inspectorData = (idx === 0 && firstInspectorData)
+      ? firstInspectorData
+      : computeInspectorDataForNode(snap.node);
     const pathNodeSet = new Set(inspectorData.path);
 
     const condList = inspectorData.pathConditions
@@ -2399,7 +2432,8 @@ function generateAnalysisPdfPages() {
       624,
       1960,
       snap.node,
-      inspectorData
+      inspectorData,
+      idx > 0 ? branch1ConditionSet : null
     );
 
     pages.push(p);
