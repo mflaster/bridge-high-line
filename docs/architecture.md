@@ -252,3 +252,7 @@ The system modules are categorized below by their primary architectural layer, h
 
 4. **Web Frontend & Client State Architecture**:
    - For detailed client state machine diagrams, event dispatch sequence flows, JSDoc contract enums, and SVG rendering data contracts governing the single-page web UI, refer to [`docs/web_frontend_architecture.md`](web_frontend_architecture.md).
+
+5. **Solver Heuristics & Tree-Complexity Reference**:
+   - For a complete technical catalog of Step-0/Step-1/Step-2 solver heuristics, `ExtraBranches()` tie-breaking and competitive-window admission, pattern generalization, state-condition splitting, and adversarial rescoring, refer to [`docs/solver-heuristics.md`](solver-heuristics.md).
+
