@@ -1156,343 +1156,125 @@ function selectSnapshotNodesForPdf(rootNode) {
 // =========================================================================
 
 function layoutTreeForPdfSnapshot(rootNode, pathNodeSet, innerW, innerH) {
-  const nodeWidth = 204;
-  const nodeHeight = 88;
+  const nodeWidth = 196;
+  const colGap = 18;
+  const ellipsisWidth = 84;
+  const maxVisibleVariants = 3;
 
   const isExpandedInSnapshot = (node) => {
     if (!node || !node.children || node.children.length === 0) return false;
     return pathNodeSet.has(node);
   };
 
-  // Clear temporary layout properties recursively
-  const clearPdfProps = (n) => {
-    if (!n) return;
-    delete n._pdfChildren;
-    delete n._pdfHorizontalChild;
-    delete n._pdfTierOffset;
-    if (n.children) n.children.forEach(clearPdfProps);
-  };
-  clearPdfProps(rootNode);
-
-  // Step 1: Build raw topological levels along the active expanded path
-  const rawLevels = [];
-  let branchStepCount = 0;
-
-  const buildRawLevels = (startNode) => {
-    rawLevels.push({
-      nodes: [startNode],
-      activeSlot: 0
-    });
-    let curr = startNode;
-    while (curr && isExpandedInSnapshot(curr)) {
-      const rawChildren = curr.children || [];
-      const activeOrigIdx = rawChildren.findIndex(c => pathNodeSet.has(c));
-      let ordered = rawChildren.slice();
-      let activeSlot = 0;
-
-      if (activeOrigIdx >= 0 && rawChildren.length >= 2) {
-        const activeChild = rawChildren[activeOrigIdx];
-        const others = rawChildren.filter((_, idx) => idx !== activeOrigIdx);
-        const targetSlot = (branchStepCount % 2 === 0)
-          ? Math.floor((rawChildren.length - 1) / 2)
-          : Math.ceil((rawChildren.length - 1) / 2);
-        branchStepCount++;
-        ordered = [
-          ...others.slice(0, targetSlot),
-          activeChild,
-          ...others.slice(targetSlot)
-        ];
-        activeSlot = targetSlot;
-      } else if (activeOrigIdx >= 0) {
-        activeSlot = activeOrigIdx;
-      }
-
-      curr._pdfChildren = ordered;
-      rawLevels.push({
-        nodes: ordered,
-        activeSlot
-      });
-      curr = ordered[activeSlot] || null;
+  const getNodeBoardCount = (n) => {
+    if (!n) return 0;
+    if (n.failure) {
+      return n.failure_boards !== undefined
+        ? n.failure_boards
+        : (Array.isArray(n.boards) ? n.boards.length : 0);
     }
+    return n.success_boards !== undefined
+      ? n.success_boards
+      : (n.covered_boards || (Array.isArray(n.boards) ? n.boards.length : 0));
   };
 
-  buildRawLevels(rootNode);
-
-  // Step 2: Compact consecutive unconditional single-child levels (d >= 1)
-  // into horizontal serpentine chain rows of up to 3 nodes so long forced
-  // sequences flow across the width of the panel instead of making a tall
-  // skinny pole.
+  // Build one row per level along the active path:
+  // - Column 0 (leftmost) is ALWAYS the primary (active path) node.
+  // - Columns 1..3 to the right are the sibling variant nodes in the same row.
+  // - If there are > 3 variants, Column 4 is an ellipsis ("...") summary card.
   const rows = [];
-  let chainDir = 1; // 1 = left-to-right, -1 = right-to-left
-  let d = 0;
-  while (d < rawLevels.length) {
-    const lv = rawLevels[d];
-    const canStartChain =
-      d >= 1 &&
-      lv.nodes.length === 1 &&
-      !lv.nodes[0].condition &&
-      d + 1 < rawLevels.length &&
-      rawLevels[d + 1].nodes.length === 1 &&
-      !rawLevels[d + 1].nodes[0].condition;
+  rows.push({
+    activeNode: rootNode,
+    variants: [],
+    ellipsis: null
+  });
 
-    if (canStartChain) {
-      const chainNodes = [lv.nodes[0]];
-      let look = d + 1;
-      while (
-        look < rawLevels.length &&
-        chainNodes.length < 3 &&
-        rawLevels[look].nodes.length === 1 &&
-        !rawLevels[look].nodes[0].condition
-      ) {
-        const prevNode = chainNodes[chainNodes.length - 1];
-        const nextNode = rawLevels[look].nodes[0];
-        prevNode._pdfHorizontalChild = nextNode;
-        chainNodes.push(nextNode);
-        look++;
-      }
+  let curr = rootNode;
+  while (curr && isExpandedInSnapshot(curr)) {
+    const rawChildren = curr.children || [];
+    const activeIdx = rawChildren.findIndex(c => pathNodeSet.has(c));
+    const activeChild = activeIdx >= 0
+      ? rawChildren[activeIdx]
+      : rawChildren[0];
+    const allVariants = rawChildren
+      .filter(c => c !== activeChild)
+      .slice()
+      .sort((a, b) => getNodeBoardCount(b) - getNodeBoardCount(a));
 
-      const displayNodes = (chainDir === 1)
-        ? chainNodes.slice()
-        : chainNodes.slice().reverse();
-      const entryNode = chainNodes[0];
-      const exitNode = chainNodes[chainNodes.length - 1];
-      rows.push({
-        kind: 'chain',
-        nodes: displayNodes,
-        entrySlot: displayNodes.indexOf(entryNode),
-        activeSlot: displayNodes.indexOf(exitNode),
-        chainDir
-      });
-      chainDir = -chainDir;
-      d = look;
-    } else if (lv.nodes.length >= 5) {
-      // Split 5+ child fan-outs into 2 staggered tiers:
-      // Outer 2 branches in upper tier, inner (k - 2) branches in lower tier
-      const all = lv.nodes;
-      const k = all.length;
-      const activeNode = all[lv.activeSlot];
-      let outerLeft = all[0];
-      let outerRight = all[k - 1];
-      let innerNodes = all.slice(1, k - 1);
-      if (outerLeft === activeNode) {
-        outerLeft = all[1];
-        innerNodes = [all[0], ...all.slice(2, k - 1)];
-      } else if (outerRight === activeNode) {
-        outerRight = all[k - 2];
-        innerNodes = [...all.slice(1, k - 2), all[k - 1]];
-      }
-      rows.push({
-        kind: 'split_fanout',
-        nodes: all,
-        outerLeft,
-        outerRight,
-        innerNodes,
-        entrySlot: lv.activeSlot,
-        activeSlot: lv.activeSlot
-      });
-      d++;
-    } else {
-      rows.push({
-        kind: 'normal',
-        nodes: lv.nodes,
-        entrySlot: lv.activeSlot,
-        activeSlot: lv.activeSlot
-      });
-      d++;
-    }
-  }
-
-  const R = rows.length;
-  const relX = [];
-  const rowW = [];
-
-  for (let r = 0; r < R; r++) {
-    const row = rows[r];
-    if (row.kind === 'chain') {
-      const k = row.nodes.length;
-      const gapX = 38;
-      const coords = [];
-      for (let i = 0; i < k; i++) {
-        coords.push(i * (nodeWidth + gapX));
-      }
-      relX.push(coords);
-      rowW.push(k * nodeWidth + Math.max(0, k - 1) * gapX);
-    } else if (row.kind === 'split_fanout') {
-      const innerK = row.innerNodes.length;
-      const gapX = 20;
-      const totalSpanW =
-        Math.max(innerK, 4) * nodeWidth +
-        Math.max(3, innerK - 1) * gapX;
-      const innerTotalW =
-        innerK * nodeWidth + Math.max(0, innerK - 1) * gapX;
-      const innerStartX = (totalSpanW - innerTotalW) / 2;
-
-      const coords = new Array(row.nodes.length).fill(0);
-      row.nodes.forEach((n, idx) => {
-        if (n === row.outerLeft) {
-          coords[idx] = 0;
-          n._pdfTierOffset = 0;
-        } else if (n === row.outerRight) {
-          coords[idx] = totalSpanW - nodeWidth;
-          n._pdfTierOffset = 0;
-        } else {
-          const inIdx = row.innerNodes.indexOf(n);
-          coords[idx] = innerStartX + inIdx * (nodeWidth + gapX);
-          n._pdfTierOffset = nodeHeight + 58;
-        }
-      });
-      relX.push(coords);
-      rowW.push(totalSpanW);
-    } else {
-      const k = row.nodes.length;
-      const gapX = (k >= 4) ? 18 : 24;
-      const coords = [];
-      for (let i = 0; i < k; i++) {
-        coords.push(i * (nodeWidth + gapX));
-      }
-      relX.push(coords);
-      rowW.push(k * nodeWidth + Math.max(0, k - 1) * gapX);
-    }
-  }
-
-  const refW = Math.max(...rowW, nodeWidth * 3 + 48);
-  const rowLeftX = new Array(R).fill(0);
-  const clamp = (val, lo, hi) => Math.max(lo, Math.min(hi, val));
-
-  // Initial top-down horizontal placement
-  rowLeftX[0] = (refW - rowW[0]) / 2;
-  for (let r = 1; r < R; r++) {
-    const prevSlot = rows[r - 1].activeSlot;
-    const parentCenterX =
-      rowLeftX[r - 1] + relX[r - 1][prevSlot] + nodeWidth / 2;
-    const row = rows[r];
-    let desiredLeft;
-    if (row.kind === 'chain') {
-      // Align entry node of chain near parentCenterX while keeping row centered
-      const entryRelCenter = relX[r][row.entrySlot] + nodeWidth / 2;
-      const idealFromParent = parentCenterX - entryRelCenter;
-      const idealCentered = (refW - rowW[r]) / 2;
-      desiredLeft = 0.55 * idealFromParent + 0.45 * idealCentered;
-    } else if (row.nodes.length === 1) {
-      desiredLeft = parentCenterX - nodeWidth / 2;
-    } else {
-      const rowAnchor = 0.65 * parentCenterX + 0.35 * (refW / 2);
-      desiredLeft = rowAnchor - rowW[r] / 2;
-    }
-    rowLeftX[r] = clamp(desiredLeft, 0, Math.max(0, refW - rowW[r]));
-  }
-
-  // Smooth 1-node normal rows between their parent above and child below
-  for (let iter = 0; iter < 4; iter++) {
-    for (let r = R - 2; r >= 0; r--) {
-      if (rows[r].kind !== 'normal' || rows[r].nodes.length !== 1) continue;
-      const aboveCenterX = (r > 0)
-        ? (
-          rowLeftX[r - 1] +
-          relX[r - 1][rows[r - 1].activeSlot] +
-          nodeWidth / 2
-        )
-        : (
-          rowLeftX[r + 1] +
-          relX[r + 1][rows[r + 1].entrySlot] +
-          nodeWidth / 2
-        );
-      const nextEntryX =
-        rowLeftX[r + 1] + relX[r + 1][rows[r + 1].entrySlot] + nodeWidth / 2;
-      const nextRowCenterX = rowLeftX[r + 1] + rowW[r + 1] / 2;
-      const belowCenterX = (rows[r + 1].nodes.length === 1)
-        ? nextEntryX
-        : (0.5 * nextRowCenterX + 0.5 * nextEntryX);
-      const targetCenter = 0.5 * (aboveCenterX + belowCenterX);
-      rowLeftX[r] = clamp(
-        targetCenter - nodeWidth / 2,
-        0,
-        Math.max(0, refW - rowW[r])
+    const visibleVariants = allVariants.slice(0, maxVisibleVariants);
+    const omittedVariants = allVariants.slice(maxVisibleVariants);
+    let ellipsis = null;
+    if (omittedVariants.length > 0) {
+      const omittedDeals = omittedVariants.reduce(
+        (sum, n) => sum + getNodeBoardCount(n),
+        0
       );
+      ellipsis = {
+        omittedCount: omittedVariants.length,
+        omittedDeals
+      };
     }
+
+    rows.push({
+      activeNode: activeChild,
+      variants: visibleVariants,
+      ellipsis
+    });
+    curr = activeChild;
   }
 
-  // Assign X coordinates and normalize minX to 0
-  let minX = Infinity;
-  let maxX = -Infinity;
-  for (let r = 0; r < R; r++) {
-    const nodes = rows[r].nodes;
-    for (let i = 0; i < nodes.length; i++) {
-      const n = nodes[i];
-      n._pdfDepth = r;
-      n._pdfX = rowLeftX[r] + relX[r][i];
-      if (n._pdfX < minX) minX = n._pdfX;
-      if (n._pdfX + nodeWidth > maxX) maxX = n._pdfX + nodeWidth;
-    }
-  }
-  if (Number.isFinite(minX) && minX !== 0) {
-    for (let r = 0; r < R; r++) {
-      for (const n of rows[r].nodes) {
-        n._pdfX -= minX;
-      }
-    }
-    maxX -= minX;
-    minX = 0;
-  }
+  const L = rows.length;
+  const availH = Math.max(400, (innerH || 1888) - 20);
 
-  const treeW = Math.max(nodeWidth, maxX - minX);
-
-  // Compute row heights and dynamic vertical gaps to fill the panel height
-  const rowHeights = rows.map(row => (
-    row.kind === 'split_fanout' ? (nodeHeight * 2 + 58) : nodeHeight
-  ));
-  const baseGaps = [];
-  for (let r = 0; r < R - 1; r++) {
-    const nextNodes = rows[r + 1].nodes;
-    const hasCond = nextNodes.some(n => Boolean(n.condition));
-    baseGaps.push(
-      (rows[r + 1].kind !== 'split_fanout' && !hasCond) ? 34 : 66
-    );
-  }
-  const totalNodeH = rowHeights.reduce((a, b) => a + b, 0);
-  const minTreeH = totalNodeH + baseGaps.reduce((a, b) => a + b, 0);
-
-  const availW = Math.max(300, (innerW || 960) - 20);
-  const availH = Math.max(400, (innerH || 1880) - 24);
-  const scaleX = availW / treeW;
-  const targetScale = Math.min(1.55, Math.max(0.55, scaleX));
-  const availTreeH = availH / targetScale;
-
-  const finalGaps = baseGaps.slice();
-  if (R > 1) {
-    if (availTreeH > minTreeH) {
-      const extraPerGap = Math.min(58, (availTreeH - minTreeH) / (R - 1));
-      for (let r = 0; r < R - 1; r++) {
-        finalGaps[r] += extraPerGap;
-      }
-    } else if (availTreeH < minTreeH) {
-      const ratio = Math.max(
-        0.82,
-        (availTreeH - totalNodeH) / Math.max(1, minTreeH - totalNodeH)
-      );
-      for (let r = 0; r < R - 1; r++) {
-        finalGaps[r] = Math.max(24, baseGaps[r] * ratio);
-      }
-    }
-  }
+  // Size nodeHeight and vertical gap so up to 17 rows fit at 1:1 scale
+  const nodeHeight = (L >= 17) ? 66 : 70;
+  const defaultGapY = (L >= 17) ? 45 : 48;
+  const gapY = (L > 1)
+    ? Math.min(
+        54,
+        Math.max(38, Math.floor((availH - L * nodeHeight) / (L - 1)))
+      )
+    : defaultGapY;
 
   let curY = 0;
-  for (let r = 0; r < R; r++) {
-    for (const n of rows[r].nodes) {
-      n._pdfY = curY + (n._pdfTierOffset || 0);
+  for (let r = 0; r < L; r++) {
+    const row = rows[r];
+    if (row.activeNode) {
+      row.activeNode._pdfDepth = r;
+      row.activeNode._pdfX = 0;
+      row.activeNode._pdfY = curY;
     }
-    if (r < R - 1) {
-      curY += rowHeights[r] + finalGaps[r];
+    row.variants.forEach((vNode, vIdx) => {
+      vNode._pdfDepth = r;
+      vNode._pdfX = (vIdx + 1) * (nodeWidth + colGap);
+      vNode._pdfY = curY;
+    });
+    if (row.ellipsis) {
+      row.ellipsis.x =
+        (maxVisibleVariants + 1) * (nodeWidth + colGap) - 2;
+      row.ellipsis.y = curY;
+      row.ellipsis.w = ellipsisWidth;
+      row.ellipsis.h = nodeHeight;
+    }
+    if (r < L - 1) {
+      curY += nodeHeight + gapY;
     } else {
-      curY += rowHeights[r];
+      curY += nodeHeight;
     }
   }
+
+  const fixedGridW =
+    (maxVisibleVariants + 1) * nodeWidth +
+    maxVisibleVariants * colGap +
+    16 +
+    ellipsisWidth;
   const treeH = curY;
 
   return {
+    rows,
     nodeWidth,
     nodeHeight,
-    treeW,
+    treeW: fixedGridW,
     treeH,
     isExpandedInSnapshot
   };
@@ -1531,19 +1313,20 @@ function drawDecisionTreeSnapshotOnPdf(
   const innerH = h - 72;
 
   const {
+    rows,
     nodeWidth,
     nodeHeight,
     treeW,
-    treeH,
-    isExpandedInSnapshot
+    treeH
   } = layoutTreeForPdfSnapshot(rootNode, pathNodeSet, innerW, innerH);
 
-  const scaleX = (innerW - 16) / treeW;
+  const scaleX = (innerW - 12) / treeW;
   const scaleY = (innerH - 16) / treeH;
-  const scale = Math.min(1.55, Math.max(0.5, Math.min(scaleX, scaleY)));
+  const scale = Math.min(1.02, Math.max(0.5, Math.min(scaleX, scaleY)));
 
-  const offsetX = innerX + Math.max(8, (innerW - treeW * scale) / 2);
-  const offsetY = innerY + Math.max(8, (innerH - treeH * scale) / 2);
+  // Left-align and top-align so Column 0 is always anchored in the first column
+  const offsetX = innerX + 10;
+  const offsetY = innerY + 10;
 
   ctx.save();
   ctx.beginPath();
@@ -1552,122 +1335,137 @@ function drawDecisionTreeSnapshotOnPdf(
   ctx.translate(offsetX, offsetY);
   ctx.scale(scale, scale);
 
-  const bezierPoint = (t, p0, p1, p2, p3) => {
-    const u = 1 - t;
-    return (
-      u * u * u * p0 +
-      3 * u * u * t * p1 +
-      3 * u * t * t * p2 +
-      t * t * t * p3
-    );
-  };
+  // Pass 1: Draw Links (Primary vertical link + Variant curves + Ellipsis)
+  const pillQueue = [];
+  for (let r = 0; r < rows.length - 1; r++) {
+    const parent = rows[r].activeNode;
+    const nextRow = rows[r + 1];
+    if (!parent || !nextRow) continue;
 
-  // Pass 1: Draw Links & Edge Condition Labels
-  const drawLinks = (node) => {
-    if (!isExpandedInSnapshot(node)) return;
-    const children = node._pdfChildren || node.children || [];
-    const k = children.length;
-    children.forEach((child, idx) => {
-      const onPath = pathNodeSet.has(node) && pathNodeSet.has(child);
+    const startX = parent._pdfX + nodeWidth / 2;
+    const startY = parent._pdfY + nodeHeight;
 
-      // Horizontal link within a compacted unconditional chain row
-      if (node._pdfHorizontalChild === child) {
-        const goRight = child._pdfX >= node._pdfX;
-        const startX = goRight ? (node._pdfX + nodeWidth) : node._pdfX;
-        const endX = goRight ? child._pdfX : (child._pdfX + nodeWidth);
-        const linkY = node._pdfY + nodeHeight / 2;
-
-        ctx.beginPath();
-        ctx.moveTo(startX, linkY);
-        ctx.lineTo(endX, linkY);
-        ctx.lineWidth = 3.6;
-        ctx.strokeStyle = '#22d3ee';
-        ctx.stroke();
-
-        // Arrowhead at endX
-        const dir = goRight ? 1 : -1;
-        ctx.beginPath();
-        ctx.moveTo(endX, linkY);
-        ctx.lineTo(endX - dir * 10, linkY - 6);
-        ctx.lineTo(endX - dir * 10, linkY + 6);
-        ctx.closePath();
-        ctx.fillStyle = '#22d3ee';
-        ctx.fill();
-
-        drawLinks(child);
-        return;
-      }
-
-      const startX = node._pdfX + nodeWidth / 2;
-      const startY = node._pdfY + nodeHeight;
-      const endX = child._pdfX + nodeWidth / 2;
-      const endY = child._pdfY;
-      const midY = (startY + endY) / 2;
+    // 1. Links to visible variants (drawn first so active cyan link is on top)
+    nextRow.variants.forEach((vNode, vIdx) => {
+      const endX = vNode._pdfX + nodeWidth / 2;
+      const endY = vNode._pdfY;
+      const gapH = endY - startY;
 
       ctx.beginPath();
       ctx.moveTo(startX, startY);
-      ctx.bezierCurveTo(startX, midY, endX, midY, endX, endY);
-      ctx.lineWidth = onPath ? 3.6 : 2.0;
-      ctx.strokeStyle = onPath
-        ? '#22d3ee'
-        : (child.failure ? '#b91c1c' : '#4a6572');
+      ctx.bezierCurveTo(
+        startX,
+        startY + gapH * 0.45,
+        endX,
+        startY + gapH * 0.22,
+        endX,
+        endY
+      );
+      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = vNode.failure ? '#b91c1c' : '#4a6572';
       ctx.stroke();
 
-      if (child.condition) {
-        let condText = child.condition;
-        if (condText.startsWith('after ')) condText = condText.substring(6);
-        ctx.font = '600 12.5px Inter, system-ui, sans-serif';
-        const textW = ctx.measureText(condText).width;
-        const labelW = Math.max(60, textW + 16);
-        const labelH = 22;
-
-        // Place even/odd sibling condition pills in strictly disjoint vertical
-        // bands directly above their target child card so adjacent pills and
-        // upper-tier split_fanout cards never overlap.
-        let pillY;
-        let tForX;
-        if (k === 1) {
-          pillY = (startY + endY) / 2;
-          tForX = 0.5;
-        } else if (child._pdfTierOffset && child._pdfTierOffset > 0) {
-          pillY = (idx % 2 === 0) ? (endY - 15) : (endY - 40);
-          tForX = (idx % 2 === 0) ? 0.90 : 0.78;
-        } else {
-          pillY = (idx % 2 === 0) ? (endY - 15) : (endY - 40);
-          tForX = (idx % 2 === 0) ? 0.78 : 0.46;
-        }
-        const pillX = bezierPoint(tForX, startX, startX, endX, endX);
-        const clampedPillX = Math.max(
-          labelW / 2 + 2,
-          Math.min(treeW - labelW / 2 - 2, pillX)
-        );
-
-        pdfFillStrokeCard(
-          ctx,
-          clampedPillX - labelW / 2,
-          pillY - labelH / 2,
-          labelW,
-          labelH,
-          5,
-          onPath ? '#083344' : (child.failure ? '#2a1215' : '#0f172a'),
-          onPath ? '#22d3ee' : (child.failure ? '#b91c1c' : '#334155'),
-          onPath ? 1.8 : 1.2
-        );
-        ctx.fillStyle = onPath
-          ? '#67e8f9'
-          : (child.failure ? '#fca5a5' : '#cbd5e1');
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(condText, clampedPillX, pillY);
-        ctx.textAlign = 'left';
+      if (vNode.condition) {
+        pillQueue.push({
+          child: vNode,
+          colIdx: vIdx + 1,
+          endX,
+          endY,
+          onPath: false
+        });
       }
-
-      drawLinks(child);
     });
-  };
 
-  // Pass 2: Draw Node Cards
-  const drawNodes = (node) => {
+    // 2. Dashed link to ellipsis card if present
+    if (nextRow.ellipsis) {
+      const el = nextRow.ellipsis;
+      const endX = el.x + el.w / 2;
+      const endY = el.y;
+      const gapH = endY - startY;
+
+      ctx.save();
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.bezierCurveTo(
+        startX,
+        startY + gapH * 0.45,
+        endX,
+        startY + gapH * 0.22,
+        endX,
+        endY
+      );
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = '#64748b';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3. Primary vertical link in Column 0
+    if (nextRow.activeNode) {
+      const activeChild = nextRow.activeNode;
+      const endX = activeChild._pdfX + nodeWidth / 2;
+      const endY = activeChild._pdfY;
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.lineWidth = 3.8;
+      ctx.strokeStyle = '#22d3ee';
+      ctx.stroke();
+
+      if (activeChild.condition) {
+        pillQueue.push({
+          child: activeChild,
+          colIdx: 0,
+          endX,
+          endY,
+          onPath: true
+        });
+      }
+    }
+  }
+
+  // Pass 2: Draw Condition Pills on top of links
+  pillQueue.forEach(({ child, colIdx, endX, endY, onPath }) => {
+    let condText = child.condition;
+    if (condText.startsWith('after ')) condText = condText.substring(6);
+    ctx.font = '600 12px Inter, system-ui, sans-serif';
+    const textW = ctx.measureText(condText).width;
+    const labelW = Math.max(58, textW + 14);
+    const labelH = 20;
+
+    // Alternate vertical band between even and odd columns so pills in
+    // adjacent columns never overlap even when labels are long.
+    const pillY = (colIdx % 2 === 0) ? (endY - 13) : (endY - 33);
+    const pillX = Math.max(
+      labelW / 2 + 2,
+      Math.min(treeW - labelW / 2 - 2, endX)
+    );
+
+    pdfFillStrokeCard(
+      ctx,
+      pillX - labelW / 2,
+      pillY - labelH / 2,
+      labelW,
+      labelH,
+      5,
+      onPath ? '#083344' : (child.failure ? '#2a1215' : '#0f172a'),
+      onPath ? '#22d3ee' : (child.failure ? '#b91c1c' : '#334155'),
+      onPath ? 1.8 : 1.2
+    );
+    ctx.fillStyle = onPath
+      ? '#67e8f9'
+      : (child.failure ? '#fca5a5' : '#cbd5e1');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(condText, pillX, pillY);
+    ctx.textAlign = 'left';
+  });
+
+  // Pass 3: Draw Node Cards & Ellipsis Cards
+  const drawSingleNodeCard = (node) => {
+    if (!node) return;
     const nx = node._pdfX;
     const ny = node._pdfY;
     const isTarget = (node === targetNode);
@@ -1678,9 +1476,8 @@ function drawDecisionTreeSnapshotOnPdf(
     const successColor = '#064e3b';
     const failColor = '#450a0a';
 
-    // Clip to rounded node card to paint proportional fill bars
     ctx.save();
-    pdfRoundRect(ctx, nx, ny, nodeWidth, nodeHeight, 10);
+    pdfRoundRect(ctx, nx, ny, nodeWidth, nodeHeight, 9);
     ctx.clip();
 
     ctx.fillStyle = greyColor;
@@ -1702,7 +1499,6 @@ function drawDecisionTreeSnapshotOnPdf(
     }
     ctx.restore();
 
-    // Node border
     let strokeCol = '#3b82f6';
     if (node.type === 'condition') strokeCol = '#a855f7';
     if (node.type === 'outcome') {
@@ -1711,47 +1507,71 @@ function drawDecisionTreeSnapshotOnPdf(
     if (onPath) strokeCol = '#22d3ee';
     if (isTarget) strokeCol = '#facc15';
 
-    pdfRoundRect(ctx, nx, ny, nodeWidth, nodeHeight, 10);
-    ctx.lineWidth = isTarget ? 4.0 : (onPath ? 3.0 : 1.8);
+    pdfRoundRect(ctx, nx, ny, nodeWidth, nodeHeight, 9);
+    ctx.lineWidth = isTarget ? 3.8 : (onPath ? 2.8 : 1.8);
     ctx.strokeStyle = strokeCol;
     ctx.stroke();
 
-    // Node text lines
+    const y1 = Math.round(nodeHeight * 0.26);
+    const y2 = Math.round(nodeHeight * 0.54);
+    const y3 = Math.round(nodeHeight * 0.80);
+
     let rawTitle = node.label || node.trick || 'Node';
     if (rawTitle.startsWith('after ')) rawTitle = rawTitle.substring(6);
-    ctx.font = 'bold 14.5px "JetBrains Mono", Inter, sans-serif';
+    ctx.font = 'bold 13.5px "JetBrains Mono", Inter, sans-serif';
     ctx.fillStyle = '#f8fafc';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(
-      pdfTruncateToWidth(ctx, rawTitle, nodeWidth - 20),
-      nx + 10,
-      ny + 22
+      pdfTruncateToWidth(ctx, rawTitle, nodeWidth - 18),
+      nx + 9,
+      ny + y1
     );
 
     const { primary, secondary } = formatNodeCardDealLines(node);
-    ctx.font = '600 13px Inter, system-ui, sans-serif';
+    ctx.font = '600 12px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#e2e8f0';
-    ctx.fillText(primary, nx + 10, ny + 46);
+    ctx.fillText(primary, nx + 9, ny + y2);
 
     if (node.type === 'outcome' && node.ns_tricks !== undefined) {
-      ctx.font = 'bold 13.5px Inter, system-ui, sans-serif';
+      ctx.font = 'bold 12.5px Inter, system-ui, sans-serif';
       ctx.fillStyle = node.failure ? '#fca5a5' : '#6ee7b7';
-      ctx.fillText(`N/S Won: ${node.ns_tricks}`, nx + 10, ny + 68);
+      ctx.fillText(`N/S Won: ${node.ns_tricks}`, nx + 9, ny + y3);
     } else if (secondary) {
-      ctx.font = '600 13px Inter, system-ui, sans-serif';
+      ctx.font = '600 12px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#fca5a5';
-      ctx.fillText(secondary, nx + 10, ny + 68);
-    }
-
-    if (isExpandedInSnapshot(node)) {
-      const children = node._pdfChildren || node.children || [];
-      children.forEach(drawNodes);
+      ctx.fillText(secondary, nx + 9, ny + y3);
     }
   };
 
-  drawLinks(rootNode);
-  drawNodes(rootNode);
+  rows.forEach((row) => {
+    if (row.activeNode) drawSingleNodeCard(row.activeNode);
+    row.variants.forEach(drawSingleNodeCard);
+    if (row.ellipsis) {
+      const el = row.ellipsis;
+      pdfFillStrokeCard(
+        ctx, el.x, el.y, el.w, el.h, 9, '#1e293b', '#64748b', 1.6
+      );
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 20px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText('•••', el.x + el.w / 2, el.y + Math.round(el.h * 0.30));
+
+      ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#94a3b8';
+      const moreLbl = `+${el.omittedCount} more`;
+      ctx.fillText(moreLbl, el.x + el.w / 2, el.y + Math.round(el.h * 0.58));
+
+      ctx.font = '500 11px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#cbd5e1';
+      const dealsLbl =
+        `(${el.omittedDeals} deal${el.omittedDeals !== 1 ? 's' : ''})`;
+      ctx.fillText(dealsLbl, el.x + el.w / 2, el.y + Math.round(el.h * 0.82));
+      ctx.textAlign = 'left';
+    }
+  });
+
   ctx.restore();
 }
 
