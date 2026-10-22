@@ -1891,18 +1891,15 @@ function parsePdfFontSpec(fontStr) {
   const s = String(fontStr || '16px sans-serif');
   const m = s.match(/(\d+(?:\.\d+)?)px/i);
   const sizePx = m ? parseFloat(m[1]) : 16;
-  const isMono = /JetBrains Mono|monospace|Courier/i.test(s);
-  const isBold = /\b(bold|[6789]00)\b/i.test(s);
+  const isBold = /\b(bold|[789]00)\b/i.test(s);
   const isItalic = /\b(italic|oblique)\b/i.test(s);
   let fontKey = 'F1';
-  if (isMono) {
-    fontKey = isBold ? 'F5' : 'F4';
-  } else if (isBold) {
+  if (isBold) {
     fontKey = 'F2';
   } else if (isItalic) {
     fontKey = 'F3';
   }
-  return { sizePx, fontKey, isMono, isBold };
+  return { sizePx, fontKey, isMono: false, isBold };
 }
 
 function escapePdfAsciiChar(ch) {
