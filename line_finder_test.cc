@@ -1055,3 +1055,79 @@ TEST(LineFinderTest, LineFinder_BranchOnPlayerDiscardedCondition) {
     EXPECT_NE(kv.first->Describe(false).find("discard"), std::string::npos);
   }
 }
+
+TEST(LineFinderTest,
+     LineFinder_AbandonsFalsecardedSplitPreservingDiscardCondition) {
+  // 6-card ending in Spades (South leads SK at Trick 1, goal = 6 tricks):
+  //   North (0): S AJ82; C K6;
+  //   South (2): S KT9; C AQ2;
+  // Predealt 14 boards:
+  // - Boards 0..3 (4 boards): West has S Q765; C 54, East has D 543; C T87
+  //   (East is void in Spades and discards on Trick 1 SK -> declarer must
+  //   branch on "if E discarded on S" and finesse West's Spades).
+  // - Boards 4..11 (8 boards): West has S 65; D 43; C T7, East has S Q7; D 5;
+  //   C 854 (both follow to SK and CQ; East holds SQ so declarer must play SA
+  //   on the second Spade after winning CK; West holds C T7 and can falsecard
+  //   CT on CQ).
+  // - Boards 12..13 (2 boards): West has S Q76; D 43; C T, East has S 5; D 5;
+  //   C 8754 (both follow to SK; in Step 1 non-adversarial play, West is forced
+  //   to drop singleton CT on CQ, tempting declarer to split on CQ (Cx) CK vs
+  //   CQ (CT) C6 and finesse Spades when CT appears).
+  // In Step 2 adversarial rescoring, West falsecards CT from C T7 on CQ on
+  // Boards 4..11, collapsing the CT-splitting line from 14/14 to 6/14.
+  // Declarer must abandon the CT split while preserving the
+  // "if E discarded on S" split to achieve 12/14 tricks.
+  std::vector<uint64_t> hands = {
+      ParseHand("S AJ82; C K6;"),
+      0,
+      ParseHand("S KT9; C AQ2;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("S Q765; D 543; C T8754;");
+
+  std::vector<BoardState> boards(14);
+  auto set_board = [&](int idx, const std::string &east_str,
+                       const std::string &west_str) {
+    std::vector<uint64_t> h = {
+        hands[0],
+        ParseHand(east_str),
+        hands[2],
+        ParseHand(west_str),
+    };
+    boards[idx].SetHands(h);
+    boards[idx].SetTrump(SPADES);
+    boards[idx].SetLead(2);
+    boards[idx].set_board_id(idx + 1);
+  };
+  for (int i = 0; i < 4; ++i) {
+    set_board(i, "D 543; C T87;", "S Q765; C 54;");
+  }
+  for (int i = 4; i < 12; ++i) {
+    set_board(i, "S Q7; D 5; C 854;", "S 65; D 43; C T7;");
+  }
+  for (int i = 12; i < 14; ++i) {
+    set_board(i, "S 5; D 5; C 8754;", "S Q76; D 43; C T;");
+  }
+
+  LineFinder lf(14);
+  lf.SetPredealtBoards(boards);
+  lf.SetKeepAllTopK(true);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(6, hands, unknown, /*leader=*/2, SPADES, {ParseHand("S K")});
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe();
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 12) << desc;
+  EXPECT_EQ(lines[0].ExtraBranches(), 1u) << desc;
+  EXPECT_NE(desc.find("if E discarded on S"), std::string::npos) << desc;
+  EXPECT_NE(desc.find("if E did not discard on S"), std::string::npos) << desc;
+  EXPECT_EQ(desc.find("(Cx)"), std::string::npos) << desc;
+
+  bool found_falsecarded_ct_split = false;
+  for (const auto &line : lines) {
+    if (line.step1_covered_boards() == 14) {
+      found_falsecarded_ct_split = true;
+      EXPECT_EQ(line.CoveredFinalBoards(), 6);
+    }
+  }
+  EXPECT_TRUE(found_falsecarded_ct_split);
+}

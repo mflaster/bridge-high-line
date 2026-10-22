@@ -1425,11 +1425,41 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
     int alt_slack = std::max(2, primary_cov / 6);
     int alt_floor = std::max(1, primary_cov - alt_slack);
     for (size_t idx = 0; idx < entries.size(); ++idx) {
+      size_t base_eb = shared_branches[idx][0]->ExtraBranches();
       for (size_t alt = 1; alt < shared_branches[idx].size(); ++alt) {
+        if (lvl > 0 && base_eb > 0 &&
+            shared_branches[idx][alt]->ExtraBranches() >= base_eb) {
+          continue;
+        }
         ConditionalLine alt_line = build_line(idx, alt);
         if (alt_line.CoveredFinalBoards() >= alt_floor) {
           out_lines.push_back(std::move(alt_line));
         }
+      }
+    }
+    if (entries.size() > 1) {
+      ConditionalLine min_eb_line;
+      min_eb_line.SetAction(gen_trick);
+      bool any_min_diff = false;
+      for (size_t idx = 0; idx < entries.size(); ++idx) {
+        if (shared_branches[idx].empty()) continue;
+        size_t min_a = 0;
+        size_t min_eb = shared_branches[idx][0]->ExtraBranches();
+        for (size_t a = 1; a < shared_branches[idx].size(); ++a) {
+          size_t eb = shared_branches[idx][a]->ExtraBranches();
+          if (eb < min_eb) {
+            min_eb = eb;
+            min_a = a;
+          }
+        }
+        if (min_a > 0) any_min_diff = true;
+        min_eb_line.AddCondition(
+            new WinnerPlayCondition(entries[idx].next_leader,
+                                    entries[idx].winning_cards),
+            shared_branches[idx][min_a]);
+      }
+      if (any_min_diff && min_eb_line.CoveredFinalBoards() >= alt_floor) {
+        out_lines.push_back(std::move(min_eb_line));
       }
     }
     std::stable_sort(
@@ -1755,10 +1785,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
 
   auto top_k_prune_floor = [&](size_t group_size) -> int {
     int floor_cov = competitive_window_floor();
-    if (lvl >= 2 && group_size > 1 && most_boards_covered > 0) {
+    if (lvl >= 1 && group_size > 1 && most_boards_covered > 0) {
       floor_cov = std::max(floor_cov, most_boards_covered + 1);
-    } else if (lvl == 1 && group_size > 1 && most_boards_covered > 0) {
-      floor_cov = std::max(floor_cov, most_boards_covered);
     }
     if (static_cast<int>(top_candidates.size()) >= top_k && top_k > 0) {
       int full_cov = top_candidates.back().covered;
@@ -2280,9 +2308,14 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           add_top_candidate(a_line, group_uniform_t1[i], group.size());
       if (child_top_k > 1) {
         for (size_t k = 0; k < group.size(); ++k) {
+          size_t base_eb = saved_work.at(keys[i][k])->ExtraBranches();
           auto alt_it = saved_work_alts.find(keys[i][k]);
           if (alt_it == saved_work_alts.end()) continue;
           for (const auto &alt_ptr : alt_it->second) {
+            if (lvl > 0 && base_eb > 0 &&
+                alt_ptr->ExtraBranches() >= base_eb) {
+              continue;
+            }
             ConditionalLine alt_line;
             for (size_t m = 0; m < group.size(); ++m) {
               const std::string &t_str = keys[i][m];
@@ -2294,6 +2327,31 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
                                   group.size())) {
               changed = true;
             }
+          }
+        }
+        if (group.size() > 1) {
+          ConditionalLine min_eb_line;
+          bool any_min_diff = false;
+          for (size_t m = 0; m < group.size(); ++m) {
+            const std::string &t_str = keys[i][m];
+            std::shared_ptr<ConditionalLine> chosen = saved_work.at(t_str);
+            size_t min_eb = chosen->ExtraBranches();
+            auto alt_it = saved_work_alts.find(t_str);
+            if (alt_it != saved_work_alts.end()) {
+              for (const auto &alt_ptr : alt_it->second) {
+                if (alt_ptr->ExtraBranches() < min_eb) {
+                  min_eb = alt_ptr->ExtraBranches();
+                  chosen = alt_ptr;
+                  any_min_diff = true;
+                }
+              }
+            }
+            min_eb_line.AddCondition(new TrickPlayCondition(t_str), chosen);
+          }
+          if (any_min_diff &&
+              add_top_candidate(min_eb_line, Trick1CardPair{"", ""},
+                                group.size())) {
+            changed = true;
           }
         }
       }
@@ -2474,16 +2532,24 @@ void LineFinder::TryBranchOnGoodCards(
         int alt_floor = std::max(1, total_cov - alt_slack);
         std::vector<ConditionalLine> new_splits;
         new_splits.push_back(make_split(0, 0));
-        for (size_t ti = 1; ti < shared_true.size(); ++ti) {
-          ConditionalLine sl = make_split(ti, 0);
-          if (sl.CoveredFinalBoards() >= alt_floor) {
-            new_splits.push_back(std::move(sl));
+        size_t base_t_eb = shared_true[0]->ExtraBranches();
+        if (base_t_eb > 0) {
+          for (size_t ti = 1; ti < shared_true.size(); ++ti) {
+            if (shared_true[ti]->ExtraBranches() >= base_t_eb) continue;
+            ConditionalLine sl = make_split(ti, 0);
+            if (sl.CoveredFinalBoards() >= alt_floor) {
+              new_splits.push_back(std::move(sl));
+            }
           }
         }
-        for (size_t fi = 1; fi < shared_false.size(); ++fi) {
-          ConditionalLine sl = make_split(0, fi);
-          if (sl.CoveredFinalBoards() >= alt_floor) {
-            new_splits.push_back(std::move(sl));
+        size_t base_f_eb = shared_false[0]->ExtraBranches();
+        if (base_f_eb > 0) {
+          for (size_t fi = 1; fi < shared_false.size(); ++fi) {
+            if (shared_false[fi]->ExtraBranches() >= base_f_eb) continue;
+            ConditionalLine sl = make_split(0, fi);
+            if (sl.CoveredFinalBoards() >= alt_floor) {
+              new_splits.push_back(std::move(sl));
+            }
           }
         }
         for (auto &sl : new_splits) {

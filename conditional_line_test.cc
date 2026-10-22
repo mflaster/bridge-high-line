@@ -1206,4 +1206,133 @@ TEST(ConditionalLineTest, ExamplePlayFollowsMostCommonBranch) {
             "  #1 (N) S3 S7 SQ SK*\n");
 }
 
+TEST(ConditionalLineTest, AdversarialDefenderFalsecardsIntoFailingBranch) {
+  // 5-card ending (Spades trump, South = 2 on lead, N/S need all 5 tricks):
+  // North (0): S AJ, H 2, C A8
+  // South (2): S 9, H AKQ, C Q
+  // Branch 1: CQ (Cx) CA (C_) -> North overtakes with CA, cashes SA and SJ
+  //           for the 1-1 spade drop, then leads H2 to South's HK, HA.
+  // Branch 2: CQ (CT) C8 (C_) -> North ducks CQ so South stays on lead to
+  //           finesse S9 -> SJ through West's SQ4, then SA, H2 to HK, HA.
+  // In Step 1, West only plays CT when dealt singleton CT (2 boards, 100%
+  // success), while Cx receives 10 makeable and 5 unmakeable boards (10/15 =
+  // 66.7%).
+  std::set<int> b_cx = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  std::set<int> b_ct = {10, 11};
 
+  GeneralizedDemiStruct d1_cx("Cx", "CQ", b_cx);
+  GeneralizedDemiStruct d2_cx("C_", "CA", b_cx);
+  GeneralizedTrick gt_cx(d1_cx, d2_cx, b_cx, 2);
+  gt_cx.opp1_step1_boards = 10;
+  gt_cx.opp1_unmakeable_boards = 5;
+
+  GeneralizedDemiStruct d1_ct("CT", "CQ", b_ct);
+  GeneralizedDemiStruct d2_ct("C_", "C8", b_ct);
+  GeneralizedTrick gt_ct(d1_ct, d2_ct, b_ct, 2);
+  gt_ct.opp1_step1_boards = 2;
+  gt_ct.opp1_unmakeable_boards = 0;
+
+  // Build Branch 1 (drop): CA -> SA -> SJ -> H2 to HK -> HA.
+  ConditionalLine leaf_cx(b_cx);
+  ConditionalLine cx_t5;
+  cx_t5.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "HA", b_cx),
+                                   GeneralizedDemiStruct("__", "C8", b_cx),
+                                   b_cx, 2));
+  cx_t5.AddCondition(new WinnerPlayCondition(2), leaf_cx);
+  ConditionalLine cx_t4;
+  cx_t4.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "H2", b_cx),
+                                   GeneralizedDemiStruct("__", "HK", b_cx),
+                                   b_cx, 0));
+  cx_t4.AddCondition(new WinnerPlayCondition(2), cx_t5);
+  ConditionalLine cx_t3;
+  cx_t3.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "SJ", b_cx),
+                                   GeneralizedDemiStruct("__", "HQ", b_cx),
+                                   b_cx, 0));
+  cx_t3.AddCondition(new WinnerPlayCondition(0), cx_t4);
+  ConditionalLine cx_t2;
+  cx_t2.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "SA", b_cx),
+                                   GeneralizedDemiStruct("__", "S9", b_cx),
+                                   b_cx, 0));
+  cx_t2.AddCondition(new WinnerPlayCondition(0), cx_t3);
+  ConditionalLine cx_t1;
+  cx_t1.SetAction(gt_cx);
+  cx_t1.AddCondition(new WinnerPlayCondition(0), cx_t2);
+
+  // Build Branch 2 (finesse): CQ -> S9 to SJ -> SA -> H2 to HK -> HA.
+  ConditionalLine leaf_ct(b_ct);
+  ConditionalLine ct_t5;
+  ct_t5.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "HA", b_ct),
+                                   GeneralizedDemiStruct("__", "CA", b_ct),
+                                   b_ct, 2));
+  ct_t5.AddCondition(new WinnerPlayCondition(2), leaf_ct);
+  ConditionalLine ct_t4;
+  ct_t4.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "H2", b_ct),
+                                   GeneralizedDemiStruct("__", "HK", b_ct),
+                                   b_ct, 0));
+  ct_t4.AddCondition(new WinnerPlayCondition(2), ct_t5);
+  ConditionalLine ct_t3;
+  ct_t3.SetAction(GeneralizedTrick(GeneralizedDemiStruct("__", "SA", b_ct),
+                                   GeneralizedDemiStruct("__", "HQ", b_ct),
+                                   b_ct, 0));
+  ct_t3.AddCondition(new WinnerPlayCondition(0), ct_t4);
+  ConditionalLine ct_t2;
+  ct_t2.SetAction(GeneralizedTrick(GeneralizedDemiStruct("S_", "S9", b_ct),
+                                   GeneralizedDemiStruct("__", "SJ", b_ct),
+                                   b_ct, 2));
+  ct_t2.AddCondition(new WinnerPlayCondition(0), ct_t3);
+  ConditionalLine ct_t1;
+  ct_t1.SetAction(gt_ct);
+  ct_t1.AddCondition(new WinnerPlayCondition(2), ct_t2);
+
+  // Case 1: Spades are 1-1 with singleton SQ in East and singleton S4 in West,
+  // and West holds CT2 (also test CT9 where CT and C9 share a single DDS
+  // equivalence group).
+  // Playing Cx lets declarer overtake and drop SQ with SA (5 tricks);
+  // falsecarding CT induces the losing SJ finesse into East's SQ (4 tricks).
+  BoardState bs_east_sq = MakeBoardState(
+      {ParseHand("S AJ H 2 C A8"), ParseHand("S Q H 76 C 74"),
+       ParseHand("S 9 H AKQ C Q"), ParseHand("S 4 H 53 C T2")},
+      2, SPADES);
+  BoardState bs_east_sq_touching = MakeBoardState(
+      {ParseHand("S AJ H 2 C A8"), ParseHand("S Q H 76 C 74"),
+       ParseHand("S 9 H AKQ C Q"), ParseHand("S 4 H 53 C T9")},
+      2, SPADES);
+
+  // Case 2: West holds SQ4 and East is void in spades, and West holds CT2.
+  // Playing C2 leads declarer into the failing drop line (3 tricks after West
+  // wins SQ and cashes CT), whereas falsecarding CT would steer declarer into
+  // the winning SJ finesse (5 tricks).
+  BoardState bs_west_sq = MakeBoardState(
+      {ParseHand("S AJ H 2 C A8"), ParseHand("H 876 C 74"),
+       ParseHand("S 9 H AKQ C Q"), ParseHand("S Q4 H 5 C T2")},
+      2, SPADES);
+
+  ConditionalLine root;
+  root.AddCondition(new TrickPlayCondition("CQ (Cx) CA (C_)"), cx_t1);
+  root.AddCondition(new TrickPlayCondition("CQ (CT) C8 (C_)"), ct_t1);
+  root.set_min_tricks(5);
+  root.set_sample_board(bs_east_sq);
+  root.DeepCloneChildren();
+
+  ConditionalLine::RescoreBoardTrace trace_east_sq;
+  EXPECT_EQ(root.ResultsOnHandAdversarial(bs_east_sq, nullptr, &trace_east_sq),
+            4);
+  EXPECT_EQ(trace_east_sq.leaf, nullptr);
+  ASSERT_FALSE(trace_east_sq.node_tricks.empty());
+  EXPECT_EQ(trace_east_sq.node_tricks[0].second.rfind("CQ CT C8 ", 0), 0u);
+
+  ConditionalLine::RescoreBoardTrace trace_touching;
+  EXPECT_EQ(root.ResultsOnHandAdversarial(bs_east_sq_touching, nullptr,
+                                          &trace_touching),
+            4);
+  EXPECT_EQ(trace_touching.leaf, nullptr);
+  ASSERT_FALSE(trace_touching.node_tricks.empty());
+  EXPECT_EQ(trace_touching.node_tricks[0].second.rfind("CQ CT C8 ", 0), 0u);
+
+  ConditionalLine::RescoreBoardTrace trace_west_sq;
+  EXPECT_EQ(root.ResultsOnHandAdversarial(bs_west_sq, nullptr, &trace_west_sq),
+            3);
+  EXPECT_EQ(trace_west_sq.leaf, nullptr);
+  ASSERT_FALSE(trace_west_sq.node_tricks.empty());
+  EXPECT_EQ(trace_west_sq.node_tricks[0].second.rfind("CQ C2 CA ", 0), 0u);
+}
