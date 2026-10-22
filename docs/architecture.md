@@ -212,7 +212,7 @@ The system modules are categorized below by their primary architectural layer, h
 | **OptimalPlayTree** | `interface_dds.h` | Recursive game tree representation of optimal double-dummy card plays and trick continuations. | - `FindOptimalPlayTree()`: Factory method to construct play tree.<br/>- `Deepen()`: Expands tree depth.<br/>- `PlayTrick()`: Advances tree state. |
 | **DDS C++ Interface** | `interface_dds.h` | Higher-level bridge solver interface wrapping low-level C-DDS calls and PBN conversion. | - `DDSFindOptimalLines()`: Finds winning lines for target tricks.<br/>- `PopulatePBNDeal()`: Converts board state to PBN deal. |
 | **Solver** | `solver.h` | Native search solver routines for determining maximum trick yield and optimal line sequences. | - `MostTricksCanBeWon()`: Calculates max tricks for a board state.<br/>- `PrintLine()` / `PrintLines()`: Formats optimal plays. |
-| **SolverCache** | `solver.h` | Hash-map based memoization cache for solver outcomes, optimal play sets, and DDS lookups. | - `saved_results`: Cached trick counts.<br/>- `saved_optimal_plays`: Cached play lines.<br/>- `dds_size()`: Returns total cached entries. |
+| **SolverCache** | `solver.h` | Hash-map based memoization cache for solver outcomes and optimal play sets. | - `saved_results`: Cached trick counts.<br/>- `saved_optimal_plays`: Cached play lines.<br/>- `size()`: Returns total cached entries. |
 
 ### 3.3 State Management Layer
 

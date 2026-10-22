@@ -29,14 +29,14 @@ BoardPlayTrace SimulateBoard(
 
 ### Key Responsibilities
 1. **Condition & Candidate Resolution**:
-   - Evaluates `IsCardGoodCondition` branches against the live `BoardState`.
+   - Evaluates state-condition branches (`IsCardGoodCondition` and `PlayerDiscardedCondition`) against the live `BoardState` via `AdvanceThroughStateConditions`.
    - Collects candidate action children (`!do_first().Empty()`) at each trick.
-2. **Trick Execution (Pre-played and Live Positions)**:
-   - Supports mid-trick starting states (`start_pos = copy.CardsPlayedThisTrick()`).
-   - For declarer positions (`p % 2 == 0`), selects the most specific candidate (`SelectMostSpecificCandidate`) up to the current position, plays `ChooseValidCard`, and narrows `candidates`.
+2. **Trick Execution (Unified 0..3 Loop)**:
+   - Supports mid-trick starting states (`start_pos = copy.CardsPlayedThisTrick()`) in a single `pos = 0..3` loop (`is_pre = pos < start_pos`).
+   - For declarer positions (`p % 2 == 0`), selects the most specific candidate (`SelectMostSpecificCandidate` / `KeepMostSpecificCandidates`), plays `ChooseValidCard` when `!is_pre`, and narrows `candidates` via `FilterCandidatesByDeclarerCard`.
    - For defender positions (`p % 2 != 0`), selects the defender card via `ChooseAdversarialDefenderCard(copy, pos, candidates, def_cache)` when `adversarial` is true, or `FindBestDefenderCard(copy)` when `adversarial` is false.
    - Candidate filtering on defender cards (`FilterCandidatesByDefenderCard`) is performed when `!adversarial || candidates.size() > 1`:
-     - In **adversarial** mode (`Step 2`), once a trick has been narrowed to a single candidate action node, declarer's play for the trick is fixed and the trick completes before checking `WinnerPlayCondition(winner)`.
+     - In **adversarial** mode (`Step 2`), once a trick has been narrowed to a single candidate action node, declarer's play for the trick is fixed and the trick completes before checking `MatchWinnerContinuation`.
      - In **non-adversarial** mode (`ResultsOnHand` / un-rescored `TraceOnBoard`), single-candidate tricks still verify pattern compatibility and record `unmatched_seat` / `unmatched_card` if a defender deviates from the line's pattern.
 3. **Trace Recording & Continuation**:
    - Emits a `PlayedTrickStep` for each completed 4-card trick, including `node`, `trick_str`, `winner`, `winning_card`, `ns_tricks_so_far`, `diverged_after`, `unmatched_seat`, and `unmatched_card`.
