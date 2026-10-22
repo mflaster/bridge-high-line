@@ -600,14 +600,31 @@ std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs) {
   auto [heur_idx, heur_rank] =
       ChooseDefenderPlay(bs, level, futp, /*noise_pct=*/0);
   std::vector<std::string> ans;
-  ans.reserve(futp.cards);
-  ans.push_back(Card::PrintDDSCard(static_cast<Suit>(futp.suit[heur_idx]),
-                                   heur_rank));
+  ans.reserve(futp.cards + 4);
+  auto add_unique = [&](Suit s, int r) {
+    std::string c = Card::PrintDDSCard(s, r);
+    if (std::find(ans.begin(), ans.end(), c) == ans.end()) {
+      ans.push_back(std::move(c));
+    }
+  };
+  add_unique(static_cast<Suit>(futp.suit[heur_idx]), heur_rank);
   for (int i = 0; i < futp.cards; ++i) {
     if (i == heur_idx) continue;
     int base_r = RankForDefenderGroup(bs, level, futp, i);
     int r = RandomizeTouchingHonorRank(bs, futp, i, base_r);
-    ans.push_back(Card::PrintDDSCard(static_cast<Suit>(futp.suit[i]), r));
+    add_unique(static_cast<Suit>(futp.suit[i]), r);
+  }
+  for (int i = 0; i < futp.cards; ++i) {
+    Suit s = static_cast<Suit>(futp.suit[i]);
+    add_unique(s, LowestRankInGroup(futp, i));
+    unsigned int mask =
+        (static_cast<unsigned int>(futp.equals[i]) & ~3u) |
+        (1u << futp.rank[i]);
+    for (int r = 10; r <= 14; ++r) {
+      if ((mask >> r) & 1) {
+        add_unique(s, r);
+      }
+    }
   }
   return ans;
 }

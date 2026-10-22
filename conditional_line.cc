@@ -2103,6 +2103,148 @@ double BranchSuccessProbability(
 std::string ChooseAdversarialDefenderCard(
     const BoardState &copy, int pos,
     const std::vector<const ConditionalLine *> &candidates,
+    ConditionalLine::DefenderCardsCache *def_cache);
+
+struct TrickContinuationOutcome {
+  bool reached_leaf = false;
+  const ConditionalLine *target_node = nullptr;
+  BoardState next_bs;
+};
+
+TrickContinuationOutcome EvaluateTrickContinuation(
+    const BoardState &copy, int pos, const std::string &card_str,
+    const std::vector<const ConditionalLine *> &candidates,
+    ConditionalLine::DefenderCardsCache *def_cache) {
+  BoardState sim_bs = copy;
+  std::vector<const ConditionalLine *> sim_cands = candidates;
+  CardType def_card = Card::ParseStringCard(card_str);
+  Suit suit_led =
+      (pos == 0) ? Card::DecodeCard(def_card).first : sim_bs.SuitLed();
+  sim_bs.PlayCard(sim_bs.CurPlayer(), def_card);
+  if (sim_cands.size() > 1) {
+    std::vector<const ConditionalLine *> matching =
+        FilterCandidatesByDefenderCard(sim_cands, card_str, pos, suit_led,
+                                       sim_bs.GetTrump(), &sim_bs);
+    if (matching.empty()) {
+      return {false, nullptr, sim_bs};
+    }
+    sim_cands = std::move(matching);
+  }
+
+  for (int rem_pos = pos + 1; rem_pos < 4; ++rem_pos) {
+    if (sim_bs.Finished()) break;
+    int rem_p = sim_bs.CurPlayer();
+    if (rem_p % 2 == 0) {
+      const ConditionalLine *best_cand =
+          SelectMostSpecificCandidate(sim_cands, rem_pos);
+      std::string decl_card_str =
+          GetPatternAtPos(best_cand->do_first(), rem_pos);
+      CardType chosen_card = ChooseValidCard(sim_bs, decl_card_str);
+      sim_bs.PlayCard(rem_p, chosen_card);
+      if (sim_cands.size() > 1) {
+        std::vector<const ConditionalLine *> matching;
+        for (const ConditionalLine *cand : sim_cands) {
+          if (GetPatternAtPos(cand->do_first(), rem_pos) == decl_card_str) {
+            matching.push_back(cand);
+          }
+        }
+        if (!matching.empty()) {
+          sim_cands = std::move(matching);
+        }
+      }
+    } else {
+      std::string next_def_str =
+          ChooseAdversarialDefenderCard(sim_bs, rem_pos, sim_cands, def_cache);
+      CardType next_def_card =
+          !next_def_str.empty() ? Card::ParseStringCard(next_def_str)
+                                : sim_bs.ValidCardsToPlay()[0];
+      if (next_def_str.empty()) {
+        next_def_str = Card::PrintCard(next_def_card);
+      }
+      Suit rem_suit_led = sim_bs.SuitLed();
+      sim_bs.PlayCard(rem_p, next_def_card);
+      if (sim_cands.size() > 1) {
+        std::vector<const ConditionalLine *> matching =
+            FilterCandidatesByDefenderCard(sim_cands, next_def_str, rem_pos,
+                                           rem_suit_led, sim_bs.GetTrump(),
+                                           &sim_bs);
+        if (matching.empty()) {
+          return {false, nullptr, sim_bs};
+        }
+        sim_cands = std::move(matching);
+      }
+    }
+  }
+
+  int winner = sim_bs.CurPlayer();
+  const ConditionalLine *chosen_node =
+      SelectMostSpecificCandidate(sim_cands, 4);
+  if (sim_bs.Finished() && chosen_node->conditions().empty()) {
+    return {true, chosen_node, sim_bs};
+  }
+  const ConditionalLine *next_line = nullptr;
+  const ConditionalLine *leaf = nullptr;
+  auto try_match_winner = [&](const ConditionalLine *node) {
+    for (const auto &[cond, child_line] : node->conditions()) {
+      if (!child_line) continue;
+      auto *winner_cond =
+          dynamic_cast<const WinnerPlayCondition *>(cond.get());
+      if (winner_cond && winner_cond->who() == winner) {
+        if (child_line->do_first().Empty() &&
+            child_line->conditions().empty()) {
+          leaf = child_line.get();
+        } else {
+          next_line = child_line.get();
+        }
+        return true;
+      }
+    }
+    return false;
+  };
+  if (!try_match_winner(chosen_node) && sim_cands.size() > 1) {
+    for (const ConditionalLine *cand : sim_cands) {
+      if (cand == chosen_node) continue;
+      if (try_match_winner(cand)) {
+        break;
+      }
+    }
+  }
+  if (leaf != nullptr) {
+    return {true, leaf, sim_bs};
+  }
+  if (next_line == nullptr || sim_bs.Finished()) {
+    return {false, nullptr, sim_bs};
+  }
+  while (next_line && next_line->do_first().Empty()) {
+    const ConditionalLine *good_branch = nullptr;
+    for (const auto &[cond, child_line] : next_line->conditions()) {
+      if (!child_line || !cond) continue;
+      if (cond->IsStateCondition() && cond->EvaluateState(sim_bs)) {
+        good_branch = child_line.get();
+        break;
+      }
+    }
+    if (good_branch) {
+      next_line = good_branch;
+      continue;
+    }
+    if (next_line->conditions().size() == 1 &&
+        next_line->conditions()[0].second) {
+      next_line = next_line->conditions()[0].second.get();
+      continue;
+    }
+    break;
+  }
+  if (next_line && next_line->do_first().Empty() &&
+      next_line->conditions().empty()) {
+    return {true, next_line, sim_bs};
+  }
+  return {false, next_line, sim_bs};
+}
+
+std::string ChooseAdversarialDefenderCard(
+    const BoardState &copy, int pos,
+    const std::vector<const ConditionalLine *> &candidates,
     ConditionalLine::DefenderCardsCache *def_cache) {
   const std::vector<std::string> *opt_ptr = nullptr;
   std::vector<std::string> local_opt;
@@ -2130,16 +2272,98 @@ std::string ChooseAdversarialDefenderCard(
   if (opt_cards.size() == 1 || candidates.empty()) {
     return opt_cards[0];
   }
-  std::string best_card = opt_cards[0];
-  double best_prob = -1.0;
+  std::vector<size_t> valid_idxs;
+  std::vector<double> probs(opt_cards.size(), -1.0);
   for (size_t i = 0; i < opt_cards.size(); ++i) {
-    double prob = BranchSuccessProbability(copy, pos, opt_cards[i], candidates);
-    if (prob < 0.0) {
-      continue;
+    probs[i] = BranchSuccessProbability(copy, pos, opt_cards[i], candidates);
+    if (probs[i] >= 0.0) {
+      valid_idxs.push_back(i);
     }
-    if (best_prob < 0.0 || prob < best_prob - 1e-12) {
+  }
+  if (valid_idxs.empty()) {
+    return opt_cards[0];
+  }
+  if (valid_idxs.size() == 1) {
+    return opt_cards[valid_idxs[0]];
+  }
+
+  // Check whether the valid DDS-optimal cards map to distinct branches in
+  // `candidates` at `pos` when responding to a trick (`pos > 0 && pos < 3` and
+  // `candidates.size() > 1`). In Step 1, following suit is deterministic
+  // (2nd-hand low, 3rd-hand high), so honor branches like `(CT)` only see
+  // singleton/forced honors in Step 1. Prefer a card whose selected candidate
+  // branch fails on the current board `copy` (`reaches_leaf == false`) over one
+  // that succeeds (`reaches_leaf == true`), using `probs` as the tiebreaker.
+  bool has_distinct_branches = false;
+  std::vector<std::vector<const ConditionalLine *>> card_top_matching(
+      opt_cards.size());
+  if (pos > 0 && pos < 3 && candidates.size() > 1) {
+    for (size_t k = 0; k < valid_idxs.size(); ++k) {
+      size_t idx = valid_idxs[k];
+      CardType card_val = Card::ParseStringCard(opt_cards[idx]);
+      Suit suit_led =
+          (pos == 0) ? Card::DecodeCard(card_val).first : copy.SuitLed();
+      std::vector<const ConditionalLine *> matching =
+          FilterCandidatesByDefenderCard(candidates, opt_cards[idx], pos,
+                                         suit_led, copy.GetTrump(), &copy);
+      if (!matching.empty()) {
+        auto best_spec = CandidateSpecificityScore(matching[0], pos + 1);
+        for (size_t i = 1; i < matching.size(); ++i) {
+          auto s = CandidateSpecificityScore(matching[i], pos + 1);
+          if (s > best_spec) {
+            best_spec = s;
+          }
+        }
+        for (const ConditionalLine *cand : matching) {
+          if (CandidateSpecificityScore(cand, pos + 1) == best_spec) {
+            card_top_matching[idx].push_back(cand);
+          }
+        }
+      }
+      if (k > 0 &&
+          card_top_matching[idx] != card_top_matching[valid_idxs[0]]) {
+        has_distinct_branches = true;
+      }
+    }
+  }
+
+  std::map<std::vector<const ConditionalLine *>, bool> branch_reaches_leaf;
+  auto does_reach_leaf = [&](size_t idx) -> bool {
+    if (!has_distinct_branches) {
+      return true;
+    }
+    const auto &tm = card_top_matching[idx];
+    auto it = branch_reaches_leaf.find(tm);
+    if (it != branch_reaches_leaf.end()) {
+      return it->second;
+    }
+    TrickContinuationOutcome out = EvaluateTrickContinuation(
+        copy, pos, opt_cards[idx], candidates, def_cache);
+    bool ok = false;
+    if (out.reached_leaf) {
+      ok = true;
+    } else if (out.target_node != nullptr) {
+      ok = out.target_node
+               ->SimulateBoard(out.next_bs, /*board_id=*/-1,
+                               /*adversarial=*/true, def_cache)
+               .leaf != nullptr;
+    }
+    branch_reaches_leaf[tm] = ok;
+    return ok;
+  };
+
+  std::string best_card = opt_cards[valid_idxs[0]];
+  bool best_reaches_leaf = does_reach_leaf(valid_idxs[0]);
+  double best_prob = probs[valid_idxs[0]];
+  for (size_t k = 1; k < valid_idxs.size(); ++k) {
+    size_t idx = valid_idxs[k];
+    bool reaches_leaf = does_reach_leaf(idx);
+    double prob = probs[idx];
+    if ((!reaches_leaf && best_reaches_leaf) ||
+        (reaches_leaf == best_reaches_leaf && prob < best_prob - 1e-12)) {
+      best_reaches_leaf = reaches_leaf;
       best_prob = prob;
-      best_card = opt_cards[i];
+      best_card = opt_cards[idx];
     }
   }
   return best_card;
