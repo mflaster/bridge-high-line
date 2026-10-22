@@ -421,12 +421,22 @@ function drawOverallStatsPanelOnPdf(ctx, x, y, w, h) {
   const tricksWon = data.tricks_won !== undefined
     ? String(data.tricks_won)
     : '-';
-  const leadLabel = (statLeadLabel && statLeadLabel.textContent)
-    ? statLeadLabel.textContent
-    : 'Optimal Lead';
-  const leadVal = (statLead && statLead.textContent)
-    ? statLead.textContent
-    : (data.best_lead || '-');
+  const initCur = (typeof getActiveInitialCurTrick === 'function')
+    ? getActiveInitialCurTrick()
+    : [];
+  const leadLabel = (initCur && initCur.length > 0)
+    ? 'Card Led'
+    : ((statLeadLabel && statLeadLabel.textContent)
+        ? statLeadLabel.textContent
+        : 'Optimal Lead');
+  const rawStatLead = (statLead && statLead.textContent)
+    ? statLead.textContent.trim()
+    : '';
+  const leadVal = (initCur && initCur.length > 0)
+    ? initCur.join(' ')
+    : ((rawStatLead && rawStatLead !== '-')
+        ? rawStatLead
+        : (data.best_lead || '-'));
 
   const cardW = Math.floor((w - 64) / 2);
   const cardH = 112;
@@ -620,7 +630,10 @@ function drawInvariantsAndDistributionSectionOnPdf(ctx, x, y, w, h) {
     let ry = by + 60;
     const maxY = by + bh - 18;
     for (let i = 0; i < rules.length; i++) {
-      const wrapped = pdfWrapTextLines(ctx, `• ${rules[i]}`, bw - 36);
+      const fmtRule = String(rules[i])
+        .replace(/\bhand 1\b/gi, 'Hand 1 (East)')
+        .replace(/\bhand [23]\b/gi, 'Hand 2 (West)');
+      const wrapped = pdfWrapTextLines(ctx, `• ${fmtRule}`, bw - 36);
       if (ry + wrapped.length * 24 > maxY) {
         ctx.fillStyle = '#94a3b8';
         ctx.fillText(
@@ -674,17 +687,17 @@ function drawInvariantsAndDistributionSectionOnPdf(ctx, x, y, w, h) {
     ctx.font = 'bold 15px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#94a3b8';
     ctx.fillText(label, leftX + 18, startY);
-    ctx.fillText('East', leftX + 240, startY);
-    ctx.fillText('West', leftX + 410, startY);
-    ctx.fillText('Combined', leftX + 575, startY);
+    ctx.fillText('East (Hand 1)', leftX + 230, startY);
+    ctx.fillText('West (Hand 2)', leftX + 410, startY);
+    ctx.fillText('Combined', leftX + 585, startY);
 
     const bounds = (distObj && distObj.suit_bounds) ? distObj.suit_bounds : {};
     const suits = ['Spades', 'Hearts', 'Diamonds', 'Clubs'];
     const suitCodes = ['S', 'H', 'D', 'C'];
     suits.forEach((sName, idx) => {
       const sy = startY + 28 + idx * 28;
-      const b = bounds[sName] || null;
       const sCode = suitCodes[idx];
+      const b = bounds[sCode] || bounds[sName] || null;
       ctx.font = 'bold 16px Inter, system-ui, sans-serif';
       ctx.fillStyle = PDF_SUIT_COLORS[sCode];
       ctx.fillText(`${PDF_SUIT_SYMBOLS[sCode]} ${sName}`, leftX + 18, sy);
@@ -692,14 +705,24 @@ function drawInvariantsAndDistributionSectionOnPdf(ctx, x, y, w, h) {
       ctx.font = '500 16px "JetBrains Mono", monospace';
       ctx.fillStyle = '#f1f5f9';
       if (b) {
-        ctx.fillText(`${b.hand1_min} – ${b.hand1_max}`, leftX + 240, sy);
-        ctx.fillText(`${b.hand2_min} – ${b.hand2_max}`, leftX + 410, sy);
-        ctx.fillText(`${b.combined_min} – ${b.combined_max}`, leftX + 575, sy);
+        const min1 = b.min_hand1 !== undefined ? b.min_hand1 : b.hand1_min;
+        const max1 = b.max_hand1 !== undefined ? b.max_hand1 : b.hand1_max;
+        const min2 = b.min_hand2 !== undefined ? b.min_hand2 : b.hand2_min;
+        const max2 = b.max_hand2 !== undefined ? b.max_hand2 : b.hand2_max;
+        const minC = b.min_combined !== undefined
+          ? b.min_combined
+          : b.combined_min;
+        const maxC = b.max_combined !== undefined
+          ? b.max_combined
+          : b.combined_max;
+        ctx.fillText(`${min1} – ${max1}`, leftX + 230, sy);
+        ctx.fillText(`${min2} – ${max2}`, leftX + 410, sy);
+        ctx.fillText(`${minC} – ${maxC}`, leftX + 585, sy);
       } else {
         ctx.fillStyle = '#64748b';
-        ctx.fillText('-', leftX + 240, sy);
+        ctx.fillText('-', leftX + 230, sy);
         ctx.fillText('-', leftX + 410, sy);
-        ctx.fillText('-', leftX + 575, sy);
+        ctx.fillText('-', leftX + 585, sy);
       }
     });
   };
@@ -731,6 +754,9 @@ function drawInvariantsAndDistributionSectionOnPdf(ctx, x, y, w, h) {
   ctx.fillText('Neither %', rightX + 600, hdrY);
 
   const honors = (succDist && succDist.honor_stats) ? succDist.honor_stats : {};
+  const distTotal = (succDist && succDist.total_deals)
+    ? succDist.total_deals
+    : 1;
   const honorRows = [];
   const suitMeta = [
     ['Spades', 'S'],
@@ -739,20 +765,31 @@ function drawInvariantsAndDistributionSectionOnPdf(ctx, x, y, w, h) {
     ['Clubs', 'C']
   ];
   suitMeta.forEach(([sName, sCode]) => {
-    const sHonors = honors[sName];
+    const sHonors = honors[sCode] || honors[sName];
     if (!sHonors) return;
-    ['Ace', 'King', 'Queen', 'Jack', 'Ten'].forEach((hName) => {
-      const st = sHonors[hName];
+    Object.keys(sHonors).forEach((rankKey) => {
+      const st = sHonors[rankKey];
       if (!st) return;
-      // Only include honors that are in the unknown pool (not 100% neither)
-      if (st.neither_pct < 99.95 || st.hand1_pct > 0 || st.hand2_pct > 0) {
+      const h1Pct = st.hand1_count !== undefined
+        ? (st.hand1_count / distTotal) * 100
+        : (st.hand1_pct || 0);
+      const h2Pct = st.hand2_count !== undefined
+        ? (st.hand2_count / distTotal) * 100
+        : (st.hand2_pct || 0);
+      const bothPct = st.both_count !== undefined
+        ? (st.both_count / distTotal) * 100
+        : (st.both_pct || 0);
+      const neitherPct = st.neither_count !== undefined
+        ? (st.neither_count / distTotal) * 100
+        : (st.neither_pct || 0);
+      if (neitherPct < 99.95 || h1Pct > 0 || h2Pct > 0) {
         honorRows.push({
           sCode,
-          label: `${PDF_SUIT_SYMBOLS[sCode]}${hName[0]} (${hName})`,
-          h1: `${st.hand1_pct.toFixed(1)}%`,
-          h2: `${st.hand2_pct.toFixed(1)}%`,
-          both: `${st.both_pct.toFixed(1)}%`,
-          neither: `${st.neither_pct.toFixed(1)}%`
+          label: `${PDF_SUIT_SYMBOLS[sCode]}${rankKey}`,
+          h1: `${h1Pct.toFixed(1)}%`,
+          h2: `${h2Pct.toFixed(1)}%`,
+          both: `${bothPct.toFixed(1)}%`,
+          neither: `${neitherPct.toFixed(1)}%`
         });
       }
     });
@@ -820,6 +857,10 @@ function computeInspectorDataForNode(targetNode) {
     'i'
   );
 
+  const initCur = (typeof getActiveInitialCurTrick === 'function')
+    ? getActiveInitialCurTrick()
+    : [];
+
   path.forEach((pathNode, stepIdx) => {
     if (pathNode.condition) {
       let cText = pathNode.condition;
@@ -846,7 +887,14 @@ function computeInspectorDataForNode(targetNode) {
     const parsedCards = [];
     let leadSuit = null;
     tokens.forEach((tok, i) => {
-      const cardObj = parseSingleCardToken(tok, leadSuit, trumpCode);
+      const effectiveTok = (
+        trickRows.length === 0 &&
+        i < initCur.length &&
+        (tok.includes('_') || tok.includes('x') || tok.includes('X'))
+      )
+        ? initCur[i]
+        : tok;
+      const cardObj = parseSingleCardToken(effectiveTok, leadSuit, trumpCode);
       if (i === 0) leadSuit = cardObj.suit;
       cardObj.seatIdx = (currentLeader + i) % 4;
       cardObj.seatName = getSeatName(cardObj.seatIdx);
@@ -1261,13 +1309,13 @@ function drawDecisionTreeSnapshotOnPdf(
     ['#064e3b', 'Makes'],
     ['#450a0a', 'Fails']
   ];
-  let lx = x + w - 290;
+  let lx = x + w - 314;
   legendItems.forEach(([col, lbl]) => {
     pdfFillStrokeCard(ctx, lx, y + 21, 18, 18, 4, col, '#475569', 1);
     ctx.font = '500 14px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#94a3b8';
     ctx.fillText(lbl, lx + 24, y + 31);
-    lx += 92;
+    lx += ctx.measureText(lbl).width + 42;
   });
 
   const {

@@ -776,6 +776,25 @@ let PRESETS = {
       S: 'S KT9; H 93; D AQ853; C AQ9;',
       W: 'S 42; H T7642; D T742; C T2;'
     }
+  },
+  '7s_1021': {
+    name: '7S 1021',
+    trump: 'SPADES',
+    leader: 'EAST',
+    cur_trick: ['S9'],
+    target: 13,
+    iters: 100,
+    north: 'S AK87; H AK6; D 8; C AK642;',
+    east: 'S 9; H -; D -; C -;',
+    south: 'S QJ64; H J95; D AKQT; C J7;',
+    west: '',
+    unknown_cards: 'S T532 H QT87432 D J9765432 C QT9853',
+    actual_deal: {
+      N: 'S AK87; H AK6; D 8; C AK642;',
+      E: 'S T9; H T84; D J765; C QT93;',
+      S: 'S QJ64; H J95; D AKQT; C J7;',
+      W: 'S 532; H Q732; D 9432; C 85;'
+    }
   }
 };
 
