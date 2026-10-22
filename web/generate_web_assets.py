@@ -30,6 +30,9 @@ def main():
   telemetry_and_help_js_content = read_utf8(
       os.path.join(static_dir, "telemetry_and_help.js")
   )
+  pdf_export_js_content = read_utf8(
+      os.path.join(static_dir, "pdf_export.js")
+  )
   presets_content = read_utf8(os.path.join(script_dir, "presets.json"))
   strategy_doc_content = read_utf8(
       os.path.join(script_dir, "..", "docs", "bridge-strategy.md")
@@ -87,6 +90,10 @@ inline const char* DECISION_TREE_JS = R"rawjs(
 
 inline const char* TELEMETRY_AND_HELP_JS = R"rawjs(
 {telemetry_and_help_js_content}
+)rawjs";
+
+inline const char* PDF_EXPORT_JS = R"rawjs(
+{pdf_export_js_content}
 )rawjs";
 
 inline const char* PRESETS_JSON = R"rawjson(
