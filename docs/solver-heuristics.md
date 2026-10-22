@@ -115,12 +115,12 @@ size_t ExtraBranches() const {
   `competitive_window_floor()`, allowing subsequent 1-trick groups to be
   searched for simpler trees.
 
-#### 4. Constructing Simpler Composite Subtrees (`alt_line` and `min_eb_line`)
-When a node has $m > 1$ branches (multiple `WinnerPlayCondition` outcomes in
+#### 4. Constructing Simpler Composite Subtrees (`AssembleBranchLines`: `alt_line` and `min_eb_line`)
+When a node has $m \ge 1$ branches (multiple `WinnerPlayCondition` outcomes in
 `GetLinesFromTrick`, multiple tricks in a group in `GetLinesFromGroups`, or
 true/false branches in `TryBranchOnGoodCards`), each branch $i \in \{0, \dots,
 m-1\}$ returns up to `child_top_k` candidate subtrees sorted by coverage DESC.
-Combining them builds:
+The shared helper `AssembleBranchLines` (`line_finder.cc`) combines them into:
 1. **Primary line (`base_line`)**: Picks `child_lines[i][0]` (highest coverage)
    for every branch $i$.
 2. **Single-branch substitutions (`alt_line`)**: For each branch $i$ and each
@@ -130,9 +130,10 @@ Combining them builds:
    and keeping `[0]` elsewhere.
 3. **All-minimum-branch composite (`min_eb_line`)**: Simultaneously picks the
    child with the minimum `ExtraBranches()` at *every* branch $i$. If at least
-   one branch (or both true/false branches in `TryBranchOnGoodCards`) used a
-   non-zero index, adds `min_eb_line` so the globally simplest combined subtree
-   is always represented.
+   `min_diff_branches` branches (`1` in `GetLinesFromTrick` /
+   `GetLinesFromGroups`, `2` in `TryBranchOnGoodCards`) used a non-zero index,
+   adds `min_eb_line` so the globally simplest combined subtree is always
+   represented.
 
 #### 5. Pareto-Frontier Deduplication and `min_extra` Slot Reservation (`FinalizeTopKLines`)
 Before returning up to `top_k` candidate lines from `GetLinesFromTrick`,
@@ -511,4 +512,7 @@ tracking was introduced, and have been removed:
 | **5** | **`CollapseUniformInSuitSplits` unused parameters & redundant `ResultsOnHandAdversarial` pass** | Simplified to `CollapseUniformInSuitSplits()` (no parameters) and removed the redundant pre-simulation `ParallelForDynamic` pass in `RescoreTopLinesAdversarial` that only populated `def_caches` for the unused parameter. |
 | **6** | **Triplicated `ExtraBranches()` sort / Pareto-dedup / `min_extra` reservation** | Extracted shared `FinalizeTopKLines(&lines, limit)` helper used by `GetLinesFromTrick` and `TryBranchOnGoodCards`, and removed unused `LineFinder::GetLineFromTrick`. |
 | **7** | **Parallel `top_k == 1` vs. `top_k > 1` paths in `GetLinesFromGroups` & `TryBranchOnGoodCards`** | Unified candidate tracking and state-split assembly so `top_candidates` and `FinalizeTopKLines` handle all `top_k >= 1`. |
+| **8** | **Triplicated multi-branch `alt_line` + `min_eb_line` assembly & duplicated `SolveMemo` key packing** | Extracted `AssembleBranchLines` across `GetLinesFromTrick`, `GetLinesFromGroups`, and `TryBranchOnGoodCards`, and `SolveMemoKeyBuilder` across `GetLinesFromTrick` and `SolveHelper`. |
+| **9** | **Duplicated `pre_pos` / `pos` loops and continuation helpers in `conditional_line.cc`** | Unified the `0..3` trick loop across `TraceUnmakeableBoardHelper` and `SimulateBoard`, and extracted shared `FilterCandidatesByDeclarerCard`, `KeepMostSpecificCandidates`, `AdvanceThroughStateConditions`, `MatchWinnerContinuation`, and `MakeDefenderStateKey` helpers. |
+| **10** | **Dead `SolverCache` DDS maps, `#define CONSIDER_DISCARDS 1`, and unused helpers** | Removed unused `SolverCache::{dds_results, dds_lines, dds_size}`, `CONSIDER_EQUALS`, `GetBoardKey`, `CONSIDER_DISCARDS`, `AnyIntersection`, `IsDistinguishable`, `MakeGroupStartingWith`, `HasActualCardMatchingPattern`, `ExtractTrickLines`, `PlayTrick`, `ExtractWinningCardsForLeader`, and `PrintBoardToTrick`. |
 

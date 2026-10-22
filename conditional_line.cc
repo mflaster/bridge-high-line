@@ -577,8 +577,6 @@ Suit GetSuitOfCard(const std::string &c) {
   return Card::ParseSuit(c[0]);
 }
 
-#define CONSIDER_DISCARDS 1
-
 std::vector<std::string> GeneralizeOppCard(const std::string &card,
                                            Suit suit_led, Suit trump,
                                            uint8_t upper_honor_mask = 0x0f) {
@@ -620,7 +618,7 @@ std::vector<std::string> GeneralizeOppCard(const std::string &card,
     std::string suited = card;
     suited[1] = '_';
     cards.push_back(suited);
-  } else if (CONSIDER_DISCARDS) {
+  } else {
     cards.push_back("R_");  // discaRd
   }
 
@@ -652,7 +650,7 @@ bool GeneralizesTo(const std::string& actual_card,
             InSuitPatternRankMask(gen_card)) != 0;
   }
   if (gen_card == "R_") {
-    return CONSIDER_DISCARDS && is_discard;
+    return is_discard;
   }
   return false;
 }
@@ -1357,29 +1355,6 @@ std::string GeneralizedTrickFinder::PrintGeneralizedTricks(
 }
 
 namespace {
-bool AnyIntersection(const set<int> &b1, const set<int> &b2) {
-  if (b1.empty() || b2.empty()) {
-    return false;
-  }
-  if (*b1.begin() > *b2.rbegin() ||
-      *b2.begin() > *b1.rbegin()) {
-    return false;
-  }
-
-  auto b1_it = b1.begin();
-  auto b2_it = b2.begin();
-  while (b1_it != b1.end() && b2_it != b2.end()) {
-    if (*b1_it == *b2_it) {
-      return true;
-    }
-    if (*b1_it < *b2_it) {
-      ++b1_it;
-    } else {
-      ++b2_it;
-    }
-  }
-  return false;
-}
 
 struct TrickOppPatternMask {
   bool computed = false;
@@ -1391,9 +1366,7 @@ struct TrickOppPatternMask {
   bool Matches(const std::string &specific_pattern) const {
     if (always_true) return true;
     if (specific_pattern == "__") return has_any;
-    if (specific_pattern == "R_") {
-      return CONSIDER_DISCARDS && has_discard;
-    }
+    if (specific_pattern == "R_") return has_discard;
     if (specific_pattern.size() < 2) return false;
     Suit s = Card::ParseSuit(specific_pattern[0]);
     if (s < 0 || s >= 4) return false;
@@ -1475,20 +1448,13 @@ TrickOppPatternMask BuildTrickOppPatternMask(
   return mask;
 }
 
-bool HasActualCardMatchingPattern(const GeneralizedTrick &general_trick,
-                                  const std::string &specific_pattern,
-                                  int opp_pos) {
-  return BuildTrickOppPatternMask(general_trick, opp_pos)
-      .Matches(specific_pattern);
-}
-
 bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
                             const GeneralizedTrick &trick2,
                             const std::string &opp1,
                             const std::string &opp2,
                             int opp_pos,
-                            TrickOppPatternMask *mask1 = nullptr,
-                            TrickOppPatternMask *mask2 = nullptr) {
+                            TrickOppPatternMask *mask1,
+                            TrickOppPatternMask *mask2) {
   bool is_any_vs_discard =
       (opp1 == "__" && opp2 == "R_") || (opp1 == "R_" && opp2 == "__");
   if (!CardsAreRedundant(opp1, opp2) && !is_any_vs_discard) {
@@ -1511,7 +1477,7 @@ bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
       }
       return !mask1->Matches(opp2);
     }
-    return !HasActualCardMatchingPattern(trick1, opp2, opp_pos);
+    return !BuildTrickOppPatternMask(trick1, opp_pos).Matches(opp2);
   }
   if (spec2 < spec1) {
     if (mask2 != nullptr) {
@@ -1520,24 +1486,20 @@ bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
       }
       return !mask2->Matches(opp1);
     }
-    return !HasActualCardMatchingPattern(trick2, opp1, opp_pos);
+    return !BuildTrickOppPatternMask(trick2, opp_pos).Matches(opp1);
   }
   return false;
 }
 
 bool AreCardsDistinguishable(
-    const GeneralizedTrick& trick1,
-    const GeneralizedTrick& trick2,
-    std::array<TrickOppPatternMask, 2> *masks1 = nullptr,
-    std::array<TrickOppPatternMask, 2> *masks2 = nullptr,
-    int my1_id1 = -1, int my1_id2 = -2,
-    int my2_id1 = -1, int my2_id2 = -2) {
-  bool same_my1 = (my1_id1 >= 0 && my1_id2 >= 0)
-                      ? (my1_id1 == my1_id2)
-                      : (trick1.demi1.my_card == trick2.demi1.my_card);
-  bool same_my2 = (my2_id1 >= 0 && my2_id2 >= 0)
-                      ? (my2_id1 == my2_id2)
-                      : (trick1.demi2.my_card == trick2.demi2.my_card);
+    const GeneralizedTrick &trick1,
+    const GeneralizedTrick &trick2,
+    std::array<TrickOppPatternMask, 2> *masks1,
+    std::array<TrickOppPatternMask, 2> *masks2,
+    int my1_id1, int my1_id2,
+    int my2_id1, int my2_id2) {
+  bool same_my1 = (my1_id1 == my1_id2);
+  bool same_my2 = (my2_id1 == my2_id2);
   if (trick1.leader % 2 == 0) {
     if (!same_my1 || same_my2) {
       return false;
@@ -1563,43 +1525,6 @@ bool AreCardsDistinguishable(
                                   masks2 ? &(*masks2)[1] : nullptr);
   }
 }
-}  // namespace
-
-// Returns true if declarer can decide to play between them based
-// on the opponents cards.
-bool IsDistinguishable(const GeneralizedTrick& trick1,
-                       const GeneralizedTrick& trick2) {
-  if (!AreCardsDistinguishable(trick1, trick2)) {
-    return false;
-  }
-  return !AnyIntersection(trick1.boards, trick2.boards);
-}
-
-std::vector<GeneralizedTrick> MakeGroupStartingWith(
-    const std::vector<GeneralizedTrick> &input, int start) {
-  std::vector<int> indices;
-  for (unsigned int i = start; i < input.size(); i++) {
-    const GeneralizedTrick &trick = input[i];
-    bool any_indistinguishable = false;
-    for (int idx : indices) {
-      if (!IsDistinguishable(input[idx], trick)) {
-        any_indistinguishable = true;
-        break;
-      }
-    }
-    if (!any_indistinguishable) {
-      indices.push_back(i);
-    }
-  }
-  std::vector<GeneralizedTrick> ans;
-  ans.reserve(indices.size());
-  for (int idx : indices) {
-    ans.push_back(input[idx]);
-  }
-  return ans;
-}
-
-namespace {
 
 std::vector<uint64_t> BuildTrickBoardBitmasks(
     const std::vector<GeneralizedTrick> &input, size_t *num_words_out) {
@@ -1975,6 +1900,18 @@ std::vector<const ConditionalLine *> FilterCandidatesByDefenderCard(
   return matching;
 }
 
+std::vector<const ConditionalLine *> FilterCandidatesByDeclarerCard(
+    const std::vector<const ConditionalLine *> &candidates,
+    const std::string &decl_card_str, int pos) {
+  std::vector<const ConditionalLine *> matching;
+  for (const ConditionalLine *cand : candidates) {
+    if (GetPatternAtPos(cand->do_first(), pos) == decl_card_str) {
+      matching.push_back(cand);
+    }
+  }
+  return matching;
+}
+
 auto CandidateSpecificityScore(const ConditionalLine *cand, int up_to_pos) {
   const GeneralizedTrick &gt = cand->do_first();
   int d1_pos = (gt.leader % 2 == 0) ? 1 : 0;
@@ -1986,6 +1923,26 @@ auto CandidateSpecificityScore(const ConditionalLine *cand, int up_to_pos) {
                   ? PatternSpecificity(GetPatternAtPos(gt, d2_pos))
                   : 0;
   return std::make_tuple(std::max(spec1, spec2), spec1 + spec2, spec2, spec1);
+}
+
+std::vector<const ConditionalLine *> KeepMostSpecificCandidates(
+    const std::vector<const ConditionalLine *> &matching, int up_to_pos) {
+  if (matching.empty()) return {};
+  auto best_spec = CandidateSpecificityScore(matching[0], up_to_pos);
+  for (size_t i = 1; i < matching.size(); ++i) {
+    auto s = CandidateSpecificityScore(matching[i], up_to_pos);
+    if (s > best_spec) {
+      best_spec = s;
+    }
+  }
+  std::vector<const ConditionalLine *> top_matching;
+  top_matching.reserve(matching.size());
+  for (const ConditionalLine *cand : matching) {
+    if (CandidateSpecificityScore(cand, up_to_pos) == best_spec) {
+      top_matching.push_back(cand);
+    }
+  }
+  return top_matching;
 }
 
 const ConditionalLine *SelectMostSpecificCandidate(
@@ -2022,6 +1979,72 @@ const ConditionalLine *SelectMostSpecificCandidate(
   return best;
 }
 
+const ConditionalLine *AdvanceThroughStateConditions(
+    const ConditionalLine *cur_line, const BoardState &bs) {
+  while (cur_line && cur_line->do_first().Empty()) {
+    const ConditionalLine *good_branch = nullptr;
+    for (const auto &[cond, child_line] : cur_line->conditions()) {
+      if (!child_line || !cond) continue;
+      if (cond->IsStateCondition() && cond->EvaluateState(bs)) {
+        good_branch = child_line.get();
+        break;
+      }
+    }
+    if (good_branch) {
+      cur_line = good_branch;
+      continue;
+    }
+    if (cur_line->conditions().size() == 1 &&
+        cur_line->conditions()[0].second) {
+      cur_line = cur_line->conditions()[0].second.get();
+      continue;
+    }
+    break;
+  }
+  return cur_line;
+}
+
+const ConditionalLine *MatchWinnerContinuation(
+    const ConditionalLine *chosen_node,
+    const std::vector<const ConditionalLine *> &candidates, int winner,
+    const ConditionalLine **out_leaf, const ConditionalLine **out_next_line) {
+  auto try_match = [&](const ConditionalLine *node) {
+    for (const auto &[cond, child_line] : node->conditions()) {
+      if (!child_line) continue;
+      auto *winner_cond = dynamic_cast<const WinnerPlayCondition *>(cond.get());
+      if (winner_cond && winner_cond->who() == winner) {
+        if (child_line->do_first().Empty() &&
+            child_line->conditions().empty()) {
+          *out_leaf = child_line.get();
+        } else {
+          *out_next_line = child_line.get();
+        }
+        return true;
+      }
+    }
+    return false;
+  };
+  if (try_match(chosen_node)) {
+    return chosen_node;
+  }
+  for (const ConditionalLine *cand : candidates) {
+    if (cand != chosen_node && try_match(cand)) {
+      return cand;
+    }
+  }
+  return chosen_node;
+}
+
+ConditionalLine::DefenderStateKey MakeDefenderStateKey(const BoardState &bs) {
+  uint64_t cur_bits =
+      (static_cast<uint64_t>(bs.cur_trick_leader() & 3) << 13) |
+      (static_cast<uint64_t>(bs.CardsPlayedThisTrick() & 3) << 29);
+  for (int i = 0; i < bs.CardsPlayedThisTrick(); ++i) {
+    cur_bits |= bs.trick_cards_played()[i];
+  }
+  return {bs.played_cards(), cur_bits};
+}
+
 double BranchSuccessProbability(
     const BoardState &copy, int pos, const std::string &card_str,
     const std::vector<const ConditionalLine *> &candidates) {
@@ -2034,20 +2057,8 @@ double BranchSuccessProbability(
   if (matching.empty()) {
     return -1.0;
   }
-  auto best_spec = CandidateSpecificityScore(matching[0], pos + 1);
-  for (size_t i = 1; i < matching.size(); ++i) {
-    auto s = CandidateSpecificityScore(matching[i], pos + 1);
-    if (s > best_spec) {
-      best_spec = s;
-    }
-  }
-  std::vector<const ConditionalLine *> top_matching;
-  top_matching.reserve(matching.size());
-  for (const ConditionalLine *cand : matching) {
-    if (CandidateSpecificityScore(cand, pos + 1) == best_spec) {
-      top_matching.push_back(cand);
-    }
-  }
+  std::vector<const ConditionalLine *> top_matching =
+      KeepMostSpecificCandidates(matching, pos + 1);
   if (pos == 3) {
     const ConditionalLine *chosen = top_matching[0];
     BoardState next_bs = copy;
@@ -2142,12 +2153,8 @@ TrickContinuationOutcome EvaluateTrickContinuation(
       CardType chosen_card = ChooseValidCard(sim_bs, decl_card_str);
       sim_bs.PlayCard(rem_p, chosen_card);
       if (sim_cands.size() > 1) {
-        std::vector<const ConditionalLine *> matching;
-        for (const ConditionalLine *cand : sim_cands) {
-          if (GetPatternAtPos(cand->do_first(), rem_pos) == decl_card_str) {
-            matching.push_back(cand);
-          }
-        }
+        auto matching =
+            FilterCandidatesByDeclarerCard(sim_cands, decl_card_str, rem_pos);
         if (!matching.empty()) {
           sim_cands = std::move(matching);
         }
@@ -2184,57 +2191,14 @@ TrickContinuationOutcome EvaluateTrickContinuation(
   }
   const ConditionalLine *next_line = nullptr;
   const ConditionalLine *leaf = nullptr;
-  auto try_match_winner = [&](const ConditionalLine *node) {
-    for (const auto &[cond, child_line] : node->conditions()) {
-      if (!child_line) continue;
-      auto *winner_cond =
-          dynamic_cast<const WinnerPlayCondition *>(cond.get());
-      if (winner_cond && winner_cond->who() == winner) {
-        if (child_line->do_first().Empty() &&
-            child_line->conditions().empty()) {
-          leaf = child_line.get();
-        } else {
-          next_line = child_line.get();
-        }
-        return true;
-      }
-    }
-    return false;
-  };
-  if (!try_match_winner(chosen_node) && sim_cands.size() > 1) {
-    for (const ConditionalLine *cand : sim_cands) {
-      if (cand == chosen_node) continue;
-      if (try_match_winner(cand)) {
-        break;
-      }
-    }
-  }
+  MatchWinnerContinuation(chosen_node, sim_cands, winner, &leaf, &next_line);
   if (leaf != nullptr) {
     return {true, leaf, sim_bs};
   }
   if (next_line == nullptr || sim_bs.Finished()) {
     return {false, nullptr, sim_bs};
   }
-  while (next_line && next_line->do_first().Empty()) {
-    const ConditionalLine *good_branch = nullptr;
-    for (const auto &[cond, child_line] : next_line->conditions()) {
-      if (!child_line || !cond) continue;
-      if (cond->IsStateCondition() && cond->EvaluateState(sim_bs)) {
-        good_branch = child_line.get();
-        break;
-      }
-    }
-    if (good_branch) {
-      next_line = good_branch;
-      continue;
-    }
-    if (next_line->conditions().size() == 1 &&
-        next_line->conditions()[0].second) {
-      next_line = next_line->conditions()[0].second.get();
-      continue;
-    }
-    break;
-  }
+  next_line = AdvanceThroughStateConditions(next_line, sim_bs);
   if (next_line && next_line->do_first().Empty() &&
       next_line->conditions().empty()) {
     return {true, next_line, sim_bs};
@@ -2249,13 +2213,7 @@ std::string ChooseAdversarialDefenderCard(
   const std::vector<std::string> *opt_ptr = nullptr;
   std::vector<std::string> local_opt;
   if (def_cache != nullptr) {
-    uint64_t cur_bits =
-        (static_cast<uint64_t>(copy.cur_trick_leader() & 3) << 13) |
-        (static_cast<uint64_t>(copy.CardsPlayedThisTrick() & 3) << 29);
-    for (int i = 0; i < copy.CardsPlayedThisTrick(); ++i) {
-      cur_bits |= copy.trick_cards_played()[i];
-    }
-    ConditionalLine::DefenderStateKey state_key{copy.played_cards(), cur_bits};
+    ConditionalLine::DefenderStateKey state_key = MakeDefenderStateKey(copy);
     auto it = def_cache->find(state_key);
     if (it == def_cache->end()) {
       it = def_cache->emplace(state_key, FindOptimalDefenderCards(copy)).first;
@@ -2306,20 +2264,7 @@ std::string ChooseAdversarialDefenderCard(
       std::vector<const ConditionalLine *> matching =
           FilterCandidatesByDefenderCard(candidates, opt_cards[idx], pos,
                                          suit_led, copy.GetTrump(), &copy);
-      if (!matching.empty()) {
-        auto best_spec = CandidateSpecificityScore(matching[0], pos + 1);
-        for (size_t i = 1; i < matching.size(); ++i) {
-          auto s = CandidateSpecificityScore(matching[i], pos + 1);
-          if (s > best_spec) {
-            best_spec = s;
-          }
-        }
-        for (const ConditionalLine *cand : matching) {
-          if (CandidateSpecificityScore(cand, pos + 1) == best_spec) {
-            card_top_matching[idx].push_back(cand);
-          }
-        }
-      }
+      card_top_matching[idx] = KeepMostSpecificCandidates(matching, pos + 1);
       if (k > 0 &&
           card_top_matching[idx] != card_top_matching[valid_idxs[0]]) {
         has_distinct_branches = true;
@@ -2369,20 +2314,6 @@ std::string ChooseAdversarialDefenderCard(
   return best_card;
 }
 
-std::vector<std::vector<std::string>> ExtractTrickLines(
-    const OptimalLines &opt_lines) {
-  std::vector<std::vector<std::string>> res;
-  res.reserve(opt_lines.size());
-  for (const auto &line : opt_lines) {
-    std::vector<std::string> words = SplitWords(line);
-    if (!words.empty()) {
-      res.push_back(std::move(words));
-    }
-  }
-  return res;
-}
-
-
 std::string ChooseStep1DefenderCard(
     const BoardState &copy,
     ConditionalLine::Step1DefenderCardCache *def_cache) {
@@ -2390,13 +2321,7 @@ std::string ChooseStep1DefenderCard(
   if (def_cache == nullptr) {
     return FindBestDefenderCard(copy, noise_pct);
   }
-  uint64_t cur_bits =
-      (static_cast<uint64_t>(copy.cur_trick_leader() & 3) << 13) |
-      (static_cast<uint64_t>(copy.CardsPlayedThisTrick() & 3) << 29);
-  for (int i = 0; i < copy.CardsPlayedThisTrick(); ++i) {
-    cur_bits |= copy.trick_cards_played()[i];
-  }
-  ConditionalLine::DefenderStateKey state_key{copy.played_cards(), cur_bits};
+  ConditionalLine::DefenderStateKey state_key = MakeDefenderStateKey(copy);
   auto it = def_cache->find(state_key);
   if (it == def_cache->end()) {
     it = def_cache->emplace(state_key, FindBestDefenderCard(copy, noise_pct))
@@ -2520,74 +2445,46 @@ void TraceUnmakeableBoardHelper(
     }
   }
 
-  for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
-    int pre_p = (copy.cur_trick_leader() + pre_pos) % 4;
-    CardType pre_card = copy.trick_cards_played()[pre_pos];
-    std::string pre_str = Card::PrintCard(pre_card);
-    if (pre_p % 2 == 0) {
-      std::vector<const ConditionalLine *> matching;
-      for (const ConditionalLine *cand : candidates) {
-        if (GetPatternAtPos(cand->do_first(), pre_pos) == pre_str) {
-          matching.push_back(cand);
-        }
-      }
-      if (matching.empty()) return;
-      candidates = std::move(matching);
-    } else {
-      Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
-      std::vector<const ConditionalLine *> matching =
-          FilterCandidatesByDefenderCard(
-              candidates, pre_str, pre_pos, suit_led, copy.GetTrump(), &copy);
-      if (matching.empty()) return;
-      if (pre_pos == 0) {
-        if (!in_step1_set) {
-          for (const ConditionalLine *cand : matching) {
-            out_trace->opp1_nodes.push_back(cand);
-          }
-        }
-      } else if (pre_pos == 1) {
-        for (const ConditionalLine *cand : matching) {
-          if (!WasCountedInStep1Demi1(cand, board_num, in_step1_set)) {
-            out_trace->opp1_nodes.push_back(cand);
-          }
-        }
-      } else if (pre_pos == 2) {
-        for (const ConditionalLine *cand : matching) {
-          if (!WasCountedInStep1Demi1(cand, board_num, in_step1_set)) {
-            out_trace->opp2_nodes.push_back(cand);
-          }
-        }
-      }
-      candidates = std::move(matching);
-    }
-  }
-
-  for (int pos = start_pos; pos < 4; ++pos) {
-    if (copy.Finished()) break;
-    int p = copy.CurPlayer();
+  for (int pos = 0; pos < 4; ++pos) {
+    bool is_pre = (pos < start_pos);
+    if (!is_pre && copy.Finished()) break;
+    int p = is_pre ? ((copy.cur_trick_leader() + pos) % 4) : copy.CurPlayer();
     if (p % 2 == 0) {
-      const ConditionalLine *best_cand =
-          SelectMostSpecificCandidate(candidates, pos);
-      std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
-      CardType chosen_card = ChooseValidCard(copy, decl_card_str);
-      copy.PlayCard(p, chosen_card);
-      if (candidates.size() > 1) {
-        std::vector<const ConditionalLine *> matching;
-        for (const ConditionalLine *cand : candidates) {
-          if (GetPatternAtPos(cand->do_first(), pos) == decl_card_str) {
-            matching.push_back(cand);
+      if (is_pre) {
+        std::string pre_str = Card::PrintCard(copy.trick_cards_played()[pos]);
+        auto matching =
+            FilterCandidatesByDeclarerCard(candidates, pre_str, pos);
+        if (matching.empty()) return;
+        candidates = std::move(matching);
+      } else {
+        const ConditionalLine *best_cand =
+            SelectMostSpecificCandidate(candidates, pos);
+        std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
+        CardType chosen_card = ChooseValidCard(copy, decl_card_str);
+        copy.PlayCard(p, chosen_card);
+        if (candidates.size() > 1) {
+          auto matching =
+              FilterCandidatesByDeclarerCard(candidates, decl_card_str, pos);
+          if (!matching.empty()) {
+            candidates = std::move(matching);
           }
-        }
-        if (!matching.empty()) {
-          candidates = std::move(matching);
         }
       }
     } else {
-      std::string def_card_str = ChooseStep1DefenderCard(copy, def_cache);
-      CHECK(!def_card_str.empty());
-      CardType def_card = Card::ParseStringCard(def_card_str);
-      Suit suit_led =
-          (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
+      CardType def_card = 0;
+      std::string def_card_str;
+      Suit suit_led = NOTRUMP;
+      if (is_pre) {
+        def_card = copy.trick_cards_played()[pos];
+        def_card_str = Card::PrintCard(def_card);
+        suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
+      } else {
+        def_card_str = ChooseStep1DefenderCard(copy, def_cache);
+        CHECK(!def_card_str.empty());
+        def_card = Card::ParseStringCard(def_card_str);
+        suit_led =
+            (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
+      }
       std::vector<const ConditionalLine *> matching =
           FilterCandidatesByDefenderCard(
               candidates, def_card_str, pos, suit_led, copy.GetTrump(), &copy);
@@ -2613,7 +2510,9 @@ void TraceUnmakeableBoardHelper(
           }
         }
       }
-      copy.PlayCard(p, def_card);
+      if (!is_pre) {
+        copy.PlayCard(p, def_card);
+      }
       candidates = std::move(matching);
     }
   }
@@ -2877,28 +2776,7 @@ ConditionalLine::BoardPlayTrace ConditionalLine::SimulateBoard(
   }
 
   while (!copy.Finished() && cur_line != nullptr) {
-    while (cur_line && cur_line->do_first().Empty()) {
-      const ConditionalLine *good_branch = nullptr;
-      for (const auto &[cond, child_line] : cur_line->conditions()) {
-        if (!child_line || !cond) continue;
-        if (cond->IsStateCondition()) {
-          if (cond->EvaluateState(copy)) {
-            good_branch = child_line.get();
-            break;
-          }
-        }
-      }
-      if (good_branch) {
-        cur_line = good_branch;
-        continue;
-      }
-      if (cur_line->conditions().size() == 1 &&
-          cur_line->conditions()[0].second) {
-        cur_line = cur_line->conditions()[0].second.get();
-        continue;
-      }
-      break;
-    }
+    cur_line = AdvanceThroughStateConditions(cur_line, copy);
     if (!cur_line) {
       break;
     }
@@ -2947,90 +2825,60 @@ ConditionalLine::BoardPlayTrace ConditionalLine::SimulateBoard(
     int unmatched_seat = -1;
     std::string unmatched_card;
 
-    for (int pre_pos = 0; pre_pos < start_pos; ++pre_pos) {
-      int pre_p = (trick_leader + pre_pos) % 4;
-      CardType pre_card = copy.trick_cards_played()[pre_pos];
-      std::string pre_str = Card::PrintCard(pre_card);
-      played_cards.push_back(pre_str);
-      if (pre_p % 2 == 0) {
-        if (pre_pos < 2) {
-          my1_str = pre_str;
-        } else {
-          my2_str = pre_str;
-        }
-        if (candidates.size() > 1) {
-          std::vector<const ConditionalLine *> matching;
-          for (const ConditionalLine *cand : candidates) {
-            if (GetPatternAtPos(cand->do_first(), pre_pos) == pre_str) {
-              matching.push_back(cand);
-            }
-          }
-          if (!matching.empty()) {
-            candidates = std::move(matching);
-          }
-        }
-      } else if (!adversarial || candidates.size() > 1) {
-        Suit suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
-        std::vector<const ConditionalLine *> matching =
-            FilterCandidatesByDefenderCard(
-                candidates, pre_str, pre_pos, suit_led, copy.GetTrump(), &copy);
-        if (!matching.empty()) {
-          candidates = std::move(matching);
-        } else {
-          if (!diverged_during_trick) {
-            unmatched_seat = pre_p;
-            unmatched_card = pre_str;
-          }
-          diverged_during_trick = true;
-          candidates = {SelectMostSpecificCandidate(candidates, pre_pos + 1,
-                                                    &copy, suit_led)};
-        }
-      }
-    }
-
-    for (int pos = start_pos; pos < 4; ++pos) {
-      if (copy.Finished()) break;
-      int p = copy.CurPlayer();
+    for (int pos = 0; pos < 4; ++pos) {
+      bool is_pre = (pos < start_pos);
+      if (!is_pre && copy.Finished()) break;
+      int p = is_pre ? ((trick_leader + pos) % 4) : copy.CurPlayer();
       if (p % 2 == 0) {
-        const ConditionalLine *best_cand =
-            SelectMostSpecificCandidate(candidates, pos);
-        std::string decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
-        CardType chosen_card = ChooseValidCard(copy, decl_card_str);
-        std::string chosen_str = Card::PrintCard(chosen_card);
-        copy.PlayCard(p, chosen_card);
+        std::string decl_card_str;
+        std::string chosen_str;
+        if (is_pre) {
+          decl_card_str = Card::PrintCard(copy.trick_cards_played()[pos]);
+          chosen_str = decl_card_str;
+        } else {
+          const ConditionalLine *best_cand =
+              SelectMostSpecificCandidate(candidates, pos);
+          decl_card_str = GetPatternAtPos(best_cand->do_first(), pos);
+          CardType chosen_card = ChooseValidCard(copy, decl_card_str);
+          chosen_str = Card::PrintCard(chosen_card);
+          copy.PlayCard(p, chosen_card);
+        }
         played_cards.push_back(chosen_str);
         if (pos < 2) {
           my1_str = chosen_str;
         } else {
           my2_str = chosen_str;
         }
-
         if (candidates.size() > 1) {
-          std::vector<const ConditionalLine *> matching;
-          for (const ConditionalLine *cand : candidates) {
-            if (GetPatternAtPos(cand->do_first(), pos) == decl_card_str) {
-              matching.push_back(cand);
-            }
-          }
+          auto matching =
+              FilterCandidatesByDeclarerCard(candidates, decl_card_str, pos);
           if (!matching.empty()) {
             candidates = std::move(matching);
           }
         }
       } else {
-        std::string def_card_str =
-            adversarial ? ChooseAdversarialDefenderCard(copy, pos, candidates,
-                                                        def_cache)
-                        : FindBestDefenderCard(copy);
-        CardType def_card = 0;
-        if (!def_card_str.empty()) {
-          def_card = Card::ParseStringCard(def_card_str);
+        std::string def_card_str;
+        Suit suit_led = NOTRUMP;
+        if (is_pre) {
+          def_card_str = Card::PrintCard(copy.trick_cards_played()[pos]);
+          suit_led = Card::DecodeCard(copy.trick_cards_played()[0]).first;
         } else {
-          def_card = copy.ValidCardsToPlay()[0];
-          def_card_str = Card::PrintCard(def_card);
+          def_card_str =
+              adversarial
+                  ? ChooseAdversarialDefenderCard(copy, pos, candidates,
+                                                  def_cache)
+                  : FindBestDefenderCard(copy);
+          CardType def_card = 0;
+          if (!def_card_str.empty()) {
+            def_card = Card::ParseStringCard(def_card_str);
+          } else {
+            def_card = copy.ValidCardsToPlay()[0];
+            def_card_str = Card::PrintCard(def_card);
+          }
+          suit_led =
+              (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
+          copy.PlayCard(p, def_card);
         }
-        Suit suit_led =
-            (pos == 0) ? Card::DecodeCard(def_card).first : copy.SuitLed();
-        copy.PlayCard(p, def_card);
         played_cards.push_back(def_card_str);
 
         if (!adversarial || candidates.size() > 1) {
@@ -3068,33 +2916,9 @@ ConditionalLine::BoardPlayTrace ConditionalLine::SimulateBoard(
       if (copy.Finished() && chosen_node->conditions().empty()) {
         trace.leaf = chosen_node;
       } else {
-        auto try_match_winner = [&](const ConditionalLine *node) {
-          for (const auto &[cond, child_line] : node->conditions()) {
-            if (!child_line) continue;
-            auto *winner_cond =
-                dynamic_cast<const WinnerPlayCondition *>(cond.get());
-            if (winner_cond && winner_cond->who() == winner) {
-              if (child_line->do_first().Empty() &&
-                  child_line->conditions().empty()) {
-                trace.leaf = child_line.get();
-              } else {
-                next_line = child_line.get();
-              }
-              return true;
-            }
-          }
-          return false;
-        };
-        if (!try_match_winner(chosen_node) && candidates.size() > 1) {
-          for (const ConditionalLine *cand : candidates) {
-            if (cand == chosen_node) continue;
-            if (try_match_winner(cand)) {
-              chosen_node = cand;
-              best_node = cand;
-              break;
-            }
-          }
-        }
+        chosen_node = MatchWinnerContinuation(chosen_node, candidates, winner,
+                                              &trace.leaf, &next_line);
+        best_node = chosen_node;
       }
     }
 

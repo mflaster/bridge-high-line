@@ -264,10 +264,9 @@ class LineFinder {
     size_t cursor[kMemoShards] = {};
 
     bool Lookup(const std::string &key, int min_covered,
-                std::vector<ConditionalLine> *out, int top_k = 1);
+                std::vector<ConditionalLine> *out);
     void Insert(std::string key, int min_covered,
-                const std::vector<ConditionalLine> &res,
-                int top_k = 1);
+                const std::vector<ConditionalLine> &res);
   };
 
   int num_iters_;

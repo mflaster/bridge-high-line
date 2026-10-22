@@ -46,8 +46,6 @@ int EnsureDDSInitialized() {
   return DoInit();
 }
 
-static bool CONSIDER_EQUALS = false;
-
 void PopulatePBNDeal(const BoardState &bs, dealPBN *d1) {
   DoInit();
   VLOG(2) << "PopulatePBNDeal";
@@ -67,18 +65,6 @@ void PopulatePBNDeal(const BoardState &bs, dealPBN *d1) {
 
   VLOG(2) << "Copying cards " << bs.GetPBNCards();
   strcpy(d1->remainCards, bs.GetPBNCards().c_str());
-}
-
-namespace {
-uint64_t GetBoardKey(const BoardState &bs) {
-  std::string cards_played;
-  for (int i = 0; i < bs.CardsPlayedThisTrick(); i++) {
-    cards_played += Card::PrintCard(bs.trick_cards_played()[i]);
-  }
-  uint64_t board_key = std::hash<std::string>{}(
-      bs.DebugString() + cards_played);
-  return board_key;
-}
 }
 
 std::vector<std::string> FindBestCardsToPlay(
@@ -667,23 +653,10 @@ uint16_t RanksBetweenMask(int r1, int r2) {
 
 int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
                    int level, OptimalLines *lines,
-                   SolverCache *cache,
-                   futureTricks *solved_tricks = nullptr,
                    PartnerLeadInfo partner_lead = {}) {
   DoInit();
   VLOG(2) << "DDSSolveHelper level " << level;
   CHECK_LT(level, 4);
-  bool use_cache = false; //  cache != nullptr && level == 0;
-  if (use_cache) {
-    uint64_t board_key = GetBoardKey(bs);
-    std::unordered_map<uint64_t, OptimalLines> &dds_lines =
-        cache->dds_lines[bs.CurPlayer()];
-    auto it = dds_lines.find(board_key);
-    if (it != dds_lines.end()) {
-      lines->insert(it->second.begin(), it->second.end());
-      return cache->dds_results[bs.CurPlayer()][board_key];
-    }
-  }
   bool pair_is_me = (bs.CurPlayer() % 2 == 0);
   bool defense = !pair_is_me;
   uint64_t cur_hand = bs.GetHand(bs.CurPlayer()) & ~bs.played_cards();
@@ -699,21 +672,13 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   // this particular board. Once the contract is secure (min_tricks <= 0) the
   // maximal plays suffice and keep the tree small.
   bool use_min_tricks_target = pair_is_me && min_tricks >= 1;
-  futureTricks futp_storage{};
-  if (!solved_tricks) {
-    int target = use_min_tricks_target ? min_tricks : -1;
-    int solutions = 2; // Return all optimum cards and their scores.
-    // int mode = 1;  // automatic reuse of state / always search
-    int mode = 2;  // force reuse of state
-    int threadindex = omp_get_thread_num();
-    int rc = SolveBoardPBN(dl, target, solutions, mode, &futp_storage,
-                           threadindex);
-    if (rc != RETURN_NO_FAULT) {
-      return -1;
-    }
-  }
-  futureTricks &futp = solved_tricks ? *solved_tricks : futp_storage;
-  if (futp.cards <= 0) {
+  futureTricks futp{};
+  int target = use_min_tricks_target ? min_tricks : -1;
+  int solutions = 2;  // Return all optimum cards and their scores.
+  int mode = 2;       // force reuse of state
+  int threadindex = omp_get_thread_num();
+  int rc = SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
     return -1;
   }
 
@@ -1031,8 +996,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
                                 cheapest_master_lead_rank[futp.suit[i]],
                                 opp_suit_mask[futp.suit[i]]}
               : partner_lead;
-      DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, cache, nullptr,
-                     next_lead);
+      DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, next_lead);
     } else {
       rest.insert("");
     }
@@ -1041,35 +1005,16 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
               << " " << i << " / " << futp.cards
               << " to make " << (c + " " + line)
               << " (" << my_lines.size() << ")";
-      int others = futp.equals[i];
       my_lines.insert(c + " " + line);
-      if (defense) {
-        continue;
-      }
-      int rank = 0;
-      while ((defense || CONSIDER_EQUALS) && others > 0) {
-        rank++;
-        others = others >> 1;
-        if (others & 1) {
-          my_lines.insert(
-              Card::PrintDDSCard((Suit)futp.suit[i], rank) + " " + line);
-          VLOG(3) << "Found equiv card "
-                  << Card::PrintDDSCard((Suit)futp.suit[i], rank);
-        }
-      }
     }
   }
   lines->insert(my_lines.begin(), my_lines.end());
-  if (use_cache) {
-    uint64_t board_key = GetBoardKey(bs);
-    cache->dds_lines[bs.CurPlayer()][board_key] = my_lines;
-    cache->dds_results[bs.CurPlayer()][board_key] = result;
-  }
   return result;
 }
 
 int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
                         OptimalLines *lines, SolverCache *cache) {
+  (void)cache;
   DoInit();
   VLOG(2) << "DDSFindOptimalLines";
   CHECK(lines);
@@ -1081,7 +1026,7 @@ int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
   int played = bs.CardsPlayedThisTrick();
   OptimalLines raw_lines;
   int res = DDSSolveHelper(min_tricks, bs, dl, played,
-                           played > 0 ? &raw_lines : lines, cache);
+                           played > 0 ? &raw_lines : lines);
   if (played > 0) {
     std::string prefix;
     for (int i = 0; i < played; ++i) {
@@ -1249,10 +1194,6 @@ std::shared_ptr<OptimalPlayTree> OptimalPlayTree::FindOptimalPlayTree(
   auto ans =
       FindOptimalPlayTreeHelper(bs, min_tricks, tricks_remaining, deepen_levels,
                                 cache);
-  if (cache) {
-    VLOG(1) << "OptimalTreeSearch finished with cache having "
-            << cache->dds_size();
-  }
   VLOG(1) << "Found solution of " << ans->MiniMax();
   return ans;
 }

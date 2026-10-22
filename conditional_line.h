@@ -35,11 +35,6 @@ class GeneralizedDemiPlay {
   GeneralizedDemiPlay(Suit trump_suit)
       : trump_suit_(trump_suit) {
   }
-#if 0
-  GeneralizedDemiPlay()
-      : trump_suit_(NOTRUMP) {
-  }
-#endif
 
   void RecordOptimalPlay(const std::string &opp_card,
                          const std::string &my_card,
