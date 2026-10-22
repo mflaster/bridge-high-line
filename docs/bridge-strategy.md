@@ -298,3 +298,5 @@ defeat it.
 | Adversarial defense re-scoring (Step 2) | [`line_finder.cc`](../line_finder.cc), [`conditional_line.cc`](../conditional_line.cc) | `RescoreTopLinesAdversarial`, `ChooseAdversarialDefenderCard` |
 | Counting unmakeable layouts on branches | [`conditional_line.cc`](../conditional_line.cc) | `TraceUnmakeableBoard`, `BranchSuccessProbability` |
 | Summarizing winning & losing layouts | [`cross_hand_summarizer.cc`](../cross_hand_summarizer.cc) | `CrossHandDealSetSummarizer::Summarize` |
+| Full technical heuristics & `ExtraBranches()` reference | [`docs/solver-heuristics.md`](solver-heuristics.md) | `ExtraBranches()`, `TopKForLevel`, `GetLinesFromGroups`, `TryBranchOnGoodCards` |
+
