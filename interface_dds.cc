@@ -374,39 +374,81 @@ uint16_t RanksBetweenMask(int r1, int r2) {
   return below_r2 & ~at_or_below_r1;
 }
 
-// 3rd-hand following-suit heuristic: play high from the highest winning group
-// unless partner's card is already winning and either:
-//   - partner's card is an honor (>= J) that we can duck underneath, or
-//   - no card that 4th hand could possibly hold lies strictly between
-//     partner's winning card and our candidate card (e.g. playing ST on
-//     partner's S9), so overtaking partner's card would only waste an equal.
+// 3rd-hand following-suit heuristic:
+//   1. When partner's card is already winning, do not overtake partner's card
+//      unless partner's card is a spot (< J) AND 4th hand could possibly hold
+//      an intermediate card between partner's card and our card, OR partner
+//      led an honor (>= J) and 2nd hand visibly does NOT hold a higher card
+//      between partner's card and our higher honor (e.g. partner leads Q, 2nd
+//      hand has only low cards, and 3rd hand holds A with K possibly in 4th
+//      hand). Conversely, if 2nd hand holds Kx and played low on partner's Q,
+//      3rd hand ducks with A3.
+//   2. When playing 3rd hand high across multiple DDS-optimal winning groups
+//      (such as holding A Q when 2nd hand holds K x and played low), prefer a
+//      cheaper winning group if every unplayed card between that cheaper group
+//      and the highest winning group is visible in 2nd hand (which already
+//      played low), so 3rd hand finesses the Q rather than playing the A.
 DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
                                          const futureTricks &futp,
                                          int cur_winner, int partner,
                                          int cur_win_rank) {
+  Suit suit_led = bs.SuitLed();
+  uint64_t played = bs.played_cards();
+  for (int k = 0; k < bs.CardsPlayedThisTrick(); ++k) {
+    played |= bs.trick_cards_played()[k];
+  }
+  int second_seat = (bs.cur_trick_leader() + 1) % 4;
+  int fourth_seat = (bs.cur_trick_leader() + 3) % 4;
+  // Cards in `suit_led` that 3rd hand can see in Dummy (`seat 2`) when Dummy is
+  // in 2nd seat (already played low) vs. cards that 4th hand could possibly
+  // hold from 3rd hand's single-dummy perspective.
+  uint16_t visible_second_suit_mask = 0;
+  if (second_seat == 2) {
+    visible_second_suit_mask = static_cast<uint16_t>(
+        ((bs.GetHand(2) & ~played) >> (suit_led * 16)) & 0xffff);
+  }
+  uint64_t possible_fourth_hands =
+      (fourth_seat == 2)
+          ? (bs.GetHand(2) & ~played)
+          : ((bs.GetHand(0) | bs.GetHand(partner)) & ~played &
+             ~bs.GetHand(bs.CurPlayer()) & ~bs.GetHand(2));
+  uint16_t possible_fourth_suit_mask = static_cast<uint16_t>(
+      (possible_fourth_hands >> (suit_led * 16)) & 0xffff);
+
   if (cur_winner == partner && cur_win_rank >= 11) {
+    // Partner's honor (J, Q, K, or A) is currently winning. Normally 3rd hand
+    // ducks underneath partner's honor if a lower optimal card is available
+    // (e.g., 1st hand leads Q from QJ, 2nd hand plays low from Kx, and 3rd hand
+    // holds A3). However, if 3rd hand has an optimal higher honor (e.g. A over
+    // partner's Q) and 2nd hand does NOT hold the intermediate honor (e.g. 2nd
+    // hand has only low cards while 4th hand holds K), 3rd hand should play A
+    // rather than ducking partner's Q into 4th hand's K.
     DefenderPlayChoice low = FinalizeDefenderChoice(
         bs, futp, PickLowestGroupPlay(futp));
-    if (low.rank < cur_win_rank) {
+    bool fourth_can_cover_partner_honor = false;
+    for (int i = 0; i < futp.cards; ++i) {
+      if (futp.rank[i] > cur_win_rank) {
+        int base_r =
+            std::max(LowestRankInGroup(futp, i),
+                     CheapestWinningRankInGroup(futp, i, cur_win_rank));
+        uint16_t between = RanksBetweenMask(cur_win_rank, base_r);
+        // If 4th hand holds an intermediate card between partner's honor and
+        // our higher honor (so partner did not lead from KQ and 2nd hand does
+        // not hold K), 3rd hand plays high (A) over partner's Q.
+        uint16_t actual_fourth_suit_mask = static_cast<uint16_t>(
+            ((bs.GetHand(fourth_seat) & ~played) >> (suit_led * 16)) & 0xffff);
+        if ((actual_fourth_suit_mask & between) != 0 &&
+            (visible_second_suit_mask & between) == 0) {
+          fourth_can_cover_partner_honor = true;
+          break;
+        }
+      }
+    }
+    if (!fourth_can_cover_partner_honor && low.rank < cur_win_rank) {
       return low;
     }
   }
-  uint16_t possible_fourth_suit_mask = 0xffff;
-  if (cur_winner == partner) {
-    Suit suit_led = bs.SuitLed();
-    uint64_t played = bs.played_cards();
-    for (int k = 0; k < bs.CardsPlayedThisTrick(); ++k) {
-      played |= bs.trick_cards_played()[k];
-    }
-    int fourth_seat = (bs.cur_trick_leader() + 3) % 4;
-    uint64_t possible_fourth_hands =
-        (fourth_seat == 2)
-            ? (bs.GetHand(2) & ~played)
-            : ((bs.GetHand(0) | bs.GetHand(partner)) & ~played &
-               ~bs.GetHand(bs.CurPlayer()) & ~bs.GetHand(2));
-    possible_fourth_suit_mask = static_cast<uint16_t>(
-        (possible_fourth_hands >> (suit_led * 16)) & 0xffff);
-  }
+
   int best_idx = -1;
   int highest_top = -1;
   for (int i = 0; i < futp.cards; ++i) {
@@ -424,10 +466,34 @@ DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
     }
   }
   if (best_idx >= 0) {
-    int base_r =
+    int best_base_r =
         std::max(LowestRankInGroup(futp, best_idx),
                  CheapestWinningRankInGroup(futp, best_idx, cur_win_rank));
-    return FinalizeDefenderChoice(bs, futp, {best_idx, base_r});
+    // Tenace check in 3rd seat (e.g., 3rd hand holds A Q and 2nd hand holds
+    // K x and played low): if a cheaper winning group `i` exists and every
+    // unplayed card between `i`'s winning rank and `best_base_r` is either in
+    // 2nd hand (`visible_second_suit_mask`) or cannot be in 4th hand
+    // (`possible_fourth_suit_mask`), prefer the cheaper finesse play (Q) over
+    // the higher card (A).
+    for (int i = 0; i < futp.cards; ++i) {
+      if (i == best_idx || futp.rank[i] <= cur_win_rank) continue;
+      int cand_r =
+          std::max(LowestRankInGroup(futp, i),
+                   CheapestWinningRankInGroup(futp, i, cur_win_rank));
+      if (cand_r < best_base_r) {
+        if (cur_winner == partner &&
+            (possible_fourth_suit_mask &
+             RanksBetweenMask(cur_win_rank, cand_r)) == 0) {
+          continue;
+        }
+        uint16_t between = RanksBetweenMask(cand_r, best_base_r);
+        if ((possible_fourth_suit_mask & between) == 0) {
+          best_idx = i;
+          best_base_r = cand_r;
+        }
+      }
+    }
+    return FinalizeDefenderChoice(bs, futp, {best_idx, best_base_r});
   }
   // Cannot beat the current winning card; play 3rd hand low.
   return FinalizeDefenderChoice(bs, futp, PickLowestGroupPlay(futp));
