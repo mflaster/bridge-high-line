@@ -23,7 +23,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_index = client.Get("/");
   ASSERT_TRUE(res_index);
   ASSERT_TRUE(res_index->status == 200);
-  ASSERT_TRUE(res_index->body.find("Bridge Deal Solver") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Bridge High Line Solver") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("traceHandInput") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("traceHandBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("arrow-traced") != std::string::npos);
