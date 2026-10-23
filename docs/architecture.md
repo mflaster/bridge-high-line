@@ -28,7 +28,7 @@ flowchart TB
         IDDS["DDS C++ Wrapper<br/>(DDSFindOptimalLines)<br/><code>interface_dds.h</code>"]
         MTCW["Solver Engine<br/>(MostTricksCanBeWon)<br/><code>solver.h</code>"]
         SC["SolverCache<br/><code>solver.h</code>"]
-        EXTDDS["External Double Dummy Solver C Library<br/>(SolveBoardPBN)<br/><code>dll.h</code>"]
+        EXTDDS["External Double Dummy Solver C Library<br/>(SolveBoard)<br/><code>dll.h</code>"]
     end
 
     subgraph StateManagement["State Management Layer"]
@@ -144,11 +144,11 @@ sequenceDiagram
         alt Cache Miss
             OPTree->>IDDS: DDSFindOptimalLines(board_state, min_tricks, cache)
             activate IDDS
-            IDDS->>BS: PopulatePBNDeal(bs, &dealPBN)
+            IDDS->>BS: PopulateDeal(bs, &dl)
             activate BS
-            BS-->>IDDS: Formatted PBN deal
+            BS-->>IDDS: Binary DDS deal bitmasks
             deactivate BS
-            IDDS->>DDS: SolveBoardPBN(dealPBN, target, solutions, mode)
+            IDDS->>DDS: SolveBoard(dl, target, solutions, mode)
             activate DDS
             DDS-->>IDDS: Solve results & card plays
             deactivate DDS

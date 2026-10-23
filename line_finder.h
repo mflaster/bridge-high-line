@@ -204,11 +204,13 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0, int top_k = -1);
+      int min_covered = 0, int top_k = -1,
+      int *out_unsplit_ub = nullptr);
 
   // Attempts to improve board coverage when single-trick groupings do not
   // cover all solvable boards by branching on IsCardGoodCondition for the
-  // highest remaining N/S card in each suit.
+  // highest remaining N/S card in each suit or PlayerDiscardedCondition on
+  // prev_suit_led.
   void TryBranchOnGoodCards(
       int min_tricks,
       SolverCache &cache,
@@ -217,13 +219,16 @@ class LineFinder {
       int cards_left, int leader, int lvl,
       std::vector<ConditionalLine> &ans,
       SearchProgress::Node *progress = nullptr,
-      int min_covered = 0, int top_k = -1);
+      int min_covered = 0, int top_k = -1,
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0,
+      int unsplit_ub = -1);
 
   // Recursive workhorse for finding optimal play lines.
-  // - Base case (cards_left == 0): returns empty vector if min_tricks > 0 (failure), or a single leaf
-  //   ConditionalLine initialized with board_offsets if min_tricks <= 0 (success).
-  // - Recursive case: extracts optimal tricks across boards, generalizes them into trick groups,
-  //   and invokes GetLinesFromGroups.
+  // - Base case (cards_left == 0): returns empty vector if min_tricks > 0
+  //   (failure), or a single leaf ConditionalLine initialized with
+  //   board_offsets if min_tricks <= 0 (success).
+  // - Recursive case: extracts optimal tricks across boards, generalizes them
+  //   into trick groups, and invokes GetLinesFromGroups.
   // `progress`, if set, is this sub-search's node in the search progress
   // tree; it is completed before returning.
   std::vector<ConditionalLine> SolveHelper(
@@ -232,7 +237,8 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0, int top_k = -1);
+      int min_covered = 0, int top_k = -1,
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0);
 
   std::vector<ConditionalLine> SolveHelperUncached(
       int min_tricks,
@@ -240,7 +246,8 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0, int top_k = -1);
+      int min_covered = 0, int top_k = -1,
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0);
 
   int TopKForLevel(int lvl, size_t num_boards) const;
 

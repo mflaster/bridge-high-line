@@ -82,7 +82,7 @@ struct SolverCache {
 #ifdef __EMSCRIPTEN__
   static constexpr size_t kMaxTreeCachePerShard = 1024;
 #else
-  static constexpr size_t kMaxTreeCachePerShard = 8192;
+  static constexpr size_t kMaxTreeCachePerShard = 16384;
 #endif
   mutable std::mutex shard_mu[kNumShards];
   std::unordered_map<BoardCacheKey, std::shared_ptr<OptimalPlayTree>,

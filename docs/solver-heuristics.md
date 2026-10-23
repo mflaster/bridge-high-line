@@ -13,10 +13,11 @@ that maximizes the probability of making at least `min_tricks` across $N$
 sampled deals:
 
 1. **Step 0 — Per-Board Double-Dummy Play Extraction (`interface_dds.cc`)**:
-   For each sampled deal and trick state, queries DDS (`SolveBoardPBN`) to find
-   all contract-making declarer cards and a single deterministic (or
-   noise-diversified) defender card, pruning dominated declarer plays within a
-   trick.
+   For each sampled deal and trick state, queries DDS (`PopulateDeal` +
+   `SolveBoard`, with exact fast paths for 1-trick endings and single-group
+   follow-suit plays) to find all contract-making declarer cards and a single
+   deterministic (or noise-diversified) defender card, pruning dominated
+   declarer plays within a trick.
 2. **Step 1 — Recursive Tree Search (`line_finder.cc` + `conditional_line.cc`)**:
    Generalizes opponent card patterns (`GetGeneralizedTricks`), groups
    distinguishable tricks into branching decision candidates (`GroupTricks`),
@@ -124,13 +125,13 @@ The shared helper `AssembleBranchLines` (`line_finder.cc`) combines them into:
 1. **Primary line (`base_line`)**: Picks `child_lines[i][0]` (highest coverage)
    for every branch $i$.
 2. **Single-branch substitutions (`alt_line`)**: For each branch $i$ and each
-   alternative `alt_idx > 0` where
-   `child_lines[i][alt_idx]->ExtraBranches() < child_lines[i][0]->ExtraBranches()`,
+   alternative `alt_idx > 0` where `NonStateExtraBranches(child_lines[i][0]) > 0`
+   and `NonStateExtraBranches(alt) < NonStateExtraBranches(child_lines[i][0])`,
    builds a composite tree substituting `child_lines[i][alt_idx]` at branch $i$
    and keeping `[0]` elsewhere.
 3. **All-minimum-branch composite (`min_eb_line`)**: Simultaneously picks the
-   child with the minimum `ExtraBranches()` at *every* branch $i$. If at least
-   `min_diff_branches` branches (`1` in `GetLinesFromTrick` /
+   child with the minimum `NonStateExtraBranches` at *every* branch $i$. If at
+   least `min_diff_branches` branches (`1` in `GetLinesFromTrick` /
    `GetLinesFromGroups`, `2` in `TryBranchOnGoodCards`) used a non-zero index,
    adds `min_eb_line` so the globally simplest combined subtree is always
    represented.
@@ -141,22 +142,23 @@ Before returning up to `top_k` candidate lines from `GetLinesFromTrick`,
 matching `TopCandidate` truncation in `add_top_candidate`) reduces the
 candidate list as follows:
 1. **Sort** by `(CoveredFinalBoards() DESC, ExtraBranches() ASC)`.
-2. **Pareto filter**: Walk the sorted list tracking `seen_eb` (`ExtraBranches()`
-   values already present at higher or equal coverage). Any candidate whose
-   `ExtraBranches()` was already seen at an earlier position is partitioned to
-   the back.
+2. **Pareto filter**: Walk the sorted list tracking `seen_nseb`
+   (`NonStateExtraBranches` values `> 0` already present at higher or equal
+   coverage; multiple `nseb == 0` candidates are kept un-demoted). Any
+   candidate whose positive `NonStateExtraBranches` was already seen earlier is
+   partitioned to the back.
 3. **Guarantee `min_extra` survival**: Find the candidate with the absolute
-   minimum `ExtraBranches()` in the unique prefix. If its index is `>= top_k`,
+   minimum `NonStateExtraBranches` in the list. If its index is `>= top_k`,
    swap it into slot `[top_k - 1]` before resizing to `top_k`.
 
 ---
 
 ## 3. Step 0 Heuristics: Per-Board DDS & Play Pruning (`interface_dds.cc`)
 
-### 3.1 Contract-Making Target vs. Overtricks (`DDSSolveHelper`, line 701)
-- When declarer is on play and `min_tricks >= 1`, `SolveBoardPBN` is called
+### 3.1 Contract-Making Target vs. Overtricks (`DDSSolveHelper`)
+- When declarer is on play and `min_tricks >= 1`, `SolveBoard` is called
   with `target = min_tricks` (`solutions = 2`) rather than `target = -1`
-  (double-dummy maximum tricks).
+  (double-dummy maximum tricks), using binary `deal` bitmasks updated in place.
 - **Rationale**: A safety play that guarantees `min_tricks` across almost all
   boards may sacrifice an overtrick on a board where a peek-dependent drop or
   finesse wins `min_tricks + 1`. Querying `target = min_tricks` keeps the
@@ -414,23 +416,26 @@ and `<= 9` cards remaining:
    alternatives whenever a trick has multiple `WinnerPlayCondition` outcomes or
    multiple returned lines.
 
-### 5.5 State-Condition Branching (`TryBranchOnGoodCards`, lines 2541–2783)
-When `best_cov < max_possible` at `level <= 3` (with `min_tricks >= 2` and `<=
-9` cards remaining), `TryBranchOnGoodCards` tests 2-way state splits:
+### 5.5 State-Condition Branching (`TryBranchOnGoodCards`)
+When unsplit tricks do not cover all solvable boards (`best_covered < solvable_n`,
+`lvl > 0`, declarer/dummy on lead, `state_depth < 4`), `TryBranchOnGoodCards`
+tests 2-way state splits:
 1. **`IsCardGoodCondition(card, true/false)`**:
-   Checks whether a specific card in declarer/dummy's hand is currently a
-   master card (no opponent holds a higher unplayed card in that suit). Only
-   tested if both the `is_good` and `not_good` board subsets are non-empty.
-2. **`PlayerDiscardedCondition(seat, suit, true/false)`**:
-   Checks whether a specific opponent (`East = 1` or `West = 3`) has previously
-   discarded on `suit` (`bs.HasPlayerDiscardedOnSuit(seat, suit)`), revealing a
-   void and counting the hand distribution.
-3. **Pruning & combination**:
-   If `true_boards.size() + false_boards.size() >= min_target`, solves the
-   `smaller_first` subset first so its actual coverage tightens the pruning
-   floor (`rem_floor`) for the larger subset, then combines the true/false
-   subtrees using `make_split(0, 0)`, single-side low-`ExtraBranches()`
-   substitutions, and `make_split(min_t_idx, min_f_idx)`.
+   Checks whether the highest unplayed N/S card in `suit` is currently a master
+   card. On the `is_good` branch, groups optimal `suit`-led cashing tricks via
+   `GeneralizedTrickFinder` whose winning N/S card satisfies
+   `IsCardGoodCondition(top_card, true)` (accepting equivalent non-touching spot
+   cards once intermediate spots have been played).
+2. **`PlayerDiscardedCondition(seat, prev_suit_led, true/false)`**:
+   Checks whether `East` (`1`) or `West` (`3`) discarded on the explicit
+   `prev_suit_led` of the preceding trick (avoiding transposed `PreviousTrick`
+   cache aliasing), deduplicating symmetric 3-way splits when neither board has
+   both defenders discarding.
+3. **Upper-bound pruning & combination**:
+   Uses `unsplit_ub` from `GetLinesFromGroups` to bound the `false` branch
+   before solving, preserves `has_unsplit_play` thresholds on fail-low nodes,
+   and combines `true`/`false` subtrees via `AssembleBranchLines` and
+   `FinalizeTopKLines`.
 
 ---
 
