@@ -233,6 +233,304 @@ TEST(InterfaceDdsTest, DefenderSeatRules_ThirdHandHighAndEquals) {
   }
   ASSERT_TRUE(saw_sq > 5);
   ASSERT_TRUE(saw_sk > 5);
+
+  {  // 3rd hand does not overtake partner's winning S9 with touching ST
+    // East (Hand 1) leads S9, South (Hand 2, dummy) plays S4, and West (Hand 3)
+    // holds S T532 with North (Hand 0) holding S AK87 in 4th seat. Playing ST
+    // on partner's S9 wastes an equal (no card lies between 9 and T), so West
+    // must duck with S2 rather than overtaking with ST.
+    std::vector<uint64_t> hands = {
+        ParseHand("S AK87"),
+        ParseHand("S 9; H 432;"),
+        ParseHand("S QJ64"),
+        ParseHand("S T532"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(1, Card::ParseStringCard("S9"));
+    bs.PlayCard(2, Card::ParseStringCard("S4"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("S9 S4 S2 ", 0), 0u)
+          << "Expected West to duck with S2 on partner's S9, got: " << line;
+    }
+  }
+
+  {  // 3rd hand does not overtake partner's S8 with ST when S9 is in dummy
+    // East (Hand 1) leads S8, South (Hand 2, dummy) holds S QJ94 and plays S4,
+    // and West (Hand 3) holds S T532 with North (Hand 0) holding S AK76. Since
+    // S9 is visible in dummy, ST and S8 are touching equals against 4th hand,
+    // so West must duck with S2 rather than overtaking partner's S8 with ST.
+    std::vector<uint64_t> hands = {
+        ParseHand("S AK76"),
+        ParseHand("S 8; H 432;"),
+        ParseHand("S QJ94"),
+        ParseHand("S T532"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(1, Card::ParseStringCard("S8"));
+    bs.PlayCard(2, Card::ParseStringCard("S4"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("S8 S4 S2 ", 0), 0u)
+          << "Expected West to duck with S2 on partner's S8, got: " << line;
+    }
+  }
+
+  {  // 1st hand leads low, 2nd hand has Kx and plays low, 3rd hand has AQ
+    // East (Hand 1) leads S3, South (Hand 2, dummy) holds S K6 and plays S6,
+    // and West (Hand 3) holds S AQ in 3rd seat with North (Hand 0) holding
+    // S 84 in 4th seat. Both SA and SQ win both tricks for E/W, and because SK
+    // is in 2nd hand (which already played low), 3rd hand finesses SQ rather
+    // than playing SA.
+    std::vector<uint64_t> hands = {
+        ParseHand("S 84"),
+        ParseHand("S 53"),
+        ParseHand("S K6"),
+        ParseHand("S AQ"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(NOTRUMP);
+    bs.PlayCard(1, Card::ParseStringCard("S3"));
+    bs.PlayCard(2, Card::ParseStringCard("S6"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("S3 S6 SQ ", 0), 0u)
+          << "Expected West to finesse SQ from AQ when 2nd hand played low "
+             "from Kx, got: " << line;
+    }
+  }
+
+  {  // 1st hand leads Q, 2nd hand plays low from Kx, 3rd hand has Ax -> ducks
+    // East (Hand 1) leads SQ (from S QJ), South (Hand 2, dummy) holds S K6 and
+    // plays S6, and West (Hand 3) holds S A2 in 3rd seat with North (Hand 0)
+    // holding S 84. Both SA and S2 win both tricks for E/W, and because
+    // partner's SQ is winning after 2nd hand ducked with SK, West plays low
+    // (S2) rather than overtaking partner's SQ with SA.
+    std::vector<uint64_t> hands = {
+        ParseHand("S 84"),
+        ParseHand("S QJ"),
+        ParseHand("S K6"),
+        ParseHand("S A2"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(NOTRUMP);
+    bs.PlayCard(1, Card::ParseStringCard("SQ"));
+    bs.PlayCard(2, Card::ParseStringCard("S6"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("SQ S6 S2 ", 0), 0u)
+          << "Expected West to play low (S2) when partner's SQ is winning "
+             "through 2nd hand's Kx, got: " << line;
+    }
+  }
+
+  {  // 1st hand leads Q, 2nd hand has low cards, 4th hand has K -> 3rd plays A
+    // East (Hand 1) leads SQ, South (Hand 2, dummy) holds S 76 and plays S6,
+    // West (Hand 3) holds S A2 in 3rd seat, and North (Hand 0) holds S K8 in
+    // 4th seat. Even when SA and S2 yield the same double-dummy trick count
+    // (1 trick for E/W), 3rd hand must play SA over partner's SQ rather than
+    // ducking into 4th hand's SK.
+    std::vector<uint64_t> hands = {
+        ParseHand("S K8"),
+        ParseHand("S Q4"),
+        ParseHand("S 76"),
+        ParseHand("S A2"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(NOTRUMP);
+    bs.PlayCard(1, Card::ParseStringCard("SQ"));
+    bs.PlayCard(2, Card::ParseStringCard("S6"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("SQ S6 SA ", 0), 0u)
+          << "Expected West to play SA when partner leads SQ, 2nd hand has "
+             "low cards, and 4th hand holds SK, got: " << line;
+    }
+  }
+
+  {  // Same three scenarios when West (1st) leads through North (2nd, declarer)
+     // to East (3rd) with South (4th, dummy):
+    // (a) West leads S3, North holds S K6 and plays S6, East holds S AQ, South
+    //     holds S 84 in dummy -> East finesses SQ (seeing South has no SK).
+    std::vector<uint64_t> hands_a = {
+        ParseHand("S K6"),
+        ParseHand("S AQ"),
+        ParseHand("S 84"),
+        ParseHand("S 53"),
+    };
+    BoardState bs_a;
+    bs_a.SetHands(hands_a);
+    bs_a.SetLead(3);
+    bs_a.SetTrump(NOTRUMP);
+    bs_a.PlayCard(3, Card::ParseStringCard("S3"));
+    bs_a.PlayCard(0, Card::ParseStringCard("S6"));
+
+    OptimalLines lines_a;
+    DDSFindOptimalLines(bs_a, 0, &lines_a, nullptr);
+    ASSERT_FALSE(lines_a.empty());
+    for (const std::string &line : lines_a) {
+      ASSERT_EQ(line.rfind("S3 S6 SQ ", 0), 0u)
+          << "Expected East to finesse SQ from AQ when North played low from "
+             "Kx, got: " << line;
+    }
+
+    // (b) West leads SQ, North holds S K6 and plays S6, East holds S A2, South
+    //     holds S 84 in dummy -> East plays low (S2).
+    std::vector<uint64_t> hands_b = {
+        ParseHand("S K6"),
+        ParseHand("S A2"),
+        ParseHand("S 84"),
+        ParseHand("S QJ"),
+    };
+    BoardState bs_b;
+    bs_b.SetHands(hands_b);
+    bs_b.SetLead(3);
+    bs_b.SetTrump(NOTRUMP);
+    bs_b.PlayCard(3, Card::ParseStringCard("SQ"));
+    bs_b.PlayCard(0, Card::ParseStringCard("S6"));
+
+    OptimalLines lines_b;
+    DDSFindOptimalLines(bs_b, 0, &lines_b, nullptr);
+    ASSERT_FALSE(lines_b.empty());
+    for (const std::string &line : lines_b) {
+      ASSERT_EQ(line.rfind("SQ S6 S2 ", 0), 0u)
+          << "Expected East to play low (S2) on partner's SQ when North "
+             "played low from Kx, got: " << line;
+    }
+
+    // (c) West leads SQ, North holds S 76 and plays S6, East holds S A2, South
+    //     holds S K8 in dummy -> East overtakes with SA.
+    std::vector<uint64_t> hands_c = {
+        ParseHand("S 76"),
+        ParseHand("S A2"),
+        ParseHand("S K8"),
+        ParseHand("S Q4"),
+    };
+    BoardState bs_c;
+    bs_c.SetHands(hands_c);
+    bs_c.SetLead(3);
+    bs_c.SetTrump(NOTRUMP);
+    bs_c.PlayCard(3, Card::ParseStringCard("SQ"));
+    bs_c.PlayCard(0, Card::ParseStringCard("S6"));
+
+    OptimalLines lines_c;
+    DDSFindOptimalLines(bs_c, 0, &lines_c, nullptr);
+    ASSERT_FALSE(lines_c.empty());
+    for (const std::string &line : lines_c) {
+      ASSERT_EQ(line.rfind("SQ S6 SA ", 0), 0u)
+          << "Expected East to play SA on partner's SQ when South (4th hand) "
+             "holds SK, got: " << line;
+    }
+  }
+
+  {  // Dummy in 4th seat: 3rd seat only plays high enough to beat dummy
+    // (a) West (1st) leads S2, North (2nd) holds S Q6 and plays S6, South
+    //     (4th, dummy) visibly holds S T4, and East (3rd) holds S KJ8.
+    //     Both SK and SJ tie in double-dummy tricks (1 trick for E/W), and
+    //     since East sees dummy's highest card is ST, East wins cheaply with
+    //     SJ rather than playing SK.
+    std::vector<uint64_t> hands_a = {
+        ParseHand("S Q6; H A;"),
+        ParseHand("S KJ8"),
+        ParseHand("S T4; H 2;"),
+        ParseHand("S A52"),
+    };
+    BoardState bs_a;
+    bs_a.SetHands(hands_a);
+    bs_a.SetLead(3);
+    bs_a.SetTrump(NOTRUMP);
+    bs_a.PlayCard(3, Card::ParseStringCard("S2"));
+    bs_a.PlayCard(0, Card::ParseStringCard("S6"));
+
+    OptimalLines lines_a;
+    DDSFindOptimalLines(bs_a, 0, &lines_a, nullptr);
+    ASSERT_FALSE(lines_a.empty());
+    for (const std::string &line : lines_a) {
+      ASSERT_EQ(line.rfind("S2 S6 SJ ", 0), 0u)
+          << "Expected East to play SJ (just above dummy's ST) rather than SK, "
+             "got: " << line;
+    }
+
+    // (b) West (1st) leads S9, North (2nd) plays S6, South (4th, dummy)
+    //     visibly holds only S 74, and East (3rd) holds S A2. Since partner's
+    //     S9 already beats dummy's S7, East ducks with S2 rather than
+    //     overtaking partner's S9 with SA.
+    std::vector<uint64_t> hands_b = {
+        ParseHand("S KQ6"),
+        ParseHand("S A2; H 2;"),
+        ParseHand("S 74; H 3;"),
+        ParseHand("S J95"),
+    };
+    BoardState bs_b;
+    bs_b.SetHands(hands_b);
+    bs_b.SetLead(3);
+    bs_b.SetTrump(NOTRUMP);
+    bs_b.PlayCard(3, Card::ParseStringCard("S9"));
+    bs_b.PlayCard(0, Card::ParseStringCard("S6"));
+
+    OptimalLines lines_b;
+    DDSFindOptimalLines(bs_b, 0, &lines_b, nullptr);
+    ASSERT_FALSE(lines_b.empty());
+    for (const std::string &line : lines_b) {
+      ASSERT_EQ(line.rfind("S9 S6 S2 ", 0), 0u)
+          << "Expected East to duck with S2 when partner's S9 already beats "
+             "dummy's S74, got: " << line;
+    }
+
+    // (c) West (1st) leads S2, North (2nd) puts in S8, East (3rd) holds S KJ9,
+    //     and South (4th, dummy) holds S A43. Dummy's SA cannot be beaten by
+    //     East anyway, and Dummy's remaining cards are S43, so East plays the
+    //     cheapest card that beats North's S8 and Dummy's S4 — namely S9 — to
+    //     force out Dummy's SA rather than wasting SK or SJ.
+    std::vector<uint64_t> hands_c = {
+        ParseHand("S QT8"),
+        ParseHand("S KJ9"),
+        ParseHand("S A43"),
+        ParseHand("S 752"),
+    };
+    BoardState bs_c;
+    bs_c.SetHands(hands_c);
+    bs_c.SetLead(3);
+    bs_c.SetTrump(NOTRUMP);
+    bs_c.PlayCard(3, Card::ParseStringCard("S2"));
+    bs_c.PlayCard(0, Card::ParseStringCard("S8"));
+
+    OptimalLines lines_c;
+    DDSFindOptimalLines(bs_c, 0, &lines_c, nullptr);
+    ASSERT_FALSE(lines_c.empty());
+    for (const std::string &line : lines_c) {
+      ASSERT_EQ(line.rfind("S2 S8 S9 ", 0), 0u)
+          << "Expected East to play S9 from KJ9 against North's S8 and "
+             "dummy's A43, got: " << line;
+    }
+  }
 }
 
 TEST(InterfaceDdsTest, DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake) {

@@ -238,11 +238,31 @@ optimal moves according to bridge conventions:
 3. **Following suit in 2nd, 3rd, 4th seat (`ChooseFollowingSuitPlay`)**:
    - **2nd seat (`level == 1`) or already ruffed**: 2nd-hand low
      (`PickLowestGroupPlay`).
-   - **3rd seat (`level == 2`, `ChooseThirdHandFollow`)**: If partner's `J` or
-     higher (`cur_win_rank >= 11`) is already winning, ducks with a lower card;
-     otherwise plays the cheapest winning card from the highest-ranked winning
-     DDS group (3rd-hand high, bottom of touching sequence), or lowest overall
-     if unable to beat `cur_win_rank`.
+   - **3rd seat (`level == 2`, `ChooseThirdHandFollow`)**:
+     - When Dummy (`seat 2`) is in 4th seat and cannot ruff, 3rd hand sees all
+       of 4th hand's remaining cards in `suit_led`: ignoring any Dummy cards
+       above 3rd hand's highest optimal card (`effective_dummy_max`), if
+       partner's card already beats `effective_dummy_max`, 3rd hand ducks with
+       a lower card; otherwise 3rd hand plays the cheapest optimal card above
+       `max(cur_win_rank, effective_dummy_max)` (so e.g. with `KJ9` over `S8`
+       into Dummy's `A43`, 3rd hand plays `S9` to force out `SA`).
+     - If partner's `J` or higher (`cur_win_rank >= 11`) is already winning,
+       ducks with a lower card unless 4th hand holds an intermediate honor
+       between `cur_win_rank` and 3rd hand's higher honor (and 2nd hand does
+       not visibly hold it), in which case 3rd hand plays its higher honor
+       (e.g., playing `SA` over partner's `SQ` when 4th hand holds `SK`).
+     - Skips any candidate winning group that is a touching equal to partner's
+       currently winning card (no unplayed card that 4th hand could hold from
+       3rd hand's single-dummy view lies strictly between `cur_win_rank` and
+       the candidate rank, e.g., refusing to play `ST` on partner's `S9`).
+     - When multiple winning DDS groups exist and 3rd hand holds a tenace over
+       2nd hand (every possible 4th-hand card between a cheaper winning group
+       and the highest winning group is absent, e.g., 3rd hand holds `AQ` after
+       2nd hand played low from `Kx`), finesses the cheaper winning group (`Q`)
+       rather than playing the top group (`A`).
+     - Otherwise plays the cheapest winning card from the highest-ranked
+       winning DDS group (3rd-hand high, bottom of touching sequence), or
+       lowest overall if unable to beat `cur_win_rank`.
    - **4th seat (`level == 3`, `ChooseFourthHandFollow`)**: Never overtakes
      partner's winning card; otherwise wins as cheaply as possible
      (`CheapestWinningRankInGroup`), or ducks with lowest card.

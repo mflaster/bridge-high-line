@@ -365,32 +365,197 @@ DefenderLeadEvaluation EvaluateDefenderLead(const BoardState &bs,
   return eval;
 }
 
-// 3rd-hand following-suit heuristic: play high from the highest winning group
-// unless partner's honor (>= J) is already winning and we can duck underneath.
+uint16_t RanksBetweenMask(int r1, int r2) {
+  if (r2 <= r1 + 1) {
+    return 0;
+  }
+  uint16_t below_r2 = static_cast<uint16_t>((1u << (r2 - 2)) - 1);
+  uint16_t at_or_below_r1 = static_cast<uint16_t>((1u << (r1 - 1)) - 1);
+  return below_r2 & ~at_or_below_r1;
+}
+
+// 3rd-hand following-suit heuristic:
+//   1. When partner's card is already winning, do not overtake partner's card
+//      unless partner's card is a spot (< J) AND 4th hand could possibly hold
+//      an intermediate card between partner's card and our card, OR partner
+//      led an honor (>= J) and 2nd hand visibly does NOT hold a higher card
+//      between partner's card and our higher honor (e.g. partner leads Q, 2nd
+//      hand has only low cards, and 3rd hand holds A with K possibly in 4th
+//      hand). Conversely, if 2nd hand holds Kx and played low on partner's Q,
+//      3rd hand ducks with A3.
+//   2. When playing 3rd hand high across multiple DDS-optimal winning groups
+//      (such as holding A Q when 2nd hand holds K x and played low), prefer a
+//      cheaper winning group if every unplayed card between that cheaper group
+//      and the highest winning group is visible in 2nd hand (which already
+//      played low), so 3rd hand finesses the Q rather than playing the A.
 DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
                                          const futureTricks &futp,
                                          int cur_winner, int partner,
                                          int cur_win_rank) {
+  Suit suit_led = bs.SuitLed();
+  uint64_t played = bs.played_cards();
+  for (int k = 0; k < bs.CardsPlayedThisTrick(); ++k) {
+    played |= bs.trick_cards_played()[k];
+  }
+  int second_seat = (bs.cur_trick_leader() + 1) % 4;
+  int fourth_seat = (bs.cur_trick_leader() + 3) % 4;
+  // Cards in `suit_led` that 3rd hand can see in Dummy (`seat 2`) when Dummy is
+  // in 2nd seat (already played low) vs. cards that 4th hand could possibly
+  // hold from 3rd hand's single-dummy perspective.
+  uint16_t visible_second_suit_mask = 0;
+  if (second_seat == 2) {
+    visible_second_suit_mask = static_cast<uint16_t>(
+        ((bs.GetHand(2) & ~played) >> (suit_led * 16)) & 0xffff);
+  }
+  uint64_t possible_fourth_hands =
+      (fourth_seat == 2)
+          ? (bs.GetHand(2) & ~played)
+          : ((bs.GetHand(0) | bs.GetHand(partner)) & ~played &
+             ~bs.GetHand(bs.CurPlayer()) & ~bs.GetHand(2));
+  uint16_t possible_fourth_suit_mask = static_cast<uint16_t>(
+      (possible_fourth_hands >> (suit_led * 16)) & 0xffff);
+
+  // Special rule when Dummy (`seat 2`) is in 4th seat (`fourth_seat == 2`):
+  // 3rd hand sees all of 4th hand's remaining cards!
+  //   - Provided Dummy either has a card in `suit_led` (so must follow suit) or
+  //     cannot ruff (`trump == NOTRUMP` or Dummy is void in trumps), 3rd hand
+  //     sees the exact ranks Dummy holds (`possible_fourth_suit_mask`).
+  //   - Any card(s) at the top of Dummy's holding that sit strictly above 3rd
+  //     hand's highest optimal card (`max_opt_rank`) cannot be beaten by 3rd
+  //     hand anyway (e.g., Dummy holds A 4 3 while 3rd hand holds K J 9).
+  //     To force out one of Dummy's top cards (or win if Dummy ducks), 3rd hand
+  //     only needs to beat `cur_win_rank` and the highest remaining Dummy card
+  //     below that unbeatable top run!
+  //   - For example: West leads S2, North plays S8, East holds KJ9, and Dummy
+  //     holds A43. Dummy's SA is above East's SK, and Dummy's remaining cards
+  //     below SA are 43 (max 4), so East plays the cheapest optimal card above
+  //     max(8, 4) = 8, which is S9.
+  //   - Similarly, if partner's card already beats `effective_dummy_max` (and
+  //     Dummy has no higher unbeatable card, or partner's card already forces
+  //     Dummy's unbeatable card), 3rd hand ducks with a lower optimal card.
+  Suit trump = bs.GetTrump();
+  bool dummy_can_ruff =
+      (fourth_seat == 2 && possible_fourth_suit_mask == 0 &&
+       trump != NOTRUMP && trump != suit_led &&
+       (((bs.GetHand(2) & ~played) >> (trump * 16)) & 0xffff) != 0);
+  if (fourth_seat == 2 && !dummy_can_ruff) {
+    int max_opt_rank = 0;
+    for (int i = 0; i < futp.cards; ++i) {
+      max_opt_rank = std::max(max_opt_rank, futp.rank[i]);
+    }
+    uint16_t beatable_dummy_mask = possible_fourth_suit_mask;
+    if (max_opt_rank >= 2 && max_opt_rank < 14) {
+      uint16_t below_max_opt =
+          static_cast<uint16_t>((1u << (max_opt_rank - 1)) - 1);
+      beatable_dummy_mask &= below_max_opt;
+    }
+    int effective_dummy_max =
+        (beatable_dummy_mask != 0)
+            ? (31 - __builtin_clz(beatable_dummy_mask) + 2)
+            : 0;
+    if (cur_winner == partner && cur_win_rank > effective_dummy_max) {
+      DefenderPlayChoice low = FinalizeDefenderChoice(
+          bs, futp, PickLowestGroupPlay(futp));
+      if (low.rank < cur_win_rank) {
+        return low;
+      }
+    }
+    int rank_to_beat = std::max(cur_win_rank, effective_dummy_max);
+    int cheapest_idx = -1;
+    int cheapest_rank = 100;
+    for (int i = 0; i < futp.cards; ++i) {
+      if (futp.rank[i] > rank_to_beat) {
+        int r = CheapestWinningRankInGroup(futp, i, rank_to_beat);
+        if (r < cheapest_rank) {
+          cheapest_rank = r;
+          cheapest_idx = i;
+        }
+      }
+    }
+    if (cheapest_idx >= 0) {
+      return FinalizeDefenderChoice(bs, futp, {cheapest_idx, cheapest_rank});
+    }
+  }
+
   if (cur_winner == partner && cur_win_rank >= 11) {
+    // Partner's honor (J, Q, K, or A) is currently winning. Normally 3rd hand
+    // ducks underneath partner's honor if a lower optimal card is available
+    // (e.g., 1st hand leads Q from QJ, 2nd hand plays low from Kx, and 3rd hand
+    // holds A3). However, if 3rd hand has an optimal higher honor (e.g. A over
+    // partner's Q) and 2nd hand does NOT hold the intermediate honor (e.g. 2nd
+    // hand has only low cards while 4th hand holds K), 3rd hand should play A
+    // rather than ducking partner's Q into 4th hand's K.
     DefenderPlayChoice low = FinalizeDefenderChoice(
         bs, futp, PickLowestGroupPlay(futp));
-    if (low.rank < cur_win_rank) {
+    bool fourth_can_cover_partner_honor = false;
+    for (int i = 0; i < futp.cards; ++i) {
+      if (futp.rank[i] > cur_win_rank) {
+        int base_r =
+            std::max(LowestRankInGroup(futp, i),
+                     CheapestWinningRankInGroup(futp, i, cur_win_rank));
+        uint16_t between = RanksBetweenMask(cur_win_rank, base_r);
+        // If 4th hand holds an intermediate card between partner's honor and
+        // our higher honor (so partner did not lead from KQ and 2nd hand does
+        // not hold K), 3rd hand plays high (A) over partner's Q.
+        uint16_t actual_fourth_suit_mask = static_cast<uint16_t>(
+            ((bs.GetHand(fourth_seat) & ~played) >> (suit_led * 16)) & 0xffff);
+        if ((actual_fourth_suit_mask & between) != 0 &&
+            (visible_second_suit_mask & between) == 0) {
+          fourth_can_cover_partner_honor = true;
+          break;
+        }
+      }
+    }
+    if (!fourth_can_cover_partner_honor && low.rank < cur_win_rank) {
       return low;
     }
   }
+
   int best_idx = -1;
   int highest_top = -1;
   for (int i = 0; i < futp.cards; ++i) {
     if (futp.rank[i] > cur_win_rank && futp.rank[i] > highest_top) {
+      int base_r =
+          std::max(LowestRankInGroup(futp, i),
+                   CheapestWinningRankInGroup(futp, i, cur_win_rank));
+      if (cur_winner == partner &&
+          (possible_fourth_suit_mask &
+           RanksBetweenMask(cur_win_rank, base_r)) == 0) {
+        continue;
+      }
       highest_top = futp.rank[i];
       best_idx = i;
     }
   }
   if (best_idx >= 0) {
-    int base_r =
+    int best_base_r =
         std::max(LowestRankInGroup(futp, best_idx),
                  CheapestWinningRankInGroup(futp, best_idx, cur_win_rank));
-    return FinalizeDefenderChoice(bs, futp, {best_idx, base_r});
+    // Tenace check in 3rd seat (e.g., 3rd hand holds A Q and 2nd hand holds
+    // K x and played low): if a cheaper winning group `i` exists and every
+    // unplayed card between `i`'s winning rank and `best_base_r` is either in
+    // 2nd hand (`visible_second_suit_mask`) or cannot be in 4th hand
+    // (`possible_fourth_suit_mask`), prefer the cheaper finesse play (Q) over
+    // the higher card (A).
+    for (int i = 0; i < futp.cards; ++i) {
+      if (i == best_idx || futp.rank[i] <= cur_win_rank) continue;
+      int cand_r =
+          std::max(LowestRankInGroup(futp, i),
+                   CheapestWinningRankInGroup(futp, i, cur_win_rank));
+      if (cand_r < best_base_r) {
+        if (cur_winner == partner &&
+            (possible_fourth_suit_mask &
+             RanksBetweenMask(cur_win_rank, cand_r)) == 0) {
+          continue;
+        }
+        uint16_t between = RanksBetweenMask(cand_r, best_base_r);
+        if ((possible_fourth_suit_mask & between) == 0) {
+          best_idx = i;
+          best_base_r = cand_r;
+        }
+      }
+    }
+    return FinalizeDefenderChoice(bs, futp, {best_idx, best_base_r});
   }
   // Cannot beat the current winning card; play 3rd hand low.
   return FinalizeDefenderChoice(bs, futp, PickLowestGroupPlay(futp));
@@ -640,15 +805,6 @@ bool CanNeedUnblockForPartner(uint16_t my_sm, uint16_t p_sm, int p_after,
   int my_lowest_after = __builtin_ctz(my_rem_after) + 2;
   int p_highest = 31 - __builtin_clz(p_sm) + 2;
   return my_lowest_after > p_highest;
-}
-
-uint16_t RanksBetweenMask(int r1, int r2) {
-  if (r2 <= r1 + 1) {
-    return 0;
-  }
-  uint16_t below_r2 = static_cast<uint16_t>((1u << (r2 - 2)) - 1);
-  uint16_t at_or_below_r1 = static_cast<uint16_t>((1u << (r1 - 1)) - 1);
-  return below_r2 & ~at_or_below_r1;
 }
 
 int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
