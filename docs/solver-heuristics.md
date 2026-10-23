@@ -240,6 +240,10 @@ optimal moves according to bridge conventions:
      (`PickLowestGroupPlay`).
    - **3rd seat (`level == 2`, `ChooseThirdHandFollow`)**: If partner's `J` or
      higher (`cur_win_rank >= 11`) is already winning, ducks with a lower card;
+     also skips any candidate winning group that is a touching equal to
+     partner's currently winning card (no unplayed card that 4th hand could
+     hold from 3rd hand's single-dummy view lies strictly between `cur_win_rank`
+     and the candidate rank, e.g., refusing to play `ST` on partner's `S9`);
      otherwise plays the cheapest winning card from the highest-ranked winning
      DDS group (3rd-hand high, bottom of touching sequence), or lowest overall
      if unable to beat `cur_win_rank`.

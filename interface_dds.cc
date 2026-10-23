@@ -365,8 +365,21 @@ DefenderLeadEvaluation EvaluateDefenderLead(const BoardState &bs,
   return eval;
 }
 
+uint16_t RanksBetweenMask(int r1, int r2) {
+  if (r2 <= r1 + 1) {
+    return 0;
+  }
+  uint16_t below_r2 = static_cast<uint16_t>((1u << (r2 - 2)) - 1);
+  uint16_t at_or_below_r1 = static_cast<uint16_t>((1u << (r1 - 1)) - 1);
+  return below_r2 & ~at_or_below_r1;
+}
+
 // 3rd-hand following-suit heuristic: play high from the highest winning group
-// unless partner's honor (>= J) is already winning and we can duck underneath.
+// unless partner's card is already winning and either:
+//   - partner's card is an honor (>= J) that we can duck underneath, or
+//   - no card that 4th hand could possibly hold lies strictly between
+//     partner's winning card and our candidate card (e.g. playing ST on
+//     partner's S9), so overtaking partner's card would only waste an equal.
 DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
                                          const futureTricks &futp,
                                          int cur_winner, int partner,
@@ -378,10 +391,34 @@ DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
       return low;
     }
   }
+  uint16_t possible_fourth_suit_mask = 0xffff;
+  if (cur_winner == partner) {
+    Suit suit_led = bs.SuitLed();
+    uint64_t played = bs.played_cards();
+    for (int k = 0; k < bs.CardsPlayedThisTrick(); ++k) {
+      played |= bs.trick_cards_played()[k];
+    }
+    int fourth_seat = (bs.cur_trick_leader() + 3) % 4;
+    uint64_t possible_fourth_hands =
+        (fourth_seat == 2)
+            ? (bs.GetHand(2) & ~played)
+            : ((bs.GetHand(0) | bs.GetHand(partner)) & ~played &
+               ~bs.GetHand(bs.CurPlayer()) & ~bs.GetHand(2));
+    possible_fourth_suit_mask = static_cast<uint16_t>(
+        (possible_fourth_hands >> (suit_led * 16)) & 0xffff);
+  }
   int best_idx = -1;
   int highest_top = -1;
   for (int i = 0; i < futp.cards; ++i) {
     if (futp.rank[i] > cur_win_rank && futp.rank[i] > highest_top) {
+      int base_r =
+          std::max(LowestRankInGroup(futp, i),
+                   CheapestWinningRankInGroup(futp, i, cur_win_rank));
+      if (cur_winner == partner &&
+          (possible_fourth_suit_mask &
+           RanksBetweenMask(cur_win_rank, base_r)) == 0) {
+        continue;
+      }
       highest_top = futp.rank[i];
       best_idx = i;
     }
@@ -640,15 +677,6 @@ bool CanNeedUnblockForPartner(uint16_t my_sm, uint16_t p_sm, int p_after,
   int my_lowest_after = __builtin_ctz(my_rem_after) + 2;
   int p_highest = 31 - __builtin_clz(p_sm) + 2;
   return my_lowest_after > p_highest;
-}
-
-uint16_t RanksBetweenMask(int r1, int r2) {
-  if (r2 <= r1 + 1) {
-    return 0;
-  }
-  uint16_t below_r2 = static_cast<uint16_t>((1u << (r2 - 2)) - 1);
-  uint16_t at_or_below_r1 = static_cast<uint16_t>((1u << (r1 - 1)) - 1);
-  return below_r2 & ~at_or_below_r1;
 }
 
 int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,

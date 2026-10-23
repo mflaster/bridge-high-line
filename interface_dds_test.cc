@@ -233,6 +233,60 @@ TEST(InterfaceDdsTest, DefenderSeatRules_ThirdHandHighAndEquals) {
   }
   ASSERT_TRUE(saw_sq > 5);
   ASSERT_TRUE(saw_sk > 5);
+
+  {  // 3rd hand does not overtake partner's winning S9 with touching ST
+    // East (Hand 1) leads S9, South (Hand 2, dummy) plays S4, and West (Hand 3)
+    // holds S T532 with North (Hand 0) holding S AK87 in 4th seat. Playing ST
+    // on partner's S9 wastes an equal (no card lies between 9 and T), so West
+    // must duck with S2 rather than overtaking with ST.
+    std::vector<uint64_t> hands = {
+        ParseHand("S AK87"),
+        ParseHand("S 9; H 432;"),
+        ParseHand("S QJ64"),
+        ParseHand("S T532"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(1, Card::ParseStringCard("S9"));
+    bs.PlayCard(2, Card::ParseStringCard("S4"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("S9 S4 S2 ", 0), 0u)
+          << "Expected West to duck with S2 on partner's S9, got: " << line;
+    }
+  }
+
+  {  // 3rd hand does not overtake partner's S8 with ST when S9 is in dummy
+    // East (Hand 1) leads S8, South (Hand 2, dummy) holds S QJ94 and plays S4,
+    // and West (Hand 3) holds S T532 with North (Hand 0) holding S AK76. Since
+    // S9 is visible in dummy, ST and S8 are touching equals against 4th hand,
+    // so West must duck with S2 rather than overtaking partner's S8 with ST.
+    std::vector<uint64_t> hands = {
+        ParseHand("S AK76"),
+        ParseHand("S 8; H 432;"),
+        ParseHand("S QJ94"),
+        ParseHand("S T532"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(1);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(1, Card::ParseStringCard("S8"));
+    bs.PlayCard(2, Card::ParseStringCard("S4"));
+
+    OptimalLines lines;
+    DDSFindOptimalLines(bs, 0, &lines, nullptr);
+    ASSERT_FALSE(lines.empty());
+    for (const std::string &line : lines) {
+      ASSERT_EQ(line.rfind("S8 S4 S2 ", 0), 0u)
+          << "Expected West to duck with S2 on partner's S8, got: " << line;
+    }
+  }
 }
 
 TEST(InterfaceDdsTest, DefenderSeatRules_FourthHandWinCheaplyAndNoOvertake) {

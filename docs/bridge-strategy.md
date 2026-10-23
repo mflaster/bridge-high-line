@@ -127,8 +127,10 @@ double-dummy defense, defenders break ties using normal human carding rules:
 - **2nd hand**: Defenders play **2nd hand low**, playing their lowest optimal
   spot card.
 - **3rd hand**: Defenders play **3rd hand high** (the cheapest of touching high
-  cards), unless partner led an honor (Jack or higher) that is currently winning
-  the trick and they have a lower optimal card that avoids overtaking partner.
+  cards), unless partner's card is already winning the trick and either partner
+  led an honor (Jack or higher) or 3rd hand's card is a touching equal to
+  partner's card (such as holding the **10** when partner's **9** is winning),
+  in which case 3rd hand plays low to avoid wasting an equal.
 - **4th hand**: If declarer or dummy is currently winning the trick, 4th hand
   wins as cheaply as possible; if partner is already winning, 4th hand plays low
   unless forced to overtake.
