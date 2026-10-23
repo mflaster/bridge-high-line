@@ -13,6 +13,7 @@
 int EnsureDDSInitialized();
 
 void PopulatePBNDeal(const BoardState &bs, dealPBN *d1);
+void PopulateDeal(const BoardState &bs, deal *d1);
 
 int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
                         OptimalLines *lines, SolverCache *cache);

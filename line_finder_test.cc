@@ -1214,3 +1214,42 @@ TEST(LineFinderTest, LineFinder_PrefersDrawingTrumpsWhenAllElseEqual) {
     EXPECT_EQ(t1.find("SA"), std::string::npos) << t1;
   }
 }
+
+TEST(LineFinderTest, LineFinder_BranchOnGoodCardNonTouchingEquivalentSpots) {
+  // After South leads C5 to North's CA, North holds C64 (equivalent once C5 is
+  // played, so DDS canonicalizes the cash to C4) plus D8 opposite South's DAQJ.
+  // - Boards 0..9: Clubs 1-1 (CK, CQ both fall on trick 1) and DK offside in
+  //   West -> must cash C6/C4 ("if C6 is good"), then C6/C4 and DA.
+  // - Boards 10..19: Clubs 2-0 in East with DK7 onside -> C6 is not good, so
+  //   fall back to leading D8 through East to finesse DJ ("if C6 is not good").
+  std::vector<uint64_t> hands = {
+      ParseHand("D 8; C A64;"),
+      0,
+      ParseHand("D AQJ; C 5;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("D KT9732; C KQ;");
+  std::vector<BoardState> boards(20);
+  for (int i = 0; i < 20; ++i) {
+    bool clubs_good = (i < 10);
+    std::vector<uint64_t> h = {
+        hands[0],
+        ParseHand(clubs_good ? "D T72; C K;" : "D K7; C KQ;"),
+        hands[2],
+        ParseHand(clubs_good ? "D K93; C Q;" : "D T932;"),
+    };
+    boards[i].SetHands(h);
+    boards[i].SetTrump(SPADES);
+    boards[i].SetLead(2);
+    boards[i].set_board_id(i + 1);
+  }
+  LineFinder lf(20);
+  lf.SetPredealtBoards(boards);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(4, hands, unknown, /*leader=*/2, SPADES);
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe(0);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 20) << desc;
+  EXPECT_NE(desc.find("if C6 is good"), std::string::npos) << desc;
+  EXPECT_NE(desc.find("if C6 is not good"), std::string::npos) << desc;
+}

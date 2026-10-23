@@ -67,17 +67,43 @@ void PopulatePBNDeal(const BoardState &bs, dealPBN *d1) {
   strcpy(d1->remainCards, bs.GetPBNCards().c_str());
 }
 
+void PopulateDeal(const BoardState &bs, deal *d1) {
+  DoInit();
+  d1->trump = bs.GetTrump();
+  d1->first = bs.cur_trick_leader();
+  uint64_t played = bs.played_cards();
+  for (int i = 0; i < 3; i++) {
+    if (i < bs.CardsPlayedThisTrick()) {
+      CardType c = bs.trick_cards_played()[i];
+      played |= c;
+      auto [suit, val] = Card::DecodeCard(c);
+      d1->currentTrickSuit[i] = suit;
+      d1->currentTrickRank[i] = val + 2;
+    } else {
+      d1->currentTrickSuit[i] = 0;
+      d1->currentTrickRank[i] = 0;
+    }
+  }
+  for (int h = 0; h < 4; ++h) {
+    uint64_t rem = bs.GetHand(h) & ~played;
+    for (int s = 0; s < 4; ++s) {
+      d1->remainCards[h][s] =
+          static_cast<unsigned int>(((rem >> (s * 16)) & 0x1fffULL) << 2);
+    }
+  }
+}
+
 std::vector<std::string> FindBestCardsToPlay(
     const BoardState &bs, int min_tricks) {
-  dealPBN dl;
-  PopulatePBNDeal(bs, &dl);
+  deal dl;
+  PopulateDeal(bs, &dl);
 
   int target = -1;  // Find optimal solution for side to play
-  int solutions = 2; // Return all optimum cards and their scores.
+  int solutions = 2;  // Return all optimum cards and their scores.
   int mode = 1;  // automatic reuse of state / always search
   int threadindex = omp_get_thread_num();
   futureTricks futp;
-  SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  SolveBoard(dl, target, solutions, mode, &futp, threadindex);
   std::vector<std::string> ans;
   CHECK_GT(futp.cards, 0);
   int result = futp.score[0];
@@ -109,15 +135,15 @@ int FindOptimalTricks(const BoardState &bs) {
     int won_even = copy.tricks_won_even() - bs.tricks_won_even();
     return (bs.CurPlayer() % 2 == 0) ? won_even : (1 - won_even);
   }
-  dealPBN dl;
-  PopulatePBNDeal(bs, &dl);
+  deal dl;
+  PopulateDeal(bs, &dl);
 
   int target = -1;  // Find optimal solution for side to play
-  int solutions = 2; // Return all optimum cards and their scores.
+  int solutions = 2;  // Return all optimum cards and their scores.
   int mode = 1;  // automatic reuse of state / always search
   int threadindex = omp_get_thread_num();
   futureTricks futp{};
-  int rc = SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
   if (rc != RETURN_NO_FAULT || futp.cards <= 0 || futp.score[0] < 0) {
     return 0;
   }
@@ -709,14 +735,14 @@ std::string FindBestDefenderCard(const BoardState &bs, int noise_pct) {
   if (valid.size() == 1) {
     return Card::PrintCard(valid[0]);
   }
-  dealPBN dl;
-  PopulatePBNDeal(bs, &dl);
+  deal dl;
+  PopulateDeal(bs, &dl);
   futureTricks futp{};
   int target = -1;
   int solutions = 2;
   int mode = 1;
   int threadindex = omp_get_thread_num();
-  int rc = SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
   if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
     return valid.empty() ? "" : Card::PrintCard(valid[0]);
   }
@@ -736,14 +762,14 @@ std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs) {
   if (valid.size() == 1) {
     return {Card::PrintCard(valid[0])};
   }
-  dealPBN dl;
-  PopulatePBNDeal(bs, &dl);
+  deal dl;
+  PopulateDeal(bs, &dl);
   futureTricks futp{};
   int target = -1;
   int solutions = 2;
   int mode = 1;
   int threadindex = omp_get_thread_num();
-  int rc = SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
+  int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
   if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
     return {Card::PrintCard(valid[0])};
   }
@@ -807,9 +833,9 @@ bool CanNeedUnblockForPartner(uint16_t my_sm, uint16_t p_sm, int p_after,
   return my_lowest_after > p_highest;
 }
 
-int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
-                   int level, OptimalLines *lines,
-                   PartnerLeadInfo partner_lead = {}) {
+int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
+                   OptimalLines *lines, PartnerLeadInfo partner_lead = {},
+                   bool is_root_call = true) {
   DoInit();
   VLOG(2) << "DDSSolveHelper level " << level;
   CHECK_LT(level, 4);
@@ -820,6 +846,37 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   if (min_tricks > total_tricks) {
     return 0;
   }
+  if (total_tricks == 1) {
+    CardType rem_cards[4] = {};
+    bool all_singletons = true;
+    for (int k = level; k < 4; ++k) {
+      int p = (bs.cur_trick_leader() + k) % 4;
+      CardType c = bs.GetHand(p) & ~bs.played_cards();
+      if (PopCount64(c) != 1) {
+        all_singletons = false;
+        break;
+      }
+      rem_cards[k] = c;
+    }
+    if (all_singletons) {
+      BoardState copy(bs);
+      std::string line_str;
+      line_str.reserve(12);
+      for (int k = level; k < 4; ++k) {
+        int p = (bs.cur_trick_leader() + k) % 4;
+        copy.PlayCard(p, rem_cards[k]);
+        line_str += Card::PrintCard(rem_cards[k]);
+        line_str += ' ';
+      }
+      int won_even = copy.tricks_won_even() - bs.tricks_won_even();
+      int result = pair_is_me ? won_even : (1 - won_even);
+      if (min_tricks >= 1 && won_even < min_tricks) {
+        return result;
+      }
+      lines->insert(std::move(line_str));
+      return result;
+    }
+  }
   // For declarer, ask DDS for every card that still makes min_tricks rather
   // than only the cards that maximize tricks. The search's objective is to
   // make the contract on as many boards as possible, so a play that makes
@@ -827,24 +884,69 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
   // play (dropping an offside doubleton queen, say) would win an overtrick on
   // this particular board. Once the contract is secure (min_tricks <= 0) the
   // maximal plays suffice and keep the tree small.
-  bool use_min_tricks_target = pair_is_me && min_tricks >= 1;
   futureTricks futp{};
-  int target = use_min_tricks_target ? min_tricks : -1;
-  int solutions = 2;  // Return all optimum cards and their scores.
-  int mode = 2;       // force reuse of state
-  int threadindex = omp_get_thread_num();
-  int rc = SolveBoardPBN(dl, target, solutions, mode, &futp, threadindex);
-  if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
-    return -1;
-  }
-
-  int result = futp.score[0];
-  if (min_tricks >= 1) {
-    if (defense && total_tricks - result < min_tricks) {
-      return result;
+  int result = 0;
+  bool solved_by_fast_path = false;
+  if (!is_root_call && level >= 1) {
+    Suit suit_led = bs.SuitLed();
+    if (suit_led != NOTRUMP) {
+      uint64_t trick_mask = 0;
+      for (int k = 0; k < level; ++k) {
+        trick_mask |= bs.trick_cards_played()[k];
+      }
+      uint64_t active_played = bs.played_cards() | trick_mask;
+      int me = bs.CurPlayer();
+      uint16_t my_suit_bits = static_cast<uint16_t>(
+          ((bs.GetHand(me) & ~active_played) >> (suit_led * 16)) &
+          0x1fffULL);
+      if (my_suit_bits != 0) {
+        int low_val = __builtin_ctz(my_suit_bits);
+        int high_val = 31 - __builtin_clz(my_suit_bits);
+        bool single_equiv_group = (low_val == high_val);
+        if (!single_equiv_group) {
+          uint64_t other_hands = 0;
+          for (int h = 0; h < 4; ++h) {
+            if (h != me) other_hands |= bs.GetHand(h);
+          }
+          uint16_t non_removed_other = static_cast<uint16_t>(
+              (((other_hands & ~active_played) | trick_mask) >>
+               (suit_led * 16)) &
+              0x1fffULL);
+          uint16_t between_excl = static_cast<uint16_t>(
+              ((1u << high_val) - 1u) & ~((1u << (low_val + 1)) - 1u));
+          single_equiv_group = ((non_removed_other & between_excl) == 0);
+        }
+        if (single_equiv_group) {
+          futp.cards = 1;
+          futp.suit[0] = suit_led;
+          futp.rank[0] = high_val + 2;
+          futp.equals[0] =
+              static_cast<int>((my_suit_bits & ~(1u << high_val)) << 2);
+          futp.score[0] = min_tricks;
+          solved_by_fast_path = true;
+        }
+      }
     }
-    if (pair_is_me && result < min_tricks) {
-      return result;
+  }
+  if (!solved_by_fast_path) {
+    bool use_min_tricks_target = pair_is_me && min_tricks >= 1;
+    int target = use_min_tricks_target ? min_tricks : -1;
+    int solutions = 2;  // Return all optimum cards and their scores.
+    int mode = 2;       // force reuse of state
+    int threadindex = omp_get_thread_num();
+    int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
+    if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
+      return -1;
+    }
+
+    result = futp.score[0];
+    if (min_tricks >= 1) {
+      if (defense && total_tricks - result < min_tricks) {
+        return result;
+      }
+      if (pair_is_me && result < min_tricks) {
+        return result;
+      }
     }
   }
   int card_to_play = -1;
@@ -1141,18 +1243,27 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, dealPBN &dl,
     if (level < 3) {
       BoardState copy(bs);
       CardType c_val = Card::ParseStringCard(c);
-      copy.PlayCard(copy.CurPlayer(), c_val);
+      int me = copy.CurPlayer();
+      copy.PlayCard(me, c_val);
 
-      dl.currentTrickSuit[level] = futp.suit[i];
+      int played_suit = futp.suit[i];
+      unsigned int card_bit = 1u << rank_to_play;
+      int prev_suit = dl.currentTrickSuit[level];
+      int prev_rank = dl.currentTrickRank[level];
+      dl.currentTrickSuit[level] = played_suit;
       dl.currentTrickRank[level] = rank_to_play;
-      strcpy(dl.remainCards, copy.GetPBNCards().c_str());
+      dl.remainCards[me][played_suit] ^= card_bit;
       PartnerLeadInfo next_lead =
           (level == 0 && pair_is_me)
-              ? PartnerLeadInfo{lowest_lead_rank[futp.suit[i]],
-                                cheapest_master_lead_rank[futp.suit[i]],
-                                opp_suit_mask[futp.suit[i]]}
+              ? PartnerLeadInfo{lowest_lead_rank[played_suit],
+                                cheapest_master_lead_rank[played_suit],
+                                opp_suit_mask[played_suit]}
               : partner_lead;
-      DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, next_lead);
+      DDSSolveHelper(min_tricks, copy, dl, level + 1, &rest, next_lead,
+                     /*is_root_call=*/false);
+      dl.remainCards[me][played_suit] ^= card_bit;
+      dl.currentTrickSuit[level] = prev_suit;
+      dl.currentTrickRank[level] = prev_rank;
     } else {
       rest.insert("");
     }
@@ -1176,8 +1287,8 @@ int DDSFindOptimalLines(const BoardState &bs, int min_tricks,
   CHECK(lines);
   lines->clear();
 
-  dealPBN dl;
-  PopulatePBNDeal(bs, &dl);
+  deal dl;
+  PopulateDeal(bs, &dl);
 
   int played = bs.CardsPlayedThisTrick();
   OptimalLines raw_lines;
