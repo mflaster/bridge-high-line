@@ -200,10 +200,10 @@ def patch_system_cpp(system_cpp: pathlib.Path) -> None:
       "  (void) System::GetCores(ncores);\n\n"
       "#ifdef __EMSCRIPTEN__\n"
       "#ifdef __EMSCRIPTEN_PTHREADS__\n"
-      "  kilobytesFree = 1024ULL * 1024ULL;\n"
+      "  kilobytesFree = 256ULL * 1024ULL;\n"
       "  ncores = 8;\n"
       "#else\n"
-      "  kilobytesFree = 512ULL * 1024ULL;\n"
+      "  kilobytesFree = 256ULL * 1024ULL;\n"
       "  ncores = 1;\n"
       "#endif\n"
       "  return;\n"
@@ -211,27 +211,30 @@ def patch_system_cpp(system_cpp: pathlib.Path) -> None:
   )
   if emscripten_block in normalized:
     return
-  old_block = (
-      "  (void) System::GetCores(ncores);\n\n"
-      "#ifdef __EMSCRIPTEN__\n"
-      "#ifdef __EMSCRIPTEN_PTHREADS__\n"
-      "  kilobytesFree = 512ULL * 1024ULL;\n"
-      "  ncores = 8;\n"
-      "#else\n"
-      "  kilobytesFree = 512ULL * 1024ULL;\n"
-      "  ncores = 1;\n"
-      "#endif\n"
-      "  return;\n"
-      "#endif"
-  )
-  if old_block in normalized:
-    patched = normalized.replace(old_block, emscripten_block, 1)
-  elif "  (void) System::GetCores(ncores);" in normalized:
-    patched = normalized.replace(
-        "  (void) System::GetCores(ncores);", emscripten_block, 1
+  for old_kb in ("1024ULL * 1024ULL", "512ULL * 1024ULL"):
+    old_block = (
+        "  (void) System::GetCores(ncores);\n\n"
+        "#ifdef __EMSCRIPTEN__\n"
+        "#ifdef __EMSCRIPTEN_PTHREADS__\n"
+        f"  kilobytesFree = {old_kb};\n"
+        "  ncores = 8;\n"
+        "#else\n"
+        "  kilobytesFree = 512ULL * 1024ULL;\n"
+        "  ncores = 1;\n"
+        "#endif\n"
+        "  return;\n"
+        "#endif"
     )
+    if old_block in normalized:
+      patched = normalized.replace(old_block, emscripten_block, 1)
+      break
   else:
-    raise RuntimeError(f"Could not find target line in {system_cpp}")
+    if "  (void) System::GetCores(ncores);" in normalized:
+      patched = normalized.replace(
+          "  (void) System::GetCores(ncores);", emscripten_block, 1
+      )
+    else:
+      raise RuntimeError(f"Could not find target line in {system_cpp}")
   if nl == "\r\n":
     patched = patched.replace("\n", "\r\n")
   system_cpp.write_text(patched, encoding="utf-8")

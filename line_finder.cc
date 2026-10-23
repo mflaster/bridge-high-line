@@ -394,6 +394,20 @@ static std::atomic<uint64_t> g_memo_misses{0};
 static std::atomic<uint64_t> g_memo_evictions{0};
 
 namespace {
+
+size_t NonStateExtraBranches(const ConditionalLine &cl) {
+  const auto &conds = cl.conditions();
+  bool is_state = !conds.empty() && conds[0].first &&
+                  conds[0].first->IsStateCondition();
+  size_t extra = (!is_state && conds.size() > 1) ? (conds.size() - 1) : 0;
+  for (const auto &[_cond, child] : conds) {
+    if (child) {
+      extra += NonStateExtraBranches(*child);
+    }
+  }
+  return extra;
+}
+
 std::mutex g_status_mutex;
 std::string g_solve_status = "Idle";
 // Progress tree of the search currently running, if any; the status reported
@@ -1295,11 +1309,11 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
       return;
     }
     int next_leader = wb.next_leader;
+    int next_lvl_top_k = TopKForLevel(lvl + 1, wb.boards.size());
     int branch_top_k =
         (child_top_k <= 1 || wb.boards.size() < 4)
             ? 1
-            : ((entries.size() == 1) ? child_top_k
-                                     : std::min(child_top_k, top_k_lvl1_));
+            : std::min(child_top_k, next_lvl_top_k);
     int trick_won = (next_leader % 2 == 0) ? 1 : 0;
     int next_min_tricks = min_tricks - trick_won;
     int cards_left = board_trees.at(wb.entries[0]->board)->CardsLeft();
@@ -1715,7 +1729,9 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   int child_top_k =
       (top_k <= 1 || top_k_lvl1_ <= 1 || board_offsets.size() < 4)
           ? 1
-          : ((groupings.size() == 1) ? top_k : std::min(top_k, top_k_lvl1_));
+          : ((lvl == 0 && groupings.size() == 1)
+                 ? std::min(top_k, top_k_lvl1_)
+                 : std::min(top_k, TopKForLevel(lvl, board_offsets.size())));
   struct TopCandidate {
     int covered = 0;
     size_t num_conds = 0;
@@ -1736,7 +1752,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   size_t known_best_idx = groupings.size();
 
   auto competitive_window_floor = [&]() -> int {
-    if (top_k > 1 && most_boards_covered > 0 && lvl > 0 &&
+    if (top_k > 1 && most_boards_covered > 0 &&
+        (lvl > 0 || !keep_all_top_k_) &&
         most_boards_covered >= min_covered) {
       int slack = std::max(2, most_boards_covered / 6);
       return std::max(1, most_boards_covered - slack);
@@ -1746,8 +1763,35 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
 
   auto top_k_prune_floor = [&](size_t group_size, bool draws_trump) -> int {
     int floor_cov = competitive_window_floor();
-    if (lvl >= 1 && group_size > 1 && most_boards_covered > 0) {
+    if ((lvl >= 1 || (!keep_all_top_k_ && leader % 2 != 0)) &&
+        group_size > 1 && most_boards_covered > 0) {
       floor_cov = std::max(floor_cov, most_boards_covered + 1);
+    }
+    if (lvl >= 1 && !top_candidates.empty()) {
+      size_t min_eb = top_candidates[0].extra_branches;
+      size_t min_nseb = NonStateExtraBranches(top_candidates[0].line);
+      int min_nseb_cov = top_candidates[0].covered;
+      size_t min_nseb_conds = top_candidates[0].num_conds;
+      bool min_nseb_dt = top_candidates[0].draws_trump;
+      for (const auto &tc : top_candidates) {
+        if (tc.extra_branches < min_eb) {
+          min_eb = tc.extra_branches;
+        }
+        size_t nseb = NonStateExtraBranches(tc.line);
+        if (nseb < min_nseb) {
+          min_nseb = nseb;
+          min_nseb_cov = tc.covered;
+          min_nseb_conds = tc.num_conds;
+          min_nseb_dt = tc.draws_trump;
+        }
+      }
+      if (min_nseb == 0 && min_eb > 0) {
+        bool can_win_min_eb_tie =
+            (group_size < min_nseb_conds) ||
+            (group_size == min_nseb_conds && draws_trump && !min_nseb_dt);
+        int eb0_floor = can_win_min_eb_tie ? min_nseb_cov : (min_nseb_cov + 1);
+        floor_cov = std::max(floor_cov, eb0_floor);
+      }
     }
     if (static_cast<int>(top_candidates.size()) >= top_k && top_k > 0) {
       int full_cov = top_candidates.back().covered;
@@ -2356,7 +2400,7 @@ void LineFinder::TryBranchOnGoodCards(
   int child_top_k =
       (top_k <= 1 || top_k_lvl1_ <= 1 || solvable_boards.size() < 4)
           ? 1
-          : std::min(top_k, top_k_lvl1_);
+          : std::min(top_k, TopKForLevel(lvl + 1, solvable_boards.size()));
 
   auto try_state_split = [&](const std::set<int> &true_boards,
                              const std::set<int> &false_boards,

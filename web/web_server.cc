@@ -1683,6 +1683,7 @@ std::unique_ptr<LineFinder> WebServer::CheckoutLineFinder(
       *reused_lf = true;
       return std::move(cached_lf_);
     }
+    cached_lf_.reset();
   }
   auto lf = std::make_unique<LineFinder>(num_iters);
   if (!reqs_json.is_null() && !reqs_json.empty()) {
@@ -1991,6 +1992,11 @@ std::string WebServer::SolveJson(const std::string &req_body,
             lf->SetSharedCache(last_solver_cache_);
           }
         }
+      } else {
+        std::lock_guard<std::mutex> lock(cached_lf_mu_);
+        last_initial_boards_.clear();
+        last_initial_boards_.shrink_to_fit();
+        last_solver_cache_.reset();
       }
 
       std::vector<ConditionalLine> lines =

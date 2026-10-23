@@ -40,6 +40,7 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 const char *wasm_solve_json(const char *req_json) {
   static std::string last_response;
+  std::string().swap(last_response);
   last_response =
       GetSolverEngine().SolveJson(req_json != nullptr ? req_json : "{}");
   return last_response.c_str();
