@@ -503,6 +503,33 @@ TEST(InterfaceDdsTest, DefenderSeatRules_ThirdHandHighAndEquals) {
           << "Expected East to duck with S2 when partner's S9 already beats "
              "dummy's S74, got: " << line;
     }
+
+    // (c) West (1st) leads S2, North (2nd) puts in S8, East (3rd) holds S KJ9,
+    //     and South (4th, dummy) holds S A43. Dummy's SA cannot be beaten by
+    //     East anyway, and Dummy's remaining cards are S43, so East plays the
+    //     cheapest card that beats North's S8 and Dummy's S4 — namely S9 — to
+    //     force out Dummy's SA rather than wasting SK or SJ.
+    std::vector<uint64_t> hands_c = {
+        ParseHand("S QT8"),
+        ParseHand("S KJ9"),
+        ParseHand("S A43"),
+        ParseHand("S 752"),
+    };
+    BoardState bs_c;
+    bs_c.SetHands(hands_c);
+    bs_c.SetLead(3);
+    bs_c.SetTrump(NOTRUMP);
+    bs_c.PlayCard(3, Card::ParseStringCard("S2"));
+    bs_c.PlayCard(0, Card::ParseStringCard("S8"));
+
+    OptimalLines lines_c;
+    DDSFindOptimalLines(bs_c, 0, &lines_c, nullptr);
+    ASSERT_FALSE(lines_c.empty());
+    for (const std::string &line : lines_c) {
+      ASSERT_EQ(line.rfind("S2 S8 S9 ", 0), 0u)
+          << "Expected East to play S9 from KJ9 against North's S8 and "
+             "dummy's A43, got: " << line;
+    }
   }
 }
 

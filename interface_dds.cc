@@ -419,30 +419,48 @@ DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
   // 3rd hand sees all of 4th hand's remaining cards!
   //   - Provided Dummy either has a card in `suit_led` (so must follow suit) or
   //     cannot ruff (`trump == NOTRUMP` or Dummy is void in trumps), 3rd hand
-  //     knows the exact highest rank Dummy can play (`dummy_max_rank`).
-  //   - If partner's card already beats `dummy_max_rank`, 3rd hand ducks with a
-  //     lower card if available.
-  //   - Otherwise, if 3rd hand can beat `max(cur_win_rank, dummy_max_rank)`,
-  //     3rd hand wins as cheaply as possible above that threshold rather than
-  //     playing its highest honor.
+  //     sees the exact ranks Dummy holds (`possible_fourth_suit_mask`).
+  //   - Any card(s) at the top of Dummy's holding that sit strictly above 3rd
+  //     hand's highest optimal card (`max_opt_rank`) cannot be beaten by 3rd
+  //     hand anyway (e.g., Dummy holds A 4 3 while 3rd hand holds K J 9).
+  //     To force out one of Dummy's top cards (or win if Dummy ducks), 3rd hand
+  //     only needs to beat `cur_win_rank` and the highest remaining Dummy card
+  //     below that unbeatable top run!
+  //   - For example: West leads S2, North plays S8, East holds KJ9, and Dummy
+  //     holds A43. Dummy's SA is above East's SK, and Dummy's remaining cards
+  //     below SA are 43 (max 4), so East plays the cheapest optimal card above
+  //     max(8, 4) = 8, which is S9.
+  //   - Similarly, if partner's card already beats `effective_dummy_max` (and
+  //     Dummy has no higher unbeatable card, or partner's card already forces
+  //     Dummy's unbeatable card), 3rd hand ducks with a lower optimal card.
   Suit trump = bs.GetTrump();
   bool dummy_can_ruff =
       (fourth_seat == 2 && possible_fourth_suit_mask == 0 &&
        trump != NOTRUMP && trump != suit_led &&
        (((bs.GetHand(2) & ~played) >> (trump * 16)) & 0xffff) != 0);
   if (fourth_seat == 2 && !dummy_can_ruff) {
-    int dummy_max_rank =
-        (possible_fourth_suit_mask != 0)
-            ? (31 - __builtin_clz(possible_fourth_suit_mask) + 2)
+    int max_opt_rank = 0;
+    for (int i = 0; i < futp.cards; ++i) {
+      max_opt_rank = std::max(max_opt_rank, futp.rank[i]);
+    }
+    uint16_t beatable_dummy_mask = possible_fourth_suit_mask;
+    if (max_opt_rank >= 2 && max_opt_rank < 14) {
+      uint16_t below_max_opt =
+          static_cast<uint16_t>((1u << (max_opt_rank - 1)) - 1);
+      beatable_dummy_mask &= below_max_opt;
+    }
+    int effective_dummy_max =
+        (beatable_dummy_mask != 0)
+            ? (31 - __builtin_clz(beatable_dummy_mask) + 2)
             : 0;
-    if (cur_winner == partner && cur_win_rank > dummy_max_rank) {
+    if (cur_winner == partner && cur_win_rank > effective_dummy_max) {
       DefenderPlayChoice low = FinalizeDefenderChoice(
           bs, futp, PickLowestGroupPlay(futp));
       if (low.rank < cur_win_rank) {
         return low;
       }
     }
-    int rank_to_beat = std::max(cur_win_rank, dummy_max_rank);
+    int rank_to_beat = std::max(cur_win_rank, effective_dummy_max);
     int cheapest_idx = -1;
     int cheapest_rank = 100;
     for (int i = 0; i < futp.cards; ++i) {
@@ -457,9 +475,6 @@ DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
     if (cheapest_idx >= 0) {
       return FinalizeDefenderChoice(bs, futp, {cheapest_idx, cheapest_rank});
     }
-    // If no optimal card beats Dummy's highest card (e.g., Dummy holds SA in
-    // 4th seat while 3rd hand holds SK8 over North's S6), fall through to
-    // standard 3rd-hand high so 3rd hand still forces out Dummy's higher honor.
   }
 
   if (cur_winner == partner && cur_win_rank >= 11) {
