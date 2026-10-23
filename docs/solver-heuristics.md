@@ -239,6 +239,12 @@ optimal moves according to bridge conventions:
    - **2nd seat (`level == 1`) or already ruffed**: 2nd-hand low
      (`PickLowestGroupPlay`).
    - **3rd seat (`level == 2`, `ChooseThirdHandFollow`)**:
+     - When Dummy (`seat 2`) is in 4th seat and cannot ruff, 3rd hand sees all
+       of 4th hand's remaining cards in `suit_led` (`dummy_max_rank`): if
+       partner's card already beats `dummy_max_rank`, 3rd hand ducks with a
+       lower card; otherwise, if 3rd hand can beat `max(cur_win_rank,
+       dummy_max_rank)`, 3rd hand plays the cheapest card above that threshold
+       rather than its highest honor.
      - If partner's `J` or higher (`cur_win_rank >= 11`) is already winning,
        ducks with a lower card unless 4th hand holds an intermediate honor
        between `cur_win_rank` and 3rd hand's higher honor (and 2nd hand does

@@ -415,6 +415,53 @@ DefenderPlayChoice ChooseThirdHandFollow(const BoardState &bs,
   uint16_t possible_fourth_suit_mask = static_cast<uint16_t>(
       (possible_fourth_hands >> (suit_led * 16)) & 0xffff);
 
+  // Special rule when Dummy (`seat 2`) is in 4th seat (`fourth_seat == 2`):
+  // 3rd hand sees all of 4th hand's remaining cards!
+  //   - Provided Dummy either has a card in `suit_led` (so must follow suit) or
+  //     cannot ruff (`trump == NOTRUMP` or Dummy is void in trumps), 3rd hand
+  //     knows the exact highest rank Dummy can play (`dummy_max_rank`).
+  //   - If partner's card already beats `dummy_max_rank`, 3rd hand ducks with a
+  //     lower card if available.
+  //   - Otherwise, if 3rd hand can beat `max(cur_win_rank, dummy_max_rank)`,
+  //     3rd hand wins as cheaply as possible above that threshold rather than
+  //     playing its highest honor.
+  Suit trump = bs.GetTrump();
+  bool dummy_can_ruff =
+      (fourth_seat == 2 && possible_fourth_suit_mask == 0 &&
+       trump != NOTRUMP && trump != suit_led &&
+       (((bs.GetHand(2) & ~played) >> (trump * 16)) & 0xffff) != 0);
+  if (fourth_seat == 2 && !dummy_can_ruff) {
+    int dummy_max_rank =
+        (possible_fourth_suit_mask != 0)
+            ? (31 - __builtin_clz(possible_fourth_suit_mask) + 2)
+            : 0;
+    if (cur_winner == partner && cur_win_rank > dummy_max_rank) {
+      DefenderPlayChoice low = FinalizeDefenderChoice(
+          bs, futp, PickLowestGroupPlay(futp));
+      if (low.rank < cur_win_rank) {
+        return low;
+      }
+    }
+    int rank_to_beat = std::max(cur_win_rank, dummy_max_rank);
+    int cheapest_idx = -1;
+    int cheapest_rank = 100;
+    for (int i = 0; i < futp.cards; ++i) {
+      if (futp.rank[i] > rank_to_beat) {
+        int r = CheapestWinningRankInGroup(futp, i, rank_to_beat);
+        if (r < cheapest_rank) {
+          cheapest_rank = r;
+          cheapest_idx = i;
+        }
+      }
+    }
+    if (cheapest_idx >= 0) {
+      return FinalizeDefenderChoice(bs, futp, {cheapest_idx, cheapest_rank});
+    }
+    // If no optimal card beats Dummy's highest card (e.g., Dummy holds SA in
+    // 4th seat while 3rd hand holds SK8 over North's S6), fall through to
+    // standard 3rd-hand high so 3rd hand still forces out Dummy's higher honor.
+  }
+
   if (cur_winner == partner && cur_win_rank >= 11) {
     // Partner's honor (J, Q, K, or A) is currently winning. Normally 3rd hand
     // ducks underneath partner's honor if a lower optimal card is available

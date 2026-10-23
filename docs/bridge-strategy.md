@@ -127,8 +127,10 @@ double-dummy defense, defenders break ties using normal human carding rules:
 - **2nd hand**: Defenders play **2nd hand low**, playing their lowest optimal
   spot card.
 - **3rd hand**: Defenders play **3rd hand high** (the cheapest of touching high
-  cards, or finessing the Queen from **A Q** when 2nd hand played low from
-  **K x**), unless partner's card is already winning the trick and either:
+  cards, finessing the Queen from **A Q** when 2nd hand played low from **K x**,
+  or when dummy is in 4th seat, playing only high enough to beat dummy's highest
+  card—or ducking if partner's card already beats dummy), unless partner's card
+  is already winning the trick and either:
   - partner led an honor (Jack or higher) that 4th hand cannot cover (such as
     partner leading the **Q** when 2nd hand ducked with **K x**), or
   - 3rd hand's card is a touching equal to partner's card (such as holding the
