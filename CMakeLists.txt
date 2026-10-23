@@ -206,7 +206,7 @@ if(EMSCRIPTEN)
     "-sPTHREAD_POOL_SIZE=8"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sINITIAL_MEMORY=134217728"
-    "-sMAXIMUM_MEMORY=2147483648"
+    "-sMAXIMUM_MEMORY=4294967296"
     "-sSTACK_SIZE=8388608"
     "-sENVIRONMENT=worker,web,node"
     "-sEXPORTED_FUNCTIONS=['_wasm_solve_json','_wasm_get_solve_status','_wasm_stop_solve','_malloc','_free']"
