@@ -1334,3 +1334,125 @@ TEST(ConditionalLineTest, AdversarialDefenderFalsecardsIntoFailingBranch) {
   ASSERT_FALSE(trace_west_sq.node_tricks.empty());
   EXPECT_EQ(trace_west_sq.node_tricks[0].second.rfind("CQ C2 CA ", 0), 0u);
 }
+
+TEST(ConditionalLineTest, PlayerShowedOutConditionIncludesRuffsAndDiscards) {
+  PlayerShowedOutCondition cond_e_true(1, CLUBS, true);
+  PlayerShowedOutCondition cond_e_false(1, CLUBS, false);
+  PlayerShowedOutCondition cond_w_false(3, DIAMONDS, false);
+  EXPECT_EQ(cond_e_true.Describe(false), "if E showed out of C");
+  EXPECT_EQ(cond_e_true.Describe(true), "when E showed out of C");
+  EXPECT_EQ(cond_w_false.Describe(false), "if W did not show out of D");
+  EXPECT_EQ(cond_w_false.Describe(true), "when W did not show out of D");
+  EXPECT_TRUE(cond_e_true.IsStateCondition());
+
+  // Case 1: East discards a diamond on a club lead (non-trump discard).
+  BoardState bs_discard = MakeBoardState(
+      {ParseHand("C 2 S 2"), ParseHand("D 2 S 3"),
+       ParseHand("C A S 4"), ParseHand("C 3 S 5")},
+      0, SPADES);
+  bs_discard.PlayCard(0, Card::ParseStringCard("C2"));
+  bs_discard.PlayCard(1, Card::ParseStringCard("D2"));
+  bs_discard.PlayCard(2, Card::ParseStringCard("CA"));
+  bs_discard.PlayCard(3, Card::ParseStringCard("C3"));
+  EXPECT_TRUE(bs_discard.HasPlayerDiscardedOnSuit(1, CLUBS));
+  EXPECT_TRUE(bs_discard.HasPlayerShownOutOnSuit(1, CLUBS));
+  EXPECT_FALSE(bs_discard.HasPlayerShownOutOnSuit(3, CLUBS));
+  EXPECT_TRUE(cond_e_true.EvaluateState(bs_discard));
+  EXPECT_FALSE(cond_e_false.EvaluateState(bs_discard));
+  EXPECT_FALSE(
+      PlayerShowedOutCondition(3, CLUBS, true).EvaluateState(bs_discard));
+
+  // Case 2: East ruffs a club lead with a trump (ruff is a show-out, not a
+  // non-trump discard).
+  BoardState bs_ruff = MakeBoardState(
+      {ParseHand("C 2 H 2"), ParseHand("S 2 H 3"),
+       ParseHand("S A H 4"), ParseHand("C 3 H 5")},
+      0, SPADES);
+  bs_ruff.PlayCard(0, Card::ParseStringCard("C2"));
+  bs_ruff.PlayCard(1, Card::ParseStringCard("S2"));
+  bs_ruff.PlayCard(2, Card::ParseStringCard("SA"));
+  bs_ruff.PlayCard(3, Card::ParseStringCard("C3"));
+  EXPECT_FALSE(bs_ruff.HasPlayerDiscardedOnSuit(1, CLUBS));
+  EXPECT_TRUE(bs_ruff.HasPlayerShownOutOnSuit(1, CLUBS));
+  EXPECT_FALSE(
+      PlayerDiscardedCondition(1, CLUBS, true).EvaluateState(bs_ruff));
+  EXPECT_TRUE(cond_e_true.EvaluateState(bs_ruff));
+  EXPECT_FALSE(cond_e_false.EvaluateState(bs_ruff));
+  EXPECT_TRUE(PlayerShowedOutCondition(3, CLUBS, false).EvaluateState(bs_ruff));
+}
+
+TEST(ConditionalLineTest, MaxPossibleSuitLengthConditionDeducesCounts) {
+  MaxPossibleSuitLengthCondition cond_e3_true(1, DIAMONDS, 3, true);
+  MaxPossibleSuitLengthCondition cond_e3_false(1, DIAMONDS, 3, false);
+  MaxPossibleSuitLengthCondition cond_w0_true(3, CLUBS, 0, true);
+  MaxPossibleSuitLengthCondition cond_w0_false(3, CLUBS, 0, false);
+
+  EXPECT_EQ(cond_e3_true.Describe(false), "if E can hold at most 3 D");
+  EXPECT_EQ(cond_e3_true.Describe(true), "when E can hold at most 3 D");
+  EXPECT_EQ(cond_e3_false.Describe(false), "if E can hold more than 3 D");
+  EXPECT_EQ(cond_w0_true.Describe(false), "if W can hold no C");
+  EXPECT_EQ(cond_w0_false.Describe(false), "if W can hold at least 1 C");
+  EXPECT_TRUE(cond_e3_true.IsStateCondition());
+
+  // 1. Direct show-out caps max length at 0.
+  BoardState bs_direct = MakeBoardState(
+      {ParseHand("D A C 432"), ParseHand("C QJT9"),
+       ParseHand("D 2 C AK8"), ParseHand("D J976")},
+      0, NOTRUMP);
+  bs_direct.PlayCard(0, Card::ParseStringCard("DA"));
+  bs_direct.PlayCard(1, Card::ParseStringCard("C9"));
+  bs_direct.PlayCard(2, Card::ParseStringCard("D2"));
+  bs_direct.PlayCard(3, Card::ParseStringCard("D6"));
+  EXPECT_EQ(
+      MaxPossibleSuitLengthCondition::ComputeMaxLength(bs_direct, 1, DIAMONDS),
+      0);
+  EXPECT_EQ(
+      MaxPossibleSuitLengthCondition::ComputeMaxLength(bs_direct, 3, DIAMONDS),
+      3);
+
+  // 2. Unplayed opponent suit count caps max length when <= 3 D remain out.
+  BoardState bs_opp_cap = MakeBoardState(
+      {ParseHand("D T854"), ParseHand("D J97 C Q"),
+       ParseHand("D AKQ2"), ParseHand("C JT98")},
+      0, NOTRUMP);
+  EXPECT_EQ(MaxPossibleSuitLengthCondition::ComputeMaxLength(bs_opp_cap, 1,
+                                                             DIAMONDS),
+            3);
+  EXPECT_TRUE(cond_e3_true.EvaluateState(bs_opp_cap));
+  EXPECT_FALSE(cond_e3_false.EvaluateState(bs_opp_cap));
+
+  // 3. Partner show-out count deduction: 4 opponent diamonds (DJ976) remain
+  // unplayed in a 4-card ending after Trick 1 (CA).
+  // - On bs_west_showout, West discards H2 on CA while CQ4 remain unplayed, so
+  //   East must hold both unplayed clubs (forced_other = 2) and can hold at
+  //   most 4 - 2 = 2 diamonds.
+  // - On bs_both_follow, West follows C3 on CA while CQ remains unplayed, so
+  //   forced_other = 0 and East can hold all 4 diamonds (DJ976).
+  BoardState bs_west_showout = MakeBoardState(
+      {ParseHand("C A D T854"), ParseHand("C Q43 D 97"),
+       ParseHand("C 2 D AKQ2"), ParseHand("H 432 D J6")},
+      0, NOTRUMP);
+  bs_west_showout.PlayCard(0, Card::ParseStringCard("CA"));
+  bs_west_showout.PlayCard(1, Card::ParseStringCard("C3"));
+  bs_west_showout.PlayCard(2, Card::ParseStringCard("C2"));
+  bs_west_showout.PlayCard(3, Card::ParseStringCard("H2"));
+  EXPECT_EQ(MaxPossibleSuitLengthCondition::ComputeMaxLength(bs_west_showout, 1,
+                                                             DIAMONDS),
+            2);
+  EXPECT_TRUE(cond_e3_true.EvaluateState(bs_west_showout));
+  EXPECT_FALSE(cond_e3_false.EvaluateState(bs_west_showout));
+
+  BoardState bs_both_follow = MakeBoardState(
+      {ParseHand("C A D T854"), ParseHand("C 4 D J976"),
+       ParseHand("C 2 D AKQ2"), ParseHand("C Q3 H 432")},
+      0, NOTRUMP);
+  bs_both_follow.PlayCard(0, Card::ParseStringCard("CA"));
+  bs_both_follow.PlayCard(1, Card::ParseStringCard("C4"));
+  bs_both_follow.PlayCard(2, Card::ParseStringCard("C2"));
+  bs_both_follow.PlayCard(3, Card::ParseStringCard("C3"));
+  EXPECT_EQ(MaxPossibleSuitLengthCondition::ComputeMaxLength(bs_both_follow, 1,
+                                                             DIAMONDS),
+            4);
+  EXPECT_FALSE(cond_e3_true.EvaluateState(bs_both_follow));
+  EXPECT_TRUE(cond_e3_false.EvaluateState(bs_both_follow));
+}

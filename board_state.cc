@@ -22,10 +22,13 @@ void BoardState::PlayCard(int player, CardType c) {
   if (num_trick_cards_played_ > 0) {
     Suit suit_led = SuitLed();
     Suit card_suit = Card::DecodeCard(c).first;
-    if (suit_led >= 0 && suit_led < 4 && card_suit != suit_led &&
-        card_suit != trump_suit_) {
-      discarded_suits_mask_ |= static_cast<uint16_t>(
+    if (suit_led >= 0 && suit_led < 4 && card_suit != suit_led) {
+      uint16_t suit_bit = static_cast<uint16_t>(
           1u << (player * 4 + static_cast<int>(suit_led)));
+      shown_out_suits_mask_ |= suit_bit;
+      if (card_suit != trump_suit_) {
+        discarded_suits_mask_ |= suit_bit;
+      }
     }
   }
   trick_cards_played_[num_trick_cards_played_++] = c;

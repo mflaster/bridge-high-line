@@ -50,6 +50,66 @@ bool PlayerDiscardedCondition::Evaluate(const BoardState &bs) const {
   return bs.HasPlayerDiscardedOnSuit(player_, suit_);
 }
 
+std::string PlayerShowedOutCondition::Describe(bool only_choice) const {
+  std::string prefix = only_choice ? "when " : "if ";
+  std::string dir = PlayerDirectionDebugString(player_);
+  std::string seat = dir.empty() ? std::to_string(player_) : dir.substr(0, 1);
+  return prefix + seat +
+         (showed_out_ ? " showed out of " : " did not show out of ") +
+         SuitDebugString(suit_);
+}
+
+bool PlayerShowedOutCondition::Evaluate(const BoardState &bs) const {
+  return bs.HasPlayerShownOutOnSuit(player_, suit_);
+}
+
+int MaxPossibleSuitLengthCondition::ComputeMaxLength(const BoardState &bs,
+                                                     int player, Suit suit) {
+  if (player < 0 || player >= 4 || suit < 0 || suit >= 4) {
+    return 0;
+  }
+  uint64_t mask = ~bs.played_cards();
+  if (player % 2 == 0) {
+    uint16_t my_suit =
+        static_cast<uint16_t>((bs.GetHand(player) & mask) >> (suit * 16)) &
+        0x1fff;
+    return __builtin_popcount(my_suit);
+  }
+  if (bs.HasPlayerShownOutOnSuit(player, suit)) {
+    return 0;
+  }
+  uint64_t opp_cards = (bs.GetHand(1) | bs.GetHand(3)) & mask;
+  int opp_rem_suit = __builtin_popcount((opp_cards >> (suit * 16)) & 0x1fff);
+  int cards_left = __builtin_popcountll(bs.GetHand(player) & mask);
+  int partner = 4 - player;
+  int forced_other = 0;
+  for (int s2 = 0; s2 < 4; ++s2) {
+    if (s2 == static_cast<int>(suit)) continue;
+    if (bs.HasPlayerShownOutOnSuit(partner, static_cast<Suit>(s2))) {
+      forced_other += __builtin_popcount((opp_cards >> (s2 * 16)) & 0x1fff);
+    }
+  }
+  return std::min(opp_rem_suit, std::max(0, cards_left - forced_other));
+}
+
+bool MaxPossibleSuitLengthCondition::Evaluate(const BoardState &bs) const {
+  return ComputeMaxLength(bs, player_, suit_) <= max_len_;
+}
+
+std::string MaxPossibleSuitLengthCondition::Describe(bool only_choice) const {
+  std::string prefix = only_choice ? "when " : "if ";
+  std::string dir = PlayerDirectionDebugString(player_);
+  std::string seat = dir.empty() ? std::to_string(player_) : dir.substr(0, 1);
+  if (max_len_ <= 0) {
+    return prefix + seat +
+           (at_most_ ? " can hold no " : " can hold at least 1 ") +
+           SuitDebugString(suit_);
+  }
+  return prefix + seat +
+         (at_most_ ? " can hold at most " : " can hold more than ") +
+         std::to_string(max_len_) + " " + SuitDebugString(suit_);
+}
+
 static std::set<int> CoveredFinalBoardsSetHelper(const ConditionalLine *line_ptr, std::set<const ConditionalLine*> &visited) {
   if (!line_ptr || visited.count(line_ptr)) {
     return {};
@@ -915,10 +975,14 @@ void GeneralizedTrickFinder::RecordOptimalTrick(
       cur_win_val = v;
       win_idx = c;
     }
-    if (c > 0 && s != rt.suit_led && s != trump_suit_) {
+    if (c > 0 && s != rt.suit_led) {
       int seat = (leader + c) % 4;
-      rt.discard_mask |= static_cast<uint16_t>(
+      uint16_t suit_bit = static_cast<uint16_t>(
           1u << (seat * 4 + static_cast<int>(rt.suit_led)));
+      rt.show_out_mask |= suit_bit;
+      if (s != trump_suit_) {
+        rt.discard_mask |= suit_bit;
+      }
     }
   }
   rt.trick_mask = mask;
@@ -1274,6 +1338,7 @@ GeneralizedTrick GeneralizedTrickFinder::BuildGeneralizedTrick(
         entry.win_card[1] = wc.size() > 1 ? wc[1] : '\0';
         entry.win_card[2] = '\0';
         entry.discard_mask = rt.discard_mask;
+        entry.show_out_mask = rt.show_out_mask;
         entry.trick_mask = rt.trick_mask;
         entry.trick_str = raw_tricks_[i];
         gt.board_entries.push_back(std::move(entry));

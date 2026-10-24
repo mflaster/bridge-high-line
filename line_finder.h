@@ -208,9 +208,9 @@ class LineFinder {
       int *out_unsplit_ub = nullptr);
 
   // Attempts to improve board coverage when single-trick groupings do not
-  // cover all solvable boards by branching on IsCardGoodCondition for the
-  // highest remaining N/S card in each suit or PlayerDiscardedCondition on
-  // prev_suit_led.
+  // cover all solvable boards by branching on single-dummy state conditions
+  // (on-lead/off-lead IsCardGoodCondition, MaxPossibleSuitLengthCondition, and
+  // PlayerDiscardedCondition / PlayerShowedOutCondition).
   void TryBranchOnGoodCards(
       int min_tricks,
       SolverCache &cache,
