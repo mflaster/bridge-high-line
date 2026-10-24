@@ -131,7 +131,7 @@ make run_server
 When started, the server outputs confirmation to stdout:
 ```text
 =========================================================
- Bridge Deal Solver & Interactive Decision Tree Server
+ Bridge High Line Solver & Interactive Decision Tree Server
 =========================================================
  Server listening at: http://localhost:8080
  Press Ctrl+C to stop.
