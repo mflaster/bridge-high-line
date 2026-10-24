@@ -161,7 +161,7 @@ function drawPdfPageFooter(ctx, pageIdx, totalPages, handLabel) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(
-    `Bridge Deal Solver — ${handLabel || 'Analysis Report'}`,
+    `Bridge High Line Solver — ${handLabel || 'Analysis Report'}`,
     52,
     y
   );

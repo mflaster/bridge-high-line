@@ -1,6 +1,6 @@
-# Bridge Deal Solver User Guide
+# Bridge High Line Solver User Guide
 
-Welcome to the **Bridge Deal Solver & Decision Tree Explorer**. This guide walks
+Welcome to the **Bridge High Line Solver & Decision Tree Explorer**. This guide walks
 through how to load deals from hand records or files, explore the interactive
 decision tree, test your own lines of play, and compare competing strategies.
 

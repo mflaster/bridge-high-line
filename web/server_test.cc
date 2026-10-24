@@ -47,7 +47,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_help_html->status == 200);
   ASSERT_TRUE(res_help_html->body.find("helpPageTopicsNav") != std::string::npos);
   ASSERT_TRUE(res_help_html->body.find(
-              "Bridge Deal Solver — Help &amp; Strategy Guide") !=
+              "Bridge High Line Solver — Help &amp; Strategy Guide") !=
           std::string::npos);
 
   auto res_strategy = client.Get("/bridge-strategy.md");
