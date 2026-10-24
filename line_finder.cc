@@ -241,6 +241,8 @@ std::vector<BoardState> LineFinder::SetupBoards(
         b.set_check_card_play(false);
         b.SetTrump(trump);
         b.SetLead(leader);
+        b.set_discarded_suits_mask(sim.discarded_suits_mask());
+        b.set_shown_out_suits_mask(sim.shown_out_suits_mask());
         for (CardType c : cur_trick) {
           if (!PlayReplayCardOnBoard(Card::PrintCard(c), b)) {
             valid_for_branch = false;
@@ -1143,24 +1145,39 @@ void FinalizeTopKLines(std::vector<ConditionalLine> *lines, int limit) {
 struct SolveMemoKeyBuilder {
   std::string key;
   Suit raw_prev_suit = NOTRUMP;
-  uint16_t opp_suit_bits = 0;
-  uint16_t disc_or = 0;
-  uint16_t disc_and = 0;
+  uint16_t prev_suit_packed_bits = 0;
+  uint16_t packed_or = 0;
+  uint16_t packed_and = 0;
+  bool force_prev_suit = false;
   size_t suit_key_pos = 0;
 
+  static uint16_t PackDefenderMasks(uint16_t disc_mask, uint16_t show_mask) {
+    uint16_t d = static_cast<uint16_t>(((disc_mask >> 4) & 0x0fu) |
+                                       (((disc_mask >> 12) & 0x0fu) << 4));
+    uint16_t s = static_cast<uint16_t>(((show_mask >> 4) & 0x0fu) |
+                                       (((show_mask >> 12) & 0x0fu) << 4));
+    return static_cast<uint16_t>(d | (s << 8));
+  }
+
   void Init(int leader, int min_tricks, Suit prev_suit, int top_k,
-            size_t num_boards, bool allow_state_split = true) {
+            size_t num_boards, int state_depth = 0,
+            bool off_lead_prev_suit = false) {
     raw_prev_suit = prev_suit;
-    opp_suit_bits =
-        (raw_prev_suit >= 0 && raw_prev_suit < 4)
-            ? static_cast<uint16_t>((1u << (1 * 4 + raw_prev_suit)) |
-                                    (1u << (3 * 4 + raw_prev_suit)))
+    bool allow_split = (state_depth < 4);
+    prev_suit_packed_bits =
+        (allow_split && raw_prev_suit >= 0 && raw_prev_suit < 4)
+            ? static_cast<uint16_t>(0x1111u << raw_prev_suit)
             : 0;
-    disc_or = 0;
-    disc_and = opp_suit_bits;
+    packed_or = 0;
+    packed_and = prev_suit_packed_bits;
+    force_prev_suit =
+        (state_depth == 0 && raw_prev_suit >= 0 && raw_prev_suit < 4 &&
+         off_lead_prev_suit);
     key.reserve(4 + num_boards * 14);
+    uint8_t clamped_depth =
+        static_cast<uint8_t>(std::min(std::max(state_depth, 0), 4));
     uint8_t leader_byte = static_cast<uint8_t>(leader & 0x0f) |
-                          (allow_state_split ? 0x10u : 0u);
+                          static_cast<uint8_t>(clamped_depth << 4);
     key.push_back(static_cast<char>(leader_byte));
     key.push_back(static_cast<char>(std::max(min_tricks, 0)));
     suit_key_pos = key.size();
@@ -1170,17 +1187,19 @@ struct SolveMemoKeyBuilder {
     }
   }
 
-  void AddBoard(int board, uint64_t played, uint16_t disc) {
+  void AddBoard(int board, uint64_t played, uint16_t disc_mask,
+                uint16_t show_mask) {
     uint32_t bid = static_cast<uint32_t>(board);
-    disc_or |= (disc & opp_suit_bits);
-    disc_and &= (disc & opp_suit_bits);
+    uint16_t packed = PackDefenderMasks(disc_mask, show_mask);
+    packed_or |= (packed & prev_suit_packed_bits);
+    packed_and &= (packed & prev_suit_packed_bits);
     key.append(reinterpret_cast<const char *>(&bid), sizeof(bid));
     key.append(reinterpret_cast<const char *>(&played), sizeof(played));
-    key.append(reinterpret_cast<const char *>(&disc), sizeof(disc));
+    key.append(reinterpret_cast<const char *>(&packed), sizeof(packed));
   }
 
   std::string Finish() {
-    if ((disc_or ^ disc_and) != 0) {
+    if (force_prev_suit || (packed_or ^ packed_and) != 0) {
       key[suit_key_pos] = static_cast<char>(raw_prev_suit);
     }
     return std::move(key);
@@ -1332,13 +1351,27 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
                               : Card::ParseSuit(wb.entries[0]->trick_str[0]);
     std::string memo_key;
     if (solve_memo_ != nullptr) {
+      bool off_lead_prev = false;
+      int next_cards_left = cards_left - 1;
+      if (next_cards_left > 6 && next_leader % 2 == 0 &&
+          next_prev_suit >= 0 && next_prev_suit < 4) {
+        const auto *e0 = wb.entries[0];
+        const BoardState *bs0 = board_trees.at(e0->board)->MyBoard();
+        uint64_t next_mask = ~(bs0->played_cards() | e0->trick_mask);
+        uint64_t decl_c = (bs0->GetHand(0) | bs0->GetHand(2)) & next_mask;
+        uint64_t ldr_c = bs0->GetHand(next_leader) & next_mask;
+        int shift = static_cast<int>(next_prev_suit) * 16;
+        off_lead_prev = (((decl_c >> shift) & 0xffff) != 0) &&
+                        (((ldr_c >> shift) & 0xffff) == 0);
+      }
       SolveMemoKeyBuilder kb;
       kb.Init(next_leader, next_min_tricks, next_prev_suit, branch_top_k,
-              wb.entries.size(), /*allow_state_split=*/true);
+              wb.entries.size(), /*state_depth=*/0, off_lead_prev);
       for (const auto *e : wb.entries) {
         const BoardState *bs_ptr = board_trees.at(e->board)->MyBoard();
         kb.AddBoard(e->board, bs_ptr->played_cards() | e->trick_mask,
-                    bs_ptr->discarded_suits_mask() | e->discard_mask);
+                    bs_ptr->discarded_suits_mask() | e->discard_mask,
+                    bs_ptr->shown_out_suits_mask() | e->show_out_mask);
       }
       memo_key = kb.Finish();
       if (solve_memo_->Lookup(memo_key, branch_min_cov,
@@ -2398,9 +2431,12 @@ void LineFinder::TryBranchOnGoodCards(
       has_unsplit_play ? std::max(min_endgame_unit, solvable_n / 30) : 1;
   int min_branch_cov =
       has_unsplit_play ? std::max(min_endgame_unit, solvable_n / 15) : 1;
+  int total_n = static_cast<int>(board_offsets_.size());
+  int ext_min_branch_cov = std::max(min_branch_cov, total_n / 25);
+  int ext_split_min_gain = std::max(split_min_gain, total_n / 50);
   int min_possible_target = std::max(best_covered + 1, min_covered);
   if (IsStopRequested() || lvl <= 0 || leader % 2 != 0 || state_depth >= 4 ||
-      cards_left <= 0 || solvable_n < min_possible_target || solvable_n < 2) {
+      cards_left <= 1 || solvable_n < min_possible_target || solvable_n < 2) {
     return;
   }
   // The split searches count like one more batch of the trick groups the
@@ -2486,45 +2522,70 @@ void LineFinder::TryBranchOnGoodCards(
     FinalizeTopKLines(&ans, top_k);
   };
 
-  const BoardState *first_bs =
-      board_trees.at(*solvable_boards.begin())->MyBoard();
+  int first_b = *solvable_boards.begin();
+  const BoardState *first_bs = board_trees.at(first_b)->MyBoard();
   Suit trump_suit = first_bs->GetTrump();
   uint64_t mask = ~first_bs->played_cards();
   uint64_t decl_cards = (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask;
   uint64_t leader_cards = first_bs->GetHand(leader) & mask;
 
-  std::set<int> disc_boards[2];
-  std::set<int> no_disc_boards[2];
-  int any_disc_count = 0;
-  int both_disc_count = 0;
-  if (prev_suit_led >= 0 && prev_suit_led < 4) {
-    for (int b : solvable_boards) {
-      const BoardState &bs = *board_trees.at(b)->MyBoard();
-      bool d1 = bs.HasPlayerDiscardedOnSuit(1, prev_suit_led);
-      bool d3 = bs.HasPlayerDiscardedOnSuit(3, prev_suit_led);
-      if (d1 || d3) ++any_disc_count;
-      if (d1 && d3) ++both_disc_count;
-      if (d1) {
-        disc_boards[0].insert(disc_boards[0].end(), b);
-      } else {
-        no_disc_boards[0].insert(no_disc_boards[0].end(), b);
+  // Precompute per-suit show-out sets (for prev_suit_led, and for all suits in
+  // endgames cards_left <= 6 at state_depth == 0) plus opponent suit unions.
+  std::set<int> show_boards[4][2];
+  std::set<int> no_show_boards[4][2];
+  bool has_ruff_showout[4][2] = {};
+  uint16_t union_opp_suit[4] = {};
+  int any_prev_show_count = 0;
+  int both_prev_show_count = 0;
+  bool allow_ext_splits = (state_depth == 0);
+  bool endgame_splits = allow_ext_splits && (cards_left <= 6);
+  for (int b : solvable_boards) {
+    const BoardState &bs = *board_trees.at(b)->MyBoard();
+    uint64_t b_mask = ~bs.played_cards();
+    uint64_t b_opp = (bs.GetHand(1) | bs.GetHand(3)) & b_mask;
+    if (prev_suit_led >= 0 && prev_suit_led < 4) {
+      bool sh1 = bs.HasPlayerShownOutOnSuit(1, prev_suit_led);
+      bool sh3 = bs.HasPlayerShownOutOnSuit(3, prev_suit_led);
+      if (sh1 || sh3) ++any_prev_show_count;
+      if (sh1 && sh3) ++both_prev_show_count;
+    }
+    for (int s = 0; s < 4; ++s) {
+      if (endgame_splits) {
+        union_opp_suit[s] |=
+            static_cast<uint16_t>((b_opp >> (s * 16)) & 0x1fff);
       }
-      if (d3) {
-        disc_boards[1].insert(disc_boards[1].end(), b);
-      } else {
-        no_disc_boards[1].insert(no_disc_boards[1].end(), b);
+      if (!endgame_splits && s != static_cast<int>(prev_suit_led)) {
+        continue;
+      }
+      Suit s_enum = static_cast<Suit>(s);
+      for (int p_idx = 0; p_idx < 2; ++p_idx) {
+        int player = (p_idx == 0) ? 1 : 3;
+        if (bs.HasPlayerShownOutOnSuit(player, s_enum)) {
+          show_boards[s][p_idx].insert(show_boards[s][p_idx].end(), b);
+          if (!bs.HasPlayerDiscardedOnSuit(player, s_enum)) {
+            has_ruff_showout[s][p_idx] = true;
+          }
+        } else {
+          no_show_boards[s][p_idx].insert(no_show_boards[s][p_idx].end(), b);
+        }
       }
     }
   }
 
   CardType top_cards[4] = {};
+  bool is_on_lead[4] = {};
   std::set<int> good_boards[4];
   std::set<int> not_good_boards[4];
-  int max_good_boards_size = 0;
+  int max_on_lead_good_size = 0;
   for (int suit = 0; suit < 4; ++suit) {
     uint16_t suit_bits = (decl_cards >> (suit * 16)) & 0xffff;
     uint16_t leader_suit_bits = (leader_cards >> (suit * 16)) & 0xffff;
-    if (suit_bits == 0 || leader_suit_bits == 0) continue;
+    bool on_lead = (leader_suit_bits != 0);
+    bool allow_off_lead =
+        allow_ext_splits &&
+        (suit == static_cast<int>(prev_suit_led) || endgame_splits);
+    if (suit_bits == 0 || (!on_lead && !allow_off_lead)) continue;
+    is_on_lead[suit] = on_lead;
     int top_val = 31 - __builtin_clz(suit_bits);
     CardType top_card = Card::GetSuitedCard(static_cast<Suit>(suit), top_val);
     top_cards[suit] = top_card;
@@ -2536,18 +2597,204 @@ void LineFinder::TryBranchOnGoodCards(
         not_good_boards[suit].insert(not_good_boards[suit].end(), b);
       }
     }
-    if (!good_boards[suit].empty() && !not_good_boards[suit].empty()) {
-      max_good_boards_size = std::max(
-          max_good_boards_size, static_cast<int>(good_boards[suit].size()));
+    if (on_lead && !good_boards[suit].empty() &&
+        !not_good_boards[suit].empty()) {
+      max_on_lead_good_size = std::max(
+          max_on_lead_good_size, static_cast<int>(good_boards[suit].size()));
     }
   }
 
+  // Build ordered, partition-deduplicated SolveHelper+SolveHelper candidates:
+  //   1. Off-lead IsCardGoodCondition (partner holds master card, leader void)
+  //   2. Immediate prev_suit_led show-out (discard or ruff)
+  //   3. Persistent show-out memory on earlier suits (cards_left <= 6)
+  //   4. MaxPossibleSuitLengthCondition (cards_left <= 6 count deduction)
+  struct StateSplitCandidate {
+    std::set<int> true_b;
+    std::set<int> false_b;
+    int min_b_cov = 1;
+    int min_gain = 1;
+    Suit true_prev_suit = NOTRUMP;
+    Suit false_prev_suit = NOTRUMP;
+    int true_prev_cap = 0;
+    int false_prev_cap = 0;
+    std::function<PlayCondition *(bool)> make_cond;
+  };
+  std::vector<StateSplitCandidate> solve_cands;
+  std::vector<std::set<int>> seen_partitions;
+
+  auto try_add_cand = [&](std::set<int> tb, std::set<int> fb, int min_b_cov,
+                          int min_gain, Suit t_ps, Suit f_ps, int t_cap,
+                          int f_cap,
+                          std::function<PlayCondition *(bool)> make_cond) {
+    if (static_cast<int>(tb.size()) < min_b_cov ||
+        static_cast<int>(fb.size()) < min_b_cov) {
+      return;
+    }
+    const std::set<int> &canon = (*tb.begin() == first_b) ? tb : fb;
+    for (const auto &seen : seen_partitions) {
+      if (seen == canon) return;
+    }
+    seen_partitions.push_back(canon);
+    solve_cands.push_back(StateSplitCandidate{
+        std::move(tb), std::move(fb), min_b_cov, min_gain, t_ps, f_ps, t_cap,
+        f_cap, std::move(make_cond)});
+  };
+
+  auto make_showout_cond_fn = [](int player, Suit s, bool any_ruff)
+      -> std::function<PlayCondition *(bool)> {
+    if (any_ruff) {
+      return [player, s](bool v) -> PlayCondition * {
+        return new PlayerShowedOutCondition(player, s, v);
+      };
+    }
+    return [player, s](bool v) -> PlayCondition * {
+      return new PlayerDiscardedCondition(player, s, v);
+    };
+  };
+
+  // 1. Off-lead IsCardGoodCondition (state_depth == 0)
+  if (allow_ext_splits) {
+    for (int suit = 0; suit < 4; ++suit) {
+      if (top_cards[suit] == 0 || is_on_lead[suit]) continue;
+      CardType tc = top_cards[suit];
+      Suit next_ps =
+          (suit == static_cast<int>(prev_suit_led)) ? NOTRUMP : prev_suit_led;
+      int cap = (next_ps == NOTRUMP) ? 0 : any_prev_show_count;
+      try_add_cand(
+          good_boards[suit], not_good_boards[suit], ext_min_branch_cov,
+          ext_split_min_gain, next_ps, next_ps, cap, cap,
+          [tc](bool is_good) -> PlayCondition * {
+            return new IsCardGoodCondition(tc, is_good);
+          });
+    }
+  }
+
+  // 2. Immediate prev_suit_led show-out
+  int disc_min_branch_cov = (lvl <= 5) ? 1 : min_branch_cov;
+  int disc_split_min_gain = (lvl <= 5) ? 1 : split_min_gain;
+  if (prev_suit_led >= 0 && prev_suit_led < 4 && any_prev_show_count > 0) {
+    int ps = static_cast<int>(prev_suit_led);
+    int order[2] = {0, 1};
+    if (show_boards[ps][1].size() > show_boards[ps][0].size()) {
+      std::swap(order[0], order[1]);
+    }
+    bool first_prev_added = false;
+    for (int ord = 0; ord < 2; ++ord) {
+      int p_idx = order[ord];
+      int player = (p_idx == 0) ? 1 : 3;
+      const std::set<int> &tb = show_boards[ps][p_idx];
+      const std::set<int> &fb = no_show_boards[ps][p_idx];
+      if (static_cast<int>(tb.size()) < disc_min_branch_cov ||
+          static_cast<int>(fb.size()) < disc_min_branch_cov) {
+        continue;
+      }
+      bool skip_nested = (both_prev_show_count == 0 && first_prev_added);
+      Suit t_ps = (both_prev_show_count == 0 ||
+                   both_prev_show_count == static_cast<int>(tb.size()))
+                      ? NOTRUMP
+                      : prev_suit_led;
+      Suit f_ps = skip_nested ? NOTRUMP : prev_suit_led;
+      int t_cap = (t_ps == NOTRUMP) ? 0 : both_prev_show_count;
+      int f_cap =
+          skip_nested ? 0 : (any_prev_show_count - static_cast<int>(tb.size()));
+      first_prev_added = true;
+      try_add_cand(
+          tb, fb, disc_min_branch_cov, disc_split_min_gain, t_ps, f_ps, t_cap,
+          f_cap,
+          make_showout_cond_fn(player, prev_suit_led,
+                               has_ruff_showout[ps][p_idx]));
+    }
+  }
+
+  if (endgame_splits) {
+    // 3. Persistent show-out memory on earlier suits (s != prev_suit_led)
+    // Placed before MaxPossibleSuitLengthCondition so any partition already
+    // explained by a direct suit show-out uses the direct show-out condition.
+    for (int s = 0; s < 4; ++s) {
+      if (s == static_cast<int>(prev_suit_led)) continue;
+      Suit s_enum = static_cast<Suit>(s);
+      int order[2] = {0, 1};
+      if (show_boards[s][1].size() > show_boards[s][0].size()) {
+        std::swap(order[0], order[1]);
+      }
+      for (int ord = 0; ord < 2; ++ord) {
+        int p_idx = order[ord];
+        int player = (p_idx == 0) ? 1 : 3;
+        try_add_cand(
+            show_boards[s][p_idx], no_show_boards[s][p_idx],
+            ext_min_branch_cov, ext_split_min_gain, NOTRUMP, NOTRUMP, 0, 0,
+            make_showout_cond_fn(player, s_enum, has_ruff_showout[s][p_idx]));
+      }
+    }
+
+    // 4. MaxPossibleSuitLengthCondition (cards_left <= 6)
+    for (int suit = 0; suit < 4; ++suit) {
+      if (union_opp_suit[suit] == 0) continue;
+      uint16_t decl_s = (decl_cards >> (suit * 16)) & 0x1fff;
+      if (decl_s == 0) continue;
+      Suit suit_enum = static_cast<Suit>(suit);
+      int len_n = __builtin_popcount(
+          ((first_bs->GetHand(0) & mask) >> (suit * 16)) & 0x1fff);
+      int len_s = __builtin_popcount(
+          ((first_bs->GetHand(2) & mask) >> (suit * 16)) & 0x1fff);
+      int max_rounds = std::max(len_n, len_s);
+      int top_opp_val = 31 - __builtin_clz(union_opp_suit[suit]);
+      uint16_t higher_ns_mask =
+          decl_s & (~((1u << (top_opp_val + 1)) - 1) & 0x1fff);
+      int higher_cnt = __builtin_popcount(higher_ns_mask);
+      uint16_t lower_ns_mask = decl_s & ((1u << top_opp_val) - 1);
+      int preferred_p_idx = (len_s >= len_n) ? 0 : 1;
+      if (lower_ns_mask != 0) {
+        int top_lower_val = 31 - __builtin_clz(lower_ns_mask);
+        bool in_south = (((first_bs->GetHand(2) & mask) >> (suit * 16)) &
+                         (1u << top_lower_val)) != 0;
+        preferred_p_idx = in_south ? 0 : 1;
+      }
+      std::vector<int> thresholds;
+      if (higher_cnt > 0 && higher_cnt < max_rounds &&
+          decl_s != higher_ns_mask) {
+        thresholds.push_back(higher_cnt);
+      }
+      thresholds.push_back(0);
+      for (int thresh : thresholds) {
+        for (int ord = 0; ord < 2; ++ord) {
+          int p_idx = (ord == 0) ? preferred_p_idx : (1 - preferred_p_idx);
+          int player = (p_idx == 0) ? 1 : 3;
+          std::set<int> tb;
+          std::set<int> fb;
+          for (int b : solvable_boards) {
+            const BoardState &bs = *board_trees.at(b)->MyBoard();
+            if (MaxPossibleSuitLengthCondition::ComputeMaxLength(
+                    bs, player, suit_enum) <= thresh) {
+              tb.insert(tb.end(), b);
+            } else {
+              fb.insert(fb.end(), b);
+            }
+          }
+          if (tb.empty() || fb.empty()) continue;
+          if (tb.size() == show_boards[suit][p_idx].size()) {
+            continue;
+          }
+          try_add_cand(
+              std::move(tb), std::move(fb), ext_min_branch_cov,
+              ext_split_min_gain, NOTRUMP, NOTRUMP, 0, 0,
+              [player, suit_enum, thresh](bool at_most) -> PlayCondition * {
+                return new MaxPossibleSuitLengthCondition(player, suit_enum,
+                                                          thresh, at_most);
+              });
+        }
+      }
+    }
+  }
+
+  // Pass 1: On-lead IsCardGoodCondition (fast cashing-trick filter on true_b)
   for (int suit = 0; suit < 4; ++suit) {
     if (IsStopRequested() || best_covered >= solvable_n) {
       break;
     }
     CardType top_card = top_cards[suit];
-    if (top_card == 0) continue;
+    if (top_card == 0 || !is_on_lead[suit]) continue;
     if (static_cast<int>(good_boards[suit].size()) < min_branch_cov ||
         static_cast<int>(not_good_boards[suit].size()) < min_branch_cov) {
       continue;
@@ -2560,13 +2807,13 @@ void LineFinder::TryBranchOnGoodCards(
     if (unsplit_ub >= 0) {
       int other_good_max = 0;
       for (int s2 = 0; s2 < 4; ++s2) {
-        if (s2 != suit && !not_good_boards[s2].empty()) {
+        if (s2 != suit && is_on_lead[s2] && !not_good_boards[s2].empty()) {
           other_good_max = std::max(
               other_good_max, static_cast<int>(good_boards[s2].size()));
         }
       }
       int ub_slack = solvable_n / 30;
-      int extra_cap = std::max(any_disc_count, other_good_max);
+      int extra_cap = std::max(any_prev_show_count, other_good_max);
       false_ub = std::min(false_ub, unsplit_ub + ub_slack + extra_cap);
     }
     if (static_cast<int>(good_boards[suit].size()) + false_ub < cur_target) {
@@ -2666,88 +2913,69 @@ void LineFinder::TryBranchOnGoodCards(
     }
   }
 
-  if (prev_suit_led >= 0 && prev_suit_led < 4 && any_disc_count > 0) {
-    int disc_min_branch_cov = (lvl <= 5) ? 1 : min_branch_cov;
-    int disc_split_min_gain = (lvl <= 5) ? 1 : split_min_gain;
-    int order[2] = {0, 1};
-    if (disc_boards[1].size() > disc_boards[0].size()) {
-      std::swap(order[0], order[1]);
+  // Pass 2: General SolveHelper+SolveHelper state splits (solve smaller branch
+  // first so unpromising splits fail fast).
+  for (size_t ci = 0; ci < solve_cands.size(); ++ci) {
+    if (IsStopRequested() || best_covered >= solvable_n) {
+      break;
     }
-    bool first_disc_searched = false;
-    for (int ord = 0; ord < 2; ++ord) {
-      if (IsStopRequested() || best_covered >= solvable_n) {
-        break;
-      }
-      int p_idx = order[ord];
-      int player = (p_idx == 0) ? 1 : 3;
-      const std::set<int> &true_b = disc_boards[p_idx];
-      const std::set<int> &false_b = no_disc_boards[p_idx];
-      if (static_cast<int>(true_b.size()) < disc_min_branch_cov ||
-          static_cast<int>(false_b.size()) < disc_min_branch_cov) {
-        continue;
-      }
-      int cur_target =
-          std::max(best_covered + disc_split_min_gain, min_covered);
-      if (cur_target > solvable_n) {
-        continue;
-      }
-      bool skip_nested_disc = (both_disc_count == 0 && first_disc_searched);
-      int false_ub = static_cast<int>(false_b.size());
-      if (unsplit_ub >= 0) {
-        int ub_slack = solvable_n / 30;
-        int true_n = static_cast<int>(true_b.size());
-        int other_only_disc = skip_nested_disc ? 0 : (any_disc_count - true_n);
-        int extra_split_cap =
-            std::max(other_only_disc, max_good_boards_size);
-        false_ub = std::min(false_ub, unsplit_ub + ub_slack + extra_split_cap);
-      }
-      if (static_cast<int>(true_b.size()) + false_ub < cur_target) {
-        continue;
-      }
-      first_disc_searched = true;
-      int req_true = std::max(disc_min_branch_cov, cur_target - false_ub);
-      Suit true_prev_suit =
-          (both_disc_count == 0 ||
-           both_disc_count == static_cast<int>(true_b.size()))
-              ? NOTRUMP
-              : prev_suit_led;
-      Suit false_prev_suit = skip_nested_disc ? NOTRUMP : prev_suit_led;
-      std::vector<SearchProgress::Node *> half_progress =
-          split_progress != nullptr
-              ? SearchProgress::AddChildren(
-                    split_progress,
-                    {static_cast<double>(true_b.size()),
-                     static_cast<double>(false_b.size())})
-              : std::vector<SearchProgress::Node *>{nullptr, nullptr};
-      std::vector<ConditionalLine> true_lines = SolveHelper(
-          min_tricks, cache_in, board_trees, true_b, leader, lvl + 1,
-          half_progress[0], req_true, child_top_k, true_prev_suit,
-          state_depth + 1);
-      int true_cov =
-          true_lines.empty() ? 0 : true_lines[0].CoveredFinalBoards();
-      if (true_lines.empty() || true_cov < req_true) {
-        SearchProgress::Complete(half_progress[1]);
-        continue;
-      }
-      int req_false = std::max(disc_min_branch_cov, cur_target - true_cov);
-      std::vector<ConditionalLine> false_lines = SolveHelper(
-          min_tricks, cache_in, board_trees, false_b, leader, lvl + 1,
-          half_progress[1], req_false, child_top_k, false_prev_suit,
-          state_depth + 1);
-      int false_cov =
-          false_lines.empty() ? 0 : false_lines[0].CoveredFinalBoards();
-      if (false_lines.empty() || false_cov < req_false) {
-        continue;
-      }
-      int total_cov = true_cov + false_cov;
-      if (total_cov >= cur_target) {
-        Suit s = prev_suit_led;
-        adopt_split_results(
-            true_lines, false_lines, total_cov,
-            [player, s](bool discarded) -> PlayCondition * {
-              return new PlayerDiscardedCondition(player, s, discarded);
-            });
-      }
+    const StateSplitCandidate &cand = solve_cands[ci];
+    int cur_target = std::max(best_covered + cand.min_gain, min_covered);
+    if (cur_target > solvable_n) {
+      continue;
+    }
+    int true_ub = static_cast<int>(cand.true_b.size());
+    int false_ub = static_cast<int>(cand.false_b.size());
+    if (unsplit_ub >= 0) {
+      int ub_slack = solvable_n / 30;
+      int t_extra = std::max(cand.true_prev_cap, max_on_lead_good_size);
+      int f_extra = std::max(cand.false_prev_cap, max_on_lead_good_size);
+      true_ub = std::min(true_ub, unsplit_ub + ub_slack + t_extra);
+      false_ub = std::min(false_ub, unsplit_ub + ub_slack + f_extra);
+    }
+    if (true_ub + false_ub < cur_target) {
+      continue;
+    }
+    bool true_first = (cand.true_b.size() <= cand.false_b.size());
+    const std::set<int> &first_set = true_first ? cand.true_b : cand.false_b;
+    const std::set<int> &second_set = true_first ? cand.false_b : cand.true_b;
+    Suit first_ps = true_first ? cand.true_prev_suit : cand.false_prev_suit;
+    Suit second_ps = true_first ? cand.false_prev_suit : cand.true_prev_suit;
+    int second_ub = true_first ? false_ub : true_ub;
+    int req_first = std::max(cand.min_b_cov, cur_target - second_ub);
+
+    std::vector<SearchProgress::Node *> half_progress =
+        split_progress != nullptr
+            ? SearchProgress::AddChildren(
+                  split_progress,
+                  {static_cast<double>(first_set.size()),
+                   static_cast<double>(second_set.size())})
+            : std::vector<SearchProgress::Node *>{nullptr, nullptr};
+    std::vector<ConditionalLine> first_lines = SolveHelper(
+        min_tricks, cache_in, board_trees, first_set, leader, lvl + 1,
+        half_progress[0], req_first, child_top_k, first_ps, state_depth + 1);
+    int first_cov =
+        first_lines.empty() ? 0 : first_lines[0].CoveredFinalBoards();
+    if (first_lines.empty() || first_cov < req_first) {
+      SearchProgress::Complete(half_progress[1]);
+      continue;
+    }
+    int req_second = std::max(cand.min_b_cov, cur_target - first_cov);
+    std::vector<ConditionalLine> second_lines = SolveHelper(
+        min_tricks, cache_in, board_trees, second_set, leader, lvl + 1,
+        half_progress[1], req_second, child_top_k, second_ps, state_depth + 1);
+    int second_cov =
+        second_lines.empty() ? 0 : second_lines[0].CoveredFinalBoards();
+    if (second_lines.empty() || second_cov < req_second) {
+      continue;
+    }
+    int total_cov = first_cov + second_cov;
+    if (total_cov >= cur_target) {
+      std::vector<ConditionalLine> &true_lines =
+          true_first ? first_lines : second_lines;
+      std::vector<ConditionalLine> &false_lines =
+          true_first ? second_lines : first_lines;
+      adopt_split_results(true_lines, false_lines, total_cov, cand.make_cond);
     }
   }
 }
@@ -2847,8 +3075,19 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
   bool use_memo = (lvl > 0 && solve_memo_ != nullptr);
   SolveMemoKeyBuilder kb;
   if (use_memo) {
+    bool off_lead_prev = false;
+    if (cards_left > 6 && leader % 2 == 0 && state_depth == 0 &&
+        prev_suit_led >= 0 && prev_suit_led < 4) {
+      const BoardState *bs0 = first_tree->MyBoard();
+      uint64_t mask0 = ~bs0->played_cards();
+      uint64_t decl_c = (bs0->GetHand(0) | bs0->GetHand(2)) & mask0;
+      uint64_t ldr_c = bs0->GetHand(leader) & mask0;
+      int shift = static_cast<int>(prev_suit_led) * 16;
+      off_lead_prev = (((decl_c >> shift) & 0xffff) != 0) &&
+                      (((ldr_c >> shift) & 0xffff) == 0);
+    }
     kb.Init(leader, min_tricks, prev_suit_led, cur_top_k, board_offsets.size(),
-            /*allow_state_split=*/(state_depth < 4));
+            state_depth, off_lead_prev);
   }
   std::set<int> solvable_boards;
   for (int b : board_offsets) {
@@ -2860,7 +3099,8 @@ std::vector<ConditionalLine> LineFinder::SolveHelper(
       solvable_boards.insert(solvable_boards.end(), b);
       if (use_memo) {
         const BoardState *bs_ptr = play_tree->MyBoard();
-        kb.AddBoard(b, bs_ptr->played_cards(), bs_ptr->discarded_suits_mask());
+        kb.AddBoard(b, bs_ptr->played_cards(), bs_ptr->discarded_suits_mask(),
+                    bs_ptr->shown_out_suits_mask());
       }
     }
   }

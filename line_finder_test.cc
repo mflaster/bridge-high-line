@@ -1253,3 +1253,171 @@ TEST(LineFinderTest, LineFinder_BranchOnGoodCardNonTouchingEquivalentSpots) {
   EXPECT_NE(desc.find("if C6 is good"), std::string::npos) << desc;
   EXPECT_NE(desc.find("if C6 is not good"), std::string::npos) << desc;
 }
+
+TEST(LineFinderTest, LineFinder_BranchOnMaxPossibleSuitLengthCondition) {
+  // 4-card NOTRUMP ending where declarer cashes SA and CA before leading D2
+  // toward South's 3rd-seat DAQ tenace (DK6 outstanding):
+  // - Boards 0..5: West shows out of Spades on SA (SQ remains unplayed, so
+  //   East must hold SQ -> can hold at most 1 D); West holds singleton DK, so
+  //   South must rise DA to drop DK.
+  // - Boards 6..11: West shows out of Clubs on CA (CQ remains unplayed, so
+  //   East must hold CQ -> can hold at most 1 D); West holds singleton DK, so
+  //   South must rise DA to drop DK.
+  // - Boards 12..17: Both defenders follow to SA and CA, and East holds DK6 ->
+  //   East can hold up to 2 D, so South must finesse DQ in 3rd seat.
+  // Neither "if W discarded on S" nor "if W discarded on C" alone separates
+  // {0..11} from {12..17}; MaxPossibleSuitLengthCondition(1, DIAMONDS, 1)
+  // unifies both count deductions to cover 18/18 with a single state split.
+  std::vector<uint64_t> hands = {
+      ParseHand("S A; C A; D 32;"),
+      0,
+      ParseHand("S 2; C 2; D AQ;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("S Q3; C Q3; H 32; D K6;");
+  std::vector<BoardState> boards(18);
+  for (int i = 0; i < 18; ++i) {
+    std::string east_str;
+    std::string west_str;
+    if (i < 6) {
+      east_str = "S Q3; C 3; D 6;";
+      west_str = "C Q; H 32; D K;";
+    } else if (i < 12) {
+      east_str = "S 3; C Q3; D 6;";
+      west_str = "S Q; H 32; D K;";
+    } else {
+      east_str = "S 3; C 3; D K6;";
+      west_str = "S Q; C Q; H 32;";
+    }
+    std::vector<uint64_t> h = {
+        hands[0],
+        ParseHand(east_str),
+        hands[2],
+        ParseHand(west_str),
+    };
+    boards[i].SetHands(h);
+    boards[i].SetTrump(NOTRUMP);
+    boards[i].SetLead(0);
+    boards[i].set_board_id(i + 1);
+  }
+
+  LineFinder lf(18);
+  lf.SetPredealtBoards(boards);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(4, hands, unknown, /*leader=*/0, NOTRUMP);
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe(0);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 18) << desc;
+  EXPECT_EQ(lines[0].ExtraBranches(), 1u) << desc;
+  EXPECT_NE(desc.find("if E can hold at most 1 D"), std::string::npos) << desc;
+  EXPECT_NE(desc.find("if E can hold more than 1 D"), std::string::npos)
+      << desc;
+}
+
+TEST(LineFinderTest, LineFinder_PersistentShowOutMemoryAcrossTricksAndRuffs) {
+  // 6-card HEARTS trump ending after Trick 1 (C2 ruffed/overruffed in South):
+  // - Boards 0..5: East was void in Clubs and ruffed C2 with H6 on Trick 1
+  //   (overruffed by South's HK); West holds singleton SK offside.
+  // - Boards 6..11: East followed suit with C4 on Trick 1 (ruffed by South's
+  //   HK); East holds SK6 onside.
+  // Both defenders hold 1 remaining heart and >= 2 diamonds, so everyone
+  // follows identically on H4 -> HA, H9, and DA (overwriting prev_suit_led).
+  // At the 2-card spade ending, declarer recalls East's Trick-1 club ruff via
+  // PlayerShowedOutCondition ("if E showed out of C") to drop singleton SK vs
+  // finesse SQ, covering all 12/12 boards.
+  std::vector<BoardState> boards(12);
+  for (int i = 0; i < 12; ++i) {
+    bool east_ruffs_club = (i < 6);
+    const char *east_str =
+        east_ruffs_club ? "H 76; D KQJ; S 6;" : "C 4; H 7; D QJ; S K6;";
+    const char *west_str =
+        east_ruffs_club ? "C 53; H 5; D 98; S K;" : "C 53; H 5; D K98;";
+    std::vector<uint64_t> h = {
+        ParseHand("C 2; H A9; D A; S 32;"),
+        ParseHand(east_str),
+        ParseHand("H K84; D 2; S AQ;"),
+        ParseHand(west_str),
+    };
+    boards[i].SetHands(h);
+    boards[i].SetTrump(HEARTS);
+    boards[i].SetLead(0);
+    boards[i].set_board_id(i + 1);
+    boards[i].PlayTrick(east_ruffs_club ? "C2 H6 HK C3" : "C2 C4 HK C3");
+  }
+
+  std::vector<uint64_t> rem_hands = {
+      ParseHand("H A9; D A; S 32;"),
+      0,
+      ParseHand("H 84; D 2; S AQ;"),
+      0,
+  };
+  uint64_t rem_unknown = ParseHand("C 5; H 75; D KQJ98; S K6;");
+  LineFinder lf(12);
+  lf.SetPredealtBoards(boards);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(5, rem_hands, rem_unknown, /*leader=*/2, HEARTS);
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe(0);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 12) << desc;
+  EXPECT_EQ(lines[0].ExtraBranches(), 1u) << desc;
+  EXPECT_NE(desc.find("if E showed out of C"), std::string::npos) << desc;
+  EXPECT_NE(desc.find("if E did not show out of C"), std::string::npos) << desc;
+}
+
+TEST(LineFinderTest, LineFinder_BranchOnOffLeadGoodCardCondition) {
+  // 5-card NOTRUMP ending (goal: all 5 tricks, North on lead):
+  // North cashes SK and singleton CA (South plays CJ), becoming void in Clubs
+  // while South holds C2. North is on lead and void in Clubs (off-lead for C2):
+  // - Boards 0..9: CK and CQ drop 1-1 on CA (C2 is good in South), and HK87 is
+  //   offside in West -> North cashes SA (South pitches HQ), crosses H2 -> HA,
+  //   and cashes C2.
+  // - Boards 10..19: CKQ are 2-0 (5 boards in East, 5 boards in West, so C2 is
+  //   not good), and HK8 is onside in East -> North cashes SA (South pitches
+  //   C2) and leads H2 to finesse HQ, then cashes HA.
+  std::vector<uint64_t> hands = {
+      ParseHand("C A; S AK; H 32;"),
+      0,
+      ParseHand("C J2; S 2; H AQ;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("C KQ; S 8765; H K876;");
+  std::vector<BoardState> boards(20);
+  for (int i = 0; i < 20; ++i) {
+    std::string east_str;
+    std::string west_str;
+    if (i < 5) {
+      east_str = "C K; S 876; H 6;";
+      west_str = "C Q; S 5; H K87;";
+    } else if (i < 10) {
+      east_str = "C Q; S 876; H 6;";
+      west_str = "C K; S 5; H K87;";
+    } else if (i < 15) {
+      east_str = "C KQ; S 8; H K8;";
+      west_str = "S 765; H 76;";
+    } else {
+      east_str = "S 876; H K8;";
+      west_str = "C KQ; S 5; H 76;";
+    }
+    std::vector<uint64_t> h = {
+        hands[0],
+        ParseHand(east_str),
+        hands[2],
+        ParseHand(west_str),
+    };
+    boards[i].SetHands(h);
+    boards[i].SetTrump(NOTRUMP);
+    boards[i].SetLead(0);
+    boards[i].set_board_id(i + 1);
+  }
+
+  LineFinder lf(20);
+  lf.SetPredealtBoards(boards);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(5, hands, unknown, /*leader=*/0, NOTRUMP);
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe(0);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 20) << desc;
+  EXPECT_LE(lines[0].ExtraBranches(), 2u) << desc;
+  EXPECT_NE(desc.find("if C2 is good"), std::string::npos) << desc;
+  EXPECT_NE(desc.find("if C2 is not good"), std::string::npos) << desc;
+}

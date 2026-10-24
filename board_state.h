@@ -74,11 +74,23 @@ class BoardState {
   int FindBestDiscard(int n, int *suit, int *rank) const;
 
   uint16_t discarded_suits_mask() const { return discarded_suits_mask_; }
+  void set_discarded_suits_mask(uint16_t mask) { discarded_suits_mask_ = mask; }
   bool HasPlayerDiscardedOnSuit(int player, Suit suit) const {
     if (player < 0 || player >= 4 || suit < 0 || suit >= 4) {
       return false;
     }
     return (discarded_suits_mask_ &
+            static_cast<uint16_t>(
+                1u << (player * 4 + static_cast<int>(suit)))) != 0;
+  }
+
+  uint16_t shown_out_suits_mask() const { return shown_out_suits_mask_; }
+  void set_shown_out_suits_mask(uint16_t mask) { shown_out_suits_mask_ = mask; }
+  bool HasPlayerShownOutOnSuit(int player, Suit suit) const {
+    if (player < 0 || player >= 4 || suit < 0 || suit >= 4) {
+      return false;
+    }
+    return (shown_out_suits_mask_ &
             static_cast<uint16_t>(
                 1u << (player * 4 + static_cast<int>(suit)))) != 0;
   }
@@ -99,5 +111,6 @@ class BoardState {
   uint8_t tricks_won_odd_ = 0;
   uint8_t tricks_won_even_ = 0;
   uint16_t discarded_suits_mask_ = 0;
+  uint16_t shown_out_suits_mask_ = 0;
   uint32_t board_id_ = 0;
 };

@@ -65,6 +65,7 @@ struct GeneralizedTrick {
     uint8_t winner = 0;
     char win_card[3] = {0, 0, 0};
     uint16_t discard_mask = 0;
+    uint16_t show_out_mask = 0;
     uint64_t trick_mask = 0;
     std::string trick_str;
   };
@@ -122,6 +123,7 @@ class GeneralizedTrickFinder {
     uint8_t winner = 0;
     uint8_t win_card_idx = 0;
     uint16_t discard_mask = 0;
+    uint16_t show_out_mask = 0;
     Suit suit_led = NOTRUMP;
     uint64_t trick_mask = 0;
   };
@@ -527,6 +529,54 @@ class PlayerDiscardedCondition : public PlayCondition {
   int player_;
   Suit suit_;
   bool discarded_;
+};
+
+class PlayerShowedOutCondition : public PlayCondition {
+ public:
+  PlayerShowedOutCondition(int player, Suit suit, bool showed_out)
+      : player_(player), suit_(suit), showed_out_(showed_out) {}
+
+  std::string Describe(bool only_choice) const override;
+  bool IsStateCondition() const override { return true; }
+  bool EvaluateState(const BoardState &bs) const override {
+    return Evaluate(bs) == showed_out_;
+  }
+
+  int player() const { return player_; }
+  Suit suit() const { return suit_; }
+  bool showed_out() const { return showed_out_; }
+  bool Evaluate(const BoardState &bs) const;
+
+ private:
+  int player_;
+  Suit suit_;
+  bool showed_out_;
+};
+
+class MaxPossibleSuitLengthCondition : public PlayCondition {
+ public:
+  MaxPossibleSuitLengthCondition(int player, Suit suit, int max_len,
+                                 bool at_most)
+      : player_(player), suit_(suit), max_len_(max_len), at_most_(at_most) {}
+
+  std::string Describe(bool only_choice) const override;
+  bool IsStateCondition() const override { return true; }
+  bool EvaluateState(const BoardState &bs) const override {
+    return Evaluate(bs) == at_most_;
+  }
+
+  int player() const { return player_; }
+  Suit suit() const { return suit_; }
+  int max_len() const { return max_len_; }
+  bool at_most() const { return at_most_; }
+  static int ComputeMaxLength(const BoardState &bs, int player, Suit suit);
+  bool Evaluate(const BoardState &bs) const;
+
+ private:
+  int player_;
+  Suit suit_;
+  int max_len_;
+  bool at_most_;
 };
 
 std::vector<std::vector<GeneralizedTrick>> GroupTricks(

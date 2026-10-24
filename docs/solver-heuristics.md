@@ -423,23 +423,54 @@ and `<= 9` cards remaining:
 ### 5.5 State-Condition Branching (`TryBranchOnGoodCards`)
 When unsplit tricks do not cover all solvable boards (`best_covered < solvable_n`,
 `lvl > 0`, declarer/dummy on lead, `state_depth < 4`), `TryBranchOnGoodCards`
-tests 2-way state splits:
-1. **`IsCardGoodCondition(card, true/false)`**:
+tests 2-way single-dummy state splits in priority order:
+1. **On-Lead & Off-Lead `IsCardGoodCondition(card, true/false)`**:
    Checks whether the highest unplayed N/S card in `suit` is currently a master
-   card. On the `is_good` branch, groups optimal `suit`-led cashing tricks via
-   `GeneralizedTrickFinder` whose winning N/S card satisfies
-   `IsCardGoodCondition(top_card, true)` (accepting equivalent non-touching spot
-   cards once intermediate spots have been played).
-2. **`PlayerDiscardedCondition(seat, prev_suit_led, true/false)`**:
-   Checks whether `East` (`1`) or `West` (`3`) discarded on the explicit
-   `prev_suit_led` of the preceding trick (avoiding transposed `PreviousTrick`
-   cache aliasing), deduplicating symmetric 3-way splits when neither board has
-   both defenders discarding.
-3. **Upper-bound pruning & combination**:
-   Uses `unsplit_ub` from `GetLinesFromGroups` to bound the `false` branch
-   before solving, preserves `has_unsplit_play` thresholds on fail-low nodes,
-   and combines `true`/`false` subtrees via `AssembleBranchLines` and
-   `FinalizeTopKLines`.
+   card.
+   - **On-lead (`leader_suit_bits != 0`)**: Groups optimal `suit`-led cashing
+     tricks via `GeneralizedTrickFinder` whose winning N/S card satisfies
+     `IsCardGoodCondition(win_c, true)` (accepting equivalent non-touching spot
+     cards once intermediate spots have been played).
+   - **Off-lead (`leader_suit_bits == 0`, gated to `state_depth == 0` and
+     `suit == prev_suit_led || cards_left <= 6`)**: Allows branching when
+     partner holds the newly established master card while `leader` is void in
+     `suit` (e.g., after playing the last card from `leader`'s hand to drop a
+     missing honor), recursing via `SolveHelper` so declarer can cross in
+     another suit to cash.
+2. **Immediate `prev_suit_led` Show-Out (`PlayerDiscardedCondition` /
+   `PlayerShowedOutCondition`)**:
+   Checks whether `East` (`1`) or `West` (`3`) failed to follow on the explicit
+   `prev_suit_led` of the preceding trick (`HasPlayerShownOutOnSuit`, tracking
+   both non-trump discards and ruffs). Emits `PlayerDiscardedCondition`
+   (`"if E discarded on C"`) when all show-outs were non-trump discards, or
+   `PlayerShowedOutCondition` (`"if E showed out of C"`) when at least one board
+   showed out by ruffing.
+3. **Persistent Show-Out Memory (`state_depth == 0 && cards_left <= 6`,
+   `s != prev_suit_led`)**:
+   Remembers earlier suit show-outs (both discards and ruffs) across subsequent
+   trump-drawing or winner-cashing tricks so endgame guesses can still branch on
+   an opponent's earlier show-out. Placed before
+   `MaxPossibleSuitLengthCondition` so any partition already explained by a
+   single direct show-out uses the explicit show-out condition.
+4. **`MaxPossibleSuitLengthCondition(seat, suit, max_len, true/false)`
+   (`state_depth == 0 && cards_left <= 6`)**:
+   Computes the tightest single-dummy upper bound on how many cards defender
+   `seat` can hold in `suit` from remaining opponent cards in `suit`,
+   `cards_left`, and partner's observed show-outs in other suits:
+   $$\text{max\_len}(p, S) = \begin{cases} 0 & \text{if } p \text{ showed out of } S, \\ \min\!\Big(\text{opp\_rem}(S),\; \max\!\big(0,\; \text{cards\_left}(p) - \sum_{S' \neq S:\; (4-p)\text{ showed out of } S'} \text{opp\_rem}(S')\big)\Big) & \text{otherwise.} \end{cases}$$
+   Tests natural guard-length thresholds (`max_len = higher_cnt`, e.g. `"if E
+   can hold at most 3 D"` vs `"if E can hold more than 3 D"` to choose between
+   playing for the drop and finessing, plus deduced voids `max_len = 0`) in
+   suits where N/S still hold cards, skipping splits identical to a direct
+   show-out in `suit` and prioritizing the defender sitting in front of
+   declarer's tenace.
+5. **Partition deduplication, upper-bound pruning & combination**:
+   Skips state branching on forced 1-card endings (`cards_left <= 1`),
+   deduplicates unordered board partitions across `SolveHelper`+`SolveHelper`
+   candidates, solves the smaller branch first for fast fail-low, bounds both
+   branches with `unsplit_ub` plus nested on-lead good-card / `prev_suit_led`
+   allowances, and combines `true`/`false` subtrees via `AssembleBranchLines`
+   and `FinalizeTopKLines`.
 
 ---
 
