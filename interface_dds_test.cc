@@ -798,3 +798,66 @@ TEST(InterfaceDdsTest, DeclarerSeatRules_PrunesRedundantLosingAndSpotPlays) {
     ASSERT_FALSE(saw_s5);
   }
 }
+
+TEST(InterfaceDdsTest, ThirdSeatRuffDoesNotPeekAtFourthHandFollow) {
+  ScopedDefenderNoise no_noise(0);
+  // Spades are trump. North leads C2 and South (3rd seat) holds S J6 and D A
+  // while ST is still outstanding in East's hand and clubs split 1-1 (East CT,
+  // West CQ). Double-dummy, S6 wins because West must follow with CQ, but
+  // single-dummy West could be void in clubs with ST, so DDSFindOptimalLines
+  // must retain SJ alongside S6 instead of peeking at West's club holding.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S A; D 2; C 2;"),
+        ParseHand("S T; D 3; C T;"),
+        ParseHand("S J6; D A;"),
+        ParseHand("H 2; D 4; C Q;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(0);
+    bs.SetTrump(SPADES);
+
+    OptimalLines lines;
+    int tricks = DDSFindOptimalLines(bs, 3, &lines, nullptr);
+    ASSERT_EQ(tricks, 3);
+    bool saw_s6 = false;
+    bool saw_sj = false;
+    for (const std::string &line : lines) {
+      if (line == "C2 CT S6 CQ ") saw_s6 = true;
+      if (line == "C2 CT SJ CQ ") saw_sj = true;
+    }
+    EXPECT_TRUE(saw_s6);
+    EXPECT_TRUE(saw_sj);
+  }
+
+  // Once East shows out on C2 while CQ is still unplayed, West is publicly
+  // known to hold CQ and must follow suit, so S6 is a single-dummy sure win and
+  // SJ is pruned.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S A; D 2; C 2;"),
+        ParseHand("S T; H 3; D 3;"),
+        ParseHand("S J6; D A;"),
+        ParseHand("D 4; C QT;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(0);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(0, Card::ParseStringCard("C2"));
+    bs.PlayCard(1, Card::ParseStringCard("H3"));
+
+    OptimalLines lines;
+    int tricks = DDSFindOptimalLines(bs, 3, &lines, nullptr);
+    ASSERT_EQ(tricks, 3);
+    bool saw_s6 = false;
+    bool saw_sj = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("C2 H3 S6 ", 0) == 0) saw_s6 = true;
+      if (line.rfind("C2 H3 SJ ", 0) == 0) saw_sj = true;
+    }
+    EXPECT_TRUE(saw_s6);
+    EXPECT_FALSE(saw_sj);
+  }
+}
