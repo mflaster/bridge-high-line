@@ -975,6 +975,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
   int opp_highest_rank[4] = {0, 0, 0, 0};
   int partner_after_suit[4] = {0, 0, 0, 0};
   uint16_t rho_led_mask = 0;
+  bool rho_known_cant_overruff = false;
   if (pair_is_me) {
     for (int i = 0; i < futp.cards; ++i) {
       int r = futp.rank[i];
@@ -1037,6 +1038,14 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
       int rho = (me + 1) % 4;
       rho_led_mask =
           (rho == 1) ? east_suit_mask[suit_led] : west_suit_mask[suit_led];
+      if (level == 2 && trump != NOTRUMP && suit_led != trump) {
+        bool lho_showed_out =
+            Card::DecodeCard(bs.trick_cards_played()[1]).first != suit_led;
+        rho_known_cant_overruff =
+            opp_suit_mask[trump] == 0 ||
+            bs.HasPlayerDiscardedOnSuit(rho, trump) ||
+            (lho_showed_out && opp_suit_mask[suit_led] != 0);
+      }
       for (int i = 0; i < futp.cards; i++) {
         int s = futp.suit[i];
         int r = futp.rank[i];
@@ -1053,7 +1062,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
           bool sure_third_win =
               (s == suit_led && (rho_led_mask >> (r - 1)) == 0) ||
               (s == trump && suit_led != trump &&
-               (rho_led_mask != 0 || r > opp_highest_rank[trump]));
+               (rho_known_cant_overruff || r > opp_highest_rank[trump]));
           if (sure_third_win) {
             cheapest_third_hand_win_rank[s] =
                 std::min(cheapest_third_hand_win_rank[s], r);
@@ -1193,7 +1202,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
             wins_so_far &&
             ((s == suit_led && (rho_led_mask >> (r - 1)) == 0) ||
              (s == trump && suit_led != trump &&
-              (rho_led_mask != 0 || r > opp_highest_rank[trump])));
+              (rho_known_cant_overruff || r > opp_highest_rank[trump])));
         if (sure_third_win && r > cheapest_third_hand_win_rank[s] &&
             !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
                                       partner_after_suit[s],

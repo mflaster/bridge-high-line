@@ -207,11 +207,15 @@ equivalent spot cards or dominated plays:
      unblocking (line 936).
    - Prunes ducking under partner's master lead when partner had a cheaper
      master lead of the same spot/honor tier and was not unblocking (line 953).
-8. **Cheapest sure win in 3rd/4th seat & equivalent winning cards (lines
-   969–1012)**:
+8. **Cheapest sure win in 3rd/4th seat & equivalent winning cards**:
    Prunes winning with a higher card when a cheaper card in the same suit also
    wins (and no opponent holds an intermediate card, or RHO cannot beat the
-   3rd-seat card) unless `CanNeedUnblockForPartner` is true.
+   3rd-seat card) unless `CanNeedUnblockForPartner` is true. For 3rd-seat ruffs,
+   RHO is treated as unable to overruff only on public single-dummy grounds
+   (`rho_known_cant_overruff`: no opponent trumps remain, RHO previously showed
+   out of trumps, or LHO just failed to follow to `suit_led` while opponents
+   still hold cards in `suit_led`), without peeking at RHO's private `suit_led`
+   holding.
 9. **No 4th-seat ruff of partner's Ace (lines 982–985)**:
    In 4th seat, if partner is already winning the trick with the Ace (`rank ==
    14`, not ruffed) and a discard is available in `futp`, prunes ruffing
