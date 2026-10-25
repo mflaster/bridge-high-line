@@ -665,6 +665,7 @@ void RescoreTopLinesAdversarial(
   size_t num_all = all_boards.size();
   size_t num_lines = lines->size();
   for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+    (*lines)[l_i].set_min_tricks(min_tricks);
     (*lines)[l_i].DeepCloneChildren();
   }
   {

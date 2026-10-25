@@ -459,7 +459,7 @@ tests 2-way state splits:
   action node whenever the board was not already counted in Step 1's denominator
   for that node.
 
-### 6.2 Adversarial Defender Card Selection (`ChooseAdversarialDefenderCard`, `conditional_line.cc:2245–2370`)
+### 6.2 Adversarial Defender Card Selection (`ChooseAdversarialDefenderCard`, `conditional_line.cc`)
 During Step-2 simulation (`SimulateBoard` with `adversarial = true`), whenever
 a defender is on play:
 1. **Candidate DDS-optimal cards (`FindOptimalDefenderCards`,
@@ -472,23 +472,34 @@ a defender is on play:
      group. Including all honors in optimal equivalence groups allows the
      adversarial defender to falsecard an honor from holdings like `CT9x` or
      `CQJ` when doing so is double-dummy neutral.
-2. **Lookahead for failing branch (`EvaluateTrickContinuation`, lines
-   2114–2243, 2290–2353)**:
-   When a defender is responding to a trick (`pos == 1` or `pos == 2`) and the
-   tree has multiple candidate branches (`candidates.size() > 1`) that map
-   different DDS-optimal cards to distinct branches (`has_distinct_branches`):
-   - For each distinct matched branch, `does_reach_leaf` simulates the rest of
-     the trick and the continuation subtree (`SimulateBoard`) on the current
-     board.
-   - Any DDS-optimal card whose matched branch **fails on the current board**
-     (`reaches_leaf == false`) is strictly preferred over a card whose matched
-     branch succeeds (`reaches_leaf == true`). This defeats Step-1 "peek"
-     splits where declarer branched on a singleton honor like `(CT)`.
+2. **Three-tier continuation lookahead (`EvaluateTrickContinuation` &
+   `ClassifyContinuationTier`)**:
+   Whenever two or more DDS-optimal cards match valid candidate branches and
+   either map to distinct branches (`pos < 3 && candidates.size() > 1`) or have
+   different empirical success probabilities (`pos = 0..3`), each candidate
+   continuation is simulated with **unclamped** N/S remaining double-dummy
+   tricks (`clamp_missing_leaf = false`, memoized per
+   `(node, played_cards, leader, ns_tricks)` in `SubtreeTierCache`) and ranked
+   into three tiers (lower = preferred by the defender):
+   - **Tier 0 — Genuine defeat** (enabled when responding mid-trick at
+     `pos == 1` or `pos == 2` across explicit branch splits): Continuation does
+     not reach a leaf (`leaf == nullptr`) and unclamped
+     `final_ns_tricks < root_min_tricks` (or `root_min_tricks <= 0`). This
+     defeats Step-1 "peek" splits where declarer branched on a singleton honor
+     like `(CT)` or `(CQ)` and committed to a losing response on that branch,
+     without creating underplay artifacts on unsplit `(S_) SQ` finesses.
+   - **Tier 1 — Covered leaf**: Declarer makes the contract and reaches an
+     existing leaf in the decision tree (`leaf != nullptr`).
+   - **Tier 2 — Missing Step-1 branch**: Continuation exits the Step-1 tree
+     (`leaf == nullptr`), e.g. via a downstream winner or shift branch that no
+     Step-1 board needed to visit, while declarer still has
+     `>= root_min_tricks` double-dummy. Ranking Tier 2 worse than Tier 1 across
+     `pos = 0..3` prevents missing Step-1 branches from being mistaken for
+     falsecard defeats or selected due to `0 / k` empirical probabilities.
 3. **Empirical branch success probability tie-breaker
-   (`BranchSuccessProbability`, lines 2025–2101)**:
-   Among DDS-optimal cards with the same `reaches_leaf` status (or when
-   leading at `pos == 0` / playing 4th at `pos == 3`), the defender picks the
-   card that minimizes the matched branch's empirical Step-1 success probability:
+   (`BranchSuccessProbability`)**:
+   Among DDS-optimal cards in the same tier, the defender picks the card that
+   minimizes the matched branch's empirical Step-1 success probability:
    $$P(\text{success}) = \frac{\text{step1\_covered\_boards}}{\text{step1\_denom} + \text{unmakeable\_denom}}.$$
 
 ### 6.3 Single-Suit Lead and `<H` Pattern Relaxation (`DeepCloneChildren` & `CollapseUniformInSuitSplits`)
