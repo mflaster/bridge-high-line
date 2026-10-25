@@ -13,34 +13,33 @@ Invariant Rules for 4 card ending:
 Example Play (Board 0):
   #1 (S) S6 S4 SQ* S3
   #2 (N) SA* S5 S7 S9
-  #3 (N) H2 D4 HA* D3
-  #4 (S) S8 SK* ST SJ
+  #3 (N) ST SJ S8 SK*
+  #4 (W) D3 H2 D4 HA*
 
-  after S6 (S_) SQ (S_): S6 (S_) SQ (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20,21,22,23,24,26,28,29] / S6 S4 SQ S3 / S6 S3 SQ S5 / S6 S3 SQ S9 / S6 S3 SQ S9 / S6 S3 SQ S4
+  after S6 (S_) SQ (S_): S6 (S_) SQ (S_) [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20,21,22,23,24,26,28,29] / S6 S4 SQ S3 / S6 S3 SQ SK / S6 S3 SQ SK / S6 S3 SQ SK / S6 S3 SQ SK
     if 0 wins the SQ: 
       after SA (S_) S7 (S_): SA (S_) S7 (S_) [0,5,6,7,8,10,15,17,20,23,26] / SA S5 S7 S9 / SA S9 S7 S4 / SA S9 S7 S5 / SA S5 S7 S9 / SA S5 S7 S9
         when 0 wins the SA: 
-          after H2 (__) HA (__): H2 (__) HA (__) [0,5,6,7,8,10,15,17,20,23,26] / H2 D4 HA D3 / H2 D3 HA D4 / H2 D3 HA D4 / H2 D3 HA D4 / H2 D3 HA D4
-            when 2 wins the HA: 
-              after S8 (__) ST (__): S8 (__) ST (__) [0,5,6,7,8,10,15,17,20,23,26] / S8 SK ST SJ / S8 SK ST SJ / S8 SK ST SJ / S8 SK ST SJ / S8 SK ST SJ
-                if 1 wins the SJ: HAND SUCCEEDED FOR: 1, 2, 3, 4, 9, 11, 12, 13, 14, 16, 19, 22, 28, 29
-                if 3 wins the SK: HAND SUCCEEDED FOR: 0, 5, 6, 7, 8, 10, 15, 17, 18, 20, 21, 23, 25, 26, 27
+          after ST (__) S8 (SK): ST (__) S8 (SK) [0,5,6,7,8,10,15,17,20,23,26] / ST SJ S8 SK / ST SJ S8 SK / ST SJ S8 SK / ST SJ S8 SK / ST SJ S8 SK
+            when 3 wins the SK: 
+              after (__) H2 (__) HA: (__) H2 (__) HA [0,5,6,7,8,10,15,17,20,23,26] / D3 H2 D4 HA / D4 H2 D3 HA / D4 H2 D3 HA / D4 H2 D3 HA / D4 H2 D3 HA
+                when 2 wins the HA: HAND SUCCEEDED FOR: 0, 5, 6, 7, 8, 10, 15, 17, 18, 20, 21, 23, 25, 26, 27
     if 1 wins the SK: 
-      after (D_) S7 (__) H2: (D_) S7 (__) H2 [3,9,11,12,16,19,21,24,28,29] / D4 S7 D3 H2  / D3 S7 D4 H2  / D3 S7 D4 H2  / D4 S7 D3 H2  / D4 S7 D3 H2 
+      after (D_) S7 (__) H2: (D_) S7 (__) H2 [3,9,11,12,16,19,21,24,28,29] / D4 S7 D3 H2 / D3 S7 D4 H2 / D3 S7 D4 H2 / D4 S7 D3 H2 / D4 S7 D3 H2
         when 0 wins the H2: 
-          after SA (S_) S8 (S_): SA (S_) S8 (S_) [3,9,11,12,16,19,21,24,28,29] / SA S9 S8 S4  / SA S4 S8 S5  / SA S3 S8 S9  / SA S4 S8 S9  / SA S5 S8 S4 
+          after SA (S_) S8 (S_): SA (S_) S8 (S_) [3,9,11,12,16,19,21,24,28,29] / SA S9 S8 S4 / SA S4 S8 S5 / SA S3 S8 S9 / SA S4 S8 S9 / SA S5 S8 S4
             when 0 wins the SA: 
-              after ST (__) HA (S_): ST (__) HA (S_) [3,9,11,12,16,19,21,24,28,29] / ST SJ HA S5  / ST S9 HA SJ  / ST S5 HA SJ  / ST S5 HA SJ  / ST S9 HA SJ 
-                when 2 wins the HA: HAND SUCCEEDED FOR: 24
-      after (S_) S7 (SJ) SA: (S_) S7 (SJ) SA [1,14,22] / S5 S7 SJ SA  / S3 S7 SJ SA  / S3 S7 SJ SA 
+              after ST (__) HA (S_): ST (__) HA (S_) [3,9,11,12,16,19,21,24,28,29] / ST SJ HA S5 / ST S9 HA SJ / ST S5 HA SJ / ST S5 HA SJ / ST S9 HA SJ
+                when 2 wins the HA: HAND SUCCEEDED FOR: 1, 2, 3, 9, 11, 12, 16, 19, 24, 28, 29
+      after (S_) S7 (SJ) SA: (S_) S7 (SJ) SA [1,14,22] / S5 S7 SJ SA  / S3 S7 SJ SA / S3 S7 SJ SA
         when 0 wins the SA: 
-          after ST (S_) S8 (__): ST (S_) S8 (__) [1,14,22] / ST S9 S8 S4  / ST S5 S8 D3  / ST S4 S8 D3 
+          after ST (S_) S8 (__): ST (S_) S8 (__) [1,14,22] / ST S9 S8 S4  / ST S5 S8 D3 / ST S4 S8 D3
             when 0 wins the ST: 
-              after H2 (__) HA (__): H2 (__) HA (__) [1,14,22] / H2 D3 HA D4  / H2 S9 HA D4  / H2 S5 HA D4 
-                when 2 wins the HA: 
-      after (S_) S7 (S_) ST: (S_) S7 (S_) ST [2,4,13] / S9 S7 S4 ST  / S4 S7 S9 ST  / S4 S7 S5 ST 
+              after H2 (__) HA (__): H2 (__) HA (__) [1,14,22] / H2 D3 HA D4  / H2 S9 HA D4 / H2 S5 HA D4
+                when 2 wins the HA: HAND SUCCEEDED FOR: 14, 22
+      after (S_) S7 (S_) ST: (S_) S7 (S_) ST [2,4,13] / S9 S7 S4 ST  / S4 S7 S9 ST / S4 S7 S5 ST
         when 0 wins the ST: 
-          after SA (S_) S8 (__): SA (S_) S8 (__) [2,4,13] / SA SJ S8 S5  / SA S5 S8 D3  / SA S9 S8 D3 
+          after SA (S_) S8 (__): SA (S_) S8 (__) [2,4,13] / SA SJ S8 S5  / SA S5 S8 D3 / SA S9 S8 D3
             when 0 wins the SA: 
-              after H2 (__) HA (__): H2 (__) HA (__) [2,4,13] / H2 D4 HA D3  / H2 SJ HA D4  / H2 SJ HA D4 
-                when 2 wins the HA: 
+              after H2 (__) HA (__): H2 (__) HA (__) [2,4,13] / H2 D4 HA D3  / H2 SJ HA D4 / H2 SJ HA D4
+                when 2 wins the HA: HAND SUCCEEDED FOR: 4, 13

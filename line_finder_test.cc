@@ -1253,3 +1253,94 @@ TEST(LineFinderTest, LineFinder_BranchOnGoodCardNonTouchingEquivalentSpots) {
   EXPECT_NE(desc.find("if C6 is good"), std::string::npos) << desc;
   EXPECT_NE(desc.find("if C6 is not good"), std::string::npos) << desc;
 }
+
+TEST(LineFinderTest, LineFinder_MissingDefenderShiftDoesNotConfuseStep2) {
+  // 3-card ending in Clubs trump, North (0) on lead, min_tricks = 2:
+  //   N: H 2; D 93   |   S: D K4; C Q
+  // - Board 0: Seat 1 holds singleton DA + H87 (Seat 3 holds DQJ8). In Step 1,
+  //   only Board 0 enters `D3 (DA) D4 (D_) -> when 1 wins the DA`, where Seat 1
+  //   has only Hearts left (`after (H_) CQ (__) H2`).
+  // - Boards 1..4: Seat 1 holds DAJ8 or DAQ8 (no Hearts). In Step 1, Seat 1
+  //   plays 2nd-hand low (`D3 (D<A) DK (D_)`). In Step 2, Seat 1 tests rising
+  //   with DA and returning a diamond into `(H_) CQ (__) H2`, where declarer
+  //   still makes 2 tricks double-dummy (`DK` + `CQ`). Step 2 classifies the
+  //   missing diamond-return continuation as Tier 2 rather than a defeat and
+  //   keeps Boards 1..4 on `D3 (D<A) DK (D_)`, preserving 5/5 coverage.
+  std::vector<uint64_t> hands = {
+      ParseHand("H 2; D 93;"),
+      0,
+      ParseHand("D K4; C Q;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("H 87; D AQJ8;");
+  std::vector<BoardState> boards(5);
+  auto set_board = [&](int idx, const char *h1, const char *h3) {
+    std::vector<uint64_t> h = {hands[0], ParseHand(h1), hands[2],
+                               ParseHand(h3)};
+    boards[idx].SetHands(h);
+    boards[idx].SetTrump(CLUBS);
+    boards[idx].SetLead(0);
+    boards[idx].set_board_id(idx + 1);
+  };
+  set_board(0, "H 87; D A;", "D QJ8;");
+  set_board(1, "D AJ8;", "H 87; D Q;");
+  set_board(2, "D AJ8;", "H 87; D Q;");
+  set_board(3, "D AQ8;", "H 87; D J;");
+  set_board(4, "D AQ8;", "H 87; D J;");
+
+  LineFinder lf(5);
+  lf.SetPredealtBoards(boards);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(2, hands, unknown, /*leader=*/0, CLUBS);
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe(0);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 5) << desc;
+}
+
+TEST(LineFinderTest, LineFinder_MissingWinnerAfterOvertakeDoesNotConfuseStep2) {
+  // 4-card endplay in Notrump, North (0) on lead, min_tricks = 2:
+  //   N: S 6; D AQ2   |   S: S 5; D 543
+  // - Board 0 (makeable): East holds `S K; D T97`, West holds `S 84; D KJ`
+  //   (East always wins Trick 1 with `SK`).
+  // - Boards 1..3 (makeable): East holds `S 8; D T97`, West holds `S K4; D KJ`.
+  //   In Step 1, East's `S8` is already winning so West ducks `S4`, meaning
+  //   Step 1 only ever populates `when 1 wins` on `S6 (S_) S5 (S_)`.
+  // - Board 4 (unmakeable): East holds `S 4; D KJ9`, West holds `S K8; D T7`
+  //   (max 1 trick for N/S). `TraceUnmakeableBoard` plays `S6 S4 S5 SK`
+  //   (`winner == 3`), setting `winner_unmakeable_boards[3] = 1`.
+  // - In Step 2 on Boards 1..3, West evaluates overtaking `S8` with `SK` at
+  //   `pos == 3` (`winner == 3`, empirical probability 0/1 vs 4/4 for `1
+  //   wins`). Because N/S still makes 2 tricks (`DA` + `DQ`) after `SK`, Step 2
+  //   ranks the missing `3 wins` continuation as Tier 2 (worse than Tier 1
+  //   `S4`) and preserves 4/4 coverage without synthesizing `if 3 wins`.
+  std::vector<uint64_t> hands = {
+      ParseHand("S 6; D AQ2;"),
+      0,
+      ParseHand("S 5; D 543;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("S K84; D KJT97;");
+  std::vector<BoardState> boards(5);
+  auto set_board = [&](int idx, const char *h1, const char *h3) {
+    std::vector<uint64_t> h = {hands[0], ParseHand(h1), hands[2],
+                               ParseHand(h3)};
+    boards[idx].SetHands(h);
+    boards[idx].SetTrump(NOTRUMP);
+    boards[idx].SetLead(0);
+    boards[idx].set_board_id(idx + 1);
+  };
+  set_board(0, "S K; D T97;", "S 84; D KJ;");
+  for (int i = 1; i < 4; ++i) {
+    set_board(i, "S 8; D T97;", "S K4; D KJ;");
+  }
+  set_board(4, "S 4; D KJ9;", "S K8; D T7;");
+
+  LineFinder lf(5);
+  lf.SetPredealtBoards(boards);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(2, hands, unknown, /*leader=*/0, NOTRUMP);
+  ASSERT_FALSE(lines.empty());
+  std::string desc = lines[0].Describe(0);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 4) << desc;
+  EXPECT_EQ(desc.find("if 3 wins the "), std::string::npos) << desc;
+}

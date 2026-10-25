@@ -1334,3 +1334,120 @@ TEST(ConditionalLineTest, AdversarialDefenderFalsecardsIntoFailingBranch) {
   ASSERT_FALSE(trace_west_sq.node_tricks.empty());
   EXPECT_EQ(trace_west_sq.node_tricks[0].second.rfind("CQ C2 CA ", 0), 0u);
 }
+
+TEST(ConditionalLineTest,
+     AdversarialDefenderDistinguishesMissingBranchFromGenuineDefeat) {
+  // Part 1 (Tier 2 > Tier 1): Missing `if E wins` branch where declarer still
+  // has cold remaining tricks (`min_tricks = 1`, Hearts trump).
+  // South (2) leads C6 toward North's CKJ, holding trump HA in reserve:
+  // - Branch 1: `C6 (C<Q) CJ (C_)` populates both `if N wins` and `if E wins`.
+  // - Branch 2: `C6 (CQ) CK (C_)` only saw singleton CQ in Step 1, so `if E
+  //   wins` (when East holds CA) is missing.
+  // When West holds CQ2 and East holds CA3, both C2 and CQ are DDS-optimal (1
+  // trick for N/S via HA ruff). Playing CQ hits the missing `if E wins` branch,
+  // where South still has HA double-dummy (Tier 2), so West must prefer C2
+  // (Tier 1) rather than mistaking the missing branch for a defeat.
+  {
+    std::set<int> b_lt = {0, 1};
+    std::set<int> b_cq = {2};
+    ConditionalLine leaf_lt_n({0});
+    ConditionalLine leaf_lt_e({1});
+    ConditionalLine lt_t2;
+    lt_t2.SetAction(GeneralizedTrick(
+        GeneralizedDemiStruct("__", "HA", {1}),
+        GeneralizedDemiStruct("__", "CK", {1}), {1}, 1));
+    lt_t2.AddCondition(new WinnerPlayCondition(2), leaf_lt_e);
+
+    GeneralizedTrick gt_lt(GeneralizedDemiStruct("C<Q", "C6", b_lt),
+                           GeneralizedDemiStruct("C_", "CJ", b_lt), b_lt, 2);
+    gt_lt.opp1_step1_boards = 2;
+    ConditionalLine node_lt;
+    node_lt.SetAction(gt_lt);
+    node_lt.AddCondition(new WinnerPlayCondition(0), leaf_lt_n);
+    node_lt.AddCondition(new WinnerPlayCondition(1), lt_t2);
+
+    ConditionalLine leaf_cq_n(b_cq);
+    GeneralizedTrick gt_cq(GeneralizedDemiStruct("CQ", "C6", b_cq),
+                           GeneralizedDemiStruct("C_", "CK", b_cq), b_cq, 2);
+    gt_cq.opp1_step1_boards = 1;
+    ConditionalLine node_cq;
+    node_cq.SetAction(gt_cq);
+    node_cq.AddCondition(new WinnerPlayCondition(0), leaf_cq_n);
+
+    BoardState bs_make = MakeBoardState(
+        {ParseHand("C KJ"), ParseHand("C A3"), ParseHand("H A C 6"),
+         ParseHand("C Q2")},
+        2, HEARTS);
+
+    ConditionalLine root;
+    root.AddCondition(new TrickPlayCondition("C6 (C<Q) CJ (C_)"), node_lt);
+    root.AddCondition(new TrickPlayCondition("C6 (CQ) CK (C_)"), node_cq);
+    root.set_min_tricks(1);
+    root.set_sample_board(bs_make);
+    root.DeepCloneChildren();
+
+    ConditionalLine::RescoreBoardTrace trace;
+    EXPECT_EQ(root.ResultsOnHandAdversarial(bs_make, nullptr, &trace), 1);
+    EXPECT_NE(trace.leaf, nullptr);
+    ASSERT_FALSE(trace.node_tricks.empty());
+    EXPECT_EQ(trace.node_tricks[0].second.rfind("C6 C2 CJ ", 0), 0u);
+  }
+
+  // Part 2 (Tier 0 < Tier 1): Genuine falsecard defeat (`min_tricks = 3`).
+  // South (2) holds `H AK; C 6`, North (0) holds `H 2; C AJ` in Notrump.
+  // - Branch 1: `C6 (C<Q) CA (C_)` -> `H2` to `HA` -> `HK` (3 tricks).
+  // - Branch 2: `C6 (CQ) CJ (C_)` (flawed duck hoping CQ is singleton) -> only
+  //   populates `if N wins`.
+  // When West holds `H 5; C Q2` and East holds `H 4; C K3`, both C2 and CQ are
+  // DDS-optimal (double-dummy N/S can always rise CA for 3 tricks), and
+  // falsecarding CQ genuinely defeats Branch 2 because North ducks CJ to East's
+  // CK (leaving N/S with only 2 tricks < min_tricks = 3, Tier 0).
+  {
+    std::set<int> b_lt = {0};
+    std::set<int> b_cq = {1};
+    ConditionalLine leaf_lt(b_lt);
+    ConditionalLine lt_t3;
+    lt_t3.SetAction(GeneralizedTrick(
+        GeneralizedDemiStruct("__", "HK", b_lt),
+        GeneralizedDemiStruct("__", "CJ", b_lt), b_lt, 2));
+    lt_t3.AddCondition(new WinnerPlayCondition(2), leaf_lt);
+    ConditionalLine lt_t2;
+    lt_t2.SetAction(GeneralizedTrick(
+        GeneralizedDemiStruct("__", "H2", b_lt),
+        GeneralizedDemiStruct("__", "HA", b_lt), b_lt, 0));
+    lt_t2.AddCondition(new WinnerPlayCondition(2), lt_t3);
+
+    GeneralizedTrick gt_lt(GeneralizedDemiStruct("C<Q", "C6", b_lt),
+                           GeneralizedDemiStruct("C_", "CA", b_lt), b_lt, 2);
+    gt_lt.opp1_step1_boards = 1;
+    ConditionalLine node_lt;
+    node_lt.SetAction(gt_lt);
+    node_lt.AddCondition(new WinnerPlayCondition(0), lt_t2);
+
+    ConditionalLine leaf_cq(b_cq);
+    GeneralizedTrick gt_cq(GeneralizedDemiStruct("CQ", "C6", b_cq),
+                           GeneralizedDemiStruct("C_", "CJ", b_cq), b_cq, 2);
+    gt_cq.opp1_step1_boards = 1;
+    ConditionalLine node_cq;
+    node_cq.SetAction(gt_cq);
+    node_cq.AddCondition(new WinnerPlayCondition(0), leaf_cq);
+
+    BoardState bs_defeat = MakeBoardState(
+        {ParseHand("H 2 C AJ"), ParseHand("H 4 C K3"),
+         ParseHand("H AK C 6"), ParseHand("H 5 C Q2")},
+        2, NOTRUMP);
+
+    ConditionalLine root;
+    root.AddCondition(new TrickPlayCondition("C6 (C<Q) CA (C_)"), node_lt);
+    root.AddCondition(new TrickPlayCondition("C6 (CQ) CJ (C_)"), node_cq);
+    root.set_min_tricks(3);
+    root.set_sample_board(bs_defeat);
+    root.DeepCloneChildren();
+
+    ConditionalLine::RescoreBoardTrace trace;
+    EXPECT_EQ(root.ResultsOnHandAdversarial(bs_defeat, nullptr, &trace), 2);
+    EXPECT_EQ(trace.leaf, nullptr);
+    ASSERT_FALSE(trace.node_tricks.empty());
+    EXPECT_EQ(trace.node_tricks[0].second.rfind("C6 CQ CJ ", 0), 0u);
+  }
+}
