@@ -861,3 +861,99 @@ TEST(InterfaceDdsTest, ThirdSeatRuffDoesNotPeekAtFourthHandFollow) {
     EXPECT_FALSE(saw_sj);
   }
 }
+
+TEST(InterfaceDdsTest, ThirdSeatFollowDoesNotPeekAtFourthHandHolding) {
+  ScopedDefenderNoise no_noise(0);
+  // Spades are trump. South leads S4 to North's S AKJ while West holds S Q2
+  // (ducking S2 in 2nd seat) and East is void in spades without having showed
+  // out yet. Double-dummy, SJ wins because East has no spades, but single-dummy
+  // East could hold SQ, so DDSFindOptimalLines must retain SK alongside SJ.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S AKJ;"),
+        ParseHand("D 32; C 2;"),
+        ParseHand("S 4; D A; C A;"),
+        ParseHand("S Q2; C 3;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(2);
+    bs.SetTrump(SPADES);
+
+    OptimalLines lines;
+    int tricks = DDSFindOptimalLines(bs, 3, &lines, nullptr);
+    ASSERT_EQ(tricks, 3);
+    bool saw_sj = false;
+    bool saw_sk = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("S4 S2 SJ ", 0) == 0) saw_sj = true;
+      if (line.rfind("S4 S2 SK ", 0) == 0) saw_sk = true;
+    }
+    EXPECT_TRUE(saw_sj);
+    EXPECT_TRUE(saw_sk);
+  }
+
+  // Once East has publicly discarded on spades on an earlier trick, West is
+  // known to hold the remaining SQ, so SJ is a single-dummy sure win and SK is
+  // pruned.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S AKJ2;"),
+        ParseHand("H 2; D 32; C 2;"),
+        ParseHand("S T4; D A; C A;"),
+        ParseHand("S Q53; C 3;"),
+    };
+    BoardState bs;
+    bs.SetHands(hands);
+    bs.SetLead(2);
+    bs.SetTrump(SPADES);
+    bs.PlayCard(2, Card::ParseStringCard("ST"));
+    bs.PlayCard(3, Card::ParseStringCard("S3"));
+    bs.PlayCard(0, Card::ParseStringCard("S2"));
+    bs.PlayCard(1, Card::ParseStringCard("H2"));
+
+    OptimalLines lines;
+    int tricks = DDSFindOptimalLines(bs, 3, &lines, nullptr);
+    ASSERT_EQ(tricks, 3);
+    bool saw_sj = false;
+    bool saw_sk = false;
+    for (const std::string &line : lines) {
+      if (line.rfind("S4 S5 SJ ", 0) == 0) saw_sj = true;
+      if (line.rfind("S4 S5 SK ", 0) == 0) saw_sk = true;
+    }
+    EXPECT_TRUE(saw_sj);
+    EXPECT_FALSE(saw_sk);
+  }
+}
+
+TEST(InterfaceDdsTest, FollowSuitSpotWinDoesNotPruneHonorWin) {
+  ScopedDefenderNoise no_noise(0);
+  // South holds S Q4 and leads S4 to North's S AK8 when no opponent holds a
+  // card between S8 and SK (e.g., ST already fell on an earlier trick on this
+  // deal). Matching lead pruning and DDS equals lowering, spot card S8 must not
+  // prune honor SK so cross-board lines cashing SK stay unified with deals
+  // where ST is still outstanding.
+  std::vector<uint64_t> hands = {
+      ParseHand("S AK8;"),
+      ParseHand("S 53; D 2;"),
+      ParseHand("S Q4; D A;"),
+      ParseHand("H 2; D 43;"),
+  };
+  BoardState bs;
+  bs.SetHands(hands);
+  bs.SetLead(2);
+  bs.SetTrump(SPADES);
+
+  OptimalLines lines;
+  int tricks = DDSFindOptimalLines(bs, 3, &lines, nullptr);
+  ASSERT_EQ(tricks, 3);
+  bool saw_s8 = false;
+  bool saw_sk = false;
+  for (const std::string &line : lines) {
+    if (line.rfind("S4 H2 S8 ", 0) == 0) saw_s8 = true;
+    if (line.rfind("S4 H2 SK ", 0) == 0) saw_sk = true;
+  }
+  EXPECT_TRUE(saw_s8);
+  EXPECT_TRUE(saw_sk);
+}
+

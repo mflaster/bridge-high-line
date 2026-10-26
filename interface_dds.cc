@@ -958,8 +958,10 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
   }
   int lowest_discard_rank[4] = {100, 100, 100, 100};
   int lowest_losing_follow_rank = 100;
-  int cheapest_third_hand_win_rank[4] = {100, 100, 100, 100};
-  int cheapest_fourth_hand_win_rank[4] = {100, 100, 100, 100};
+  int cheapest_third_hand_win_rank[4][2] = {
+      {100, 100}, {100, 100}, {100, 100}, {100, 100}};
+  int cheapest_fourth_hand_win_rank[4][2] = {
+      {100, 100}, {100, 100}, {100, 100}, {100, 100}};
   int lowest_lead_rank[4] = {100, 100, 100, 100};
   int cheapest_master_lead_rank[4] = {100, 100, 100, 100};
   int cur_winner = -1;
@@ -974,7 +976,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
   uint16_t opp_suit_mask[4] = {0, 0, 0, 0};
   int opp_highest_rank[4] = {0, 0, 0, 0};
   int partner_after_suit[4] = {0, 0, 0, 0};
-  uint16_t rho_led_mask = 0;
+  bool rho_known_out_of_led = false;
   bool rho_known_cant_overruff = false;
   if (pair_is_me) {
     for (int i = 0; i < futp.cards; ++i) {
@@ -1036,15 +1038,16 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
       trick_ruffed =
           (trump != NOTRUMP && suit_led != trump && cur_win_suit == trump);
       int rho = (me + 1) % 4;
-      rho_led_mask =
-          (rho == 1) ? east_suit_mask[suit_led] : west_suit_mask[suit_led];
-      if (level == 2 && trump != NOTRUMP && suit_led != trump) {
-        bool lho_showed_out =
-            Card::DecodeCard(bs.trick_cards_played()[1]).first != suit_led;
-        rho_known_cant_overruff =
-            opp_suit_mask[trump] == 0 ||
-            bs.HasPlayerDiscardedOnSuit(rho, trump) ||
-            (lho_showed_out && opp_suit_mask[suit_led] != 0);
+      if (level == 2) {
+        rho_known_out_of_led = bs.HasPlayerDiscardedOnSuit(rho, suit_led);
+        if (trump != NOTRUMP && suit_led != trump) {
+          bool lho_showed_out =
+              Card::DecodeCard(bs.trick_cards_played()[1]).first != suit_led;
+          rho_known_cant_overruff =
+              opp_suit_mask[trump] == 0 ||
+              bs.HasPlayerDiscardedOnSuit(rho, trump) ||
+              (lho_showed_out && opp_suit_mask[suit_led] != 0);
+        }
       }
       for (int i = 0; i < futp.cards; i++) {
         int s = futp.suit[i];
@@ -1058,19 +1061,21 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
         bool wins_so_far =
             (s == suit_led && !trick_ruffed && r > cur_win_rank) ||
             (s == trump && (cur_win_suit != trump || r > cur_win_rank));
+        int win_bucket = (s == suit_led && r >= 10) ? 1 : 0;
         if (level == 2 && wins_so_far) {
           bool sure_third_win =
-              (s == suit_led && (rho_led_mask >> (r - 1)) == 0) ||
+              (s == suit_led &&
+               (rho_known_out_of_led || r > opp_highest_rank[suit_led])) ||
               (s == trump && suit_led != trump &&
                (rho_known_cant_overruff || r > opp_highest_rank[trump]));
           if (sure_third_win) {
-            cheapest_third_hand_win_rank[s] =
-                std::min(cheapest_third_hand_win_rank[s], r);
+            cheapest_third_hand_win_rank[s][win_bucket] =
+                std::min(cheapest_third_hand_win_rank[s][win_bucket], r);
           }
         }
         if (level == 3 && wins_so_far) {
-          cheapest_fourth_hand_win_rank[s] =
-              std::min(cheapest_fourth_hand_win_rank[s], r);
+          cheapest_fourth_hand_win_rank[s][win_bucket] =
+              std::min(cheapest_fourth_hand_win_rank[s][win_bucket], r);
         }
       }
     }
@@ -1198,15 +1203,18 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
             continue;
           }
         }
+        int win_bucket = (s == suit_led && r >= 10) ? 1 : 0;
+        int cheapest_third = cheapest_third_hand_win_rank[s][win_bucket];
         bool sure_third_win =
             wins_so_far &&
-            ((s == suit_led && (rho_led_mask >> (r - 1)) == 0) ||
+            ((s == suit_led &&
+              (rho_known_out_of_led || r > opp_highest_rank[suit_led])) ||
              (s == trump && suit_led != trump &&
               (rho_known_cant_overruff || r > opp_highest_rank[trump])));
-        if (sure_third_win && r > cheapest_third_hand_win_rank[s] &&
+        if (sure_third_win && r > cheapest_third &&
             !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
-                                      partner_after_suit[s],
-                                      cheapest_third_hand_win_rank[s], r)) {
+                                      partner_after_suit[s], cheapest_third,
+                                      r)) {
           continue;
         }
       }
@@ -1215,10 +1223,12 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
             s == trump && suit_led != trump && has_discard_in_futp) {
           continue;
         }
-        if (wins_so_far && r > cheapest_fourth_hand_win_rank[s] &&
+        int win_bucket = (s == suit_led && r >= 10) ? 1 : 0;
+        int cheapest_fourth = cheapest_fourth_hand_win_rank[s][win_bucket];
+        if (wins_so_far && r > cheapest_fourth &&
             !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
-                                      partner_after_suit[s],
-                                      cheapest_fourth_hand_win_rank[s], r)) {
+                                      partner_after_suit[s], cheapest_fourth,
+                                      r)) {
           continue;
         }
       }
@@ -1227,6 +1237,7 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
         for (int j = 0; j < futp.cards; ++j) {
           if (futp.suit[j] != s || futp.rank[j] >= r) continue;
           int r1 = futp.rank[j];
+          if (s == suit_led && (r1 >= 10) != (r >= 10)) continue;
           bool j_wins =
               (s == suit_led && !trick_ruffed && r1 > cur_win_rank) ||
               (s == trump && (cur_win_suit != trump || r1 > cur_win_rank));
