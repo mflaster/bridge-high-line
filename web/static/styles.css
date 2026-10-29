@@ -299,12 +299,40 @@ body.is-resizing * {
 .solve-action-container {
   margin-top: auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
 
 .solve-action-container .btn-large {
-  flex: 1;
+  flex: 1 1 155px;
+}
+
+.solve-iters-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.solve-iters-input {
+  width: 60px;
+  padding: 9px 8px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  background-color: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 6px;
+}
+
+.solve-iters-input:hover {
+  border-color: #60a5fa;
 }
 
 .threads-selector {
@@ -315,10 +343,11 @@ body.is-resizing * {
   font-weight: 600;
   color: var(--text-muted);
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .threads-selector .select-input {
-  padding: 9px 10px;
+  padding: 9px 8px;
   cursor: pointer;
 }
 
@@ -472,8 +501,8 @@ body.is-resizing * {
   flex-direction: column;
   justify-content: center;
   align-items: stretch;
-  gap: 4px;
-  padding: 6px 6px;
+  gap: 7px;
+  padding: 8px 8px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -492,7 +521,7 @@ body.is-resizing * {
   align-items: center;
   width: 100%;
   gap: 4px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: #a7f3d0;
   white-space: nowrap;
@@ -503,8 +532,8 @@ body.is-resizing * {
   color: #f8fafc;
   border: 1px solid #2d5e46;
   border-radius: 4px;
-  padding: 2px 4px;
-  font-size: 11px;
+  padding: 3px 5px;
+  font-size: 11.5px;
   font-weight: 600;
   outline: none;
   cursor: pointer;

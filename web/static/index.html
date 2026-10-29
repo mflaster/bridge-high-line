@@ -103,7 +103,7 @@
               <g transform="translate(10, 12)" id="cardsWestGroup"></g>
             </g>
 
-            <!-- Center Box (Middle Controls: Trump / Leader / Target / Iters) -->
+            <!-- Center Box (Middle Controls: Trump / Leader / Tricks) -->
             <g id="svgCenterBox" transform="translate(129, 130)">
               <rect width="126" height="104" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
               <foreignObject x="0" y="0" width="126" height="104">
@@ -130,10 +130,6 @@
                   <div class="middle-control-group">
                     <label for="targetTricks">Tricks:</label>
                     <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
-                  </div>
-                  <div class="middle-control-group">
-                    <label for="numIters">Rand deals:</label>
-                    <input type="text" inputmode="numeric" id="numIters" value="100" class="middle-number-input">
                   </div>
                 </div>
               </foreignObject>
@@ -244,7 +240,7 @@
           </div>
         </div>
 
-        <!-- Solve Action Button -->
+        <!-- Solve Action Button & Solver Controls -->
         <div class="solve-action-container">
           <button id="solveBtn" class="btn btn-primary btn-large">
             <span class="btn-icon">⚡</span> Solve Deal
@@ -252,6 +248,10 @@
           <button id="stopSolveActionBtn" type="button" class="btn btn-stop btn-large hidden" title="Stop current solve">
             <span class="btn-icon">■</span> Stop
           </button>
+          <div class="solve-iters-control" title="Number of random unseen defender layouts to sample when solving">
+            <label for="numIters">Rand deals:</label>
+            <input type="text" inputmode="numeric" id="numIters" value="100" class="number-input solve-iters-input">
+          </div>
           <div class="threads-selector" title="Number of solver threads">
             <label for="numThreads">Threads:</label>
             <select id="numThreads" class="select-input">

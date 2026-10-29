@@ -47,6 +47,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("importIntroBox") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
@@ -93,6 +94,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".import-intro-box") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".solve-iters-input") != std::string::npos);
 
   // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");

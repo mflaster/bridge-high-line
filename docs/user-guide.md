@@ -92,8 +92,9 @@ context before clicking **Apply to Deal**:
   - For **double-dummy** analysis (all 4 hands visible), fill in **N**, **E**,
     **S**, and **W** and leave **Unknown Cards** empty.
 - **Center Table Controls**: Set **Trump** (`♠`, `♥`, `♦`, `♣`, `NT`),
-  **Leader** (`N`, `E`, `S`, `W`), **Tricks** (target tricks for N/S), and
-  **Rand deals** (number of random East/West layouts to sample).
+  **Leader** (`N`, `E`, `S`, `W`), and **Tricks** (target tricks for N/S).
+- **Solver Controls (Bottom Bar)**: Set **Rand deals** (number of random unseen
+  defender layouts to sample) and **Threads** right next to **⚡ Solve Deal**.
 - **Hand Requirements (Fuzzy Search Constraints)**: Expand *Hand Requirements*
   to restrict **West** or **East** by **HCP Range** (Min–Max) or minimum suit
   lengths when the auction gives you inferences about the defenders' hands.
