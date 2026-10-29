@@ -41,6 +41,11 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openFeedbackBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("feedbackModal") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("header-left") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("header-import-btn") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importHandModal") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importDropzone") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
@@ -86,6 +91,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".compare-line-row") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".import-dropzone") != std::string::npos);
 
   // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");
@@ -100,6 +106,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
                   "document.getElementById('nodeDetailContent');") !=
               std::string::npos);
   ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") !=
+              std::string::npos);
+  ASSERT_TRUE(res_js->body.find("function openImportHandModal") !=
               std::string::npos);
 
   auto res_solver_api_js = client.Get("/solver_api.js");
@@ -137,6 +145,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_photo_scanner_js);
   ASSERT_TRUE(res_photo_scanner_js->status == 200);
   ASSERT_TRUE(res_photo_scanner_js->body.find("parseModalFirstRoundCalls") !=
+              std::string::npos);
+  ASSERT_TRUE(res_photo_scanner_js->body.find("function parseLinBoardsFromText") !=
               std::string::npos);
 
   auto res_decision_tree_js = client.Get("/decision_tree.js");
@@ -1151,7 +1161,7 @@ TEST(ServerTest, WebServerSolveStatusLifecycleTest) {
   ASSERT_TRUE(res_index->body.find("declarerRotateBar") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("pdfPageBar") != std::string::npos);
   ASSERT_TRUE(res_index->body.find(
-              "image/*,.pdf,application/pdf,.pbn,.txt,.deal") !=
+              "image/*,.pdf,application/pdf,.pbn,.lin,.txt,.deal") !=
           std::string::npos);
 
   auto res_app_js = client.Get("/app.js");

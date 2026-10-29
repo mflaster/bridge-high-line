@@ -13,19 +13,22 @@ You can start from a built-in classic problem, scan a tournament hand record
 
 ### Built-In Presets & Session History
 
-Use the **Hand Selector** dropdown in the top header to load built-in deals
+Use the **Preset** dropdown in the upper-left header to load built-in deals
 such as *Simple Finesse*, *4-Card Endplay*, *Squeeze Deal (NT)*, *9-Card
 Hearts*, *Safety Play*, *Restricted Choice*, *Mollo 6S*, or *2-Way Finesse*.
 
-Whenever you load a board from a PDF, photo, PBN, or text file during your
-session, it is automatically added to the **Hand Selector** dropdown (for
-example, `Hand 14 from club_game.pdf`) so you can switch back to it at any
-time.
+Whenever you import a board from a PDF, photo, PBN/LIN, or text deal during
+your session, it is automatically added to the **Preset** dropdown under
+*Loaded Hands* (for example, `Hand 14 from club_game.pdf`) so you can switch
+back to it at any time.
 
-### The `Load` Button: PDFs, Photos, PBNs & Text Files
+### The `Import Hand` Button: PDFs, Photos, PBN/LIN & Paste
 
-Click **Load** in the **Hand Text Inputs** header to import a deal from your
-device:
+Click **📥 Import Hand** next to the **Preset** dropdown in the upper-left
+header to open the **Import Bridge Hand** dropzone modal, where you can drag
+and drop a file, press **`Ctrl+V`** (**`⌘V`**) to paste a screenshot or deal
+text from your clipboard, browse by format, or try a built-in 4-board sample
+club sheet:
 
 ![Scan Hand Record Modal](images/hand-record-scanner.png)
 
@@ -36,25 +39,27 @@ device:
      instantly; the visual PDF page is also rendered so you can browse pages
      with **`◀ Page 1 / N ▶`** and click any detected board pill (**`#1`**,
      **`#2`**, ..., **`#16`**) or tap a board diagram directly on the page.
-2. **Camera Photos & Screenshots (`.png`, `.jpg`, `.webp`, etc.)**
+2. **Camera Photos & Screenshots (`.png`, `.jpg`, `.webp`, or `Ctrl+V` paste)**
    - Runs **on-device optical character recognition (OCR)** directly in your
      browser.
    - Automatically detects all 4-hand compass diagrams in the image. Drag the
      crop handles around any board, use **`↻ Rotate 90°`** or **`🔍 Zoom
      Crop`**, and edit any scanned suit holding if needed before applying.
-3. **Portable Bridge Notation Files (`.pbn`)**
-   - Parses all `[Deal "..."]` records (along with `[Board "..."]`,
-     `[Declarer "..."]`, and `[Contract "..."]` tags when present) and renders
-     an interactive multi-board sheet in the scanner modal.
-4. **Plain-Text Deal Files (`.txt`, `.deal`)**
-   - Supports key-value files (`north = S AQ...`, `south = ...`,
-     `unknown_cards = ...`, `trump = SPADES`, `leader = EAST`, `target = 10`,
-     `iters = 100`, `declarer = S`, `cur_trick = ...`) as well as 4-line
-     plain-text files (North, East, South, West on consecutive lines).
+3. **PBN & BBO LIN Hand Records (`.pbn`, `.lin`, or BBO Handviewer URLs)**
+   - Parses `[Deal "..."]` PBN records (along with `[Board "..."]`,
+     `[Dealer "..."]`, `[Declarer "..."]`, and `[Contract "..."]` tags) as well
+     as BBO `.lin` files and pasted BBO Handviewer URLs, rendering an
+     interactive multi-board sheet in the scanner modal.
+4. **Pasted Text & Plain-Text Deal Files (`.txt`, `.deal`)**
+   - Paste deal text directly in the modal or load key-value files
+     (`north = S AQ...`, `south = ...`, `unknown_cards = ...`,
+     `trump = SPADES`, `leader = EAST`, `target = 10`, `iters = 100`,
+     `declarer = S`, `cur_trick = ...`) and 4-line plain-text files.
 
-After loading a PDF, photo, or PBN, a **Crop Photo** button appears next to
-**Load** so you can re-open the board sheet and pick another board or adjust
-the settings without re-uploading the file.
+After loading a PDF, PBN/LIN, or photo, a **📋 Pick Board** (or **📷 Edit
+Scan**) button appears next to **Import Hand** in the top bar so you can
+re-open the sheet and pick another board or adjust settings without
+re-uploading the file.
 
 ### Scanner Modal: Declarer Rotation, Contract & Opening Lead
 
