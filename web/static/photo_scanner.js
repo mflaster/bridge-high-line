@@ -691,9 +691,54 @@ function validateFourHandsDeck(hands) {
 
 // Modal DOM Elements & Interactive Crop State
 const photoScanModal = document.getElementById('photoScanModal');
+const photoScanModalTitle = document.getElementById('photoScanModalTitle');
+const photoScanModalSubtitle = document.getElementById('photoScanModalSubtitle');
 const closePhotoModalBtn = document.getElementById('closePhotoModalBtn');
 const cancelPhotoModalBtn = document.getElementById('cancelPhotoModalBtn');
 const applyPhotoModalBtn = document.getElementById('applyPhotoModalBtn');
+
+function updateScannerModalContextUI(format) {
+  const fmt = (format || '').toLowerCase();
+  if (fmt === 'pdf') {
+    if (photoScanModalTitle) {
+      photoScanModalTitle.textContent = 'Select Board from PDF Hand Record';
+    }
+    if (photoScanModalSubtitle) {
+      photoScanModalSubtitle.textContent =
+        'Browse pages or click any detected board (#1, #2, …) — or drag crop handles';
+    }
+    if (recropPhotoBtn) {
+      recropPhotoBtn.textContent = '📋 Pick Board';
+      recropPhotoBtn.title =
+        'Re-open PDF hand record to pick another board or adjust settings';
+    }
+  } else if (fmt === 'pbn' || fmt === 'lin' || fmt === 'sample_sheet') {
+    if (photoScanModalTitle) {
+      photoScanModalTitle.textContent = 'Select Board from Hand Record';
+    }
+    if (photoScanModalSubtitle) {
+      photoScanModalSubtitle.textContent =
+        'Click any board diagram or Detected Boards pill (#1, #2, …) to configure & import';
+    }
+    if (recropPhotoBtn) {
+      recropPhotoBtn.textContent = '📋 Pick Board';
+      recropPhotoBtn.title =
+        'Re-open hand record sheet to pick another board or adjust settings';
+    }
+  } else {
+    if (photoScanModalTitle) {
+      photoScanModalTitle.textContent = 'Scan Hand Record Photo';
+    }
+    if (photoScanModalSubtitle) {
+      photoScanModalSubtitle.textContent =
+        'Drag crop handles around a single 4-hand board diagram (or tap any highlighted board)';
+    }
+    if (recropPhotoBtn) {
+      recropPhotoBtn.textContent = '📷 Edit Scan';
+      recropPhotoBtn.title = 'Re-open photo scanner & crop box';
+    }
+  }
+}
 const cropCanvas = document.getElementById('cropCanvas');
 const cropCanvasViewport = document.getElementById('cropCanvasViewport');
 const pdfPageBar = document.getElementById('pdfPageBar');
@@ -1480,6 +1525,164 @@ function parsePbnBoardsFromText(text) {
   return boards;
 }
 
+function parseLinHandToken(rawHand) {
+  const suits = { S: [], H: [], D: [], C: [] };
+  const cleaned = (rawHand || '').replace(/10/g, 'T').toUpperCase();
+  let curSuit = null;
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (ch === 'S' || ch === 'H' || ch === 'D' || ch === 'C') {
+      curSuit = ch;
+    } else if (curSuit && 'AKQJT98765432'.includes(ch)) {
+      if (!suits[curSuit].includes(ch)) {
+        suits[curSuit].push(ch);
+      }
+    }
+  }
+  return suits;
+}
+
+function formatLinSuitMapToHandStr(suitMap) {
+  const rankOrder = 'AKQJT98765432';
+  return ['S', 'H', 'D', 'C'].map(s => {
+    const sorted = (suitMap[s] || [])
+      .slice()
+      .sort((a, b) => rankOrder.indexOf(a) - rankOrder.indexOf(b))
+      .join('');
+    return `${s} ${sorted.length > 0 ? sorted : '-'};`;
+  }).join(' ');
+}
+
+function countSuitMapCards(suitMap) {
+  return ['S', 'H', 'D', 'C'].reduce(
+    (sum, s) => sum + ((suitMap && suitMap[s]) ? suitMap[s].length : 0),
+    0
+  );
+}
+
+function completeFourthHandIfDeck(seatMaps) {
+  const seats = ['N', 'E', 'S', 'W'];
+  const emptySeats = seats.filter(st => countSuitMapCards(seatMaps[st]) === 0);
+  const fullSeats = seats.filter(st => countSuitMapCards(seatMaps[st]) > 0);
+  if (emptySeats.length === 1 && fullSeats.length === 3) {
+    const used = new Set();
+    for (const st of fullSeats) {
+      for (const s of ['S', 'H', 'D', 'C']) {
+        for (const r of seatMaps[st][s]) {
+          used.add(s + r);
+        }
+      }
+    }
+    if (used.size === 39) {
+      const missingSeat = emptySeats[0];
+      seatMaps[missingSeat] = { S: [], H: [], D: [], C: [] };
+      for (const s of ['S', 'H', 'D', 'C']) {
+        for (const r of 'AKQJT98765432') {
+          if (!used.has(s + r)) {
+            seatMaps[missingSeat][s].push(r);
+          }
+        }
+      }
+    }
+  }
+}
+
+function parseLinBoardsFromText(text) {
+  if (!text) return [];
+  let working = text.trim();
+
+  // Handle BBO Handviewer URLs (?lin=... or ?n=...&e=...&s=...&w=...)
+  if (/handviewer\.html/i.test(working) || /[?&](lin|n|s)=/i.test(working)) {
+    try {
+      const qIdx = working.indexOf('?');
+      if (qIdx !== -1) {
+        const params = new URLSearchParams(
+          working.slice(qIdx + 1).split(/\s+/)[0]
+        );
+        const linParam = params.get('lin');
+        if (linParam) {
+          working = linParam;
+        } else if (params.get('n') || params.get('s') ||
+                   params.get('e') || params.get('w')) {
+          const seatMaps = {
+            N: parseLinHandToken(params.get('n') || ''),
+            E: parseLinHandToken(params.get('e') || ''),
+            S: parseLinHandToken(params.get('s') || ''),
+            W: parseLinHandToken(params.get('w') || '')
+          };
+          completeFourthHandIfDeck(seatMaps);
+          const totalCards = ['N', 'E', 'S', 'W'].reduce(
+            (acc, st) => acc + countSuitMapCards(seatMaps[st]), 0
+          );
+          if (totalCards > 0) {
+            const dRaw = (params.get('d') || 'N').trim().toUpperCase();
+            return [{
+              board: (params.get('b') || '1').trim(),
+              hands: {
+                N: formatLinSuitMapToHandStr(seatMaps.N),
+                E: formatLinSuitMapToHandStr(seatMaps.E),
+                S: formatLinSuitMapToHandStr(seatMaps.S),
+                W: formatLinSuitMapToHandStr(seatMaps.W)
+              },
+              dealer: ['N', 'E', 'S', 'W'].includes(dRaw) ? dRaw : 'N',
+              declarer: null,
+              contract: null
+            }];
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!/md\|/i.test(working)) return [];
+
+  const boards = [];
+  const dealerMap = { '1': 'S', '2': 'W', '3': 'N', '4': 'E' };
+  const mdRegex = /md\|([1-4])([^|]*)\|/gi;
+  let match;
+  let lastEnd = 0;
+  while ((match = mdRegex.exec(working)) !== null) {
+    const prefixChunk = working.slice(lastEnd, match.index);
+    lastEnd = match.index + match[0].length;
+    const dealer = dealerMap[match[1]] || 'N';
+    const parts = match[2].split(',');
+    if (parts.length < 3) continue;
+
+    // BBO .lin md| order is South, West, North, East
+    const seatMaps = {
+      S: parseLinHandToken(parts[0] || ''),
+      W: parseLinHandToken(parts[1] || ''),
+      N: parseLinHandToken(parts[2] || ''),
+      E: parseLinHandToken(parts[3] || '')
+    };
+    completeFourthHandIfDeck(seatMaps);
+    const totalCards = ['N', 'E', 'S', 'W'].reduce(
+      (acc, st) => acc + countSuitMapCards(seatMaps[st]), 0
+    );
+    if (totalCards === 0) continue;
+
+    let boardLabel = String(boards.length + 1);
+    const ahMatch = prefixChunk.match(/ah\|Board\s*#?(\d+)[^|]*\|/i);
+    const qxMatch = prefixChunk.match(/qx\|[oc]?(\d+)[^|]*\|/i);
+    if (ahMatch) boardLabel = ahMatch[1];
+    else if (qxMatch) boardLabel = qxMatch[1];
+
+    boards.push({
+      board: boardLabel,
+      hands: {
+        N: formatLinSuitMapToHandStr(seatMaps.N),
+        E: formatLinSuitMapToHandStr(seatMaps.E),
+        S: formatLinSuitMapToHandStr(seatMaps.S),
+        W: formatLinSuitMapToHandStr(seatMaps.W)
+      },
+      dealer,
+      declarer: null,
+      contract: null
+    });
+  }
+  return boards;
+}
+
 async function tryDecompressPdfStream(chunk, format) {
   if (typeof DecompressionStream === 'undefined') return null;
   try {
@@ -1713,6 +1916,7 @@ function openPhotoScanModalWithPbnBoards(pbnBoards) {
   activePdfPageNum = 1;
   activePdfTotalPages = Math.max(1, Math.ceil(pbnBoards.length / 16));
   pdfPageBoardCounts = {};
+  updateScannerModalContextUI('pbn');
   syncModalContractFromMainUI();
   if (scanBiddingInput) scanBiddingInput.value = '';
   if (scanInitialCardsInput) scanInitialCardsInput.value = '';
@@ -1730,6 +1934,7 @@ async function openPhotoScanModalWithPdfFile(file) {
   activePdfPageNum = 1;
   activePdfTotalPages = 1;
   pdfPageBoardCounts = {};
+  updateScannerModalContextUI('pdf');
   syncModalContractFromMainUI();
   if (scanBiddingInput) scanBiddingInput.value = '';
   if (scanInitialCardsInput) scanInitialCardsInput.value = '';
@@ -1818,6 +2023,7 @@ function openPhotoScanModalWithFile(file) {
   activePdfPageNum = 1;
   activePdfTotalPages = 1;
   pdfPageBoardCounts = {};
+  updateScannerModalContextUI('image');
   syncModalContractFromMainUI();
   if (scanBiddingInput) scanBiddingInput.value = '';
   if (scanInitialCardsInput) scanInitialCardsInput.value = '';
@@ -2381,10 +2587,14 @@ if (cropResetViewBtn) {
   cropResetViewBtn.addEventListener('click', fitCropPhotoView);
 }
 
-if (cropNewPhotoBtn && fileInputTxt) {
+if (cropNewPhotoBtn) {
   cropNewPhotoBtn.addEventListener('click', () => {
-    fileInputTxt.value = '';
-    fileInputTxt.click();
+    if (typeof openImportHandModal === 'function') {
+      openImportHandModal();
+    } else if (fileInputTxt) {
+      fileInputTxt.value = '';
+      fileInputTxt.click();
+    }
   });
 }
 

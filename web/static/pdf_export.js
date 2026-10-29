@@ -429,11 +429,14 @@ function drawOverallStatsPanelOnPdf(ctx, x, y, w, h) {
   const rawStatLead = (statLead && statLead.textContent)
     ? statLead.textContent.trim()
     : '';
-  const leadVal = (initCur && initCur.length > 0)
+  const rawLeadVal = (initCur && initCur.length > 0)
     ? initCur.join(' ')
     : ((rawStatLead && rawStatLead !== '-')
         ? rawStatLead
         : (data.best_lead || '-'));
+  const leadVal = (typeof formatCardTokensForFrontend === 'function')
+    ? formatCardTokensForFrontend(rawLeadVal)
+    : rawLeadVal;
 
   const cardW = Math.floor((w - 64) / 2);
   const cardH = 112;
@@ -557,9 +560,12 @@ function drawOverallStatsPanelOnPdf(ctx, x, y, w, h) {
     } else {
       ctx.font = '500 16px "JetBrains Mono", monospace';
       ctx.fillStyle = '#e2e8f0';
-      const seqStr = (
+      const rawSeqStr = (
         data.sequence || data.best_lead || 'Optimal double-dummy line'
       );
+      const seqStr = (typeof formatCardTokensForFrontend === 'function')
+        ? formatCardTokensForFrontend(rawSeqStr)
+        : rawSeqStr;
       ctx.fillText(
         pdfTruncateToWidth(ctx, seqStr, w - 84),
         cX1 + 18,
@@ -846,7 +852,7 @@ function computeInspectorDataForNode(targetNode) {
     'i'
   );
   const playRegex = new RegExp(
-    `(?:when|if)\\s+${seatPat}\\s+plays\\s+([A-Z0-9_]+)`,
+    `(?:when|if)\\s+${seatPat}\\s+plays\\s+([A-Z0-9_<]+)`,
     'i'
   );
   const discardRegex = new RegExp(
@@ -864,6 +870,9 @@ function computeInspectorDataForNode(targetNode) {
     if (pathNode.condition) {
       let cText = pathNode.condition;
       if (cText.startsWith('after ')) cText = cText.substring(6);
+      if (typeof formatCardTokensForFrontend === 'function') {
+        cText = formatCardTokensForFrontend(cText);
+      }
       pathConditions.push({
         trickNum: trickRows.length + 1,
         condition: cText,
@@ -890,10 +899,13 @@ function computeInspectorDataForNode(targetNode) {
     const parsedCards = [];
     let leadSuit = null;
     tokens.forEach((tok, i) => {
+      const cleanTok = tok.replace(/[\(\)]/g, '').trim();
+      const isHonorWild = cleanTok.length >= 2 &&
+        (cleanTok.slice(1) === 'X' || cleanTok.slice(1) === 'H');
       const effectiveTok = (
         trickRows.length === 0 &&
         i < initCur.length &&
-        (tok.includes('_') || tok.includes('x') || tok.includes('X'))
+        (cleanTok.includes('_') || cleanTok.includes('x') || isHonorWild)
       )
         ? initCur[i]
         : tok;
@@ -978,10 +990,13 @@ function computeInspectorDataForNode(targetNode) {
           const existingRaw = (parsedCards[foundIdx].raw || '').replace(
             /[\(\)]/g, ''
           );
+          const isHonorWild = existingRaw.length >= 2 &&
+            (existingRaw.slice(1) === 'X' || existingRaw.slice(1) === 'H');
           const isWildcardSlot = !existingRaw ||
             existingRaw.includes('_') ||
             existingRaw.includes('x') ||
-            existingRaw.includes('X');
+            existingRaw.includes('<') ||
+            isHonorWild;
           if (isWildcardSlot ||
               existingRaw.toUpperCase() === explicitWinnerCard.toUpperCase()) {
             const updatedCard = parseSingleCardToken(
@@ -1432,6 +1447,9 @@ function drawDecisionTreeSnapshotOnPdf(
   pillQueue.forEach(({ child, colIdx, endX, endY, onPath }) => {
     let condText = child.condition;
     if (condText.startsWith('after ')) condText = condText.substring(6);
+    if (typeof formatCardTokensForFrontend === 'function') {
+      condText = formatCardTokensForFrontend(condText);
+    }
     ctx.font = '600 12px Inter, system-ui, sans-serif';
     const textW = ctx.measureText(condText).width;
     const labelW = Math.max(58, textW + 14);
@@ -1520,6 +1538,9 @@ function drawDecisionTreeSnapshotOnPdf(
 
     let rawTitle = node.label || node.trick || 'Node';
     if (rawTitle.startsWith('after ')) rawTitle = rawTitle.substring(6);
+    if (typeof formatCardTokensForFrontend === 'function') {
+      rawTitle = formatCardTokensForFrontend(rawTitle);
+    }
     ctx.font = 'bold 13px Inter, system-ui, sans-serif';
     ctx.fillStyle = '#f8fafc';
     ctx.textAlign = 'left';
@@ -2459,9 +2480,12 @@ function generateAnalysisPdfPages() {
   if (firstInspectorData && Array.isArray(firstInspectorData.path)) {
     firstInspectorData.path.forEach((n) => {
       if (n && n._parent && n.condition) {
-        const cTxt = n.condition.startsWith('after ')
+        let cTxt = n.condition.startsWith('after ')
           ? n.condition.substring(6)
           : n.condition;
+        if (typeof formatCardTokensForFrontend === 'function') {
+          cTxt = formatCardTokensForFrontend(cTxt);
+        }
         branch1CondByParent.set(n._parent, cTxt);
       }
     });

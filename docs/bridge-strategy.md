@@ -170,7 +170,8 @@ The solver groups defender plays into bridge categories (`GeneralizeOppCard` and
 - **Specific honor** (`SK`, `SQ`, `HJ`): Used when covering, splitting, or
   dropping an honor changes declarer's play.
 - **Small spot card** (`Sx`, `Hx`): Any spot card (`2` through `9`) in the suit.
-- **Any honor** (`SX`): Any honor (`10` through `A`) in the suit.
+- **Any honor** (`SH` in the web UI, `SX` in engine logs): Any honor (`10`
+  through `A`) in the suit.
 - **Any card in the suit** (`S_`): Following suit when the rank does not matter.
 - **Discard / show-out** (`R_`): Pitching another suit when void (which tells
   declarer the suit broke badly).

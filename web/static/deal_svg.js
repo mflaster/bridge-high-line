@@ -176,7 +176,10 @@ function updateLeadStat(data) {
     statLeadLabel.textContent = hasForcedLead ? 'Card Led' : 'Optimal Lead';
   }
   if (statLead) {
-    statLead.textContent = (data && data.best_lead) ? data.best_lead : '-';
+    const rawLead = (data && data.best_lead) ? data.best_lead : '-';
+    statLead.textContent = (typeof formatCardTokensForFrontend === 'function')
+      ? formatCardTokensForFrontend(rawLead)
+      : rawLead;
   }
 }
 
@@ -323,8 +326,8 @@ function rankMatchesPattern(actualRankToken, patternSuit, patternRank, actualSui
     if (actualRankToken === 'x' || '23456789'.includes(normActual)) {
       return true;
     }
-  } else if (normPat === 'X') {
-    if (actualRankToken === 'X' || 'AKQJT'.includes(normActual)) {
+  } else if (normPat === 'X' || normPat === 'H') {
+    if (actualRankToken === 'X' || actualRankToken === 'H' || 'AKQJT'.includes(normActual)) {
       return true;
     }
   } else if (normPat && normPat.startsWith('<') && normPat.length === 2) {
@@ -343,7 +346,7 @@ function rankOrderValue(rankToken) {
   if (rankToken === 'x') return 1;
   const norm = (rankToken === '10') ? 'T' : rankToken.toUpperCase();
   const order = {
-    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, 'X': 10,
+    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, 'H': 10, 'X': 10,
     '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2,
     '_': 0
   };
@@ -362,8 +365,8 @@ function matchCardIndexInTokens(suitKey, rankTokens, usedMask, cardItem) {
       return i;
     }
   }
-  // 2. If pattern is wildcard ('x', 'X', '<H', or '_'), match lowest valid card from the right
-  if (normPat === 'x' || normPat === 'X' || normPat === '_' || normPat.startsWith('<')) {
+  // 2. If pattern is wildcard ('x', 'H'/'X', '<H', or '_'), match lowest valid card from the right
+  if (normPat === 'x' || normPat === 'X' || normPat === 'H' || normPat === '_' || normPat.startsWith('<')) {
     for (let i = rankTokens.length - 1; i >= 0; i--) {
       if (usedMask[i]) continue;
       if (rankMatchesPattern(rankTokens[i], suitKey, normPat, suitKey)) {
@@ -376,10 +379,10 @@ function matchCardIndexInTokens(suitKey, rankTokens, usedMask, cardItem) {
       return i;
     }
   }
-  // 3. If pattern is specific rank (e.g., 'K') and hand has 'x' wildcard
+  // 3. If pattern is specific rank (e.g., 'K') and hand has 'x'/'H' wildcard
   for (let i = 0; i < rankTokens.length; i++) {
     if (usedMask[i]) continue;
-    if (rankTokens[i] === 'x' || rankTokens[i] === 'X') {
+    if (rankTokens[i] === 'x' || rankTokens[i] === 'X' || rankTokens[i] === 'H') {
       return i;
     }
   }

@@ -13,50 +13,54 @@ You can start from a built-in classic problem, scan a tournament hand record
 
 ### Built-In Presets & Session History
 
-Use the **Hand Selector** dropdown in the top header to load built-in deals
+Use the **Preset** dropdown in the upper-left header to load built-in deals
 such as *Simple Finesse*, *4-Card Endplay*, *Squeeze Deal (NT)*, *9-Card
 Hearts*, *Safety Play*, *Restricted Choice*, *Mollo 6S*, or *2-Way Finesse*.
 
-Whenever you load a board from a PDF, photo, PBN, or text file during your
-session, it is automatically added to the **Hand Selector** dropdown (for
-example, `Hand 14 from club_game.pdf`) so you can switch back to it at any
-time.
+Whenever you import a board from a PDF, photo, PBN/LIN, or text deal during
+your session, it is automatically added to the **Preset** dropdown under
+*Loaded Hands* (for example, `Hand 14 from club_game.pdf`) so you can switch
+back to it at any time.
 
-### The `Load` Button: PDFs, Photos, PBNs & Text Files
+### The `Import Hand` Button: PDFs, Photos, PBN/LIN & Paste
 
-Click **Load** in the **Hand Text Inputs** header to import a deal from your
-device:
+Click **📥 Import Hand** next to the **Preset** dropdown in the upper-left
+header to open the **Import Bridge Hand** modal, where you can choose a format
+card, press **`Ctrl+V`** (**`⌘V`**) to paste a screenshot or deal text from
+your clipboard, or try a built-in 4-board sample club sheet:
 
 ![Scan Hand Record Modal](images/hand-record-scanner.png)
 
-1. **PDF Hand Records (`.pdf`)**
-   - Supports multi-page tournament hand record sheets (such as ACBL/Common
-     Game PDFs).
+1. **Club / Tournament PDFs (`.pdf` — hand record preferred)**
+   - Supports multi-page tournament **hand record** sheets (such as ACBL or
+     Common Game hand record PDFs).
    - If the PDF contains embedded PBN deal records, all boards are extracted
      instantly; the visual PDF page is also rendered so you can browse pages
      with **`◀ Page 1 / N ▶`** and click any detected board pill (**`#1`**,
      **`#2`**, ..., **`#16`**) or tap a board diagram directly on the page.
-2. **Camera Photos & Screenshots (`.png`, `.jpg`, `.webp`, etc.)**
+2. **Camera Photos & Screenshots (`.png`, `.jpg`, `.webp`, or `Ctrl+V` paste)**
    - Runs **on-device optical character recognition (OCR)** directly in your
      browser.
    - Automatically detects all 4-hand compass diagrams in the image. Drag the
      crop handles around any board, use **`↻ Rotate 90°`** or **`🔍 Zoom
      Crop`**, and edit any scanned suit holding if needed before applying.
-3. **Portable Bridge Notation Files (`.pbn`)**
-   - Parses all `[Deal "..."]` records (along with `[Board "..."]`,
-     `[Declarer "..."]`, and `[Contract "..."]` tags when present) and renders
-     an interactive multi-board sheet in the scanner modal.
-4. **Plain-Text Deal Files (`.txt`, `.deal`)**
-   - Supports key-value files (`north = S AQ...`, `south = ...`,
-     `unknown_cards = ...`, `trump = SPADES`, `leader = EAST`, `target = 10`,
-     `iters = 100`, `declarer = S`, `cur_trick = ...`) as well as 4-line
-     plain-text files (North, East, South, West on consecutive lines).
+3. **PBN & BBO LIN Hand Records (`.pbn`, `.lin`, or BBO Handviewer URLs)**
+   - Parses `[Deal "..."]` PBN records (along with `[Board "..."]`,
+     `[Dealer "..."]`, `[Declarer "..."]`, and `[Contract "..."]` tags) as well
+     as BBO `.lin` files and pasted BBO Handviewer URLs, rendering an
+     interactive multi-board sheet in the scanner modal.
+4. **Pasted Text & Plain-Text Deal Files (`.txt`, `.deal`)**
+   - Paste deal text directly in the modal or load key-value files
+     (`north = S AQ...`, `south = ...`, `unknown_cards = ...`,
+     `trump = SPADES`, `leader = EAST`, `target = 10`, `iters = 100`,
+     `declarer = S`, `cur_trick = ...`) and 4-line plain-text files.
 
-After loading a PDF, photo, or PBN, a **Crop Photo** button appears next to
-**Load** so you can re-open the board sheet and pick another board or adjust
-the settings without re-uploading the file.
+After loading a PDF, PBN/LIN, or photo, a **📋 Pick Board** (or **📷 Edit
+Scan**) button appears next to **Import Hand** in the top bar so you can
+re-open the sheet and pick another board or adjust settings without
+re-uploading the file.
 
-### Scanner Modal: Declarer Rotation, Contract & Opening Lead
+### Scanner Modal: Declarer Rotation, Contract & Initial Play
 
 When you load a 4-hand board in the scanner modal, you can configure the table
 context before clicking **Apply to Deal**:
@@ -70,12 +74,12 @@ context before clicking **Apply to Deal**:
   main **`Declarer (→ N)`** bar.
 - **Contract (`1`–`7`, `♣`/`♦`/`♥`/`♠`/`NT`)**: Sets the trump strain and
   automatically computes the required tricks (`6 + level`).
-- **Opening Lead / Initial Play**: Type or tap cards played at the start of the
-  deal (for example, the opening lead `DQ`, or the first trick `DQ D2 DA DK`
-  followed by a shift `S7`). Completed tricks automatically adjust the target
-  tricks and next leader, partial tricks pre-populate the current trick on the
-  table, and any defender show-out automatically records a void constraint for
-  that defender.
+- **Opening Lead / Initial Play**: Type or tap the opening lead or as many
+  initial cards/tricks as you want (for example, `DQ`, or `DQ D2 DA DK S7`, or
+  several completed tricks to jump straight to a mid-hand decision). Completed
+  tricks automatically adjust the target tricks and next leader, partial tricks
+  pre-populate the current trick on the table, and any defender show-out
+  automatically records a void constraint for that defender.
 
 ### Manual Deal Configuration & Constraints
 
@@ -88,8 +92,10 @@ context before clicking **Apply to Deal**:
   - For **double-dummy** analysis (all 4 hands visible), fill in **N**, **E**,
     **S**, and **W** and leave **Unknown Cards** empty.
 - **Center Table Controls**: Set **Trump** (`♠`, `♥`, `♦`, `♣`, `NT`),
-  **Leader** (`N`, `E`, `S`, `W`), **Tricks** (target tricks for N/S), and
-  **Rand deals** (number of random East/West layouts to sample).
+  **Leader** (`N`, `E`, `S`, `W`), and **Tricks** (target tricks for N/S).
+- **Solver Controls (Bottom Area)**: Set **Random deals** (number of random
+  unseen defender layouts to sample) right above **⚡ Solve Deal**, and
+  **Threads** alongside it.
 - **Hand Requirements (Fuzzy Search Constraints)**: Expand *Hand Requirements*
   to restrict **West** or **East** by **HCP Range** (Min–Max) or minimum suit
   lengths when the auction gives you inferences about the defenders' hands.
@@ -121,7 +127,8 @@ Each card in the tree represents a trick or final outcome:
 - **Card Wildcard Notation**: When the specific spot card doesn't change the
   strategy, the tree groups cards using shorthand:
   - `Sx`: Any low spot card (`2`–`9`) in spades.
-  - `SX`: Any honor (`T`, `J`, `Q`, `K`, `A`) in spades.
+  - `SH` (shown as `♠H` in the Line Inspector): Any honor (`T`, `J`, `Q`, `K`,
+    `A`) in spades.
   - `S_`: Any spade of any rank.
   - `R_`: Any discard or ruff in another suit.
 

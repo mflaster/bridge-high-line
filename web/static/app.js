@@ -1,3 +1,11 @@
+// Converts engine honor-wildcard card tokens (SX, HX, DX, CX) to frontend 'H'
+// notation (SH, HH, DH, CH) while preserving 'x' for low spot cards, 'X'/'XX'
+// for auction Double/Redouble, and normal text.
+function formatCardTokensForFrontend(str) {
+  if (!str || typeof str !== 'string') return str || '';
+  return str.replace(/(^|[^A-Za-z0-9])([SHDC])X(?=[^A-Za-z0-9]|$)/g, '$1$2H');
+}
+
 // DOM Elements
 const trumpSelect = document.getElementById('trumpSelect');
 const leaderSelect = document.getElementById('leaderSelect');
@@ -1364,57 +1372,433 @@ if (presetSelect) {
   });
 }
 
-// Load Photo / Image or TXT / Deal File Handler
+// Import Hand Dropzone Modal & File / Paste Handlers
 const loadTxtBtn = document.getElementById('loadTxtBtn');
 const recropPhotoBtn = document.getElementById('recropPhotoBtn');
 const fileInputTxt = document.getElementById('fileInputTxt');
+const importHandModal = document.getElementById('importHandModal');
+const closeImportModalBtn = document.getElementById('closeImportModalBtn');
+const cancelImportModalBtn = document.getElementById('cancelImportModalBtn');
+const importModalCard = document.getElementById('importModalCard');
+const importBrowseBtn = document.getElementById('importBrowseBtn');
+const importFormatGrid = document.getElementById('importFormatGrid');
+const importTogglePasteCard = document.getElementById('importTogglePasteCard');
+const importPastePanel = document.getElementById('importPastePanel');
+const importPasteInput = document.getElementById('importPasteInput');
+const importBrowseTxtBtn = document.getElementById('importBrowseTxtBtn');
+const importApplyPasteBtn = document.getElementById('importApplyPasteBtn');
+const importModalError = document.getElementById('importModalError');
+const importSampleSheetBtn = document.getElementById('importSampleSheetBtn');
 
-if (loadTxtBtn && fileInputTxt) {
+const FULL_IMPORT_ACCEPT =
+  'image/*,.pdf,application/pdf,.pbn,.lin,.txt,.deal';
+
+const SAMPLE_CLUB_SHEET_PBN = [
+  '[Board "1"]',
+  '[Dealer "N"]',
+  '[Declarer "S"]',
+  '[Contract "4S"]',
+  '[Deal "N:Q84.AJ5.K84.Q732 62.KT98.QJT9.J84 AKJT95.742.A63.A 73.Q63.752.KT965"]',
+  '',
+  '[Board "2"]',
+  '[Dealer "E"]',
+  '[Declarer "E"]',
+  '[Contract "3NT"]',
+  '[Deal "E:AK5.KJ4.AJ95.KT8 J972.AT62.T73.95 Q3.85.KQ62.AQ732 T864.Q973.84.J64"]',
+  '',
+  '[Board "3"]',
+  '[Dealer "S"]',
+  '[Declarer "S"]',
+  '[Contract "6H"]',
+  '[Deal "S:K52.AJT842.K6.A6 963.73.Q53.Q9752 A74.KQ95.A74.K83 QJT8.6.JT982.JT4"]',
+  '',
+  '[Board "4"]',
+  '[Dealer "W"]',
+  '[Declarer "W"]',
+  '[Contract "6S"]',
+  '[Deal "W:AKJT2.63.K5.A732 64.QJT8.Q974.964 Q973.AK5.A63.K85 85.9742.JT82.QJT"]'
+].join('\n');
+
+function setImportModalError(msg) {
+  if (!importModalError) return;
+  if (msg) {
+    importModalError.textContent = msg;
+    importModalError.classList.remove('hidden');
+  } else {
+    importModalError.textContent = '';
+    importModalError.classList.add('hidden');
+  }
+}
+
+function openImportHandModal(openPasteDrawer = false) {
+  if (!importHandModal) {
+    if (fileInputTxt) {
+      fileInputTxt.accept = FULL_IMPORT_ACCEPT;
+      fileInputTxt.value = '';
+      fileInputTxt.click();
+    }
+    return;
+  }
+  setImportModalError('');
+  if (importModalCard) importModalCard.classList.remove('drag-over');
+  if (importPastePanel) {
+    importPastePanel.classList.toggle('hidden', !openPasteDrawer);
+  }
+  if (importTogglePasteCard) {
+    importTogglePasteCard.classList.toggle('active', Boolean(openPasteDrawer));
+  }
+  importHandModal.classList.remove('hidden');
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      if (openPasteDrawer && importPasteInput) {
+        importPasteInput.focus();
+      } else if (importFormatGrid && typeof importFormatGrid.querySelector === 'function') {
+        const firstCard = importFormatGrid.querySelector('.import-format-card');
+        if (firstCard && firstCard.focus) firstCard.focus();
+      }
+    });
+  }
+}
+
+function closeImportHandModal() {
+  if (importHandModal) importHandModal.classList.add('hidden');
+  if (importModalCard) importModalCard.classList.remove('drag-over');
+  setImportModalError('');
+}
+
+function triggerImportFilePicker(acceptStr) {
+  if (!fileInputTxt) return;
+  fileInputTxt.accept = acceptStr || FULL_IMPORT_ACCEPT;
+  fileInputTxt.value = '';
+  fileInputTxt.click();
+}
+
+function looksLikePlainDealText(text) {
+  if (!text) return false;
+  const lines = text
+    .split(/\r?\n/)
+    .map(l => l.replace(/(#|\/\/).*$/, '').trim())
+    .filter(Boolean);
+  if (lines.length === 0) return false;
+  const hasKeyLine = lines.some(l =>
+    /^(north|south|east|west|n|s|e|w|unknown_cards|unknown|trump)\s*[:=]/i.test(l)
+  );
+  if (hasKeyLine) return true;
+  if (lines.length >= 4) {
+    const suitLines = lines.filter(l => /\b[SHDC]\b/i.test(l));
+    if (suitLines.length >= 2) return true;
+  }
+  return false;
+}
+
+function handlePastedDealText(rawText, sourceLabel = 'pasted_hand') {
+  const trimmed = (rawText || '').trim();
+  if (!trimmed) {
+    setImportModalError('Paste a PBN deal, BBO link / .lin string, or deal text first.');
+    return false;
+  }
+
+  const pbnBoards = typeof parsePbnBoardsFromText === 'function'
+    ? parsePbnBoardsFromText(trimmed)
+    : [];
+  if (pbnBoards.length > 0) {
+    closeImportHandModal();
+    pendingModalFileInfo = {
+      fileName: `${sourceLabel}.pbn`,
+      fileFormat: 'pbn',
+      loadType: 'paste_pbn'
+    };
+    openPhotoScanModalWithPbnBoards(pbnBoards);
+    return true;
+  }
+
+  const linBoards = typeof parseLinBoardsFromText === 'function'
+    ? parseLinBoardsFromText(trimmed)
+    : [];
+  if (linBoards.length > 0) {
+    closeImportHandModal();
+    pendingModalFileInfo = {
+      fileName: `${sourceLabel}.lin`,
+      fileFormat: 'lin',
+      loadType: 'paste_lin'
+    };
+    openPhotoScanModalWithPbnBoards(linBoards);
+    return true;
+  }
+
+  if (looksLikePlainDealText(trimmed)) {
+    closeImportHandModal();
+    const fname = `${sourceLabel}.deal`;
+    activeLoadedFileInfo = {
+      fileName: fname,
+      fileFormat: 'txt',
+      loadType: 'paste_txt'
+    };
+    pendingModalFileInfo = null;
+    parseAndApplyDealText(trimmed, fname);
+    return true;
+  }
+
+  setImportModalError(
+    'Could not recognize pasted format. Try PBN ([Deal "..."]), a BBO Handviewer URL / .lin string, or key-value text (north = S AQ...).'
+  );
+  return false;
+}
+
+function handleImportedFile(file) {
+  if (!file) return;
+  setImportModalError('');
+
+  const fileName = file.name || 'imported_hand';
+  const ext = fileName.includes('.')
+    ? fileName.split('.').pop().toLowerCase()
+    : '';
+  const isPdf = (file.type === 'application/pdf') || /\.pdf$/i.test(fileName);
+  if (isPdf) {
+    closeImportHandModal();
+    pendingModalFileInfo = {
+      fileName,
+      fileFormat: 'pdf',
+      loadType: 'pdf'
+    };
+    openPhotoScanModalWithPdfFile(file);
+    return;
+  }
+
+  const isImage = (file.type && file.type.startsWith('image/')) ||
+                  /\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName);
+  if (isImage) {
+    closeImportHandModal();
+    pendingModalFileInfo = {
+      fileName,
+      fileFormat: 'image',
+      loadType: 'image'
+    };
+    openPhotoScanModalWithFile(file);
+    return;
+  }
+
+  const isPbnExt = /\.pbn$/i.test(fileName);
+  const isLinExt = /\.lin$/i.test(fileName);
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const text = event.target.result || '';
+    if (isPbnExt || text.includes('[Deal ')) {
+      const pbnBoards = parsePbnBoardsFromText(text);
+      if (pbnBoards.length > 0) {
+        closeImportHandModal();
+        pendingModalFileInfo = {
+          fileName,
+          fileFormat: 'pbn',
+          loadType: 'pbn'
+        };
+        openPhotoScanModalWithPbnBoards(pbnBoards);
+        return;
+      }
+    }
+
+    if (isLinExt || /md\|[1-4]/i.test(text) || /handviewer\.html/i.test(text)) {
+      const linBoards = typeof parseLinBoardsFromText === 'function'
+        ? parseLinBoardsFromText(text)
+        : [];
+      if (linBoards.length > 0) {
+        closeImportHandModal();
+        pendingModalFileInfo = {
+          fileName,
+          fileFormat: 'lin',
+          loadType: 'lin'
+        };
+        openPhotoScanModalWithPbnBoards(linBoards);
+        return;
+      }
+    }
+
+    if (!looksLikePlainDealText(text)) {
+      setImportModalError(
+        `Could not find valid bridge hands in "${fileName}". Supported files: PDF, image, .pbn, .lin, .deal, or .txt.`
+      );
+      return;
+    }
+
+    closeImportHandModal();
+    activeLoadedFileInfo = {
+      fileName,
+      fileFormat: ext || 'txt',
+      loadType: 'txt'
+    };
+    pendingModalFileInfo = null;
+    parseAndApplyDealText(text, fileName);
+  };
+  reader.readAsText(file);
+}
+
+if (loadTxtBtn) {
   loadTxtBtn.addEventListener('click', () => {
-    fileInputTxt.value = '';
-    fileInputTxt.click();
+    openImportHandModal(false);
   });
+}
 
+if (fileInputTxt) {
   fileInputTxt.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files && e.target.files[0];
+    fileInputTxt.accept = FULL_IMPORT_ACCEPT;
+    if (file) handleImportedFile(file);
+  });
+}
 
-    const ext = (file.name || '').split('.').pop().toLowerCase();
-    const isPdf = (file.type === 'application/pdf') ||
-                  /\.pdf$/i.test(file.name || '');
-    if (isPdf) {
-      pendingModalFileInfo = { fileName: file.name, fileFormat: 'pdf', loadType: 'pdf' };
-      openPhotoScanModalWithPdfFile(file);
+if (closeImportModalBtn) {
+  closeImportModalBtn.addEventListener('click', closeImportHandModal);
+}
+if (cancelImportModalBtn) {
+  cancelImportModalBtn.addEventListener('click', closeImportHandModal);
+}
+if (importHandModal) {
+  importHandModal.addEventListener('click', (e) => {
+    if (e.target === importHandModal) closeImportHandModal();
+  });
+}
+
+if (importBrowseBtn) {
+  importBrowseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    triggerImportFilePicker(FULL_IMPORT_ACCEPT);
+  });
+}
+
+if (importFormatGrid && typeof importFormatGrid.querySelectorAll === 'function') {
+  importFormatGrid.querySelectorAll('.import-format-card').forEach(card => {
+    card.addEventListener('click', () => {
+      setImportModalError('');
+      const kind = card.dataset.importKind;
+      if (kind === 'pdf') {
+        triggerImportFilePicker('.pdf,application/pdf');
+      } else if (kind === 'image') {
+        triggerImportFilePicker('image/*');
+      } else if (kind === 'pbn') {
+        triggerImportFilePicker('.pbn,.lin,.txt');
+      } else if (kind === 'paste') {
+        if (importPastePanel) {
+          const willShow = importPastePanel.classList.contains('hidden');
+          importPastePanel.classList.toggle('hidden', !willShow);
+          card.classList.toggle('active', willShow);
+          if (willShow && importPasteInput && typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => importPasteInput.focus());
+          }
+        }
+      }
+    });
+  });
+}
+
+if (importBrowseTxtBtn) {
+  importBrowseTxtBtn.addEventListener('click', () => {
+    triggerImportFilePicker('.deal,.txt,.pbn,.lin');
+  });
+}
+
+if (importApplyPasteBtn && importPasteInput) {
+  importApplyPasteBtn.addEventListener('click', () => {
+    handlePastedDealText(importPasteInput.value, 'pasted_hand');
+  });
+}
+
+if (importSampleSheetBtn) {
+  importSampleSheetBtn.addEventListener('click', () => {
+    const sampleBoards = typeof parsePbnBoardsFromText === 'function'
+      ? parsePbnBoardsFromText(SAMPLE_CLUB_SHEET_PBN)
+      : [];
+    if (sampleBoards.length > 0) {
+      closeImportHandModal();
+      pendingModalFileInfo = {
+        fileName: 'sample_club_sheet.pbn',
+        fileFormat: 'pbn',
+        loadType: 'sample_sheet'
+      };
+      openPhotoScanModalWithPbnBoards(sampleBoards);
+    }
+  });
+}
+
+// Drag-and-drop & Clipboard Paste inside Import Hand Modal
+if (importHandModal) {
+  const preventDragDefaults = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  ['dragenter', 'dragover'].forEach(evtName => {
+    importHandModal.addEventListener(evtName, (e) => {
+      preventDragDefaults(e);
+      if (importModalCard) importModalCard.classList.add('drag-over');
+    });
+  });
+  importHandModal.addEventListener('dragleave', (e) => {
+    preventDragDefaults(e);
+    if (!importHandModal.contains(e.relatedTarget) && importModalCard) {
+      importModalCard.classList.remove('drag-over');
+    }
+  });
+  importHandModal.addEventListener('drop', (e) => {
+    preventDragDefaults(e);
+    if (importModalCard) importModalCard.classList.remove('drag-over');
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleImportedFile(files[0]);
       return;
     }
-
-    const isImage = (file.type && file.type.startsWith('image/')) ||
-                    /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name || '');
-    if (isImage) {
-      pendingModalFileInfo = { fileName: file.name, fileFormat: 'image', loadType: 'image' };
-      openPhotoScanModalWithFile(file);
-      return;
+    const droppedText = e.dataTransfer
+      ? e.dataTransfer.getData('text/plain')
+      : '';
+    if (droppedText && droppedText.trim()) {
+      if (importPasteInput) importPasteInput.value = droppedText;
+      if (importPastePanel) importPastePanel.classList.remove('hidden');
+      handlePastedDealText(droppedText, 'dropped_hand');
     }
+  });
+}
 
-    const isPbnExt = /\.pbn$/i.test(file.name || '');
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target.result;
-      if (isPbnExt || (text && text.includes('[Deal "'))) {
-        pendingModalFileInfo = { fileName: file.name, fileFormat: 'pbn', loadType: 'pbn' };
-        const pbnBoards = parsePbnBoardsFromText(text);
-        if (pbnBoards.length > 0) {
-          openPhotoScanModalWithPbnBoards(pbnBoards);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && importHandModal &&
+      !importHandModal.classList.contains('hidden')) {
+    closeImportHandModal();
+  }
+});
+
+document.addEventListener('paste', (e) => {
+  if (!importHandModal || importHandModal.classList.contains('hidden')) return;
+  const cd = e.clipboardData;
+  if (!cd) return;
+
+  // Check for pasted screenshot / image first
+  if (cd.items) {
+    for (let i = 0; i < cd.items.length; i++) {
+      const item = cd.items[i];
+      if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        if (blob) {
+          e.preventDefault();
+          const ext = (item.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+          const imgFile = new File([blob], `pasted_screenshot.${ext || 'png'}`, {
+            type: item.type
+          });
+          handleImportedFile(imgFile);
           return;
         }
       }
-      activeLoadedFileInfo = { fileName: file.name, fileFormat: ext || 'txt', loadType: 'txt' };
-      pendingModalFileInfo = null;
-      parseAndApplyDealText(text, file.name);
-    };
-    reader.readAsText(file);
-  });
-}
+    }
+  }
+
+  // If pasting text while NOT focused inside the textarea, auto-fill & load it
+  if (e.target !== importPasteInput) {
+    const pastedText = cd.getData('text/plain');
+    if (pastedText && pastedText.trim()) {
+      e.preventDefault();
+      if (importPasteInput) importPasteInput.value = pastedText;
+      if (importPastePanel) importPastePanel.classList.remove('hidden');
+      if (importTogglePasteCard) importTogglePasteCard.classList.add('active');
+      handlePastedDealText(pastedText, 'pasted_hand');
+    }
+  }
+});
 
 if (recropPhotoBtn) {
   recropPhotoBtn.addEventListener('click', () => {
@@ -1897,7 +2281,9 @@ function splicePrefixTricksOntoTree(
 
   prefixTricks.forEach((pt, idx) => {
     const trickTokens = pt.cards.map(c => {
-      const r = (c.rankStr === '10') ? 'T' : c.rankStr;
+      const r = (c.rankStr === '10')
+        ? 'T'
+        : (c.rankStr === 'X' ? 'H' : c.rankStr);
       return `${c.suit || 'S'}${r}`;
     });
     const trickStr = trickTokens.join(' ');
@@ -2047,7 +2433,7 @@ function formatProposedCardsDescriptor(cards, trickNum) {
   if (!cards || cards.length === 0) return `Trick #${trickNum}`;
   const tokens = cards.map(c => {
     const rawTok = c.clickedToken || c.rankStr || 'x';
-    const r = (rawTok === '10') ? 'T' : rawTok;
+    const r = (rawTok === '10') ? 'T' : (rawTok === 'X' ? 'H' : rawTok);
     const cardToken = `${c.suit || 'S'}${r}`;
     return c.fromUnknown ? `(${cardToken})` : cardToken;
   });
@@ -2164,7 +2550,7 @@ if (computeNewLineBtn) {
           actualTok = removeOneToken(remainingBeforeTrickK.U[c.suit], actualTok);
           remainingBeforeTrickK[c.seatName][c.suit].push(actualTok);
         }
-        const r = (actualTok === '10') ? 'T' : actualTok;
+        const r = (actualTok === '10') ? 'T' : (actualTok === 'H' ? 'X' : actualTok);
         return `${c.suit}${r}`;
       });
     }
@@ -2180,7 +2566,8 @@ if (computeNewLineBtn) {
 
     const replayTricksPayload = prefixTricksToSplice.map(pt =>
       (pt.cards || []).map(c => {
-        const r = (c.rankStr === '10') ? 'T' : (c.rankStr || 'x');
+        const rawR = c.rankStr || 'x';
+        const r = (rawR === '10') ? 'T' : (rawR === 'H' ? 'X' : rawR);
         return `${c.suit || 'S'}${r}`;
       })
     );
@@ -2234,8 +2621,8 @@ if (computeNewLineBtn) {
         }
         const pRank = (pCard.clickedToken || pCard.rankStr || '');
         const bRank = (bCard.rankStr || '');
-        const normP = (pRank === '10' ? 'T' : pRank).toUpperCase();
-        const normB = (bRank === '10' ? 'T' : bRank).toUpperCase();
+        const normP = (pRank === '10' ? 'T' : (pRank === 'X' ? 'H' : pRank)).toUpperCase();
+        const normB = (bRank === '10' ? 'T' : (bRank === 'X' ? 'H' : bRank)).toUpperCase();
         if (pCard.suit !== bCard.suit || normP !== normB) {
           keptDefenderBranchInTrick = false;
           break;

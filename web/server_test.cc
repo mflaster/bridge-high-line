@@ -35,12 +35,20 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("panelCompareLines") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("compareLinesList") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("compareLinesResults") != std::string::npos);
-  ASSERT_TRUE(res_index->body.find("Rand deals:") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Random deals:") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openHelpBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpModal") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openFeedbackBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("feedbackModal") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("header-left") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("header-import-btn") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importHandModal") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importIntroBox") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("initial cards/tricks") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
@@ -86,6 +94,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".compare-line-row") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".import-intro-box") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".solve-iters-input") != std::string::npos);
 
   // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");
@@ -100,6 +110,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
                   "document.getElementById('nodeDetailContent');") !=
               std::string::npos);
   ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") !=
+              std::string::npos);
+  ASSERT_TRUE(res_js->body.find("function openImportHandModal") !=
               std::string::npos);
 
   auto res_solver_api_js = client.Get("/solver_api.js");
@@ -137,6 +149,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_photo_scanner_js);
   ASSERT_TRUE(res_photo_scanner_js->status == 200);
   ASSERT_TRUE(res_photo_scanner_js->body.find("parseModalFirstRoundCalls") !=
+              std::string::npos);
+  ASSERT_TRUE(res_photo_scanner_js->body.find("function parseLinBoardsFromText") !=
               std::string::npos);
 
   auto res_decision_tree_js = client.Get("/decision_tree.js");
@@ -1151,7 +1165,7 @@ TEST(ServerTest, WebServerSolveStatusLifecycleTest) {
   ASSERT_TRUE(res_index->body.find("declarerRotateBar") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("pdfPageBar") != std::string::npos);
   ASSERT_TRUE(res_index->body.find(
-              "image/*,.pdf,application/pdf,.pbn,.txt,.deal") !=
+              "image/*,.pdf,application/pdf,.pbn,.lin,.txt,.deal") !=
           std::string::npos);
 
   auto res_app_js = client.Get("/app.js");
@@ -1971,6 +1985,34 @@ for (const [seat, expectedBoxes, expectedBanner] of [
   assert(bannerHtml.includes(`<strong>${expectedBanner[2]}:</strong> <span class="card-suit-s">♠</span>${expectedBanner[3]}`),
          `Inspector banner ${seat} second defender: ${bannerHtml}`);
 }
+
+// 5. Test 'H' honor wildcard notation in frontend formatter & card parser
+assert(sandbox.formatCardTokensForFrontend("#1: S8 (SX) SA (Sx) / HX") ===
+       "#1: S8 (SH) SA (Sx) / HH", "Honor wildcard X->H formatting");
+assert(sandbox.formatCardTokensForFrontend("if W plays DX, when E wins CX") ===
+       "if W plays DH, when E wins CH", "Condition X->H formatting");
+assert(sandbox.formatCardTokensForFrontend("1S - X - XX - P") ===
+       "1S - X - XX - P", "Auction X/XX untouched");
+
+const pSpadeHonor = sandbox.parseSingleCardToken("(SX)", "S", "S");
+assert(pSpadeHonor.suit === "S" && pSpadeHonor.rankStr === "H" &&
+       pSpadeHonor.displayStr === "♠H" && pSpadeHonor.rankVal === 10.5,
+       "parseSingleCardToken (SX) -> ♠H");
+
+const pHeartHonor = sandbox.parseSingleCardToken("(HX)", "H", "S");
+assert(pHeartHonor.suit === "H" && pHeartHonor.rankStr === "H" &&
+       pHeartHonor.displayStr === "♥H" && pHeartHonor.rankVal === 10.5,
+       "parseSingleCardToken (HX) -> ♥H");
+
+const pHeartHonorDirect = sandbox.parseSingleCardToken("HH", "H", "S");
+assert(pHeartHonorDirect.suit === "H" && pHeartHonorDirect.rankStr === "H" &&
+       pHeartHonorDirect.displayStr === "♥H",
+       "parseSingleCardToken HH -> ♥H");
+
+const pHeartAce = sandbox.parseSingleCardToken("HA", "H", "S");
+assert(pHeartAce.suit === "H" && pHeartAce.rankStr === "A" &&
+       pHeartAce.displayStr === "♥A",
+       "parseSingleCardToken HA -> ♥A");
 ' )NODE";
     EXPECT_EQ(std::system(cmd.c_str()), 0);
   }

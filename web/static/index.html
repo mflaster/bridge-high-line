@@ -15,26 +15,39 @@
 <body>
   <header class="app-header">
     <div class="header-content">
-      <div class="logo">
-        <span class="spade-icon">♠</span>
-        <h1>Bridge High Line Solver</h1>
+      <div class="header-left">
+        <div class="logo">
+          <span class="spade-icon">♠</span>
+          <h1>Bridge High Line Solver</h1>
+        </div>
+        <div class="header-divider" aria-hidden="true"></div>
+        <div class="preset-selector">
+          <label for="presetSelect" class="header-hand-label">Preset:</label>
+          <select id="presetSelect" class="select-input">
+            <option value="finesse">Simple Finesse (Spades)</option>
+            <option value="endplay">4-Card Endplay Deal</option>
+            <option value="squeeze">Squeeze Deal (NT)</option>
+            <option value="nine_card_hearts">9-Card Hearts Deal</option>
+            <option value="safety_play">Safety Play Deal (NT)</option>
+            <option value="twelve_card_spades">12-Card Spades Deal (4S)</option>
+            <option value="restricted_choice">Restricted Choice (7S)</option>
+            <option value="mollo_6s">Mollo 6S</option>
+            <option value="two_way_finesse">2-Way Finesse</option>
+            <option value="hand_8_261014">Hand 8 from 261014</option>
+            <option value="hand_6_261014">Hand 6 from 261014</option>
+            <option value="7s_1021">7S 1021</option>
+          </select>
+          <span class="header-or-sep" aria-hidden="true">or</span>
+          <button id="loadTxtBtn" type="button" class="header-import-btn" title="Import a bridge hand from PDF, photo/screenshot, PBN, LIN, or text">
+            <span class="header-import-icon" aria-hidden="true">📥</span> Import Hand
+          </button>
+          <button id="recropPhotoBtn" type="button" class="header-reopen-btn hidden" title="Re-open loaded hand record to pick another board or adjust scan">
+            📋 Pick Board
+          </button>
+          <input type="file" id="fileInputTxt" accept="image/*,.pdf,application/pdf,.pbn,.lin,.txt,.deal" style="display: none;">
+        </div>
       </div>
-      <div class="preset-selector">
-        <label for="presetSelect">Hand Selector:</label>
-        <select id="presetSelect" class="select-input">
-          <option value="finesse">Simple Finesse (Spades)</option>
-          <option value="endplay">4-Card Endplay Deal</option>
-          <option value="squeeze">Squeeze Deal (NT)</option>
-          <option value="nine_card_hearts">9-Card Hearts Deal</option>
-          <option value="safety_play">Safety Play Deal (NT)</option>
-          <option value="twelve_card_spades">12-Card Spades Deal (4S)</option>
-          <option value="restricted_choice">Restricted Choice (7S)</option>
-          <option value="mollo_6s">Mollo 6S</option>
-          <option value="two_way_finesse">2-Way Finesse</option>
-          <option value="hand_8_261014">Hand 8 from 261014</option>
-          <option value="hand_6_261014">Hand 6 from 261014</option>
-          <option value="7s_1021">7S 1021</option>
-        </select>
+      <div class="header-right">
         <a id="openHelpBtn" href="help.html" target="_blank" rel="noopener noreferrer" class="feedback-header-btn" title="Open Help &amp; Strategy Guide in a new tab">
           ❓ Help ↗
         </a>
@@ -90,7 +103,7 @@
               <g transform="translate(10, 12)" id="cardsWestGroup"></g>
             </g>
 
-            <!-- Center Box (Middle Controls: Trump / Leader / Target / Iters) -->
+            <!-- Center Box (Middle Controls: Trump / Leader / Tricks) -->
             <g id="svgCenterBox" transform="translate(129, 130)">
               <rect width="126" height="104" rx="8" fill="#0f241a" stroke="#2d5e46" stroke-width="1.5"/>
               <foreignObject x="0" y="0" width="126" height="104">
@@ -117,10 +130,6 @@
                   <div class="middle-control-group">
                     <label for="targetTricks">Tricks:</label>
                     <input type="text" inputmode="numeric" id="targetTricks" value="2" class="middle-number-input">
-                  </div>
-                  <div class="middle-control-group">
-                    <label for="numIters">Rand deals:</label>
-                    <input type="text" inputmode="numeric" id="numIters" value="100" class="middle-number-input">
                   </div>
                 </div>
               </foreignObject>
@@ -151,11 +160,6 @@
         <div class="hand-inputs-accordion">
           <div class="hand-inputs-header">
             <h3>Hand Text Inputs</h3>
-            <div class="hand-inputs-actions">
-              <button id="recropPhotoBtn" type="button" class="btn btn-secondary-sm hidden" title="Re-open photo/PDF crop &amp; board scanner">Crop Photo</button>
-              <button id="loadTxtBtn" type="button" class="btn btn-secondary-sm" title="Load from camera photo, image, PDF, PBN, or .txt/.deal file">Load</button>
-              <input type="file" id="fileInputTxt" accept="image/*,.pdf,application/pdf,.pbn,.txt,.deal" style="display: none;">
-            </div>
           </div>
           <div id="declarerRotateBar" class="declarer-rotate-bar">
             <span class="declarer-rotate-label" title="Rotates the 4 compass hands so Declarer is placed at North (Hand 0) and Dummy at South (Hand 2)">Declarer (→ N):</span>
@@ -236,23 +240,29 @@
           </div>
         </div>
 
-        <!-- Solve Action Button -->
-        <div class="solve-action-container">
-          <button id="solveBtn" class="btn btn-primary btn-large">
-            <span class="btn-icon">⚡</span> Solve Deal
-          </button>
-          <button id="stopSolveActionBtn" type="button" class="btn btn-stop btn-large hidden" title="Stop current solve">
-            <span class="btn-icon">■</span> Stop
-          </button>
-          <div class="threads-selector" title="Number of solver threads">
-            <label for="numThreads">Threads:</label>
-            <select id="numThreads" class="select-input">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="4">4</option>
-              <option value="8">8</option>
-              <option value="16" selected>16</option>
-            </select>
+        <!-- Solve Controls & Action Button -->
+        <div class="solve-footer">
+          <div class="solve-iters-control" title="Number of random unseen defender layouts to sample when solving">
+            <label for="numIters">Random deals:</label>
+            <input type="text" inputmode="numeric" id="numIters" value="100" class="number-input solve-iters-input">
+          </div>
+          <div class="solve-action-container">
+            <button id="solveBtn" class="btn btn-primary btn-large">
+              <span class="btn-icon">⚡</span> Solve Deal
+            </button>
+            <button id="stopSolveActionBtn" type="button" class="btn btn-stop btn-large hidden" title="Stop current solve">
+              <span class="btn-icon">■</span> Stop
+            </button>
+            <div class="threads-selector" title="Number of solver threads">
+              <label for="numThreads">Threads:</label>
+              <select id="numThreads" class="select-input">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="8">8</option>
+                <option value="16" selected>16</option>
+              </select>
+            </div>
           </div>
         </div>
       </section>
@@ -467,13 +477,98 @@
     </div>
   </main>
 
+  <!-- Import Hand Modal -->
+  <div id="importHandModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importHandModalTitle">
+    <div id="importModalCard" class="modal-card import-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="importHandModalTitle">Import Bridge Hand</h2>
+        </div>
+        <button id="closeImportModalBtn" type="button" class="inspector-close-btn" aria-label="Close import modal" title="Close modal">✕</button>
+      </div>
+
+      <div class="import-modal-body">
+        <div id="importIntroBox" class="import-intro-box">
+          <ul class="import-feature-list">
+            <li><strong>Load hands in a variety of formats</strong> — PDF hand records, photos/screenshots, PBN / BBO <code>.lin</code> files, or pasted deals.</li>
+            <li><strong>Specify contract, declarer &amp; initial play</strong> — enter just the opening lead, or play out as many initial cards/tricks as you want to analyze any mid-hand decision point.</li>
+            <li><strong>Include the 1st round of bidding</strong> <span class="import-optional-tag">(optional)</span> — guide which unseen defender hands the solver considers.</li>
+          </ul>
+        </div>
+
+        <div class="import-formats-label">Choose a format to load:</div>
+        <div id="importFormatGrid" class="import-format-grid">
+          <button type="button" class="import-format-card import-format-card-featured" data-import-kind="pdf">
+            <span class="import-format-icon" aria-hidden="true">📄</span>
+            <div class="import-format-text">
+              <span class="import-format-name-row">
+                <span class="import-format-name">Club / Tournament PDF</span>
+                <span class="import-preferred-badge">Hand record preferred</span>
+              </span>
+              <span class="import-format-desc">ACBL &amp; Common Game hand record sheets — browse pages &amp; pick any board</span>
+            </div>
+          </button>
+
+          <button type="button" class="import-format-card" data-import-kind="image">
+            <span class="import-format-icon" aria-hidden="true">📷</span>
+            <div class="import-format-text">
+              <span class="import-format-name">Photo or Screenshot</span>
+              <span class="import-format-desc">On-device OCR for printed hand records, travellers, or BBO / Bridge Winners diagrams</span>
+            </div>
+          </button>
+
+          <button type="button" class="import-format-card" data-import-kind="pbn">
+            <span class="import-format-icon" aria-hidden="true">🃏</span>
+            <div class="import-format-text">
+              <span class="import-format-name">PBN / BBO LIN File</span>
+              <span class="import-format-desc">Single or multi-board <code>.pbn</code> &amp; <code>.lin</code> hand records with contract &amp; dealer</span>
+            </div>
+          </button>
+
+          <button type="button" class="import-format-card" data-import-kind="paste" id="importTogglePasteCard">
+            <span class="import-format-icon" aria-hidden="true">📋</span>
+            <div class="import-format-text">
+              <span class="import-format-name">Paste Deal or Text File</span>
+              <span class="import-format-desc">Paste PBN, BBO Handviewer URL, or 4-hand text (or load <code>.deal</code> / <code>.txt</code>)</span>
+            </div>
+          </button>
+        </div>
+
+        <div id="importPastePanel" class="import-paste-panel hidden">
+          <label for="importPasteInput" class="import-paste-label">Paste PBN, BBO Handviewer URL / LIN, or Plain-Text Deal:</label>
+          <textarea id="importPasteInput" class="text-input import-paste-textarea" rows="4" placeholder="Examples:&#10;• [Deal &quot;N:AKQ2.JT9.876.543 ...&quot;]&#10;• https://www.bridgebase.com/tools/handviewer.html?lin=...&#10;• north = S AKQ2 H JT9 D 876 C 543"></textarea>
+          <div class="import-paste-actions">
+            <button id="importBrowseTxtBtn" type="button" class="btn btn-secondary-sm">Browse .deal / .txt file…</button>
+            <button id="importApplyPasteBtn" type="button" class="btn btn-primary btn-sm">Load Pasted Hand</button>
+          </div>
+        </div>
+
+        <div class="import-shortcut-hint">
+          Tip: Press <kbd>Ctrl+V</kbd> (<kbd>⌘V</kbd>) to paste a screenshot or deal text, or drop a file anywhere in this window. Everything runs locally in your browser.
+        </div>
+
+        <div id="importModalError" class="scan-initial-error hidden"></div>
+
+        <div class="import-modal-footer">
+          <button id="importSampleSheetBtn" type="button" class="import-sample-link-btn" title="Open a sample 4-board tournament sheet to test board selection, declarer rotation, and initial play">
+            ✨ No file handy? Try a sample 4-board club sheet
+          </button>
+          <div class="import-modal-footer-actions">
+            <button id="importBrowseBtn" type="button" class="btn btn-secondary">Browse Files…</button>
+            <button id="cancelImportModalBtn" type="button" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Photo Crop & On-Device Hand Record Scanner Modal -->
   <div id="photoScanModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="photoScanModalTitle">
     <div class="modal-card photo-scan-modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
           <h2 id="photoScanModalTitle">Scan Hand Record Photo</h2>
-          <span class="modal-subtitle">Drag crop handles around a single 4-hand board diagram (or tap any highlighted board)</span>
+          <span id="photoScanModalSubtitle" class="modal-subtitle">Drag crop handles around a single 4-hand board diagram (or tap any highlighted board)</span>
         </div>
         <button id="closePhotoModalBtn" type="button" class="inspector-close-btn" title="Close modal">✕</button>
       </div>

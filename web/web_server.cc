@@ -1822,7 +1822,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
         }
         int seat = (leader + static_cast<int>(k)) % 4;
         if (s != NOTRUMP &&
-            (rch == 'x' || rch == 'X' || rch == '_' || rch == '<')) {
+            (rch == 'x' || rch == 'X' || rch == 'H' ||
+             rch == '_' || rch == '<')) {
           auto &vec = resolved_hand_wildcards[seat][static_cast<int>(s)];
           if (!vec.empty()) {
             CardType ct = vec.front();
@@ -1832,8 +1833,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
             std::vector<CardType> suit_cards =
                 CardsInHandInSuit(hands[seat], s, /*played_cards=*/0);
             if (!suit_cards.empty()) {
-              CardType ct =
-                  (rch == 'X') ? suit_cards.back() : suit_cards.front();
+              CardType ct = (rch == 'X' || rch == 'H') ? suit_cards.back()
+                                                       : suit_cards.front();
               cur_trick.push_back(ct);
             }
           }

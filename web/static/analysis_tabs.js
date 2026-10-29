@@ -36,9 +36,12 @@ function buildSelectableLinesList() {
         ? baseData.active_board_ids
         : Array.from({ length: baseTotal }, (_, b) => b);
     const origLines = Array.isArray(baseData.lines) ? baseData.lines : [];
+    const fmtFrontend = (s) => (typeof formatCardTokensForFrontend === 'function')
+      ? formatCardTokensForFrontend(s)
+      : s;
     if (origLines.length > 1) {
       origLines.forEach((lineObj, idx) => {
-        let label = lineObj.label || `Line ${idx + 1}`;
+        let label = fmtFrontend(lineObj.label || `Line ${idx + 1}`);
         if (hasAlts) {
           label = label.replace(/^Line\s+(\d+):/i, 'Original line $1:');
         }
@@ -79,7 +82,7 @@ function buildSelectableLinesList() {
         : baseSuccess;
       const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
       let rawTitle = (singleLineObj && singleLineObj.label)
-        ? singleLineObj.label.replace(/^Line\s+1:/i, 'Original line:')
+        ? fmtFrontend(singleLineObj.label).replace(/^Line\s+1:/i, 'Original line:')
         : 'Original line';
       let covIds = Array.isArray(singleLineObj && singleLineObj.covered_board_ids)
         ? singleLineObj.covered_board_ids
@@ -102,6 +105,9 @@ function buildSelectableLinesList() {
   }
 
   if (hasAlts) {
+    const fmtFrontend = (s) => (typeof formatCardTokensForFrontend === 'function')
+      ? formatCardTokensForFrontend(s)
+      : s;
     proposedAltLines.forEach((altEntry) => {
       const altData = altEntry.data || {};
       const altTotal = altData.total_boards || 1;
@@ -123,10 +129,11 @@ function buildSelectableLinesList() {
         altData.active_board_ids.length > 0
           ? altData.active_board_ids
           : Array.from({ length: altTotal }, (_, b) => b);
+      const formattedAltLabel = fmtFrontend(altEntry.label);
       entries.push({
         kind: 'alt',
-        rawTitle: altEntry.label,
-        label: `${pctPrefix}${altEntry.label}`,
+        rawTitle: formattedAltLabel,
+        label: `${pctPrefix}${formattedAltLabel}`,
         coveredBoards: altSuccess,
         totalBoards: altTotal,
         coveredBoardIds: covIds || [],
