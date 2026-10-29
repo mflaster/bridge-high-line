@@ -240,27 +240,29 @@
           </div>
         </div>
 
-        <!-- Solve Action Button & Solver Controls -->
-        <div class="solve-action-container">
-          <button id="solveBtn" class="btn btn-primary btn-large">
-            <span class="btn-icon">⚡</span> Solve Deal
-          </button>
-          <button id="stopSolveActionBtn" type="button" class="btn btn-stop btn-large hidden" title="Stop current solve">
-            <span class="btn-icon">■</span> Stop
-          </button>
+        <!-- Solve Controls & Action Button -->
+        <div class="solve-footer">
           <div class="solve-iters-control" title="Number of random unseen defender layouts to sample when solving">
-            <label for="numIters">Rand deals:</label>
+            <label for="numIters">Random deals:</label>
             <input type="text" inputmode="numeric" id="numIters" value="100" class="number-input solve-iters-input">
           </div>
-          <div class="threads-selector" title="Number of solver threads">
-            <label for="numThreads">Threads:</label>
-            <select id="numThreads" class="select-input">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="4">4</option>
-              <option value="8">8</option>
-              <option value="16" selected>16</option>
-            </select>
+          <div class="solve-action-container">
+            <button id="solveBtn" class="btn btn-primary btn-large">
+              <span class="btn-icon">⚡</span> Solve Deal
+            </button>
+            <button id="stopSolveActionBtn" type="button" class="btn btn-stop btn-large hidden" title="Stop current solve">
+              <span class="btn-icon">■</span> Stop
+            </button>
+            <div class="threads-selector" title="Number of solver threads">
+              <label for="numThreads">Threads:</label>
+              <select id="numThreads" class="select-input">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="8">8</option>
+                <option value="16" selected>16</option>
+              </select>
+            </div>
           </div>
         </div>
       </section>

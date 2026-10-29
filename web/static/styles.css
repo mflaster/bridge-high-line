@@ -182,7 +182,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 12px 20px 16px;
+  padding: 10px 20px 12px;
 }
 
 .grid-container {
@@ -240,7 +240,11 @@ body {
   flex: 0 0 auto;
   min-width: 280px;
   max-width: calc(100% - 300px);
+  padding: 10px 14px;
+  gap: 6px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
 }
 
 .panel-resizer {
@@ -296,8 +300,14 @@ body.is-resizing * {
   cursor: col-resize !important;
 }
 
-.solve-action-container {
+.solve-footer {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.solve-action-container {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -305,25 +315,24 @@ body.is-resizing * {
 }
 
 .solve-action-container .btn-large {
-  flex: 1 1 155px;
+  flex: 1 1 180px;
 }
 
 .solve-iters-control {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 10px;
+  font-size: 16px;
   font-weight: 600;
-  color: #cbd5e1;
-  flex-shrink: 0;
+  color: var(--text-main);
   white-space: nowrap;
 }
 
 .solve-iters-input {
-  width: 60px;
-  padding: 9px 8px;
+  width: 82px;
+  padding: 5px 10px;
   text-align: center;
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 700;
   color: #f8fafc;
   background-color: #0f172a;
@@ -355,7 +364,7 @@ body.is-resizing * {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -643,7 +652,7 @@ body.is-resizing * {
 .requirements-details {
   background-color: #0f172a;
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   font-size: 13px;
 }
 

@@ -35,7 +35,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("panelCompareLines") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("compareLinesList") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("compareLinesResults") != std::string::npos);
-  ASSERT_TRUE(res_index->body.find("Rand deals:") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Random deals:") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openHelpBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpModal") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);

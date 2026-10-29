@@ -93,8 +93,9 @@ context before clicking **Apply to Deal**:
     **S**, and **W** and leave **Unknown Cards** empty.
 - **Center Table Controls**: Set **Trump** (`♠`, `♥`, `♦`, `♣`, `NT`),
   **Leader** (`N`, `E`, `S`, `W`), and **Tricks** (target tricks for N/S).
-- **Solver Controls (Bottom Bar)**: Set **Rand deals** (number of random unseen
-  defender layouts to sample) and **Threads** right next to **⚡ Solve Deal**.
+- **Solver Controls (Bottom Area)**: Set **Random deals** (number of random
+  unseen defender layouts to sample) right above **⚡ Solve Deal**, and
+  **Threads** alongside it.
 - **Hand Requirements (Fuzzy Search Constraints)**: Expand *Hand Requirements*
   to restrict **West** or **East** by **HCP Range** (Min–Max) or minimum suit
   lengths when the auction gives you inferences about the defenders' hands.
