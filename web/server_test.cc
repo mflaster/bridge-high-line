@@ -249,6 +249,45 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   server.Stop();
 }
 
+TEST(ServerTest, CrossOriginIsolationHeaders) {
+  int port = 18082;
+  WebServer server("127.0.0.1", port);
+  ASSERT_TRUE(server.Start(/*async=*/true));
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+  httplib::Client client("127.0.0.1", port);
+  client.set_keep_alive(false);
+
+  auto check_coi_headers = [](const httplib::Result &res) {
+    ASSERT_TRUE(res);
+    ASSERT_TRUE(res->status == 200);
+    ASSERT_TRUE(res->has_header("Cross-Origin-Opener-Policy"));
+    EXPECT_EQ(res->get_header_value("Cross-Origin-Opener-Policy"), "same-origin");
+    ASSERT_TRUE(res->has_header("Cross-Origin-Embedder-Policy"));
+    EXPECT_EQ(res->get_header_value("Cross-Origin-Embedder-Policy"), "require-corp");
+  };
+
+  // Test /, /app.js, /solver_api.js, /api/health
+  check_coi_headers(client.Get("/"));
+  check_coi_headers(client.Get("/app.js"));
+  check_coi_headers(client.Get("/solver_api.js"));
+  check_coi_headers(client.Get("/api/health"));
+
+  // Test /api/solve
+  nlohmann::json solve_req;
+  solve_req["hands"]["N"] = "S A; H -; D -; C -;";
+  solve_req["hands"]["E"] = "S 2; H -; D -; C -;";
+  solve_req["hands"]["S"] = "S 3; H -; D -; C -;";
+  solve_req["hands"]["W"] = "S 4; H -; D -; C -;";
+  solve_req["trump"] = "SPADES";
+  solve_req["leader"] = "NORTH";
+
+  check_coi_headers(client.Post("/api/solve", solve_req.dump(), "application/json"));
+
+  server.Stop();
+}
+
 TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
   int port = 18081;
   WebServer server("127.0.0.1", port);
