@@ -60,7 +60,7 @@ Scan**) button appears next to **Import Hand** in the top bar so you can
 re-open the sheet and pick another board or adjust settings without
 re-uploading the file.
 
-### Scanner Modal: Declarer Rotation, Contract & Opening Lead
+### Scanner Modal: Declarer Rotation, Contract & Initial Play
 
 When you load a 4-hand board in the scanner modal, you can configure the table
 context before clicking **Apply to Deal**:
@@ -74,12 +74,12 @@ context before clicking **Apply to Deal**:
   main **`Declarer (→ N)`** bar.
 - **Contract (`1`–`7`, `♣`/`♦`/`♥`/`♠`/`NT`)**: Sets the trump strain and
   automatically computes the required tricks (`6 + level`).
-- **Opening Lead / Initial Play**: Type or tap cards played at the start of the
-  deal (for example, the opening lead `DQ`, or the first trick `DQ D2 DA DK`
-  followed by a shift `S7`). Completed tricks automatically adjust the target
-  tricks and next leader, partial tricks pre-populate the current trick on the
-  table, and any defender show-out automatically records a void constraint for
-  that defender.
+- **Opening Lead / Initial Play**: Type or tap the opening lead or as many
+  initial cards/tricks as you want (for example, `DQ`, or `DQ D2 DA DK S7`, or
+  several completed tricks to jump straight to a mid-hand decision). Completed
+  tricks automatically adjust the target tricks and next leader, partial tricks
+  pre-populate the current trick on the table, and any defender show-out
+  automatically records a void constraint for that defender.
 
 ### Manual Deal Configuration & Constraints
 

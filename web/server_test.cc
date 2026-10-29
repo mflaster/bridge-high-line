@@ -45,6 +45,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("header-import-btn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importHandModal") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importIntroBox") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("initial cards/tricks") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
