@@ -448,6 +448,9 @@ function renderDecisionTree(rootNode, resetView = false) {
     if (condText.startsWith('after ')) {
       condText = condText.substring(6);
     }
+    if (typeof formatCardTokensForFrontend === 'function') {
+      condText = formatCardTokensForFrontend(condText);
+    }
     return Math.max(54, condText.length * 7 + 12);
   }
 
@@ -603,6 +606,9 @@ function renderDecisionTree(rootNode, resetView = false) {
           if (condText.startsWith('after ')) {
             condText = condText.substring(6);
           }
+          if (typeof formatCardTokensForFrontend === 'function') {
+            condText = formatCardTokensForFrontend(condText);
+          }
           const labelWidth = Math.max(54, condText.length * 7 + 12);
           const labelHeight = 18;
 
@@ -725,6 +731,9 @@ function renderDecisionTree(rootNode, resetView = false) {
     let rawTitle = node.label || node.trick || 'Node';
     if (rawTitle.startsWith('after ')) {
       rawTitle = rawTitle.substring(6);
+    }
+    if (typeof formatCardTokensForFrontend === 'function') {
+      rawTitle = formatCardTokensForFrontend(rawTitle);
     }
     title.textContent = truncateText(rawTitle, 28);
     g.appendChild(title);
@@ -901,7 +910,7 @@ function showNodeInspector(node, clickedNode = null) {
                 }
               }
             }
-            const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_]+)/i);
+            const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_<]+)/i);
             if (mPlay) {
               explicitPlayedSeat = getSeatIndex(mPlay[1]);
               explicitPlayedCard = mPlay[2].trim();
@@ -950,10 +959,13 @@ function showNodeInspector(node, clickedNode = null) {
         winningCardIdx = foundIdx;
         if (explicitWinnerCard) {
           const existingRaw = (parsedCards[foundIdx].raw || '').replace(/[\(\)]/g, '');
+          const isHonorWild = existingRaw.length >= 2 &&
+            (existingRaw.slice(1) === 'X' || existingRaw.slice(1) === 'H');
           const isWildcardSlot = !existingRaw ||
             existingRaw.includes('_') ||
             existingRaw.includes('x') ||
-            existingRaw.includes('X');
+            existingRaw.includes('<') ||
+            isHonorWild;
           if (isWildcardSlot || existingRaw.toUpperCase() === explicitWinnerCard.toUpperCase()) {
             // Update the played card for this seat if specified in the branch condition
             const updatedCard = parseSingleCardToken(explicitWinnerCard, leadSuit, trumpCode);
@@ -1196,9 +1208,9 @@ function showNodeInspector(node, clickedNode = null) {
       return tr.cards.map((origCard, idx) => {
         const actualParsed = parseSingleCardToken(rawToks[idx], leadSuit, trumpCode);
         if (idx === 0) leadSuit = actualParsed.suit;
-        // If the generalized card was unsuited ('__') or wildcard ('x'/'_'/'<H'), use the concrete card from the board
+        // If the generalized card was unsuited ('__') or wildcard ('x'/'_'/'H'/'<H'), use the concrete card from the board
         if (!origCard.suit || origCard.rankStr === '__' || origCard.rankStr === '_' ||
-            origCard.rankStr === 'x' || origCard.rankStr === 'X' ||
+            origCard.rankStr === 'x' || origCard.rankStr === 'X' || origCard.rankStr === 'H' ||
             (origCard.rankStr && origCard.rankStr.startsWith('<'))) {
           return Object.assign({}, origCard, {
             suit: actualParsed.suit,
@@ -1247,6 +1259,7 @@ function showNodeInspector(node, clickedNode = null) {
               uUsedMasks[sKey][uIdx] = true;
               const matchedTok = uSuitTokens[sKey][uIdx];
               const isPatWild = (entry.rankStr === 'x' || entry.rankStr === 'X' ||
+                                 entry.rankStr === 'H' ||
                                  entry.rankStr === '_' || entry.rankStr === '__' ||
                                  (entry.rankStr && entry.rankStr.startsWith('<')));
               entry.movedToken = isPatWild ? matchedTok : entry.rankStr;
@@ -1467,7 +1480,19 @@ function showNodeInspector(node, clickedNode = null) {
           classes.push('card-lead');
         }
         chip.className = classes.join(' ');
-        chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}`;
+        let wildcardHint = '';
+        if (c.rankStr === 'H') {
+          wildcardHint = ' — Honor (10–A)';
+        } else if (c.rankStr === 'x') {
+          wildcardHint = ' — Low spot card (2–9)';
+        } else if (c.rankStr === '_') {
+          wildcardHint = ' — Any card in suit';
+        } else if (c.rankStr === 'R_') {
+          wildcardHint = ' — Discard / show-out';
+        } else if (c.rankStr && c.rankStr.startsWith('<')) {
+          wildcardHint = ` — Lower than ${c.rankStr.slice(1)}`;
+        }
+        chip.title = `${isLead ? 'Led' : 'Played'} by ${c.seatName}${isWinner ? ' (Winner)' : ''}${wildcardHint}`;
         const safeRankHtml = String(c.rankStr || '').replace(/</g, '&lt;');
         const innerHtml = c.suitSym
           ? `<span class="suit-symbol">${c.suitSym}</span><span class="card-rank">${safeRankHtml}</span>`
@@ -1544,7 +1569,7 @@ function getTrumpCode() {
 function tokenizeTrick(trickStr) {
   if (!trickStr) return [];
   const cleaned = trickStr.replace(/,/g, ' ');
-  const regex = /\([^\)]+\)|[S|H|D|C][<A|K|Q|J|T|10|9|8|7|6|5|4|3|2|X|x|_]+|[A|K|Q|J|T|10|9|8|7|6|5|4|3|2]+[S|H|D|C]|\S+/gi;
+  const regex = /\([^\)]+\)|[S|H|D|C][<A|K|Q|J|T|10|9|8|7|6|5|4|3|2|H|X|x|_]+|[A|K|Q|J|T|10|9|8|7|6|5|4|3|2]+[S|H|D|C]|\S+/gi;
   const matches = cleaned.match(regex) || [];
   return matches.filter(m => m.trim().length > 0);
 }
@@ -1577,9 +1602,11 @@ function parseSingleCardToken(token, leadSuit, trumpSuit) {
   if (rankStr === '10') rankStr = 'T';
   if (rankStr === '') rankStr = '_';
   if (rankStr !== 'x') rankStr = rankStr.toUpperCase();
+  if (rankStr === 'X') rankStr = 'H';
 
   const rankValueMap = {
-    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10, 'X': 10.5,
+    'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '10': 10,
+    'H': 10.5, 'X': 10.5,
     '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
   };
   const rankVal = rankValueMap[rankStr] || 1;

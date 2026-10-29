@@ -1,3 +1,11 @@
+// Converts engine honor-wildcard card tokens (SX, HX, DX, CX) to frontend 'H'
+// notation (SH, HH, DH, CH) while preserving 'x' for low spot cards, 'X'/'XX'
+// for auction Double/Redouble, and normal text.
+function formatCardTokensForFrontend(str) {
+  if (!str || typeof str !== 'string') return str || '';
+  return str.replace(/(^|[^A-Za-z0-9])([SHDC])X(?=[^A-Za-z0-9]|$)/g, '$1$2H');
+}
+
 // DOM Elements
 const trumpSelect = document.getElementById('trumpSelect');
 const leaderSelect = document.getElementById('leaderSelect');
@@ -2273,7 +2281,9 @@ function splicePrefixTricksOntoTree(
 
   prefixTricks.forEach((pt, idx) => {
     const trickTokens = pt.cards.map(c => {
-      const r = (c.rankStr === '10') ? 'T' : c.rankStr;
+      const r = (c.rankStr === '10')
+        ? 'T'
+        : (c.rankStr === 'X' ? 'H' : c.rankStr);
       return `${c.suit || 'S'}${r}`;
     });
     const trickStr = trickTokens.join(' ');
@@ -2423,7 +2433,7 @@ function formatProposedCardsDescriptor(cards, trickNum) {
   if (!cards || cards.length === 0) return `Trick #${trickNum}`;
   const tokens = cards.map(c => {
     const rawTok = c.clickedToken || c.rankStr || 'x';
-    const r = (rawTok === '10') ? 'T' : rawTok;
+    const r = (rawTok === '10') ? 'T' : (rawTok === 'X' ? 'H' : rawTok);
     const cardToken = `${c.suit || 'S'}${r}`;
     return c.fromUnknown ? `(${cardToken})` : cardToken;
   });
@@ -2540,7 +2550,7 @@ if (computeNewLineBtn) {
           actualTok = removeOneToken(remainingBeforeTrickK.U[c.suit], actualTok);
           remainingBeforeTrickK[c.seatName][c.suit].push(actualTok);
         }
-        const r = (actualTok === '10') ? 'T' : actualTok;
+        const r = (actualTok === '10') ? 'T' : (actualTok === 'H' ? 'X' : actualTok);
         return `${c.suit}${r}`;
       });
     }
@@ -2556,7 +2566,8 @@ if (computeNewLineBtn) {
 
     const replayTricksPayload = prefixTricksToSplice.map(pt =>
       (pt.cards || []).map(c => {
-        const r = (c.rankStr === '10') ? 'T' : (c.rankStr || 'x');
+        const rawR = c.rankStr || 'x';
+        const r = (rawR === '10') ? 'T' : (rawR === 'H' ? 'X' : rawR);
         return `${c.suit || 'S'}${r}`;
       })
     );
@@ -2610,8 +2621,8 @@ if (computeNewLineBtn) {
         }
         const pRank = (pCard.clickedToken || pCard.rankStr || '');
         const bRank = (bCard.rankStr || '');
-        const normP = (pRank === '10' ? 'T' : pRank).toUpperCase();
-        const normB = (bRank === '10' ? 'T' : bRank).toUpperCase();
+        const normP = (pRank === '10' ? 'T' : (pRank === 'X' ? 'H' : pRank)).toUpperCase();
+        const normB = (bRank === '10' ? 'T' : (bRank === 'X' ? 'H' : bRank)).toUpperCase();
         if (pCard.suit !== bCard.suit || normP !== normB) {
           keptDefenderBranchInTrick = false;
           break;

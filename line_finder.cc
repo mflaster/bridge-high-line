@@ -113,7 +113,7 @@ bool PlayReplayCardOnBoard(const std::string &card_str, BoardState &bs) {
   }
   bool is_any_in_suit = (rch == '_');
   bool is_spot_wildcard = (rch == 'x');
-  bool is_honor_wildcard = (rch == 'X');
+  bool is_honor_wildcard = (rch == 'X' || rch == 'H');
   CardType exact_card = 0;
   if (!is_any_in_suit && !is_spot_wildcard && !is_honor_wildcard) {
     std::string norm_str(1, static_cast<char>(std::toupper(card_str[0])));

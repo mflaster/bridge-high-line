@@ -1984,6 +1984,34 @@ for (const [seat, expectedBoxes, expectedBanner] of [
   assert(bannerHtml.includes(`<strong>${expectedBanner[2]}:</strong> <span class="card-suit-s">♠</span>${expectedBanner[3]}`),
          `Inspector banner ${seat} second defender: ${bannerHtml}`);
 }
+
+// 5. Test 'H' honor wildcard notation in frontend formatter & card parser
+assert(sandbox.formatCardTokensForFrontend("#1: S8 (SX) SA (Sx) / HX") ===
+       "#1: S8 (SH) SA (Sx) / HH", "Honor wildcard X->H formatting");
+assert(sandbox.formatCardTokensForFrontend("if W plays DX, when E wins CX") ===
+       "if W plays DH, when E wins CH", "Condition X->H formatting");
+assert(sandbox.formatCardTokensForFrontend("1S - X - XX - P") ===
+       "1S - X - XX - P", "Auction X/XX untouched");
+
+const pSpadeHonor = sandbox.parseSingleCardToken("(SX)", "S", "S");
+assert(pSpadeHonor.suit === "S" && pSpadeHonor.rankStr === "H" &&
+       pSpadeHonor.displayStr === "♠H" && pSpadeHonor.rankVal === 10.5,
+       "parseSingleCardToken (SX) -> ♠H");
+
+const pHeartHonor = sandbox.parseSingleCardToken("(HX)", "H", "S");
+assert(pHeartHonor.suit === "H" && pHeartHonor.rankStr === "H" &&
+       pHeartHonor.displayStr === "♥H" && pHeartHonor.rankVal === 10.5,
+       "parseSingleCardToken (HX) -> ♥H");
+
+const pHeartHonorDirect = sandbox.parseSingleCardToken("HH", "H", "S");
+assert(pHeartHonorDirect.suit === "H" && pHeartHonorDirect.rankStr === "H" &&
+       pHeartHonorDirect.displayStr === "♥H",
+       "parseSingleCardToken HH -> ♥H");
+
+const pHeartAce = sandbox.parseSingleCardToken("HA", "H", "S");
+assert(pHeartAce.suit === "H" && pHeartAce.rankStr === "A" &&
+       pHeartAce.displayStr === "♥A",
+       "parseSingleCardToken HA -> ♥A");
 ' )NODE";
     EXPECT_EQ(std::system(cmd.c_str()), 0);
   }

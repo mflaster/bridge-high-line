@@ -126,7 +126,8 @@ Each card in the tree represents a trick or final outcome:
 - **Card Wildcard Notation**: When the specific spot card doesn't change the
   strategy, the tree groups cards using shorthand:
   - `Sx`: Any low spot card (`2`–`9`) in spades.
-  - `SX`: Any honor (`T`, `J`, `Q`, `K`, `A`) in spades.
+  - `SH` (shown as `♠H` in the Line Inspector): Any honor (`T`, `J`, `Q`, `K`,
+    `A`) in spades.
   - `S_`: Any spade of any rank.
   - `R_`: Any discard or ruff in another suit.
 
