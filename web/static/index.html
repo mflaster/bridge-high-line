@@ -475,36 +475,35 @@
     </div>
   </main>
 
-  <!-- Import Hand Dropzone Modal -->
+  <!-- Import Hand Modal -->
   <div id="importHandModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importHandModalTitle">
-    <div class="modal-card import-modal-card">
+    <div id="importModalCard" class="modal-card import-modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
           <h2 id="importHandModalTitle">Import Bridge Hand</h2>
-          <span class="modal-subtitle">Load a club hand record, photo, PBN/LIN, or text deal — processed locally in your browser</span>
         </div>
         <button id="closeImportModalBtn" type="button" class="inspector-close-btn" aria-label="Close import modal" title="Close modal">✕</button>
       </div>
 
       <div class="import-modal-body">
-        <div id="importDropzone" class="import-dropzone" tabindex="0" role="button" aria-label="Drop a hand record file here or click to browse">
-          <div class="import-dropzone-icon" aria-hidden="true">📂</div>
-          <div class="import-dropzone-title">Drag &amp; drop a file here, or click to browse</div>
-          <div class="import-dropzone-hint">
-            Tip: Press <kbd>Ctrl+V</kbd> (<kbd>⌘V</kbd>) anywhere in this dialog to paste a screenshot, PBN, BBO link, or deal text
-          </div>
-          <button id="importBrowseBtn" type="button" class="btn btn-primary import-browse-btn">
-            Browse Files…
-          </button>
+        <div id="importIntroBox" class="import-intro-box">
+          <ul class="import-feature-list">
+            <li><strong>Load hands in a variety of formats</strong> — PDF hand records, photos/screenshots, PBN / BBO <code>.lin</code> files, or pasted deals.</li>
+            <li><strong>Specify contract, declarer &amp; opening lead</strong> — pick any board from a sheet and set the play starting point before solving.</li>
+            <li><strong>Include the 1st round of bidding</strong> <span class="import-optional-tag">(optional)</span> — guide which unseen defender hands the solver considers.</li>
+          </ul>
         </div>
 
-        <div class="import-formats-label">Choose a format:</div>
+        <div class="import-formats-label">Choose a format to load:</div>
         <div id="importFormatGrid" class="import-format-grid">
-          <button type="button" class="import-format-card" data-import-kind="pdf">
+          <button type="button" class="import-format-card import-format-card-featured" data-import-kind="pdf">
             <span class="import-format-icon" aria-hidden="true">📄</span>
             <div class="import-format-text">
-              <span class="import-format-name">Club / Tournament PDF</span>
-              <span class="import-format-desc">ACBL &amp; Common Game sheets — browse pages &amp; pick any board</span>
+              <span class="import-format-name-row">
+                <span class="import-format-name">Club / Tournament PDF</span>
+                <span class="import-preferred-badge">Hand record preferred</span>
+              </span>
+              <span class="import-format-desc">ACBL &amp; Common Game hand record sheets — browse pages &amp; pick any board</span>
             </div>
           </button>
 
@@ -512,7 +511,7 @@
             <span class="import-format-icon" aria-hidden="true">📷</span>
             <div class="import-format-text">
               <span class="import-format-name">Photo or Screenshot</span>
-              <span class="import-format-desc">On-device OCR for printed travellers or BBO / Bridge Winners diagrams</span>
+              <span class="import-format-desc">On-device OCR for printed hand records, travellers, or BBO / Bridge Winners diagrams</span>
             </div>
           </button>
 
@@ -520,7 +519,7 @@
             <span class="import-format-icon" aria-hidden="true">🃏</span>
             <div class="import-format-text">
               <span class="import-format-name">PBN / BBO LIN File</span>
-              <span class="import-format-desc">Single or multi-board <code>.pbn</code> &amp; <code>.lin</code> records with contract &amp; dealer</span>
+              <span class="import-format-desc">Single or multi-board <code>.pbn</code> &amp; <code>.lin</code> hand records with contract &amp; dealer</span>
             </div>
           </button>
 
@@ -542,13 +541,20 @@
           </div>
         </div>
 
+        <div class="import-shortcut-hint">
+          Tip: Press <kbd>Ctrl+V</kbd> (<kbd>⌘V</kbd>) to paste a screenshot or deal text, or drop a file anywhere in this window. Everything runs locally in your browser.
+        </div>
+
         <div id="importModalError" class="scan-initial-error hidden"></div>
 
         <div class="import-modal-footer">
           <button id="importSampleSheetBtn" type="button" class="import-sample-link-btn" title="Open a sample 4-board tournament sheet to test board selection, declarer rotation, and initial play">
             ✨ No file handy? Try a sample 4-board club sheet
           </button>
-          <button id="cancelImportModalBtn" type="button" class="btn btn-secondary">Cancel</button>
+          <div class="import-modal-footer-actions">
+            <button id="importBrowseBtn" type="button" class="btn btn-secondary">Browse Files…</button>
+            <button id="cancelImportModalBtn" type="button" class="btn btn-secondary">Cancel</button>
+          </div>
         </div>
       </div>
     </div>

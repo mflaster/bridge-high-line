@@ -1371,7 +1371,7 @@ const fileInputTxt = document.getElementById('fileInputTxt');
 const importHandModal = document.getElementById('importHandModal');
 const closeImportModalBtn = document.getElementById('closeImportModalBtn');
 const cancelImportModalBtn = document.getElementById('cancelImportModalBtn');
-const importDropzone = document.getElementById('importDropzone');
+const importModalCard = document.getElementById('importModalCard');
 const importBrowseBtn = document.getElementById('importBrowseBtn');
 const importFormatGrid = document.getElementById('importFormatGrid');
 const importTogglePasteCard = document.getElementById('importTogglePasteCard');
@@ -1432,7 +1432,7 @@ function openImportHandModal(openPasteDrawer = false) {
     return;
   }
   setImportModalError('');
-  if (importDropzone) importDropzone.classList.remove('drag-over');
+  if (importModalCard) importModalCard.classList.remove('drag-over');
   if (importPastePanel) {
     importPastePanel.classList.toggle('hidden', !openPasteDrawer);
   }
@@ -1440,18 +1440,21 @@ function openImportHandModal(openPasteDrawer = false) {
     importTogglePasteCard.classList.toggle('active', Boolean(openPasteDrawer));
   }
   importHandModal.classList.remove('hidden');
-  requestAnimationFrame(() => {
-    if (openPasteDrawer && importPasteInput) {
-      importPasteInput.focus();
-    } else if (importDropzone) {
-      importDropzone.focus();
-    }
-  });
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      if (openPasteDrawer && importPasteInput) {
+        importPasteInput.focus();
+      } else if (importFormatGrid && typeof importFormatGrid.querySelector === 'function') {
+        const firstCard = importFormatGrid.querySelector('.import-format-card');
+        if (firstCard && firstCard.focus) firstCard.focus();
+      }
+    });
+  }
 }
 
 function closeImportHandModal() {
   if (importHandModal) importHandModal.classList.add('hidden');
-  if (importDropzone) importDropzone.classList.remove('drag-over');
+  if (importModalCard) importModalCard.classList.remove('drag-over');
   setImportModalError('');
 }
 
@@ -1654,19 +1657,6 @@ if (importBrowseBtn) {
   });
 }
 
-if (importDropzone) {
-  importDropzone.addEventListener('click', (e) => {
-    if (e.target === importBrowseBtn) return;
-    triggerImportFilePicker(FULL_IMPORT_ACCEPT);
-  });
-  importDropzone.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      triggerImportFilePicker(FULL_IMPORT_ACCEPT);
-    }
-  });
-}
-
 if (importFormatGrid && typeof importFormatGrid.querySelectorAll === 'function') {
   importFormatGrid.querySelectorAll('.import-format-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -1730,18 +1720,18 @@ if (importHandModal) {
   ['dragenter', 'dragover'].forEach(evtName => {
     importHandModal.addEventListener(evtName, (e) => {
       preventDragDefaults(e);
-      if (importDropzone) importDropzone.classList.add('drag-over');
+      if (importModalCard) importModalCard.classList.add('drag-over');
     });
   });
   importHandModal.addEventListener('dragleave', (e) => {
     preventDragDefaults(e);
-    if (!importHandModal.contains(e.relatedTarget) && importDropzone) {
-      importDropzone.classList.remove('drag-over');
+    if (!importHandModal.contains(e.relatedTarget) && importModalCard) {
+      importModalCard.classList.remove('drag-over');
     }
   });
   importHandModal.addEventListener('drop', (e) => {
     preventDragDefaults(e);
-    if (importDropzone) importDropzone.classList.remove('drag-over');
+    if (importModalCard) importModalCard.classList.remove('drag-over');
     const files = e.dataTransfer && e.dataTransfer.files;
     if (files && files.length > 0) {
       handleImportedFile(files[0]);

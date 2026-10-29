@@ -44,7 +44,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("header-left") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("header-import-btn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importHandModal") != std::string::npos);
-  ASSERT_TRUE(res_index->body.find("importDropzone") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("importIntroBox") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
@@ -91,7 +92,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".compare-line-row") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".compare-stacked-bar") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
-  ASSERT_TRUE(res_css->body.find(".import-dropzone") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".import-intro-box") != std::string::npos);
 
   // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");

@@ -25,16 +25,15 @@ back to it at any time.
 ### The `Import Hand` Button: PDFs, Photos, PBN/LIN & Paste
 
 Click **📥 Import Hand** next to the **Preset** dropdown in the upper-left
-header to open the **Import Bridge Hand** dropzone modal, where you can drag
-and drop a file, press **`Ctrl+V`** (**`⌘V`**) to paste a screenshot or deal
-text from your clipboard, browse by format, or try a built-in 4-board sample
-club sheet:
+header to open the **Import Bridge Hand** modal, where you can choose a format
+card, press **`Ctrl+V`** (**`⌘V`**) to paste a screenshot or deal text from
+your clipboard, or try a built-in 4-board sample club sheet:
 
 ![Scan Hand Record Modal](images/hand-record-scanner.png)
 
-1. **PDF Hand Records (`.pdf`)**
-   - Supports multi-page tournament hand record sheets (such as ACBL/Common
-     Game PDFs).
+1. **Club / Tournament PDFs (`.pdf` — hand record preferred)**
+   - Supports multi-page tournament **hand record** sheets (such as ACBL or
+     Common Game hand record PDFs).
    - If the PDF contains embedded PBN deal records, all boards are extracted
      instantly; the visual PDF page is also rendered so you can browse pages
      with **`◀ Page 1 / N ▶`** and click any detected board pill (**`#1`**,
