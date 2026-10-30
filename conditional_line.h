@@ -293,16 +293,25 @@ class ConditionalLine {  // ConditionalLineBranch
   struct DefenderStateKey {
     uint64_t played_cards = 0;
     uint64_t cur_trick_bits = 0;
+    uint64_t rem_hand1 = 0;
+    uint64_t rem_hand3 = 0;
     bool operator==(const DefenderStateKey &o) const {
       return played_cards == o.played_cards &&
-             cur_trick_bits == o.cur_trick_bits;
+             cur_trick_bits == o.cur_trick_bits &&
+             rem_hand1 == o.rem_hand1 && rem_hand3 == o.rem_hand3;
     }
   };
   struct DefenderStateKeyHash {
     size_t operator()(const DefenderStateKey &k) const {
-      size_t h1 = std::hash<uint64_t>{}(k.played_cards);
-      size_t h2 = std::hash<uint64_t>{}(k.cur_trick_bits);
-      return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
+      auto mix = [](size_t seed, uint64_t v) {
+        size_t hv = std::hash<uint64_t>{}(v);
+        return seed ^ (hv + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+      };
+      size_t h = std::hash<uint64_t>{}(k.played_cards);
+      h = mix(h, k.cur_trick_bits);
+      h = mix(h, k.rem_hand1);
+      h = mix(h, k.rem_hand3);
+      return h;
     }
   };
   using DefenderCardsCache =

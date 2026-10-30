@@ -2036,13 +2036,14 @@ const ConditionalLine *MatchWinnerContinuation(
 }
 
 ConditionalLine::DefenderStateKey MakeDefenderStateKey(const BoardState &bs) {
+  uint64_t played = bs.played_cards();
   uint64_t cur_bits =
       (static_cast<uint64_t>(bs.cur_trick_leader() & 3) << 13) |
       (static_cast<uint64_t>(bs.CardsPlayedThisTrick() & 3) << 29);
   for (int i = 0; i < bs.CardsPlayedThisTrick(); ++i) {
     cur_bits |= bs.trick_cards_played()[i];
   }
-  return {bs.played_cards(), cur_bits};
+  return {played, cur_bits, bs.GetHand(1) & ~played, bs.GetHand(3) & ~played};
 }
 
 bool IsSingleCandidateCompatibleAtLead(const BoardState &bs,

@@ -1377,6 +1377,12 @@ TEST(LineFinderTest, LineFinder_Hand15TrumpCoverAndFalsecardResistance) {
       {"S T72; H 83; D 42; C 7653;", "S 5; H KQ; D JT973; C T92;"},
       {"S T2; H 83; D 932; C 9752;", "S 75; H KQ; D JT74; C T63;"},
       {"S T72; H K8; D J4; C T973;", "S 5; H Q3; D T9732; C 652;"},
+      // Unmakeable deals: singleton H8 in E followed by E void in H (W: HKQ83).
+      // Verifies PopulateDealSummaries isolates DefenderCardsCache per board so
+      // the E-void deal diverges with an East discard at HT rather than playing
+      // a cached H8 from the preceding unmakeable board.
+      {"S T52; H 8; D J72; C T532;", "S 7; H KQ3; D T943; C 976;"},
+      {"S 752; D J9743; C 965;", "S T; H KQ83; D T2; C T732;"},
   };
   constexpr int kNumDeals = sizeof(ew_deals) / sizeof(ew_deals[0]);
   std::vector<BoardState> boards(kNumDeals);
@@ -1441,4 +1447,14 @@ TEST(LineFinderTest, LineFinder_Hand15TrumpCoverAndFalsecardResistance) {
   EXPECT_EQ(desc.find("after (CT)"), std::string::npos) << desc;
   EXPECT_EQ(desc.find("after (DT)"), std::string::npos) << desc;
   EXPECT_EQ(desc.find("after (DJ)"), std::string::npos) << desc;
+
+  const int e_void_idx = kNumDeals - 1;
+  ConditionalLine::BoardPlayTrace e_void_trace =
+      lines[0].TraceOnBoard(lf.boards()[e_void_idx], e_void_idx);
+  ASSERT_GE(e_void_trace.steps.size(), 2u);
+  const auto &last_step = e_void_trace.steps.back();
+  EXPECT_EQ(last_step.trick_str.rfind("HT ", 0), 0u) << last_step.trick_str;
+  EXPECT_EQ(last_step.unmatched_seat, EAST) << last_step.trick_str;
+  ASSERT_FALSE(last_step.unmatched_card.empty());
+  EXPECT_NE(last_step.unmatched_card[0], 'H') << last_step.trick_str;
 }

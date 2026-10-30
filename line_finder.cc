@@ -1258,15 +1258,13 @@ void RescoreTopLinesAdversarial(
 
 void PopulateDealSummaries(const std::vector<BoardState> &boards,
                            const std::set<int> &board_offsets,
-                           int num_iters, int min_tricks,
+                           int num_iters, int min_tricks, int num_threads,
                            std::vector<ConditionalLine> *lines) {
+  if (lines->empty()) return;
   int active_total = board_offsets.empty()
                          ? num_iters
                          : static_cast<int>(board_offsets.size());
-  CrossHandDealSetSummarizer summarizer;
-  for (size_t line_idx = 0; line_idx < lines->size(); ++line_idx) {
-    if (LineFinder::IsStopRequested()) break;
-    auto &line = (*lines)[line_idx];
+  for (auto &line : *lines) {
     line.set_total_boards(active_total);
     line.set_min_tricks(min_tricks);
     if (!boards.empty()) {
@@ -1276,25 +1274,62 @@ void PopulateDealSummaries(const std::vector<BoardState> &boards,
       } else {
         line.set_sample_board(boards[0]);
       }
-      std::map<int, ConditionalLine::BoardPlayTrace> traces =
-          line.board_traces();
-      ConditionalLine::DefenderCardsCache def_cache;
-      bool traces_updated = false;
-      for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
-        if (!board_offsets.empty() && board_offsets.count(b_idx) == 0) {
-          continue;
-        }
-        if (traces.find(b_idx) == traces.end()) {
-          traces.emplace(b_idx, line.SimulateBoard(boards[b_idx], b_idx,
-                                                   line.has_rescored_boards(),
-                                                   &def_cache));
-          traces_updated = true;
-        }
+    }
+  }
+  if (!boards.empty() && !LineFinder::IsStopRequested()) {
+    std::vector<int> missing_boards;
+    for (int b_idx = 0; b_idx < static_cast<int>(boards.size()); ++b_idx) {
+      if (!board_offsets.empty() && board_offsets.count(b_idx) == 0) {
+        continue;
       }
-      if (traces_updated) {
-        line.set_board_traces(std::move(traces));
+      for (const auto &line : *lines) {
+        if (line.board_traces().count(b_idx) == 0) {
+          missing_boards.push_back(b_idx);
+          break;
+        }
       }
     }
+    if (!missing_boards.empty()) {
+      size_t num_m = missing_boards.size();
+      size_t num_l = lines->size();
+      std::vector<std::vector<ConditionalLine::BoardPlayTrace>> missing_traces(
+          num_m, std::vector<ConditionalLine::BoardPlayTrace>(num_l));
+      std::vector<std::vector<uint8_t>> missing_needed(
+          num_m, std::vector<uint8_t>(num_l, 0));
+      ParallelForDynamic(num_m, num_threads, [&](size_t m_i) {
+        if (LineFinder::IsStopRequested()) return;
+        int b_idx = missing_boards[m_i];
+        ConditionalLine::DefenderCardsCache local_cache;
+        for (size_t l_i = 0; l_i < num_l; ++l_i) {
+          const auto &line = (*lines)[l_i];
+          if (line.board_traces().count(b_idx) == 0) {
+            missing_needed[m_i][l_i] = 1;
+            missing_traces[m_i][l_i] = line.SimulateBoard(
+                boards[b_idx], b_idx, line.has_rescored_boards(), &local_cache);
+          }
+        }
+      });
+      for (size_t l_i = 0; l_i < num_l; ++l_i) {
+        std::map<int, ConditionalLine::BoardPlayTrace> traces =
+            (*lines)[l_i].board_traces();
+        bool updated = false;
+        for (size_t m_i = 0; m_i < num_m; ++m_i) {
+          if (missing_needed[m_i][l_i]) {
+            traces.emplace(missing_boards[m_i],
+                           std::move(missing_traces[m_i][l_i]));
+            updated = true;
+          }
+        }
+        if (updated) {
+          (*lines)[l_i].set_board_traces(std::move(traces));
+        }
+      }
+    }
+  }
+  CrossHandDealSetSummarizer summarizer;
+  for (size_t line_idx = 0; line_idx < lines->size(); ++line_idx) {
+    if (LineFinder::IsStopRequested()) break;
+    auto &line = (*lines)[line_idx];
     std::set<int> covered = line.CoveredBoardsSet();
     std::vector<PairedDeal> covered_deals;
     covered_deals.reserve(covered.size());
@@ -1555,7 +1590,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
   }
 
   auto start_invariant = std::chrono::high_resolution_clock::now();
-  PopulateDealSummaries(boards, board_offsets, num_iters_, min_tricks, &ans);
+  PopulateDealSummaries(boards, board_offsets, num_iters_, min_tricks,
+                        effective_threads, &ans);
   auto end_invariant = std::chrono::high_resolution_clock::now();
   invariant_ms_ = std::chrono::duration<double, std::milli>(
       end_invariant - start_invariant).count();
