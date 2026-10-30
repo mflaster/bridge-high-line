@@ -1,6 +1,15 @@
 // Sentry User Feedback, Error Reporting & Metrics
-const SENTRY_DSN = 'https://4f773fa337d8e6b1e559790da9ee1fb1@o4512261310709760.ingest.us.sentry.io/4512261325324288';
-const SENTRY_ENVELOPE_URL = 'https://o4512261310709760.ingest.us.sentry.io/api/4512261325324288/envelope/?sentry_key=4f773fa337d8e6b1e559790da9ee1fb1&sentry_version=7&sentry_client=bridge-high-line-web%2F1.0.0';
+const SENTRY_DSN =
+  'https://4f773fa337d8e6b1e559790da9ee1fb1@' +
+  'o4512261310709760.ingest.us.sentry.io/4512261325324288';
+const SENTRY_ENVELOPE_URL =
+  'https://o4512261310709760.ingest.us.sentry.io/api/4512261325324288/' +
+  'envelope/?sentry_key=4f773fa337d8e6b1e559790da9ee1fb1' +
+  '&sentry_version=7&sentry_client=bridge-high-line-web%2F1.0.0';
+const SENTRY_FEEDBACK_TUNNEL_URL =
+  'https://script.google.com/macros/s/' +
+  'AKfycbx2O3JK7l3NxqH9J6QXTY4bQGHHQBLuwM2ByAmt38Y9vquvlfqStypcBln5YEFIut6N' +
+  '/exec';
 const ANON_USER_ID_STORAGE_KEY = 'bridge_anon_user_id';
 let cachedAnonUserId = null;
 
@@ -327,13 +336,19 @@ function collectFeedbackExplorerSnapshot() {
   };
 }
 
+function getSentryEnvironment() {
+  const host = (window.location && window.location.hostname) || '';
+  if (host.includes('github.io') || host.endsWith('flaster.net')) {
+    return 'github-pages';
+  }
+  return 'local';
+}
+
 function initSentryRuntimeErrorReporting() {
   if (!window.Sentry) return;
   const runInit = () => {
     if (!window.Sentry || typeof window.Sentry.init !== 'function') return;
-    const environment = window.location.hostname.includes('github.io')
-      ? 'github-pages'
-      : 'local';
+    const environment = getSentryEnvironment();
     const anonUserId = getOrCreateAnonUserId();
     window.Sentry.init({
       dsn: SENTRY_DSN,
@@ -387,7 +402,9 @@ function initSentryRuntimeErrorReporting() {
 }
 
 function reportRuntimeErrorToSentry(err, extra = {}) {
-  if (!window.Sentry || typeof window.Sentry.captureException !== 'function') return;
+  if (!window.Sentry || typeof window.Sentry.captureException !== 'function') {
+    return;
+  }
   const errorObj = (err instanceof Error)
     ? err
     : new Error(typeof err === 'string' ? err : JSON.stringify(err));
@@ -402,13 +419,35 @@ function reportRuntimeErrorToSentry(err, extra = {}) {
       }
     }
   }
-  const evId = window.Sentry.captureException(errorObj, { tags, extra: extraData });
+  const evId = window.Sentry.captureException(
+    errorObj,
+    { tags, extra: extraData }
+  );
   if (typeof evId === 'string' && evId) {
     lastSentryErrorEventId = evId;
   }
 }
 
 initSentryRuntimeErrorReporting();
+
+async function sendFeedbackViaTunnel(envelopeBody) {
+  const res = await fetch(SENTRY_FEEDBACK_TUNNEL_URL, {
+    method: 'POST',
+    mode: 'cors',
+    credentials: 'omit',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: envelopeBody
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.ok) {
+    const detail = (data && data.error)
+      ? data.error
+      : `Feedback tunnel returned HTTP ${res.status}`;
+    throw new Error(detail);
+  }
+  return data;
+}
 
 async function submitSentryFeedback({
   name,
@@ -423,12 +462,11 @@ async function submitSentryFeedback({
   const explorerSnapshot = includeExplorer
     ? collectFeedbackExplorerSnapshot()
     : null;
-  const environment = window.location.hostname.includes('github.io') ? 'github-pages' : 'local';
+  const environment = getSentryEnvironment();
   const anonUserId = getOrCreateAnonUserId();
 
-  const userObj = {
+  const userBase = {
     id: anonUserId,
-    ip_address: '{{auto}}',
     name: name || 'Anonymous',
     ...(email ? { email } : {})
   };
@@ -440,63 +478,94 @@ async function submitSentryFeedback({
       ? `${feedbackMessage}\n\n[Preset / Hand: ${dealSnapshot.hand_label}]`
           .slice(0, 4096)
       : feedbackMessage;
-  const feedbackPayload = {
-    event_id: feedbackEventId,
-    timestamp: nowIso,
-    level: 'info',
-    platform: 'javascript',
-    environment,
-    user: userObj,
-    tags: {
-      preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
-      preset_name: dealSnapshot ? (dealSnapshot.preset_name || '') : '',
-      hand_label: dealSnapshot ? (dealSnapshot.hand_label || '') : '',
-      file_name: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.file_name : '',
-      board_label: (dealSnapshot && dealSnapshot.loaded_hand_source) ? dealSnapshot.loaded_hand_source.board_label : '',
-      trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
-      leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
-      backend_mode: backendMode || 'unknown',
-      ...(explorerSnapshot ? {
-        active_tab: explorerSnapshot.decision_tree.active_tab,
-        view_mode: explorerSnapshot.decision_tree.view_mode
-      } : {})
+
+  const loadedSrc = dealSnapshot && dealSnapshot.loaded_hand_source;
+  const baseTags = {
+    preset: dealSnapshot ? (dealSnapshot.preset || 'custom') : 'none',
+    preset_name: dealSnapshot ? (dealSnapshot.preset_name || '') : '',
+    hand_label: dealSnapshot ? (dealSnapshot.hand_label || '') : '',
+    file_name: loadedSrc ? loadedSrc.file_name : '',
+    board_label: loadedSrc ? loadedSrc.board_label : '',
+    trump: dealSnapshot ? (dealSnapshot.trump || '') : '',
+    leader: dealSnapshot ? (dealSnapshot.leader || '') : '',
+    backend_mode: backendMode || 'unknown',
+    ...(explorerSnapshot ? {
+      active_tab: explorerSnapshot.decision_tree.active_tab,
+      view_mode: explorerSnapshot.decision_tree.view_mode
+    } : {})
+  };
+  const baseContexts = {
+    feedback: {
+      name: name || 'Anonymous',
+      ...(email ? { contact_email: email } : {}),
+      message: fullFeedbackMessage,
+      url: window.location.href,
+      ...(lastSentryErrorEventId
+        ? { associated_event_id: lastSentryErrorEventId }
+        : {})
     },
-    contexts: {
-      feedback: {
-        name: name || 'Anonymous',
-        ...(email ? { contact_email: email } : {}),
-        message: fullFeedbackMessage,
-        url: window.location.href,
-        ...(lastSentryErrorEventId ? { associated_event_id: lastSentryErrorEventId } : {})
-      },
-      ...(dealSnapshot ? { deal: dealSnapshot } : {}),
-      ...(explorerSnapshot ? {
-        decision_tree: explorerSnapshot.decision_tree,
-        line_explorer: explorerSnapshot.line_explorer
-      } : {})
-    }
+    ...(dealSnapshot ? { deal: dealSnapshot } : {}),
+    ...(explorerSnapshot ? {
+      decision_tree: explorerSnapshot.decision_tree,
+      line_explorer: explorerSnapshot.line_explorer
+    } : {})
   };
 
-  const feedbackEnvelope = [
-    JSON.stringify({ event_id: feedbackEventId, sent_at: nowIso, dsn: SENTRY_DSN }),
-    JSON.stringify({ type: 'feedback', content_type: 'application/json' }),
-    JSON.stringify(feedbackPayload)
-  ].join('\n') + '\n';
+  const buildEnvelope = (viaTunnel) => {
+    const payload = {
+      event_id: feedbackEventId,
+      timestamp: nowIso,
+      level: 'info',
+      platform: 'javascript',
+      environment,
+      user: viaTunnel ? userBase : { ...userBase, ip_address: '{{auto}}' },
+      tags: {
+        ...baseTags,
+        delivery_path: viaTunnel ? 'tunnel' : 'direct'
+      },
+      contexts: baseContexts
+    };
+    return [
+      JSON.stringify({
+        event_id: feedbackEventId,
+        sent_at: nowIso,
+        dsn: SENTRY_DSN
+      }),
+      JSON.stringify({ type: 'feedback', content_type: 'application/json' }),
+      JSON.stringify(payload)
+    ].join('\n') + '\n';
+  };
 
-  const res = await fetch(SENTRY_ENVELOPE_URL, {
-    method: 'POST',
-    body: feedbackEnvelope
-  });
+  let res = null;
+  try {
+    res = await fetch(SENTRY_ENVELOPE_URL, {
+      method: 'POST',
+      body: buildEnvelope(false)
+    });
+  } catch (directErr) {
+    if (!SENTRY_FEEDBACK_TUNNEL_URL) {
+      throw directErr;
+    }
+    await sendFeedbackViaTunnel(buildEnvelope(true));
+    emitSentryMetricCount('feedback_submitted', 1, {
+      include_deal: Boolean(includeDeal),
+      include_explorer: Boolean(includeExplorer),
+      delivery_path: 'tunnel'
+    });
+    return feedbackEventId;
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
     throw new Error(
-      `Sentry returned HTTP ${res.status}${errText ? ': ' + errText.slice(0, 120) : ''}`
+      `Sentry returned HTTP ${res.status}` +
+      `${errText ? ': ' + errText.slice(0, 120) : ''}`
     );
   }
   emitSentryMetricCount('feedback_submitted', 1, {
     include_deal: Boolean(includeDeal),
-    include_explorer: Boolean(includeExplorer)
+    include_explorer: Boolean(includeExplorer),
+    delivery_path: 'direct'
   });
   return feedbackEventId;
 }
