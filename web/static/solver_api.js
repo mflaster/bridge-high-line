@@ -7,6 +7,7 @@ let wasmWorker = null;
 let wasmNextRequestId = 1;
 let wasmActiveRequest = null;
 let wasmLatestStatus = { status: 'Idle', progress: -1 };
+let isWasmSingleThreaded = false;
 
 function initWasmWorker() {
   if (wasmWorker) return wasmWorker;
@@ -16,7 +17,14 @@ function initWasmWorker() {
     const msg = e.data;
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'ready') {
-      wasmLatestStatus = { status: 'Idle', progress: -1 };
+      if (msg.singleThreaded || (!window.crossOriginIsolated && typeof SharedArrayBuffer === 'undefined')) {
+        isWasmSingleThreaded = true;
+        configureWasmThreadsUI(true);
+      }
+      wasmLatestStatus = {
+        status: isWasmSingleThreaded ? 'Idle (Single-Threaded)' : 'Idle',
+        progress: -1
+      };
     } else if (msg.type === 'progress') {
       wasmLatestStatus = {
         status: msg.status || 'Solving...',
@@ -131,16 +139,19 @@ async function ensureCrossOriginIsolation() {
       }
     }
   } catch (_) {}
-  return typeof SharedArrayBuffer !== 'undefined';
+  return Boolean(window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined');
 }
 
-function configureWasmThreadsUI() {
+function configureWasmThreadsUI(isSingleThreaded = false) {
   const numThreadsSelect = document.getElementById('numThreads');
   if (!numThreadsSelect) return;
-  numThreadsSelect.value = String(WASM_NUM_THREADS);
+  const singleThread = isSingleThreaded || (!window.crossOriginIsolated && typeof SharedArrayBuffer === 'undefined');
+  const threads = singleThread ? 1 : WASM_NUM_THREADS;
+  numThreadsSelect.value = String(threads);
   numThreadsSelect.disabled = true;
-  numThreadsSelect.title =
-    'Running client-side in WebAssembly (' + WASM_NUM_THREADS + ' worker threads)';
+  numThreadsSelect.title = singleThread
+    ? 'Running client-side in WebAssembly (1 worker thread - single-threaded fallback active due to missing Cross-Origin Isolation)'
+    : 'Running client-side in WebAssembly (' + WASM_NUM_THREADS + ' worker threads)';
 }
 
 async function ensureBackendMode() {
@@ -150,8 +161,11 @@ async function ensureBackendMode() {
     if (window.BRIDGE_FORCE_WASM === true) {
       backendMode = 'wasm';
       setSentryGlobalAttribute('backend_mode', backendMode);
-      configureWasmThreadsUI();
-      await ensureCrossOriginIsolation();
+      const hasCOI = await ensureCrossOriginIsolation();
+      if (!hasCOI) {
+        isWasmSingleThreaded = true;
+      }
+      configureWasmThreadsUI(isWasmSingleThreaded);
       initWasmWorker();
       return backendMode;
     }
@@ -168,8 +182,11 @@ async function ensureBackendMode() {
     } catch (_) {}
     backendMode = 'wasm';
     setSentryGlobalAttribute('backend_mode', backendMode);
-    configureWasmThreadsUI();
-    await ensureCrossOriginIsolation();
+    const hasCOI = await ensureCrossOriginIsolation();
+    if (!hasCOI) {
+      isWasmSingleThreaded = true;
+    }
+    configureWasmThreadsUI(isWasmSingleThreaded);
     initWasmWorker();
     return backendMode;
   })();
@@ -188,7 +205,12 @@ async function apiSolve(payload, signal) {
   }
   const worker = initWasmWorker();
   const reqId = wasmNextRequestId++;
-  wasmLatestStatus = { status: 'Starting solve...', progress: -1 };
+  const singleThread = isWasmSingleThreaded || (!window.crossOriginIsolated && typeof SharedArrayBuffer === 'undefined');
+  const threadsToUse = singleThread ? 1 : WASM_NUM_THREADS;
+  wasmLatestStatus = {
+    status: singleThread ? 'Starting solve (single-threaded)...' : 'Starting solve...',
+    progress: -1
+  };
   return new Promise((resolve) => {
     wasmActiveRequest = { id: reqId, resolve };
     if (signal) {
@@ -210,7 +232,7 @@ async function apiSolve(payload, signal) {
       type: 'solve',
       id: reqId,
       payloadJson: JSON.stringify(
-        Object.assign({}, payload, { num_threads: WASM_NUM_THREADS })
+        Object.assign({}, payload, { num_threads: threadsToUse })
       )
     });
   });
@@ -257,4 +279,3 @@ function apiStopSolve() {
     fetch('/api/stop_solve', { method: 'POST' }).catch(() => {});
   } catch (_) {}
 }
-
