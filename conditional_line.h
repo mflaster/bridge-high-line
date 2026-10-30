@@ -215,6 +215,9 @@ class ConditionalLine {  // ConditionalLineBranch
     assert(final_covered_boards_.empty());
     if (continue_with) {
       covered_count_ += continue_with->CoveredFinalBoards();
+      unforced_fc_count_ =
+          std::min(covered_count_,
+                   unforced_fc_count_ + continue_with->unforced_fc_count());
     }
     conditions_.emplace_back(std::shared_ptr<PlayCondition>(c),
                              std::move(continue_with));
@@ -332,7 +335,7 @@ class ConditionalLine {  // ConditionalLineBranch
 
   // Clones all child ConditionalLine pointers recursively so this tree does
   // not share subtree nodes with other candidate lines.
-  void DeepCloneChildren();
+  void DeepCloneChildren(bool is_root = true);
 
   // Normalizes single-branch in-suit <H opponent patterns to S_ on uniform
   // declarer leads.
@@ -396,6 +399,8 @@ class ConditionalLine {  // ConditionalLineBranch
 
   // Returns total distinct final boards covered across all leaf subtrees.
   int CoveredFinalBoards() const { return covered_count_; }
+  int unforced_fc_count() const { return unforced_fc_count_; }
+  void set_unforced_fc_count(int n) { unforced_fc_count_ = n; }
 
   // Recursively gathers set of distinct final boards covered across all leaf subtrees, avoiding cycles.
   std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
@@ -439,6 +444,7 @@ class ConditionalLine {  // ConditionalLineBranch
   // Cached count of covered boards across this node and its subtrees.
   int covered_count_ = 0;
   int step1_covered_count_ = 0;
+  int unforced_fc_count_ = 0;
   bool has_rescored_boards_ = false;
 
   // Total number of simulated deal iterations in the run.

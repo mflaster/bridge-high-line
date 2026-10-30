@@ -395,11 +395,481 @@ static std::atomic<uint64_t> g_memo_evictions{0};
 
 namespace {
 
+// Opponent patterns that carry no information: "__" (any card) and "R_" (any
+// discard).
+bool IsUninformativeOppPattern(const std::string &p) {
+  return p == "__" || p == "R_";
+}
+
+bool AnyOpponentPlaysTrump(const GeneralizedTrick &t, Suit trump_suit) {
+  if (trump_suit == NOTRUMP || t.leader % 2 != 0 ||
+      t.demi1.my_card.empty() || t.demi2.my_card.empty()) {
+    return false;
+  }
+  uint64_t my_mask = Card::ParseStringCard(t.demi1.my_card) |
+                     Card::ParseStringCard(t.demi2.my_card);
+  for (const auto &e : t.board_entries) {
+    if (CardsInSuit(e.trick_mask & ~my_mask, trump_suit) > 0) {
+      return true;
+    }
+  }
+  if (t.board_entries.empty()) {
+    char tc = SuitDebugString(trump_suit)[0];
+    for (const auto &[_b, trick_str] : t.demi2.board_to_trick) {
+      if (trick_str.size() >= 11 &&
+          (trick_str[3] == tc || trick_str[9] == tc)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// True if, on every board, neither opponent follows suit or ruffs and partner
+// does not ruff, so the trick splits no deals apart: cashing a trump when the
+// opponents are void is the typical case.
+bool IsUninformativeTrick(const GeneralizedTrick &t, Suit trump_suit) {
+  bool partner_ruffs =
+      trump_suit != NOTRUMP &&
+      Card::ParseSuit(t.demi1.my_card[0]) != trump_suit &&
+      Card::ParseSuit(t.demi2.my_card[0]) == trump_suit;
+  return !partner_ruffs && IsUninformativeOppPattern(t.demi1.opp_card) &&
+         IsUninformativeOppPattern(t.demi2.opp_card) &&
+         !AnyOpponentPlaysTrump(t, trump_suit);
+}
+
+bool TrickDrawsTrump(const GeneralizedTrick &t, Suit trump_suit) {
+  if (trump_suit == NOTRUMP || t.leader % 2 != 0 ||
+      t.demi1.my_card.empty()) {
+    return false;
+  }
+  if (Card::ParseSuit(t.demi1.my_card[0]) != trump_suit) {
+    return false;
+  }
+  return !IsUninformativeTrick(t, trump_suit);
+}
+
+bool GroupDrawsTrump(const std::vector<GeneralizedTrick> &group,
+                     Suit trump_suit) {
+  for (const GeneralizedTrick &t : group) {
+    if (TrickDrawsTrump(t, trump_suit)) return true;
+  }
+  return false;
+}
+
+int CardCharRankVal(char r) {
+  if (r >= '2' && r <= '9') return r - '2';
+  switch (r) {
+    case 'T': return 8;
+    case 'J': return 9;
+    case 'Q': return 10;
+    case 'K': return 11;
+    case 'A': return 12;
+    default: return -1;
+  }
+}
+
+uint16_t InSuitRankMask(const std::string &pat) {
+  if (pat.size() < 2 || pat[0] == '_' || pat[0] == 'R') return 0;
+  if (pat.size() == 2) {
+    if (pat[1] == '_') return 0x1fff;
+    if (pat[1] == 'x') return 0x00ff;
+    if (pat[1] == 'X') return 0x1f00;
+    int rv = CardCharRankVal(pat[1]);
+    return rv >= 0 ? static_cast<uint16_t>(1u << rv) : 0;
+  }
+  if (pat.size() == 3) {
+    int rv = CardCharRankVal(pat[2]);
+    if (rv < 0) return 0;
+    if (pat[1] == '<') {
+      return static_cast<uint16_t>((1u << rv) - 1u);
+    }
+    if (pat[1] == '>') {
+      return static_cast<uint16_t>(0x1fffu & ~((1u << (rv + 1)) - 1u));
+    }
+  }
+  return 0;
+}
+
+int MaxInSuitPatternRankVal(const std::string &pat) {
+  uint16_t m = InSuitRankMask(pat);
+  return m != 0 ? (31 - __builtin_clz(m)) : -1;
+}
+
+int MaxObservedOppRankVal(const GeneralizedTrick &gt, bool is_demi1,
+                          const std::string &pat) {
+  int pat_max = MaxInSuitPatternRankVal(pat);
+  if (pat_max < 0 || gt.board_entries.empty()) return pat_max;
+  size_t pos = (gt.leader % 2 == 0) ? (is_demi1 ? 3 : 9) : (is_demi1 ? 0 : 6);
+  int obs_max = -1;
+  for (const auto &e : gt.board_entries) {
+    if (pos + 1 < e.trick_str.size() && e.trick_str[pos] == pat[0]) {
+      obs_max = std::max(obs_max, CardCharRankVal(e.trick_str[pos + 1]));
+    }
+  }
+  return obs_max >= 0 ? std::min(pat_max, obs_max) : pat_max;
+}
+
+// True when `gt1` and `gt2` split declarer's play or continuation on two
+// in-suit defender card patterns that both lose to declarer's already-committed
+// card in that suit (e.g. `CJ (Cx) D6` vs `CJ (CT) HJ`, or `(Cx) CJ C8` vs
+// `(CT) CJ CK`). Optionally outputs the acting defender seat, suit, and rank
+// bitmasks for the two patterns.
+bool FalsecardSplitInfo(const GeneralizedTrick &gt1,
+                        const GeneralizedTrick &gt2,
+                        int *opp_seat_out = nullptr,
+                        Suit *suit_out = nullptr,
+                        uint16_t *mask1_out = nullptr,
+                        uint16_t *mask2_out = nullptr) {
+  if (gt1.leader != gt2.leader) return false;
+  auto offsuit_wins = [](const GeneralizedTrick &gt,
+                         const std::string &my_c, char led_s) {
+    return my_c.size() >= 2 && my_c[0] != led_s && !gt.board_entries.empty() &&
+           gt.board_entries[0].win_card[0] == my_c[0];
+  };
+  auto fill_out = [&](int seat, char s, const std::string &p1,
+                      const std::string &p2) {
+    if (opp_seat_out != nullptr) *opp_seat_out = seat;
+    if (suit_out != nullptr) *suit_out = Card::ParseSuit(s);
+    if (mask1_out != nullptr) *mask1_out = InSuitRankMask(p1);
+    if (mask2_out != nullptr) *mask2_out = InSuitRankMask(p2);
+    return true;
+  };
+  const std::string &o1a = gt1.demi1.opp_card;
+  const std::string &o1b = gt2.demi1.opp_card;
+  if (o1a != o1b && o1a.size() >= 2 && o1b.size() >= 2 &&
+      o1a[0] == o1b[0] && o1a[0] != '_' && o1a[0] != 'R') {
+    char s = o1a[0];
+    int max_a = MaxObservedOppRankVal(gt1, /*is_demi1=*/true, o1a);
+    int max_b = MaxObservedOppRankVal(gt2, /*is_demi1=*/true, o1b);
+    if (max_a >= 0 && max_b >= 0) {
+      bool ns_wins_both = true;
+      for (const auto &e : gt1.board_entries) {
+        if (e.winner % 2 != 0) ns_wins_both = false;
+      }
+      for (const auto &e : gt2.board_entries) {
+        if (e.winner % 2 != 0) ns_wins_both = false;
+      }
+      const std::string &m1a = gt1.demi1.my_card;
+      const std::string &m1b = gt2.demi1.my_card;
+      const std::string &m2a = gt1.demi2.my_card;
+      const std::string &m2b = gt2.demi2.my_card;
+      if (gt1.leader % 2 == 0) {
+        if (m1a == m1b && m1a.size() >= 2 && m1a[0] == s) {
+          int ref_rv = CardCharRankVal(m1a[1]);
+          if (ns_wins_both && m2a.size() >= 2 && m2b.size() >= 2 &&
+              m2a[0] == s && m2b[0] == s) {
+            ref_rv = std::max(
+                ref_rv,
+                std::min(CardCharRankVal(m2a[1]), CardCharRankVal(m2b[1])));
+          } else if (offsuit_wins(gt1, m2a, s) && offsuit_wins(gt2, m2b, s)) {
+            ref_rv = 13;
+          }
+          if (max_a < ref_rv && max_b < ref_rv) {
+            return fill_out((gt1.leader + 1) % 4, s, o1a, o1b);
+          }
+        }
+      } else {
+        int ref_rv = -1;
+        if (m1a == m1b) {
+          if (m1a.size() >= 2 && m1a[0] == s) {
+            ref_rv = CardCharRankVal(m1a[1]);
+          } else if (offsuit_wins(gt1, m1a, s) && offsuit_wins(gt2, m1b, s)) {
+            ref_rv = 13;
+          }
+        } else if (ns_wins_both) {
+          if (m1a.size() >= 2 && m1b.size() >= 2 && m1a[0] == s &&
+              m1b[0] == s) {
+            ref_rv = std::min(CardCharRankVal(m1a[1]), CardCharRankVal(m1b[1]));
+          } else if (offsuit_wins(gt1, m1a, s) && offsuit_wins(gt2, m1b, s)) {
+            ref_rv = 13;
+          }
+        }
+        if (ns_wins_both) {
+          if (m1a == m1b && m2a.size() >= 2 && m2b.size() >= 2 && m2a[0] == s &&
+              m2b[0] == s) {
+            ref_rv = std::max(
+                ref_rv,
+                std::min(CardCharRankVal(m2a[1]), CardCharRankVal(m2b[1])));
+          } else if (m1a == m1b && offsuit_wins(gt1, m2a, s) &&
+                     offsuit_wins(gt2, m2b, s)) {
+            ref_rv = 13;
+          } else if (m2a == m2b && m2a.size() >= 2 && m2a[0] == s &&
+                     m1a.size() >= 2 && m1b.size() >= 2 && m1a[0] == s &&
+                     m1b[0] == s) {
+            int hi_m1 =
+                std::max(CardCharRankVal(m1a[1]), CardCharRankVal(m1b[1]));
+            int max_o2a = MaxObservedOppRankVal(gt1, /*is_demi1=*/false,
+                                                gt1.demi2.opp_card);
+            int max_o2b = MaxObservedOppRankVal(gt2, /*is_demi1=*/false,
+                                                gt2.demi2.opp_card);
+            int rv2 = CardCharRankVal(m2a[1]);
+            if (rv2 > hi_m1 && max_o2a <= hi_m1 && max_o2b <= hi_m1) {
+              ref_rv = std::max(ref_rv, rv2);
+            }
+          } else if (!offsuit_wins(gt1, m1a, s) &&
+                     !offsuit_wins(gt1, m2a, s) &&
+                     !offsuit_wins(gt2, m1b, s) &&
+                     !offsuit_wins(gt2, m2b, s)) {
+            auto suit_rv = [s](const std::string &c) {
+              return (c.size() >= 2 && c[0] == s) ? CardCharRankVal(c[1]) : -1;
+            };
+            int win_a = std::max(suit_rv(m1a), suit_rv(m2a));
+            int win_b = std::max(suit_rv(m1b), suit_rv(m2b));
+            int min_win = std::min(win_a, win_b);
+            int max_o2a = MaxObservedOppRankVal(gt1, /*is_demi1=*/false,
+                                                gt1.demi2.opp_card);
+            int max_o2b = MaxObservedOppRankVal(gt2, /*is_demi1=*/false,
+                                                gt2.demi2.opp_card);
+            if (min_win > ref_rv && max_o2a < min_win && max_o2b < min_win &&
+                (std::max(max_a, max_b) + 1 < min_win ||
+                 std::abs(win_a - win_b) <= 1)) {
+              ref_rv = min_win;
+            }
+          }
+        } else {
+          ref_rv = -1;
+        }
+        if (max_a < ref_rv && max_b < ref_rv) {
+          return fill_out(gt1.leader, s, o1a, o1b);
+        }
+      }
+    }
+  }
+  const std::string &o2a = gt1.demi2.opp_card;
+  const std::string &o2b = gt2.demi2.opp_card;
+  if (o1a == o1b && gt1.demi1.my_card == gt2.demi1.my_card &&
+      o2a != o2b && o2a.size() >= 2 && o2b.size() >= 2 &&
+      o2a[0] == o2b[0] && o2a[0] != '_' && o2a[0] != 'R') {
+    char s = o2a[0];
+    int max_a = MaxObservedOppRankVal(gt1, /*is_demi1=*/false, o2a);
+    int max_b = MaxObservedOppRankVal(gt2, /*is_demi1=*/false, o2b);
+    if (max_a >= 0 && max_b >= 0) {
+      int ref_rv = -1;
+      if (gt1.demi1.my_card.size() >= 2 && gt1.demi1.my_card[0] == s) {
+        ref_rv = CardCharRankVal(gt1.demi1.my_card[1]);
+      } else if (offsuit_wins(gt1, gt1.demi1.my_card, s)) {
+        ref_rv = 13;
+      }
+      if (gt1.demi2.my_card == gt2.demi2.my_card) {
+        if (gt1.demi2.my_card.size() >= 2 && gt1.demi2.my_card[0] == s) {
+          ref_rv = std::max(ref_rv, CardCharRankVal(gt1.demi2.my_card[1]));
+        } else if (offsuit_wins(gt1, gt1.demi2.my_card, s) &&
+                   offsuit_wins(gt2, gt2.demi2.my_card, s)) {
+          ref_rv = 13;
+        }
+      }
+      if (max_a < ref_rv && max_b < ref_rv) {
+        int seat = (gt1.leader % 2 == 0) ? (gt1.leader + 3) % 4
+                                         : (gt1.leader + 2) % 4;
+        return fill_out(seat, s, o2a, o2b);
+      }
+    }
+  }
+  return false;
+}
+
+bool TricksHaveFalsecardSplit(const GeneralizedTrick &gt1,
+                              const GeneralizedTrick &gt2) {
+  return FalsecardSplitInfo(gt1, gt2);
+}
+
+bool GroupHasFalsecardSplit(const std::vector<GeneralizedTrick> &group) {
+  for (size_t i = 1; i < group.size(); ++i) {
+    for (size_t j = 0; j < i; ++j) {
+      if (TricksHaveFalsecardSplit(group[j], group[i])) return true;
+    }
+  }
+  return false;
+}
+
+int CountGroupUnforcedFalsecards(
+    const std::vector<GeneralizedTrick> &group,
+    const std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees) {
+  std::set<int> unforced_boards;
+  for (size_t a = 0; a < group.size(); ++a) {
+    for (size_t b = a + 1; b < group.size(); ++b) {
+      int opp_seat = -1;
+      Suit fc_suit = NOTRUMP;
+      uint16_t mask_a = 0;
+      uint16_t mask_b = 0;
+      if (!FalsecardSplitInfo(group[a], group[b], &opp_seat, &fc_suit, &mask_a,
+                              &mask_b)) {
+        continue;
+      }
+      if (opp_seat < 0 || fc_suit == NOTRUMP) {
+        continue;
+      }
+      bool is_d1 = (group[a].demi1.opp_card != group[b].demi1.opp_card);
+      char suit_ch =
+          is_d1 ? group[a].demi1.opp_card[0] : group[a].demi2.opp_card[0];
+      uint16_t group_suit_mask = 0;
+      for (const auto &gt : group) {
+        const std::string &pat = is_d1 ? gt.demi1.opp_card : gt.demi2.opp_card;
+        if (!pat.empty()) {
+          if (pat[0] == suit_ch) {
+            group_suit_mask |= InSuitRankMask(pat);
+          } else if (pat[0] == '_') {
+            group_suit_mask = 0x1fff;
+          }
+        }
+      }
+      uint16_t uncovered_mask =
+          static_cast<uint16_t>(0x1fffu & ~group_suit_mask);
+      auto check_gt = [&](const GeneralizedTrick &gt, uint16_t flag_mask) {
+        if (flag_mask == 0) return;
+        auto check_brd = [&](int brd) {
+          auto it_bt = board_trees.find(brd);
+          if (it_bt == board_trees.end() || !it_bt->second) return;
+          const BoardState *bs = it_bt->second->MyBoard();
+          uint64_t rem = bs->GetHand(opp_seat) & ~bs->played_cards();
+          uint16_t rem_s = static_cast<uint16_t>(
+              (rem >> (static_cast<int>(fc_suit) * 16)) & 0x1fff);
+          if ((rem_s & flag_mask) != 0) {
+            unforced_boards.insert(brd);
+          }
+        };
+        if (!gt.demi2.boards_vec.empty()) {
+          for (int brd : gt.demi2.boards_vec) check_brd(brd);
+        } else {
+          for (int brd : gt.boards) check_brd(brd);
+        }
+      };
+      check_gt(group[a],
+               static_cast<uint16_t>((mask_b & ~mask_a) | uncovered_mask));
+      check_gt(group[b],
+               static_cast<uint16_t>((mask_a & ~mask_b) | uncovered_mask));
+    }
+  }
+  return static_cast<int>(unforced_boards.size());
+}
+
+size_t FalsecardableSplits(const ConditionalLine &cl) {
+  const auto &conds = cl.conditions();
+  bool is_state = !conds.empty() && conds[0].first &&
+                  conds[0].first->IsStateCondition();
+  size_t count = 0;
+  if (!is_state && conds.size() > 1) {
+    for (size_t i = 1; i < conds.size(); ++i) {
+      if (!conds[i].second || conds[i].second->do_first().Empty()) continue;
+      for (size_t j = 0; j < i; ++j) {
+        if (!conds[j].second || conds[j].second->do_first().Empty()) continue;
+        if (TricksHaveFalsecardSplit(conds[j].second->do_first(),
+                                     conds[i].second->do_first())) {
+          ++count;
+          break;
+        }
+      }
+    }
+  }
+  for (const auto &[_cond, child] : conds) {
+    if (child) {
+      count += FalsecardableSplits(*child);
+    }
+  }
+  return count;
+}
+
+size_t InitialTrumpDrawScore(const ConditionalLine &cl, Suit trump_suit) {
+  if (trump_suit == NOTRUMP) return 0;
+  size_t child_score = 0;
+  for (const auto &[_cond, child] : cl.conditions()) {
+    if (child) {
+      child_score += InitialTrumpDrawScore(*child, trump_suit);
+    }
+  }
+  if (!cl.do_first().Empty()) {
+    const GeneralizedTrick &gt = cl.do_first();
+    if (gt.leader % 2 == 0) {
+      if (!TrickDrawsTrump(gt, trump_suit)) return 0;
+      size_t own = static_cast<size_t>(std::max(1, cl.CoveredFinalBoards()));
+      return own + child_score;
+    }
+  }
+  return child_score;
+}
+
+bool LeadsTrumpInitially(const ConditionalLine &cl, Suit trump_suit) {
+  if (trump_suit == NOTRUMP) return false;
+  const ConditionalLine *cur = &cl;
+  while (cur != nullptr) {
+    const GeneralizedTrick &gt = cur->do_first();
+    if (!gt.Empty() && gt.leader % 2 == 0) {
+      return TrickDrawsTrump(gt, trump_suit);
+    }
+    const auto &conds = cur->conditions();
+    if (conds.empty()) break;
+    if (conds.size() == 1) {
+      cur = conds[0].second.get();
+      continue;
+    }
+    if (conds[0].first && conds[0].first->IsStateCondition()) {
+      const ConditionalLine *best_child = nullptr;
+      int best_cov = -1;
+      for (const auto &[_c, ch] : conds) {
+        if (ch && ch->CoveredFinalBoards() > best_cov) {
+          best_cov = ch->CoveredFinalBoards();
+          best_child = ch.get();
+        }
+      }
+      cur = best_child;
+      continue;
+    }
+    if (gt.Empty() && conds[0].second &&
+        !conds[0].second->do_first().Empty() &&
+        conds[0].second->do_first().leader % 2 == 0) {
+      for (size_t i = 1; i < conds.size(); ++i) {
+        if (!conds[i].second || conds[i].second->do_first().Empty()) continue;
+        for (size_t j = 0; j < i; ++j) {
+          if (!conds[j].second || conds[j].second->do_first().Empty()) {
+            continue;
+          }
+          if (TricksHaveFalsecardSplit(conds[j].second->do_first(),
+                                       conds[i].second->do_first())) {
+            return false;
+          }
+        }
+      }
+      return TrickDrawsTrump(conds[0].second->do_first(), trump_suit);
+    }
+    break;
+  }
+  return false;
+}
+
 size_t NonStateExtraBranches(const ConditionalLine &cl) {
   const auto &conds = cl.conditions();
   bool is_state = !conds.empty() && conds[0].first &&
                   conds[0].first->IsStateCondition();
-  size_t extra = (!is_state && conds.size() > 1) ? (conds.size() - 1) : 0;
+  size_t extra = 0;
+  if (!is_state && conds.size() > 1) {
+    bool is_def_lead =
+        cl.do_first().Empty() && conds[0].second &&
+        !conds[0].second->do_first().Empty() &&
+        conds[0].second->do_first().leader % 2 != 0;
+    if (is_def_lead) {
+      uint8_t suit_mask = 0;
+      size_t wildcard_cnt = 0;
+      for (const auto &[_c, child] : conds) {
+        if (!child || child->do_first().Empty()) continue;
+        const std::string &opp1 = child->do_first().demi1.opp_card;
+        if (!opp1.empty() && (opp1[0] == 'S' || opp1[0] == 'H' ||
+                              opp1[0] == 'D' || opp1[0] == 'C')) {
+          suit_mask |= static_cast<uint8_t>(
+              1u << static_cast<int>(Card::ParseSuit(opp1[0])));
+        } else {
+          ++wildcard_cnt;
+        }
+      }
+      size_t distinct_buckets =
+          static_cast<size_t>(__builtin_popcount(suit_mask)) + wildcard_cnt;
+      if (distinct_buckets > 0 && conds.size() > distinct_buckets) {
+        extra = conds.size() - distinct_buckets;
+      }
+    } else {
+      extra = conds.size() - 1;
+    }
+  }
   for (const auto &[_cond, child] : conds) {
     if (child) {
       extra += NonStateExtraBranches(*child);
@@ -757,22 +1227,33 @@ void RescoreTopLinesAdversarial(
     (*lines)[l_i].set_board_traces(std::move(line_traces));
   }
 
-  std::stable_sort(lines->begin(), lines->end(),
-                   [](const ConditionalLine &a, const ConditionalLine &b) {
-                     if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
-                       return a.CoveredFinalBoards() > b.CoveredFinalBoards();
-                     }
-                     if (a.conditions().size() != b.conditions().size()) {
-                       return a.conditions().size() < b.conditions().size();
-                     }
-                     size_t extra_a = a.ExtraBranches();
-                     size_t extra_b = b.ExtraBranches();
-                     if (extra_a != extra_b) {
-                       return extra_a < extra_b;
-                     }
-                     return a.step1_covered_boards() >
-                            b.step1_covered_boards();
-                   });
+  Suit trump_suit = boards.empty() ? NOTRUMP : boards[0].GetTrump();
+  std::stable_sort(
+      lines->begin(), lines->end(),
+      [trump_suit](const ConditionalLine &a, const ConditionalLine &b) {
+        if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
+          return a.CoveredFinalBoards() > b.CoveredFinalBoards();
+        }
+        if (a.conditions().size() != b.conditions().size()) {
+          return a.conditions().size() < b.conditions().size();
+        }
+        size_t fc_a = FalsecardableSplits(a);
+        size_t fc_b = FalsecardableSplits(b);
+        if (fc_a != fc_b) {
+          return fc_a < fc_b;
+        }
+        size_t td_a = InitialTrumpDrawScore(a, trump_suit);
+        size_t td_b = InitialTrumpDrawScore(b, trump_suit);
+        if (td_a != td_b) {
+          return td_a > td_b;
+        }
+        size_t extra_a = a.ExtraBranches();
+        size_t extra_b = b.ExtraBranches();
+        if (extra_a != extra_b) {
+          return extra_a < extra_b;
+        }
+        return a.step1_covered_boards() > b.step1_covered_boards();
+      });
 }
 
 void PopulateDealSummaries(const std::vector<BoardState> &boards,
@@ -1102,39 +1583,88 @@ int LineFinder::TopKForLevel(int lvl, size_t num_boards) const {
 
 namespace {
 
-// Sorts candidate lines by CoveredFinalBoards() descending then ExtraBranches()
-// ascending, deduplicates identical ExtraBranches() counts to the front when
-// truncating to `limit`, and ensures the minimum-ExtraBranches() candidate is
-// retained in the last slot before resizing to `limit`.
-void FinalizeTopKLines(std::vector<ConditionalLine> *lines, int limit) {
-  std::stable_sort(
-      lines->begin(), lines->end(),
-      [](const ConditionalLine &a, const ConditionalLine &b) {
-        if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
-          return a.CoveredFinalBoards() > b.CoveredFinalBoards();
-        }
-        return a.ExtraBranches() < b.ExtraBranches();
-      });
+// Sorts candidate lines by CoveredFinalBoards() descending, FalsecardableSplits
+// ascending, InitialTrumpDrawScore descending, then ExtraBranches() ascending;
+// deduplicates identical non-zero (FalsecardableSplits, NonStateExtraBranches)
+// pairs to the front when truncating to `limit`, and retains the minimum pair.
+void FinalizeTopKLines(std::vector<ConditionalLine> *lines, int limit,
+                       Suit trump_suit = NOTRUMP) {
+  auto cmp = [trump_suit](const ConditionalLine &a, const ConditionalLine &b) {
+    if ((a.unforced_fc_count() > 0) != (b.unforced_fc_count() > 0)) {
+      int eff_a = a.CoveredFinalBoards() - a.unforced_fc_count();
+      int eff_b = b.CoveredFinalBoards() - b.unforced_fc_count();
+      if (eff_a != eff_b) {
+        return eff_a > eff_b;
+      }
+      return a.unforced_fc_count() == 0;
+    }
+    if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
+      return a.CoveredFinalBoards() > b.CoveredFinalBoards();
+    }
+    size_t fc_a = FalsecardableSplits(a);
+    size_t fc_b = FalsecardableSplits(b);
+    if (fc_a != fc_b) {
+      return fc_a < fc_b;
+    }
+    size_t td_a = InitialTrumpDrawScore(a, trump_suit);
+    size_t td_b = InitialTrumpDrawScore(b, trump_suit);
+    if (td_a != td_b) {
+      return td_a > td_b;
+    }
+    return a.ExtraBranches() < b.ExtraBranches();
+  };
+  std::stable_sort(lines->begin(), lines->end(), cmp);
   if (static_cast<int>(lines->size()) > limit && limit > 0) {
-    std::set<size_t> seen_nseb;
+    std::set<std::pair<size_t, size_t>> seen_fc_nseb;
     std::stable_partition(
         lines->begin(), lines->end(),
         [&](const ConditionalLine &l) {
+          size_t fc = FalsecardableSplits(l);
           size_t nseb = NonStateExtraBranches(l);
-          return nseb == 0 || seen_nseb.insert(nseb).second;
+          return (fc == 0 && nseb == 0) ||
+                 seen_fc_nseb.insert({fc, nseb}).second;
         });
     if (limit > 1) {
-      size_t min_nseb_idx = 0;
-      size_t min_nseb = NonStateExtraBranches((*lines)[0]);
+      bool swapped = false;
+      size_t min_idx = 0;
+      auto min_key = std::make_pair(FalsecardableSplits((*lines)[0]),
+                                    NonStateExtraBranches((*lines)[0]));
       for (size_t k = 1; k < lines->size(); ++k) {
-        size_t nseb = NonStateExtraBranches((*lines)[k]);
-        if (nseb < min_nseb) {
-          min_nseb = nseb;
-          min_nseb_idx = k;
+        auto key = std::make_pair(FalsecardableSplits((*lines)[k]),
+                                  NonStateExtraBranches((*lines)[k]));
+        if (key < min_key) {
+          min_key = key;
+          min_idx = k;
         }
       }
-      if (min_nseb_idx >= static_cast<size_t>(limit)) {
-        std::swap((*lines)[limit - 1], (*lines)[min_nseb_idx]);
+      if (min_idx >= static_cast<size_t>(limit)) {
+        std::swap((*lines)[limit - 1], (*lines)[min_idx]);
+        swapped = true;
+      }
+      if (trump_suit != NOTRUMP) {
+        bool has_trump_in_top = false;
+        for (int k = 0; k < limit; ++k) {
+          if (LeadsTrumpInitially((*lines)[k], trump_suit)) {
+            has_trump_in_top = true;
+            break;
+          }
+        }
+        if (!has_trump_in_top) {
+          for (size_t k = static_cast<size_t>(limit); k < lines->size(); ++k) {
+            if (LeadsTrumpInitially((*lines)[k], trump_suit)) {
+              size_t pos =
+                  (min_idx >= static_cast<size_t>(limit) && limit >= 3)
+                      ? static_cast<size_t>(limit - 2)
+                      : static_cast<size_t>(limit - 1);
+              std::swap((*lines)[pos], (*lines)[k]);
+              swapped = true;
+              break;
+            }
+          }
+        }
+      }
+      if (swapped) {
+        std::stable_sort(lines->begin(), lines->begin() + limit, cmp);
       }
     }
     lines->resize(limit);
@@ -1191,14 +1721,14 @@ struct SolveMemoKeyBuilder {
 // Assembles candidate ConditionalLines from per-branch alternative lists:
 // 1. Primary line choosing index 0 in every branch.
 // 2. When `include_alts` is true: single-branch substitutions (choosing `alt`
-//    in branch `idx` and 0 in all others) that reduce NonStateExtraBranches()
-//    at `lvl > 0`, plus a composite `min_nseb_line` choosing the minimum
-//    NonStateExtraBranches() alternative in every branch when at least
-//    `min_diff_branches` branches have a strictly lower count.
+//    in branch `idx` and 0 in all others) that improve (FalsecardableSplits,
+//    NonStateExtraBranches) at `lvl > 0`, plus a composite `min_picks` line
+//    choosing the minimum pair in every branch when at least
+//    `min_diff_branches` branches strictly improve.
 template <typename BuildLineFn>
 std::vector<ConditionalLine> AssembleBranchLines(
     const std::vector<std::vector<std::shared_ptr<ConditionalLine>>> &branches,
-    bool include_alts, int lvl, size_t min_diff_branches,
+    bool include_alts, int lvl, size_t min_diff_branches, Suit trump_suit,
     BuildLineFn build_line) {
   std::vector<ConditionalLine> out;
   std::vector<size_t> picks(branches.size(), 0);
@@ -1210,15 +1740,25 @@ std::vector<ConditionalLine> AssembleBranchLines(
   size_t diff_branches = 0;
   for (size_t idx = 0; idx < branches.size(); ++idx) {
     if (branches[idx].empty()) continue;
+    size_t base_fc = FalsecardableSplits(*branches[idx][0]);
     size_t base_nseb = NonStateExtraBranches(*branches[idx][0]);
-    size_t min_nseb = base_nseb;
+    bool base_trump = LeadsTrumpInitially(*branches[idx][0], trump_suit);
+    auto min_key = std::make_pair(base_fc, base_nseb);
     for (size_t alt = 1; alt < branches[idx].size(); ++alt) {
+      size_t fc = FalsecardableSplits(*branches[idx][alt]);
       size_t nseb = NonStateExtraBranches(*branches[idx][alt]);
-      if (nseb < min_nseb) {
-        min_nseb = nseb;
+      bool alt_trump = LeadsTrumpInitially(*branches[idx][alt], trump_suit);
+      bool drops_clean_trump = (base_fc == 0 && base_trump && !alt_trump);
+      auto key = std::make_pair(fc, nseb);
+      if (!drops_clean_trump && key < min_key) {
+        min_key = key;
         min_picks[idx] = alt;
       }
-      if (lvl > 0 && base_nseb > 0 && nseb >= base_nseb) {
+      bool novel_trump_alt = (lvl <= 1 && !base_trump && alt_trump);
+      if (lvl > 0 && !novel_trump_alt &&
+          (drops_clean_trump ||
+           (base_fc > 0 && fc >= base_fc) ||
+           (base_fc == 0 && (fc > 0 || nseb >= base_nseb)))) {
         continue;
       }
       picks[idx] = alt;
@@ -1458,9 +1998,15 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
     }
   }
 
+  Suit trump_suit =
+      gen_trick.board_entries.empty()
+          ? NOTRUMP
+          : board_trees.at(gen_trick.board_entries[0].board)
+                ->MyBoard()
+                ->GetTrump();
   std::vector<ConditionalLine> candidates = AssembleBranchLines(
       shared_branches, child_top_k > 1, lvl, /*min_diff_branches=*/1,
-      [&](const std::vector<size_t> &picks) {
+      trump_suit, [&](const std::vector<size_t> &picks) {
         ConditionalLine line;
         line.SetAction(gen_trick);
         for (size_t idx = 0; idx < entries.size(); ++idx) {
@@ -1479,76 +2025,21 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
     return {};
   }
   if (child_top_k > 1 && candidates.size() > 1) {
-    int alt_slack = std::max(2, primary_cov / 4);
-    int alt_floor = std::max(1, primary_cov - alt_slack);
+    int eff_cov = primary_cov - candidates[0].unforced_fc_count();
+    int alt_slack = std::max(2, eff_cov / 4);
+    int alt_floor = std::max(1, eff_cov - alt_slack);
     candidates.erase(
         std::remove_if(candidates.begin() + 1, candidates.end(),
                        [alt_floor](const ConditionalLine &cl) {
                          return cl.CoveredFinalBoards() < alt_floor;
                        }),
         candidates.end());
-    FinalizeTopKLines(&candidates, child_top_k);
+    FinalizeTopKLines(&candidates, child_top_k, trump_suit);
   }
   return candidates;
 }
 
 namespace {
-
-// Opponent patterns that carry no information: "__" (any card) and "R_" (any
-// discard).
-bool IsUninformativeOppPattern(const std::string &p) {
-  return p == "__" || p == "R_";
-}
-
-// True if, on every board, neither opponent follows suit or ruffs and partner
-// does not ruff, so the trick splits no deals apart: cashing a trump when the
-// opponents are void is the typical case.
-bool AnyOpponentPlaysTrump(const GeneralizedTrick &t, Suit trump_suit) {
-  if (trump_suit == NOTRUMP || t.leader % 2 != 0 ||
-      t.demi1.my_card.empty() || t.demi2.my_card.empty()) {
-    return false;
-  }
-  uint64_t my_mask = Card::ParseStringCard(t.demi1.my_card) |
-                     Card::ParseStringCard(t.demi2.my_card);
-  for (const auto &e : t.board_entries) {
-    if (CardsInSuit(e.trick_mask & ~my_mask, trump_suit) > 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// True if, on every board, neither opponent follows suit or ruffs and partner
-// does not ruff, so the trick splits no deals apart: cashing a trump when the
-// opponents are void is the typical case.
-bool IsUninformativeTrick(const GeneralizedTrick &t, Suit trump_suit) {
-  bool partner_ruffs =
-      trump_suit != NOTRUMP &&
-      Card::ParseSuit(t.demi1.my_card[0]) != trump_suit &&
-      Card::ParseSuit(t.demi2.my_card[0]) == trump_suit;
-  return !partner_ruffs && IsUninformativeOppPattern(t.demi1.opp_card) &&
-         IsUninformativeOppPattern(t.demi2.opp_card) &&
-         !AnyOpponentPlaysTrump(t, trump_suit);
-}
-
-bool TrickDrawsTrump(const GeneralizedTrick &t, Suit trump_suit) {
-  if (trump_suit == NOTRUMP || t.leader % 2 != 0 ||
-      t.demi1.my_card.empty()) {
-    return false;
-  }
-  if (Card::ParseSuit(t.demi1.my_card[0]) != trump_suit) {
-    return false;
-  }
-  return !IsUninformativeTrick(t, trump_suit);
-}
-
-bool GroupDrawsTrump(const std::vector<GeneralizedTrick> &group,
-                     Suit trump_suit) {
-  for (const GeneralizedTrick &t : group) {
-    if (TrickDrawsTrump(t, trump_suit)) return true;
-  }
-  return false;
-}
 
 // Relative cost estimate of evaluating a trick, for progress reporting. The
 // sub-search grows with the deals it has to handle; a trick that leaves every
@@ -1664,6 +2155,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   std::vector<std::vector<size_t>> group_trick_ids(groupings.size());
   std::vector<Trick1CardPair> group_uniform_t1(groupings.size());
   std::vector<bool> group_draws_trump(groupings.size(), false);
+  std::vector<bool> group_has_fc(groupings.size(), false);
+  std::vector<int> group_unforced_fc_count(groupings.size(), 0);
   std::vector<std::vector<double>> weights(
       progress != nullptr ? groupings.size() : 0);
   Suit trump_suit = board_offsets.empty()
@@ -1677,13 +2170,14 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
   for (size_t i = 0; i < groupings.size(); ++i) {
     group_uniform_t1[i] = GetUniformDeclarerPlay(groupings[i]);
     group_draws_trump[i] = GroupDrawsTrump(groupings[i], trump_suit);
+    group_has_fc[i] = GroupHasFalsecardSplit(groupings[i]);
     keys[i].reserve(groupings[i].size());
     group_trick_ids[i].reserve(groupings[i].size());
     if (progress != nullptr) {
       weights[i].reserve(groupings[i].size());
     }
     for (const auto &trick : groupings[i]) {
-      group_possible_boards[i] += trick.NumBoards();
+      group_possible_boards[i] += static_cast<int>(trick.NumBoards());
       std::string k_str = trick.ToString(true);
       auto [it, inserted] =
           key_to_uid.emplace(k_str, unique_tricks.size());
@@ -1700,6 +2194,10 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       if (progress != nullptr) {
         weights[i].push_back(TrickProgressWeight(trick, trump_suit));
       }
+    }
+    if (!keep_all_top_k_ && group_has_fc[i]) {
+      group_unforced_fc_count[i] =
+          CountGroupUnforcedFalsecards(groupings[i], board_trees);
     }
   }
 
@@ -1738,10 +2236,15 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
                  : std::min(top_k, TopKForLevel(lvl, board_offsets.size())));
   struct TopCandidate {
     int covered = 0;
+    int unforced_fc = 0;
     size_t num_conds = 0;
     size_t extra_branches = 0;
     size_t non_state_eb = 0;
+    size_t falsecard_splits = 0;
+    size_t trump_draw_score = 0;
     bool draws_trump = false;
+    bool own_fc = false;
+    bool leads_trump = false;
     std::map<int, std::string> sig;
     ConditionalLine line;
   };
@@ -1753,33 +2256,65 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       saved_work_alts;
   std::unordered_map<std::string, int> saved_covered;
   int most_boards_covered = 0;
+  int best_clean_cov = 0;
+  int best_eff_cov = 0;
   int known_best_cov = 0;
   size_t known_best_idx = groupings.size();
 
-  auto competitive_window_floor = [&]() -> int {
-    if (top_k > 1 && most_boards_covered > 0 &&
+  auto all_cands_falsecardable = [&]() -> bool {
+    if (top_candidates.empty()) return false;
+    for (const auto &tc : top_candidates) {
+      if (!tc.own_fc && tc.unforced_fc == 0) return false;
+    }
+    return true;
+  };
+
+  bool decl_leads_here = (leader % 2 == 0);
+  auto has_clean_trump = [&]() -> bool {
+    if (trump_suit == NOTRUMP) return true;
+    for (const auto &tc : top_candidates) {
+      if (!tc.own_fc && tc.unforced_fc == 0 && tc.leads_trump) return true;
+    }
+    return false;
+  };
+
+  auto competitive_window_floor = [&](bool cand_has_fc = false) -> int {
+    int ref_cov = cand_has_fc ? most_boards_covered : best_eff_cov;
+    if (top_k > 1 && ref_cov > 0 &&
         (lvl > 0 || !keep_all_top_k_) &&
-        most_boards_covered >= min_covered) {
-      int slack = std::max(2, most_boards_covered / 6);
-      return std::max(1, most_boards_covered - slack);
+        ref_cov >= min_covered) {
+      int slack = (!cand_has_fc && all_cands_falsecardable())
+                      ? std::max(2, ref_cov / 4)
+                      : std::max(2, ref_cov / 6);
+      return std::max(1, ref_cov - slack);
     }
     return std::max(1, min_covered);
   };
 
-  auto top_k_prune_floor = [&](size_t group_size, bool draws_trump) -> int {
-    int floor_cov = competitive_window_floor();
-    if ((lvl >= 1 || (!keep_all_top_k_ && leader % 2 != 0)) &&
-        group_size > 1 && most_boards_covered > 0) {
-      floor_cov = std::max(floor_cov, most_boards_covered + 1);
+  auto top_k_prune_floor = [&](size_t group_size, bool draws_trump,
+                               bool group_fc) -> int {
+    int floor_cov = competitive_window_floor(group_fc);
+    int ref_best_cov = group_fc ? most_boards_covered : best_eff_cov;
+    bool need_clean_alt =
+        (top_k > 1 && !group_fc &&
+         (all_cands_falsecardable() ||
+          (decl_leads_here && lvl >= 1 && lvl <= 2 && group_size <= 2 &&
+           draws_trump && !has_clean_trump())));
+    if (!need_clean_alt &&
+        (lvl >= 1 || (!keep_all_top_k_ && leader % 2 != 0)) &&
+        group_size > 1 && ref_best_cov > 0) {
+      int split_floor =
+          (draws_trump && !group_fc) ? ref_best_cov : (ref_best_cov + 1);
+      floor_cov = std::max(floor_cov, split_floor);
     }
-    if (lvl >= 1 && !top_candidates.empty()) {
+    if (lvl >= 1 && !top_candidates.empty() && !need_clean_alt) {
       size_t min_nseb = top_candidates[0].non_state_eb;
       int min_nseb_cov = top_candidates[0].covered;
       size_t min_nseb_conds = top_candidates[0].num_conds;
       size_t min_nseb_eb = top_candidates[0].extra_branches;
       bool min_nseb_dt = top_candidates[0].draws_trump;
       for (const auto &tc : top_candidates) {
-        if (tc.non_state_eb < min_nseb) {
+        if (tc.falsecard_splits == 0 && tc.non_state_eb < min_nseb) {
           min_nseb = tc.non_state_eb;
           min_nseb_cov = tc.covered;
           min_nseb_conds = tc.num_conds;
@@ -1787,7 +2322,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           min_nseb_dt = tc.draws_trump;
         }
       }
-      if (min_nseb == 0 && min_nseb_eb > 0) {
+      if (min_nseb == 0 && min_nseb_eb > 0 &&
+          top_candidates[0].falsecard_splits == 0) {
         bool can_win_nseb0_tie =
             (group_size < min_nseb_conds) ||
             (group_size == min_nseb_conds && draws_trump && !min_nseb_dt);
@@ -1797,11 +2333,18 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       }
     }
     if (static_cast<int>(top_candidates.size()) >= top_k && top_k > 0) {
-      int full_cov = top_candidates.back().covered;
+      if (need_clean_alt) {
+        return floor_cov;
+      }
+      const TopCandidate &back_tc = top_candidates.back();
+      int full_cov = (!group_fc && back_tc.unforced_fc > 0)
+                         ? std::max(1, back_tc.covered - back_tc.unforced_fc)
+                         : back_tc.covered;
       bool can_win_tie =
-          (lvl == 0) || (group_size < top_candidates.back().num_conds) ||
-          (group_size == top_candidates.back().num_conds && draws_trump &&
-           !top_candidates.back().draws_trump);
+          (lvl == 0) || (!group_fc && back_tc.unforced_fc > 0) ||
+          (group_size < back_tc.num_conds) ||
+          (group_size == back_tc.num_conds && draws_trump &&
+           !back_tc.draws_trump);
       int regular_floor = can_win_tie ? full_cov : (full_cov + 1);
       if (top_k > 1 && group_size == 1) {
         size_t min_nseb = top_candidates[0].non_state_eb;
@@ -1821,29 +2364,80 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           regular_floor = std::min(regular_floor, min_nseb_cov);
         }
       }
+      if (top_k > 1 && !group_fc && top_candidates[0].falsecard_splits > 0) {
+        for (const auto &tc : top_candidates) {
+          if (tc.falsecard_splits == 0) {
+            bool can_beat_fc0 =
+                (group_size < tc.num_conds) ||
+                (group_size == tc.num_conds && draws_trump && !tc.draws_trump);
+            int fc0_floor = can_beat_fc0 ? tc.covered : (tc.covered + 1);
+            regular_floor = std::min(regular_floor, fc0_floor);
+            break;
+          }
+        }
+      }
       floor_cov = std::max(floor_cov, regular_floor);
     }
     return floor_cov;
   };
 
-  auto is_better_meta = [](int cov_a, size_t conds_a, size_t eb_a, bool dt_a,
-                           int cov_b, size_t conds_b, size_t eb_b, bool dt_b) {
+  auto is_better_meta = [](int cov_a, size_t conds_a, size_t fc_a, size_t td_a,
+                           size_t eb_a, bool dt_a, int cov_b, size_t conds_b,
+                           size_t fc_b, size_t td_b, size_t eb_b, bool dt_b) {
     if (cov_a != cov_b) return cov_a > cov_b;
     if (conds_a != conds_b) return conds_a < conds_b;
-    if (eb_a != eb_b) return eb_a < eb_b;
-    return dt_a > dt_b;
+    if (fc_a != fc_b) return fc_a < fc_b;
+    if (dt_a != dt_b) return dt_a > dt_b;
+    if (td_a != td_b) return td_a > td_b;
+    return eb_a < eb_b;
   };
 
-  auto add_top_candidate = [&](const ConditionalLine &cand,
+  auto cmp_top_cand = [&](const TopCandidate &a, const TopCandidate &b) {
+    if ((a.unforced_fc > 0) != (b.unforced_fc > 0)) {
+      int eff_a = a.covered - a.unforced_fc;
+      int eff_b = b.covered - b.unforced_fc;
+      if (eff_a != eff_b) return eff_a > eff_b;
+      return a.unforced_fc == 0;
+    }
+    return is_better_meta(a.covered, a.num_conds, a.falsecard_splits,
+                          a.trump_draw_score, a.extra_branches, a.draws_trump,
+                          b.covered, b.num_conds, b.falsecard_splits,
+                          b.trump_draw_score, b.extra_branches, b.draws_trump);
+  };
+
+  auto add_top_candidate = [&](ConditionalLine &cand,
                                const Trick1CardPair &t1,
                                size_t group_conds,
-                               bool draws_trump) -> bool {
+                               bool draws_trump,
+                               bool group_fc,
+                               int unforced_fc) -> bool {
     int cov = cand.CoveredFinalBoards();
-    int min_floor = competitive_window_floor();
+    if (unforced_fc > 0 && best_clean_cov >= std::max(1, min_covered) &&
+        cov - unforced_fc <= best_clean_cov) {
+      return false;
+    }
+    size_t fc = FalsecardableSplits(cand);
+    int min_floor = competitive_window_floor(group_fc || unforced_fc > 0);
     if (cov < min_floor) {
       return false;
     }
-    if (!t1.first.empty()) {
+    bool evicted_fc = false;
+    if (!group_fc && unforced_fc == 0 && cov > best_clean_cov) {
+      best_clean_cov = cov;
+      if (best_clean_cov >= std::max(1, min_covered)) {
+        size_t old_sz = top_candidates.size();
+        top_candidates.erase(
+            std::remove_if(top_candidates.begin(), top_candidates.end(),
+                           [&](const TopCandidate &tc) {
+                             return tc.unforced_fc > 0 &&
+                                    tc.covered - tc.unforced_fc <=
+                                        best_clean_cov;
+                           }),
+            top_candidates.end());
+        evicted_fc = (top_candidates.size() != old_sz);
+      }
+    }
+    if (!t1.first.empty() && !group_fc && unforced_fc == 0) {
       auto it = best_t1_cov_conds.find(t1);
       if (it == best_t1_cov_conds.end() || cov > it->second.first) {
         best_t1_cov_conds[t1] = {cov, group_conds};
@@ -1857,34 +2451,58 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     size_t conds = cand.conditions().size();
     size_t extra_br = (top_k > 1) ? cand.ExtraBranches() : 0;
     size_t nseb = (top_k > 1) ? NonStateExtraBranches(cand) : 0;
-    bool changed = false;
+    size_t td = InitialTrumpDrawScore(cand, trump_suit);
+    bool cand_leads_trump =
+        (top_k > 1) && LeadsTrumpInitially(cand, trump_suit);
+    auto cand_bkt = std::make_pair(fc, nseb);
+    bool changed = evicted_fc;
     bool found_sig = false;
-    size_t min_existing_nseb =
-        top_candidates.empty() ? 0 : top_candidates[0].non_state_eb;
-    int min_nseb_cov = top_candidates.empty() ? 0 : top_candidates[0].covered;
-    size_t min_nseb_conds =
+    auto min_existing_bkt =
+        top_candidates.empty()
+            ? std::make_pair(size_t{0}, size_t{0})
+            : std::make_pair(top_candidates[0].falsecard_splits,
+                             top_candidates[0].non_state_eb);
+    int min_bkt_cov = top_candidates.empty() ? 0 : top_candidates[0].covered;
+    size_t min_bkt_conds =
         top_candidates.empty() ? 0 : top_candidates[0].num_conds;
-    size_t min_nseb_eb =
+    size_t min_bkt_fc =
+        top_candidates.empty() ? 0 : top_candidates[0].falsecard_splits;
+    size_t min_bkt_td =
+        top_candidates.empty() ? 0 : top_candidates[0].trump_draw_score;
+    size_t min_bkt_eb =
         top_candidates.empty() ? 0 : top_candidates[0].extra_branches;
-    bool min_nseb_dt =
+    bool min_bkt_dt =
         top_candidates.empty() ? false : top_candidates[0].draws_trump;
     for (auto &tc : top_candidates) {
-      if (tc.non_state_eb < min_existing_nseb) {
-        min_existing_nseb = tc.non_state_eb;
-        min_nseb_cov = tc.covered;
-        min_nseb_conds = tc.num_conds;
-        min_nseb_eb = tc.extra_branches;
-        min_nseb_dt = tc.draws_trump;
+      auto tc_bkt = std::make_pair(tc.falsecard_splits, tc.non_state_eb);
+      if (tc_bkt < min_existing_bkt) {
+        min_existing_bkt = tc_bkt;
+        min_bkt_cov = tc.covered;
+        min_bkt_conds = tc.num_conds;
+        min_bkt_fc = tc.falsecard_splits;
+        min_bkt_td = tc.trump_draw_score;
+        min_bkt_eb = tc.extra_branches;
+        min_bkt_dt = tc.draws_trump;
       }
       if (top_k > 1 && tc.sig == sig) {
         found_sig = true;
-        if (is_better_meta(cov, conds, extra_br, draws_trump, tc.covered,
-                           tc.num_conds, tc.extra_branches, tc.draws_trump)) {
+        bool beats_ufc = (unforced_fc == 0 && tc.unforced_fc > 0 &&
+                          cov >= tc.covered - tc.unforced_fc);
+        if (beats_ufc ||
+            is_better_meta(cov, conds, fc, td, extra_br, draws_trump,
+                           tc.covered, tc.num_conds, tc.falsecard_splits,
+                           tc.trump_draw_score, tc.extra_branches,
+                           tc.draws_trump)) {
           tc.covered = cov;
+          tc.unforced_fc = unforced_fc;
           tc.num_conds = conds;
           tc.extra_branches = extra_br;
           tc.non_state_eb = nseb;
+          tc.falsecard_splits = fc;
+          tc.trump_draw_score = td;
           tc.draws_trump = draws_trump;
+          tc.own_fc = group_fc;
+          tc.leads_trump = cand_leads_trump;
           tc.line = cand;
           changed = true;
         }
@@ -1892,62 +2510,122 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       }
     }
     if (!found_sig) {
+      auto top0_bkt = top_candidates.empty()
+                          ? std::make_pair(size_t{0}, size_t{0})
+                          : std::make_pair(top_candidates[0].falsecard_splits,
+                                           top_candidates[0].non_state_eb);
+      bool novel_clean_trump =
+          (top_k > 1 && !group_fc && unforced_fc == 0 && cand_leads_trump &&
+           !has_clean_trump());
+      bool beats_back_ufc =
+          (unforced_fc == 0 && !top_candidates.empty() &&
+           top_candidates.back().unforced_fc > 0 &&
+           cov >= top_candidates.back().covered -
+                      top_candidates.back().unforced_fc);
       if (static_cast<int>(top_candidates.size()) < top_k ||
-          is_better_meta(cov, conds, extra_br, draws_trump,
+          novel_clean_trump || beats_back_ufc ||
+          is_better_meta(cov, conds, fc, td, extra_br, draws_trump,
                          top_candidates.back().covered,
                          top_candidates.back().num_conds,
+                         top_candidates.back().falsecard_splits,
+                         top_candidates.back().trump_draw_score,
                          top_candidates.back().extra_branches,
                          top_candidates.back().draws_trump) ||
           (top_k > 1 &&
-           (nseb < min_existing_nseb ||
-            (nseb == min_existing_nseb &&
-             is_better_meta(cov, conds, extra_br, draws_trump, min_nseb_cov,
-                            min_nseb_conds, min_nseb_eb, min_nseb_dt))))) {
+           (cand_bkt < min_existing_bkt ||
+            (cand_bkt == min_existing_bkt && min_existing_bkt < top0_bkt &&
+             is_better_meta(cov, conds, fc, td, extra_br, draws_trump,
+                            min_bkt_cov, min_bkt_conds, min_bkt_fc, min_bkt_td,
+                            min_bkt_eb, min_bkt_dt))))) {
         top_candidates.push_back(TopCandidate{
-            cov, conds, extra_br, nseb, draws_trump, std::move(sig), cand});
+            cov, unforced_fc, conds, extra_br, nseb, fc, td, draws_trump,
+            group_fc, cand_leads_trump, std::move(sig), cand});
         changed = true;
       }
     }
     if (changed) {
-      std::stable_sort(
-          top_candidates.begin(), top_candidates.end(),
-          [&](const TopCandidate &a, const TopCandidate &b) {
-            return is_better_meta(a.covered, a.num_conds, a.extra_branches,
-                                  a.draws_trump, b.covered, b.num_conds,
-                                  b.extra_branches, b.draws_trump);
-          });
+      std::stable_sort(top_candidates.begin(), top_candidates.end(),
+                       cmp_top_cand);
       if (static_cast<int>(top_candidates.size()) > top_k) {
         if (lvl > 0 && top_k > 1) {
-          std::set<size_t> seen_nseb;
+          std::set<std::pair<size_t, size_t>> seen_fc_nseb;
           std::stable_partition(
               top_candidates.begin(), top_candidates.end(),
               [&](const TopCandidate &tc) {
-                return tc.non_state_eb == 0 ||
-                       seen_nseb.insert(tc.non_state_eb).second;
+                return (tc.falsecard_splits == 0 && tc.non_state_eb == 0) ||
+                       seen_fc_nseb
+                           .insert({tc.falsecard_splits, tc.non_state_eb})
+                           .second;
               });
         }
         if (top_k > 1) {
-          size_t min_nseb_idx = 0;
-          size_t min_cand_nseb = top_candidates[0].non_state_eb;
+          bool swapped = false;
+          size_t min_bkt_idx = 0;
+          auto min_cand_bkt = std::make_pair(top_candidates[0].falsecard_splits,
+                                             top_candidates[0].non_state_eb);
           for (size_t k = 1; k < top_candidates.size(); ++k) {
-            if (top_candidates[k].non_state_eb < min_cand_nseb) {
-              min_cand_nseb = top_candidates[k].non_state_eb;
-              min_nseb_idx = k;
+            auto bkt = std::make_pair(top_candidates[k].falsecard_splits,
+                                      top_candidates[k].non_state_eb);
+            if (bkt < min_cand_bkt) {
+              min_cand_bkt = bkt;
+              min_bkt_idx = k;
             }
           }
-          if (min_nseb_idx >= static_cast<size_t>(top_k)) {
-            std::swap(top_candidates[top_k - 1], top_candidates[min_nseb_idx]);
+          if (min_bkt_idx >= static_cast<size_t>(top_k)) {
+            std::swap(top_candidates[top_k - 1], top_candidates[min_bkt_idx]);
+            swapped = true;
+          }
+          if (trump_suit != NOTRUMP) {
+            bool has_trump_in_top = false;
+            for (int k = 0; k < top_k; ++k) {
+              if (!top_candidates[k].own_fc &&
+                  top_candidates[k].unforced_fc == 0 &&
+                  top_candidates[k].leads_trump) {
+                has_trump_in_top = true;
+                break;
+              }
+            }
+            if (!has_trump_in_top) {
+              for (size_t k = static_cast<size_t>(top_k);
+                   k < top_candidates.size(); ++k) {
+                if (!top_candidates[k].own_fc &&
+                    top_candidates[k].unforced_fc == 0 &&
+                    top_candidates[k].leads_trump) {
+                  size_t pos =
+                      (min_bkt_idx >= static_cast<size_t>(top_k) && top_k >= 3)
+                          ? static_cast<size_t>(top_k - 2)
+                          : static_cast<size_t>(top_k - 1);
+                  std::swap(top_candidates[pos], top_candidates[k]);
+                  swapped = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (swapped) {
+            std::stable_sort(top_candidates.begin(),
+                             top_candidates.begin() + top_k, cmp_top_cand);
           }
         }
         top_candidates.resize(top_k);
       }
-      most_boards_covered = top_candidates.front().covered;
+      most_boards_covered = 0;
+      best_eff_cov = best_clean_cov;
+      for (const auto &tc : top_candidates) {
+        most_boards_covered = std::max(most_boards_covered, tc.covered);
+        best_eff_cov = std::max(best_eff_cov, tc.covered - tc.unforced_fc);
+      }
     }
     return changed;
   };
 
   auto req_group_cov = [&](size_t j) -> int {
-    int req = top_k_prune_floor(groupings[j].size(), group_draws_trump[j]);
+    int req = top_k_prune_floor(groupings[j].size(), group_draws_trump[j],
+                                group_has_fc[j]);
+    bool need_trump_grp =
+        (top_k > 1 && decl_leads_here && lvl >= 1 && lvl <= 2 &&
+         groupings[j].size() <= 2 && group_draws_trump[j] && !group_has_fc[j] &&
+         !has_clean_trump());
     if (!group_uniform_t1[j].first.empty()) {
       auto it = best_t1_cov_conds.find(group_uniform_t1[j]);
       if (it != best_t1_cov_conds.end()) {
@@ -1956,8 +2634,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         req = std::max(
             req, (groupings[j].size() >= min_conds) ? (c_t1 + 1) : c_t1);
       }
-    } else if (lvl > 0 && most_boards_covered > 0) {
-      req = std::max(req, most_boards_covered);
+    } else if (lvl > 0 && !need_trump_grp &&
+               (group_has_fc[j] || !all_cands_falsecardable())) {
+      int ref_cov = group_has_fc[j] ? most_boards_covered : best_eff_cov;
+      if (ref_cov > 0) {
+        req = std::max(req, ref_cov);
+      }
     }
     if (top_k <= 1 && known_best_cov > 0) {
       bool skip_known_tie =
@@ -1971,6 +2653,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     return req;
   };
   auto is_pruned = [&](size_t j) {
+    if (group_unforced_fc_count[j] > 0 &&
+        best_clean_cov >= std::max(1, min_covered) &&
+        group_possible_boards[j] - group_unforced_fc_count[j] <=
+            best_clean_cov) {
+      return true;
+    }
     return group_possible_boards[j] < req_group_cov(j);
   };
   // Estimated size of each batch the groups after `i` may still need: for
@@ -2070,11 +2758,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           child_top_k);
       int covered = lines.empty() ? 0 : lines[0].CoveredFinalBoards();
       if (covered >= req_cov) {
+        int eff_cov = covered - lines[0].unforced_fc_count();
         batch_results[b_idx] =
             std::make_shared<ConditionalLine>(std::move(lines[0]));
         batch_covered[b_idx] = covered;
-        int alt_slack = std::max(2, covered / 4);
-        int alt_floor = std::max(1, covered - alt_slack);
+        int alt_slack = std::max(2, eff_cov / 4);
+        int alt_floor = std::max(1, eff_cov - alt_slack);
         for (size_t m = 1; m < lines.size(); ++m) {
           if (lines[m].CoveredFinalBoards() >= alt_floor) {
             batch_alt_results[b_idx].push_back(
@@ -2176,15 +2865,19 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     for (size_t j = i; j < groupings.size(); ++j) {
       int updated_possible = 0;
       bool all_known = true;
+      int known_ufc = group_unforced_fc_count[j];
       for (size_t k = 0; k < groupings[j].size(); ++k) {
         size_t uid = group_trick_ids[j][k];
         updated_possible += u_upper_bound[uid];
         if (!u_evaluated[uid] || !saved_work.at(keys[j][k])) {
           all_known = false;
+        } else {
+          known_ufc += saved_work.at(keys[j][k])->unforced_fc_count();
         }
       }
       group_possible_boards[j] = updated_possible;
-      if (all_known && updated_possible >= req_group_cov(j) &&
+      if (all_known && known_ufc == 0 &&
+          updated_possible >= req_group_cov(j) &&
           updated_possible > known_best_cov) {
         known_best_cov = updated_possible;
         known_best_idx = j;
@@ -2256,12 +2949,14 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           }
         }
       } else {
-        int max_possible_so_far = group_possible_boards[i];
+        int max_possible_so_far =
+            group_possible_boards[i] - group_unforced_fc_count[i];
         size_t best_j = i;
         for (size_t j = i + 1; j < groupings.size(); ++j) {
-          if (!is_pruned(j) &&
-              group_possible_boards[j] > max_possible_so_far) {
-            max_possible_so_far = group_possible_boards[j];
+          int eff_poss_j =
+              group_possible_boards[j] - group_unforced_fc_count[j];
+          if (!is_pruned(j) && eff_poss_j > max_possible_so_far) {
+            max_possible_so_far = eff_poss_j;
             best_j = j;
           }
         }
@@ -2300,6 +2995,11 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     if (group_failed_low || sum_covered < req_group_cov(i)) {
       continue;
     }
+    if (group_unforced_fc_count[i] > 0 &&
+        best_clean_cov >= std::max(1, min_covered) &&
+        sum_covered - group_unforced_fc_count[i] <= best_clean_cov) {
+      continue;
+    }
 
     // Make candidate lines for this group
     std::vector<std::vector<std::shared_ptr<ConditionalLine>>> group_branches(
@@ -2315,12 +3015,15 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     }
     std::vector<ConditionalLine> group_lines = AssembleBranchLines(
         group_branches, child_top_k > 1, lvl, /*min_diff_branches=*/1,
-        [&](const std::vector<size_t> &picks) {
+        trump_suit, [&](const std::vector<size_t> &picks) {
           ConditionalLine cl;
           for (size_t m = 0; m < group.size(); ++m) {
             cl.AddCondition(new TrickPlayCondition(keys[i][m]),
                             group_branches[m][picks[m]]);
           }
+          cl.set_unforced_fc_count(
+              std::min(cl.CoveredFinalBoards(),
+                       cl.unforced_fc_count() + group_unforced_fc_count[i]));
           return cl;
         });
     bool changed = false;
@@ -2328,7 +3031,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       const Trick1CardPair &t1 =
           (g_idx == 0) ? group_uniform_t1[i] : Trick1CardPair{"", ""};
       if (add_top_candidate(group_lines[g_idx], t1, group.size(),
-                            group_draws_trump[i])) {
+                            group_draws_trump[i], group_has_fc[i],
+                            group_lines[g_idx].unforced_fc_count())) {
         changed = true;
       }
     }
@@ -2399,9 +3103,60 @@ void LineFinder::TryBranchOnGoodCards(
       has_unsplit_play ? std::max(min_endgame_unit, solvable_n / 30) : 1;
   int min_branch_cov =
       has_unsplit_play ? std::max(min_endgame_unit, solvable_n / 15) : 1;
-  int min_possible_target = std::max(best_covered + 1, min_covered);
   if (IsStopRequested() || lvl <= 0 || leader % 2 != 0 || state_depth >= 4 ||
-      cards_left <= 0 || solvable_n < min_possible_target || solvable_n < 2) {
+      cards_left <= 0 || solvable_n < 2) {
+    return;
+  }
+  const BoardState *first_bs =
+      board_trees.at(*solvable_boards.begin())->MyBoard();
+  Suit trump_suit = first_bs->GetTrump();
+  bool may_tie_trump_disc =
+      lvl <= 4 && state_depth == 0 && trump_suit != NOTRUMP &&
+      prev_suit_led == trump_suit && !ans.empty() &&
+      InitialTrumpDrawScore(ans[0], trump_suit) == 0;
+  if (!may_tie_trump_disc &&
+      solvable_n < std::max(best_covered + 1, min_covered)) {
+    return;
+  }
+
+  std::set<int> disc_boards[2];
+  std::set<int> no_disc_boards[2];
+  int any_disc_count = 0;
+  int both_disc_count = 0;
+  bool opp_has_trump = false;
+  if (prev_suit_led >= 0 && prev_suit_led < 4) {
+    for (int b : solvable_boards) {
+      const BoardState &bs = *board_trees.at(b)->MyBoard();
+      bool d1 = bs.HasPlayerDiscardedOnSuit(1, prev_suit_led);
+      bool d3 = bs.HasPlayerDiscardedOnSuit(3, prev_suit_led);
+      if (d1 || d3) ++any_disc_count;
+      if (d1 && d3) ++both_disc_count;
+      if (d1) {
+        disc_boards[0].insert(disc_boards[0].end(), b);
+      } else {
+        no_disc_boards[0].insert(no_disc_boards[0].end(), b);
+      }
+      if (d3) {
+        disc_boards[1].insert(disc_boards[1].end(), b);
+      } else {
+        no_disc_boards[1].insert(no_disc_boards[1].end(), b);
+      }
+      if (may_tie_trump_disc && !opp_has_trump) {
+        uint64_t opp_rem = (bs.GetHand(1) | bs.GetHand(3)) & ~bs.played_cards();
+        if (((opp_rem >> (trump_suit * 16)) & 0xffffULL) != 0) {
+          opp_has_trump = true;
+        }
+      }
+    }
+  }
+  bool has_mixed_disc =
+      (!disc_boards[0].empty() && !no_disc_boards[0].empty()) ||
+      (!disc_boards[1].empty() && !no_disc_boards[1].empty());
+  bool allow_trump_disc_tie =
+      may_tie_trump_disc && opp_has_trump && has_mixed_disc;
+  int min_possible_target =
+      std::max(best_covered + (allow_trump_disc_tie ? 0 : 1), min_covered);
+  if (solvable_n < min_possible_target) {
     return;
   }
   // The split searches count like one more batch of the trick groups the
@@ -2421,7 +3176,8 @@ void LineFinder::TryBranchOnGoodCards(
   auto adopt_split_results = [&](std::vector<ConditionalLine> &true_lines,
                                  std::vector<ConditionalLine> &false_lines,
                                  int total_cov,
-                                 auto make_cond) {
+                                 auto make_cond,
+                                 bool for_trump_draw = false) {
     best_covered = total_cov;
     std::vector<std::vector<std::shared_ptr<ConditionalLine>>> split_branches(
         2);
@@ -2432,21 +3188,24 @@ void LineFinder::TryBranchOnGoodCards(
       }
     }
     for (auto &fl : false_lines) {
-      if (fl.CoveredFinalBoards() > 0) {
-        split_branches[1].push_back(
-            std::make_shared<ConditionalLine>(std::move(fl)));
+      if (fl.CoveredFinalBoards() <= 0) continue;
+      if (for_trump_draw && !split_branches[1].empty() &&
+          InitialTrumpDrawScore(fl, trump_suit) == 0) {
+        continue;
       }
+      split_branches[1].push_back(
+          std::make_shared<ConditionalLine>(std::move(fl)));
     }
-    int alt_slack = std::max(2, total_cov / 4);
-    int alt_floor = std::max(1, total_cov - alt_slack);
     std::vector<ConditionalLine> new_splits = AssembleBranchLines(
         split_branches, top_k > 1, /*lvl=*/1, /*min_diff_branches=*/2,
-        [&](const std::vector<size_t> &picks) {
+        trump_suit, [&](const std::vector<size_t> &picks) {
           ConditionalLine sl;
           sl.AddCondition(make_cond(true), split_branches[0][picks[0]]);
           sl.AddCondition(make_cond(false), split_branches[1][picks[1]]);
           return sl;
         });
+    int alt_slack = std::max(2, total_cov / 4);
+    int alt_floor = std::max(1, total_cov - alt_slack);
     if (new_splits.size() > 1) {
       new_splits.erase(
           std::remove_if(new_splits.begin() + 1, new_splits.end(),
@@ -2455,68 +3214,58 @@ void LineFinder::TryBranchOnGoodCards(
                          }),
           new_splits.end());
     }
-    if (top_k > 1 && !ans.empty() && !new_splits.empty()) {
-      size_t min_new_nseb = NonStateExtraBranches(new_splits[0]);
+    bool replace_for_trump =
+        for_trump_draw && !new_splits.empty() &&
+        FalsecardableSplits(new_splits[0]) == 0;
+    if (top_k > 1 && !ans.empty() && !new_splits.empty() &&
+        !replace_for_trump) {
+      auto min_new_key = std::make_pair(FalsecardableSplits(new_splits[0]),
+                                        NonStateExtraBranches(new_splits[0]));
       for (size_t k = 1; k < new_splits.size(); ++k) {
-        min_new_nseb =
-            std::min(min_new_nseb, NonStateExtraBranches(new_splits[k]));
+        min_new_key =
+            std::min(min_new_key,
+                     std::make_pair(FalsecardableSplits(new_splits[k]),
+                                    NonStateExtraBranches(new_splits[k])));
       }
       size_t min_old_idx = 0;
-      size_t min_old_nseb = NonStateExtraBranches(ans[0]);
+      auto min_old_key = std::make_pair(FalsecardableSplits(ans[0]),
+                                        NonStateExtraBranches(ans[0]));
       for (size_t k = 1; k < ans.size(); ++k) {
-        size_t nseb = NonStateExtraBranches(ans[k]);
-        if (nseb < min_old_nseb) {
-          min_old_nseb = nseb;
+        auto key = std::make_pair(FalsecardableSplits(ans[k]),
+                                  NonStateExtraBranches(ans[k]));
+        if (key < min_old_key) {
+          min_old_key = key;
           min_old_idx = k;
         }
       }
-      if (min_old_nseb < min_new_nseb) {
-        if (min_old_idx != 0) {
-          ans[0] = std::move(ans[min_old_idx]);
+      bool keep_min_old =
+          (min_old_key < min_new_key) &&
+          !(FalsecardableSplits(new_splits[0]) == 0 &&
+            LeadsTrumpInitially(new_splits[0], trump_suit) &&
+            !LeadsTrumpInitially(ans[min_old_idx], trump_suit));
+      std::vector<ConditionalLine> kept;
+      for (size_t k = 0; k < ans.size(); ++k) {
+        bool is_min_old = keep_min_old && k == min_old_idx;
+        bool is_trump_alt =
+            lvl <= 2 && ans[k].CoveredFinalBoards() >= alt_floor &&
+            LeadsTrumpInitially(ans[k], trump_suit);
+        if (is_min_old || is_trump_alt) {
+          kept.push_back(std::move(ans[k]));
         }
-        ans.resize(1);
-      } else {
-        ans.clear();
       }
+      ans = std::move(kept);
     } else {
       ans.clear();
     }
     for (auto &sl : new_splits) {
       ans.push_back(std::move(sl));
     }
-    FinalizeTopKLines(&ans, top_k);
+    FinalizeTopKLines(&ans, top_k, trump_suit);
   };
 
-  const BoardState *first_bs =
-      board_trees.at(*solvable_boards.begin())->MyBoard();
-  Suit trump_suit = first_bs->GetTrump();
   uint64_t mask = ~first_bs->played_cards();
   uint64_t decl_cards = (first_bs->GetHand(0) | first_bs->GetHand(2)) & mask;
   uint64_t leader_cards = first_bs->GetHand(leader) & mask;
-
-  std::set<int> disc_boards[2];
-  std::set<int> no_disc_boards[2];
-  int any_disc_count = 0;
-  int both_disc_count = 0;
-  if (prev_suit_led >= 0 && prev_suit_led < 4) {
-    for (int b : solvable_boards) {
-      const BoardState &bs = *board_trees.at(b)->MyBoard();
-      bool d1 = bs.HasPlayerDiscardedOnSuit(1, prev_suit_led);
-      bool d3 = bs.HasPlayerDiscardedOnSuit(3, prev_suit_led);
-      if (d1 || d3) ++any_disc_count;
-      if (d1 && d3) ++both_disc_count;
-      if (d1) {
-        disc_boards[0].insert(disc_boards[0].end(), b);
-      } else {
-        no_disc_boards[0].insert(no_disc_boards[0].end(), b);
-      }
-      if (d3) {
-        disc_boards[1].insert(disc_boards[1].end(), b);
-      } else {
-        no_disc_boards[1].insert(no_disc_boards[1].end(), b);
-      }
-    }
-  }
 
   CardType top_cards[4] = {};
   std::set<int> good_boards[4];
@@ -2669,16 +3418,18 @@ void LineFinder::TryBranchOnGoodCards(
 
   if (prev_suit_led >= 0 && prev_suit_led < 4 && any_disc_count > 0) {
     int disc_min_branch_cov = (lvl <= 5) ? 1 : min_branch_cov;
-    int disc_split_min_gain = (lvl <= 5) ? 1 : split_min_gain;
+    int base_disc_gain = (lvl <= 5) ? 1 : split_min_gain;
     int order[2] = {0, 1};
     if (disc_boards[1].size() > disc_boards[0].size()) {
       std::swap(order[0], order[1]);
     }
     bool first_disc_searched = false;
     for (int ord = 0; ord < 2; ++ord) {
-      if (IsStopRequested() || best_covered >= solvable_n) {
+      if (IsStopRequested() || best_covered > solvable_n ||
+          (!allow_trump_disc_tie && best_covered >= solvable_n)) {
         break;
       }
+      int disc_split_min_gain = allow_trump_disc_tie ? 0 : base_disc_gain;
       int p_idx = order[ord];
       int player = (p_idx == 0) ? 1 : 3;
       const std::set<int> &true_b = disc_boards[p_idx];
@@ -2741,13 +3492,25 @@ void LineFinder::TryBranchOnGoodCards(
         continue;
       }
       int total_cov = true_cov + false_cov;
-      if (total_cov >= cur_target) {
+      bool draws_trump_on_false =
+          !false_lines.empty() &&
+          InitialTrumpDrawScore(false_lines[0], trump_suit) > 0;
+      bool adopted_for_trump =
+          allow_trump_disc_tie && draws_trump_on_false &&
+          total_cov < best_covered + base_disc_gain;
+      int min_adopt_cov =
+          (allow_trump_disc_tie && draws_trump_on_false)
+              ? std::max(best_covered, min_covered)
+              : std::max(best_covered + base_disc_gain, min_covered);
+      if (total_cov >= min_adopt_cov) {
         Suit s = prev_suit_led;
         adopt_split_results(
             true_lines, false_lines, total_cov,
             [player, s](bool discarded) -> PlayCondition * {
               return new PlayerDiscardedCondition(player, s, discarded);
-            });
+            },
+            adopted_for_trump);
+        allow_trump_disc_tie = false;
       }
     }
   }
@@ -2944,38 +3707,76 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
   std::vector<std::vector<GeneralizedTrick>> groupings =
       GroupTricks(std::move(gen_tricks));
 
-  auto group_total_boards = [](const std::vector<GeneralizedTrick> &g) {
-    size_t sum = 0;
-    for (const auto &t : g) sum += t.NumBoards();
-    return sum;
-  };
-  std::stable_sort(
-      groupings.begin(), groupings.end(),
-      [&](const std::vector<GeneralizedTrick> &a,
-          const std::vector<GeneralizedTrick> &b) {
-        size_t tot_a = group_total_boards(a);
-        size_t tot_b = group_total_boards(b);
-        if (tot_a != tot_b) return tot_a > tot_b;
-        if (a.size() != b.size()) return a.size() < b.size();
-        bool dt_a = GroupDrawsTrump(a, trump_suit);
-        bool dt_b = GroupDrawsTrump(b, trump_suit);
-        return dt_a > dt_b;
-      });
-
   // Null-move leads are double-dummy optimal on nearly every board, so they
   // always carry the largest upper bound and would otherwise be searched
   // first and win every coverage tie. Searching them last keeps them as
-  // candidates (a squeeze or entry play may genuinely need them) but lets an
-  // informative trick with equal coverage be preferred.
+  // candidates while preferring informative leads; sorting by effective
+  // non-falsecard board count puts clean full-coverage groups right ahead of
+  // unforced-falsecard splits without promoting small subset groups.
   std::set<std::string> null_leads = FindNullMoveLeads(groupings, trump_suit);
-  if (!null_leads.empty()) {
-    std::stable_partition(
-        groupings.begin(), groupings.end(),
-        [&null_leads](const std::vector<GeneralizedTrick> &g) {
-          return g.empty() || g[0].leader % 2 != 0 ||
-                 null_leads.count(g[0].demi1.my_card) == 0;
-        });
+  struct GroupSortKey {
+    size_t idx = 0;
+    bool is_null = false;
+    bool has_fc = false;
+    bool draws_trump = false;
+    size_t max_b = 0;
+    size_t tot = 0;
+    size_t eff_tot = 0;
+    size_t sz = 0;
+  };
+  std::vector<GroupSortKey> sort_keys(groupings.size());
+  for (size_t i = 0; i < groupings.size(); ++i) {
+    const auto &g = groupings[i];
+    size_t mx = 0;
+    size_t tot = 0;
+    for (const auto &t : g) {
+      mx = std::max(mx, t.NumBoards());
+      tot += t.NumBoards();
+    }
+    bool has_fc = GroupHasFalsecardSplit(g);
+    size_t unforced =
+        has_fc
+            ? static_cast<size_t>(CountGroupUnforcedFalsecards(g, board_trees))
+            : 0;
+    sort_keys[i] = GroupSortKey{
+        i,
+        !g.empty() && g[0].leader % 2 == 0 &&
+            null_leads.count(g[0].demi1.my_card) > 0,
+        has_fc,
+        GroupDrawsTrump(g, trump_suit),
+        mx,
+        tot,
+        (unforced < tot) ? (tot - unforced) : 0,
+        g.size(),
+    };
   }
+  bool def_leads_here = (leader % 2 != 0);
+  std::stable_sort(
+      sort_keys.begin(), sort_keys.end(),
+      [def_leads_here](const GroupSortKey &a, const GroupSortKey &b) {
+        if (a.is_null != b.is_null) return !a.is_null;
+        if (def_leads_here) {
+          if (a.eff_tot != b.eff_tot) return a.eff_tot > b.eff_tot;
+          if (a.has_fc != b.has_fc) return !a.has_fc;
+          if (a.tot != b.tot) return a.tot > b.tot;
+          return a.sz < b.sz;
+        }
+        size_t eff_b_a = (!a.has_fc && a.draws_trump) ? a.eff_tot : a.max_b;
+        size_t eff_b_b = (!b.has_fc && b.draws_trump) ? b.eff_tot : b.max_b;
+        if (eff_b_a != eff_b_b) return eff_b_a > eff_b_b;
+        if (a.draws_trump != b.draws_trump) {
+          return a.draws_trump > b.draws_trump;
+        }
+        if (a.sz != b.sz) return a.sz < b.sz;
+        if (a.eff_tot != b.eff_tot) return a.eff_tot > b.eff_tot;
+        if (a.has_fc != b.has_fc) return !a.has_fc;
+        return a.tot > b.tot;
+      });
+  std::vector<std::vector<GeneralizedTrick>> sorted_groupings(groupings.size());
+  for (size_t i = 0; i < groupings.size(); ++i) {
+    sorted_groupings[i] = std::move(groupings[sort_keys[i].idx]);
+  }
+  groupings = std::move(sorted_groupings);
 
   VLOG(2) << "See groupings " << groupings.size();
 

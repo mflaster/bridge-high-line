@@ -651,6 +651,57 @@ DefenderPlayChoice ApplyDefenderNoise(const BoardState &bs, int level,
     return heur_choice;
   }
   if (level >= 1 && bs.SuitLed() != NOTRUMP && futp.suit[0] == bs.SuitLed()) {
+    if (level == 1 && bs.board_id() != 0 && futp.score[0] > 0) {
+      Suit suit_led = bs.SuitLed();
+      auto [_win_offset, win_pair] = bs.TrickWinner();
+      Suit cur_win_suit = win_pair.first;
+      int cur_win_rank = win_pair.second + 2;
+      bool trick_ruffed = (bs.GetTrump() != NOTRUMP &&
+                           suit_led != bs.GetTrump() &&
+                           cur_win_suit == bs.GetTrump());
+      if (!trick_ruffed && cur_win_rank >= 9) {
+        int cover_idx = -1;
+        int cheapest_cover_rank = 100;
+        for (int i = 0; i < futp.cards; ++i) {
+          if (futp.rank[i] > cur_win_rank) {
+            int r = std::max(LowestRankInGroup(futp, i),
+                             CheapestWinningRankInGroup(futp, i, cur_win_rank));
+            if (r < cheapest_cover_rank) {
+              cheapest_cover_rank = r;
+              cover_idx = i;
+            }
+          }
+        }
+        bool cover_plausible =
+            (cover_idx >= 0 && cover_idx != heur_choice.group_idx &&
+             cheapest_cover_rank >= 10);
+        if (cover_plausible && (bs.cur_trick_leader() + 2) % 4 == 2) {
+          uint16_t dummy_suit_bits = static_cast<uint16_t>(
+              ((bs.GetHand(2) & ~bs.played_cards()) >> (suit_led * 16)) &
+              0x1fffULL);
+          uint16_t def_suit_bits = static_cast<uint16_t>(
+              ((bs.GetHand(bs.CurPlayer()) & ~bs.played_cards()) >>
+               (suit_led * 16)) &
+              0x1fffULL);
+          int dummy_highest_rank =
+              (dummy_suit_bits != 0) ? (31 - __builtin_clz(dummy_suit_bits) + 2)
+                                     : 0;
+          uint16_t above_led_mask =
+              static_cast<uint16_t>(~((1u << (cur_win_rank - 1)) - 1u));
+          int dummy_above_led =
+              __builtin_popcount(dummy_suit_bits & above_led_mask);
+          int def_above_led =
+              __builtin_popcount(def_suit_bits & above_led_mask);
+          cover_plausible = (cheapest_cover_rank > dummy_highest_rank ||
+                             (dummy_above_led >= 2 && def_above_led >= 2));
+        }
+        if (cover_plausible &&
+            (DefenderNoiseHash(bs, level, futp.cards) & 1ULL) != 0) {
+          return FinalizeDefenderChoice(bs, futp,
+                                        {cover_idx, cheapest_cover_rank});
+        }
+      }
+    }
     return heur_choice;
   }
   if (level == 0 && lead_eval != nullptr) {
@@ -1037,6 +1088,25 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
       cur_win_rank = win_pair.second + 2;
       trick_ruffed =
           (trump != NOTRUMP && suit_led != trump && cur_win_suit == trump);
+      if ((level == 1 ||
+           (level == 2 &&
+            !bs.HasPlayerDiscardedOnSuit((me + 1) % 4, trump))) &&
+          trump != NOTRUMP && suit_led != trump) {
+        int orig_cards = futp.cards;
+        int cap = static_cast<int>(sizeof(futp.suit) / sizeof(futp.suit[0]));
+        for (int i = 0; i < orig_cards && futp.cards < cap; ++i) {
+          if (futp.suit[i] != trump || futp.rank[i] < 10) continue;
+          int low_r = CheapestWinningRankInGroup(
+              futp, i, trick_ruffed ? cur_win_rank : 0);
+          if (low_r < 10 && (!trick_ruffed || low_r > cur_win_rank)) {
+            int idx = futp.cards++;
+            futp.suit[idx] = trump;
+            futp.rank[idx] = low_r;
+            futp.equals[idx] = 0;
+            futp.score[idx] = futp.score[i];
+          }
+        }
+      }
       int rho = (me + 1) % 4;
       if (level == 2) {
         rho_known_out_of_led = bs.HasPlayerDiscardedOnSuit(rho, suit_led);
@@ -1237,7 +1307,10 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
         for (int j = 0; j < futp.cards; ++j) {
           if (futp.suit[j] != s || futp.rank[j] >= r) continue;
           int r1 = futp.rank[j];
-          if (s == suit_led && (r1 >= 10) != (r >= 10)) continue;
+          if ((s == suit_led || (level == 1 && s == trump)) &&
+              (r1 >= 10) != (r >= 10)) {
+            continue;
+          }
           bool j_wins =
               (s == suit_led && !trick_ruffed && r1 > cur_win_rank) ||
               (s == trump && (cur_win_suit != trump || r1 > cur_win_rank));
