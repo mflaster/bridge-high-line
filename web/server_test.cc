@@ -176,6 +176,12 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_telemetry_js->status == 200);
   ASSERT_TRUE(res_telemetry_js->body.find("function submitSentryFeedback") !=
               std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("SENTRY_FEEDBACK_TUNNEL_URL") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("function sendFeedbackViaTunnel") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("credentials: 'omit'") !=
+              std::string::npos);
   ASSERT_TRUE(
       res_telemetry_js->body.find(
           "const feedbackMessage = (message || '').slice(0, 4096);") !=
