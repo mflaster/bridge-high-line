@@ -583,7 +583,12 @@ TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
     ASSERT_TRUE(line_obj.contains("best_lead"));
     ASSERT_TRUE(!line_obj["best_lead"].get<std::string>().empty());
     ASSERT_TRUE(line_obj.contains("covered_boards"));
-    ASSERT_TRUE(line_obj["covered_boards"] == preset_json["covered_boards"]);
+    if (i == 0) {
+      ASSERT_TRUE(line_obj["covered_boards"] == preset_json["covered_boards"]);
+    } else {
+      ASSERT_TRUE(line_obj["covered_boards"].get<int>() <=
+                  preset_json["lines"][i - 1]["covered_boards"].get<int>());
+    }
     ASSERT_TRUE(line_obj.contains("covered_board_ids"));
     ASSERT_TRUE(line_obj["covered_board_ids"].is_array());
     ASSERT_TRUE(line_obj.contains("tree"));
@@ -2019,9 +2024,151 @@ const pHeartAce = sandbox.parseSingleCardToken("HA", "H", "S");
 assert(pHeartAce.suit === "H" && pHeartAce.rankStr === "A" &&
        pHeartAce.displayStr === "♥A",
        "parseSingleCardToken HA -> ♥A");
+
+// 6. Test finalist lines 10,000-deal out-of-sample UI display and switching
+const finalistData = {
+  success: true,
+  tricks_won: 10,
+  total_boards: 100,
+  covered_boards: 71,
+  success_boards: 71,
+  failure_boards: 29,
+  eval_total_boards: 10000,
+  eval_success_boards: 7381,
+  eval_failure_boards: 2619,
+  solve_ms: 950.0,
+  eval_ms: 820.0,
+  invariant_ms: 4.2,
+  best_lead: "S2",
+  tree: { id: 0, label: "Root 1", children: [] },
+  all_hands: Array.from({ length: 100 }, (_, i) => ({
+    board_id: i,
+    succeeded: i < 71,
+    N: "S AK;", E: "S QJ;", S: "S 32;", W: "S T9;"
+  })),
+  lines: [
+    {
+      index: 0,
+      label: "Line 1: #1: (S2) S3 (ST) SK -> #2: HA",
+      best_lead: "S2",
+      covered_boards: 71,
+      covered_board_ids: Array.from({ length: 71 }, (_, i) => i),
+      eval_total_boards: 10000,
+      eval_covered_boards: 7381,
+      tree: { id: 0, label: "Root 1", children: [] }
+    },
+    {
+      index: 1,
+      label: "Line 2: #1: (S2) S3 (ST) SK -> #2: HT -> H9",
+      best_lead: "S2",
+      covered_boards: 73,
+      covered_board_ids: Array.from({ length: 73 }, (_, i) => i),
+      eval_total_boards: 10000,
+      eval_covered_boards: 7345,
+      tree: { id: 0, label: "Root 2", children: [] }
+    },
+    {
+      index: 2,
+      label: "Line 3: #1: (S2) S3 (ST) SK -> #2: HT -> HA",
+      best_lead: "S2",
+      covered_boards: 74,
+      covered_board_ids: Array.from({ length: 74 }, (_, i) => i),
+      eval_total_boards: 10000,
+      eval_covered_boards: 7210,
+      tree: { id: 0, label: "Root 3", children: [] }
+    }
+  ]
+};
+
+assert(sandbox.formatSolveTimingText(finalistData, "1775.0") ===
+       "solve: 0.950 s, eval: 0.82 s, invariant: 4.2 ms",
+       "formatSolveTimingText with eval_ms");
+const hc0 = sandbox.getHeadlineSolveCounts(finalistData);
+assert(hc0.hasEval && hc0.total === 10000 && hc0.success === 7381 &&
+       hc0.failure === 2619 && hc0.sampleTotal === 100,
+       "getHeadlineSolveCounts prefers 10k eval");
+assert(sandbox.formatBoardRatioText(hc0.success, hc0.total) ===
+       "7,381/10,000 (73.8%)",
+       "formatBoardRatioText locale formatting");
+
+vm.runInContext(
+  "emitSentryMetricCount = () => {}; " +
+  "renderSolveTree = () => {}; " +
+  "currentSolveData = " + JSON.stringify(finalistData) + "; " +
+  "originalSolveSnapshot = { inputs: {}, data: " +
+  JSON.stringify(finalistData) + " }; " +
+  "proposedAltLines = [];",
+  sandbox
+);
+sandbox.populateEquivalentLinesControls(finalistData, 0);
+assert(getEl("equivalentLinesBadge").textContent === "3 Finalist Lines",
+       "Finalist Lines badge text");
+assert(getEl("equivalentLinesHint").textContent ===
+       "Ranked on 10,000 deals — switch to inspect:",
+       "Finalist Lines 10k hint text");
+const selOpts = getEl("equivalentLineSelect").children;
+assert(selOpts[0].textContent.startsWith("73.8% "),
+       "Dropdown option 0 uses 10k eval percentage");
+assert(selOpts[1].textContent.startsWith("73.5% "),
+       "Dropdown option 1 uses 10k eval percentage");
+
+// Switching to Finalist Line 2 updates statSuccess / statFailure to 10k counts
+sandbox.selectEquivalentLine(1);
+assert(getEl("statSuccess").textContent === "7,345/10,000 (73.5%)",
+       "selectEquivalentLine(1) statSuccess: " +
+       getEl("statSuccess").textContent);
+assert(getEl("statFailure").textContent === "2,655/10,000 (26.6%)",
+       "selectEquivalentLine(1) statFailure: " +
+       getEl("statFailure").textContent);
 ' )NODE";
     EXPECT_EQ(std::system(cmd.c_str()), 0);
   }
 }
+
+TEST(ServerTest, SolveJsonFinalistOutOfSampleEval) {
+  nlohmann::json req = {
+      {"hands",
+       {{"N", "S 532; H T7; D T32; C 6;"},
+        {"E", ""},
+        {"S", "S K9; H -; D A854; C AKJ;"},
+        {"W", ""}}},
+      {"unknown_cards", "S AJTQ64 D KQJ976 C T43Q98"},
+      {"trump", "HEARTS"},
+      {"leader", "NORTH"},
+      {"min_tricks", 6},
+      {"num_iters", 50},
+      {"num_threads", 2},
+      {"max_finalists", 4},
+      {"eval_iters", 400},
+      {"eval_seed", 987654321}};
+
+  WebServer ws;
+  std::string body = ws.SolveJson(req.dump());
+  nlohmann::json res = nlohmann::json::parse(body);
+  ASSERT_TRUE(res["success"].get<bool>()) << body;
+  EXPECT_EQ(res["total_boards"].get<int>(), 50);
+  ASSERT_TRUE(res.contains("eval_total_boards")) << body;
+  EXPECT_EQ(res["eval_total_boards"].get<int>(), 400);
+  ASSERT_TRUE(res.contains("eval_success_boards"));
+  ASSERT_TRUE(res.contains("eval_failure_boards"));
+  EXPECT_EQ(res["eval_success_boards"].get<int>() +
+                res["eval_failure_boards"].get<int>(),
+            400);
+  ASSERT_TRUE(res.contains("eval_ms"));
+  EXPECT_GE(res["eval_ms"].get<double>(), 0.0);
+
+  ASSERT_TRUE(res.contains("lines"));
+  ASSERT_GE(res["lines"].size(), 2u);
+  EXPECT_EQ(res["lines"][0]["eval_covered_boards"].get<int>(),
+            res["eval_success_boards"].get<int>());
+  for (size_t i = 0; i < res["lines"].size(); ++i) {
+    EXPECT_EQ(res["lines"][i]["eval_total_boards"].get<int>(), 400);
+    if (i > 0) {
+      EXPECT_LE(res["lines"][i]["eval_covered_boards"].get<int>(),
+                res["lines"][i - 1]["eval_covered_boards"].get<int>());
+    }
+  }
+}
+
 
 

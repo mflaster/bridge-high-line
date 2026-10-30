@@ -23,9 +23,14 @@ std::vector<std::string> FindBestCardsToPlay(
 
 int FindOptimalTricks(const BoardState &bs);
 
+bool IsDealMakeable(const BoardState &bs, int min_ns_tricks,
+                    bool *out_called_dds = nullptr, bool reuse_tt = false);
+
 std::string FindBestDefenderCard(const BoardState &bs, int noise_pct = 0);
 
-std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs);
+std::vector<std::string> FindOptimalDefenderCards(
+    const BoardState &bs, int *out_max_def_tricks = nullptr,
+    bool reuse_tt = false);
 
 void SetDefenderNoisePct(int pct);
 int GetDefenderNoisePct();

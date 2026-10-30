@@ -1858,6 +1858,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
     int failure_boards = 0;
 
     double solve_ms = 0.0;
+    double eval_ms = 0.0;
     double invariant_ms = 0.0;
     std::vector<std::vector<std::string>> replay_tricks;
     if (req_json.contains("replay_tricks") &&
@@ -2000,6 +2001,43 @@ std::string WebServer::SolveJson(const std::string &req_body,
         last_solver_cache_.reset();
       }
 
+      bool can_multi_finalist =
+          replay_tricks.empty() && branch_board_ids.empty();
+      int max_finalists = can_multi_finalist ? 4 : 1;
+      if (req_json.contains("max_finalists") &&
+          req_json["max_finalists"].is_number_integer()) {
+        max_finalists =
+            std::clamp(req_json["max_finalists"].get<int>(), 1, 16);
+      }
+      lf->SetMaxFinalistLines(max_finalists);
+
+      int eval_iters = 0;
+      double eval_max_ms = 0.0;
+      if (req_json.contains("eval_iters") &&
+          req_json["eval_iters"].is_number_integer()) {
+        eval_iters =
+            std::clamp(req_json["eval_iters"].get<int>(), 0, 100000);
+      } else if (num_iters >= 50 && can_multi_finalist) {
+        eval_iters = 10000;
+#ifdef __EMSCRIPTEN__
+        eval_max_ms = 4000.0;
+#else
+        eval_max_ms = 8000.0;
+#endif
+      }
+      if (req_json.contains("eval_max_ms") &&
+          req_json["eval_max_ms"].is_number()) {
+        eval_max_ms = std::max(0.0, req_json["eval_max_ms"].get<double>());
+      }
+      lf->SetFinalistEvalDeals(eval_iters);
+      lf->SetFinalistEvalMaxMs(eval_max_ms);
+      if (req_json.contains("eval_seed") &&
+          req_json["eval_seed"].is_number_unsigned()) {
+        lf->SetFinalistEvalSeed(req_json["eval_seed"].get<uint64_t>());
+      } else {
+        lf->SetFinalistEvalSeed(0);
+      }
+
       std::vector<ConditionalLine> lines =
           lf->Solve(min_tricks, hands, unknown_cards, leader, trump_suit,
                     cur_trick, num_threads);
@@ -2015,6 +2053,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
         return response.dump();
       }
       solve_ms = lf->solve_ms();
+      eval_ms = lf->eval_ms();
       invariant_ms = lf->invariant_ms();
 
       std::vector<BoardState> boards = lf->boards();
@@ -2268,6 +2307,10 @@ std::string WebServer::SolveJson(const std::string &req_body,
               {"tree", line_trees[i] ? nlohmann::json(*line_trees[i])
                                      : nlohmann::json::object()},
           };
+          if (lines[i].eval_total_boards() > 0) {
+            line_entry["eval_total_boards"] = lines[i].eval_total_boards();
+            line_entry["eval_covered_boards"] = lines[i].eval_covered_boards();
+          }
           if (has_actual_deal && !line_actual_hands[i].is_null()) {
             line_entry["actual_hand"] = line_actual_hands[i];
           }
@@ -2287,8 +2330,13 @@ std::string WebServer::SolveJson(const std::string &req_body,
         failure_boards = std::max(0, total_boards - success_boards);
         covered_boards = success_boards;
         tricks_won = initial_ns_tricks + min_tricks;
-        // All returned lines cover the same number of boards; the first is
-        // shown by default, and all equivalent lines are included in `lines`.
+        if (lines[0].eval_total_boards() > 0) {
+          int eval_tot = lines[0].eval_total_boards();
+          int eval_succ = lines[0].eval_covered_boards();
+          response["eval_total_boards"] = eval_tot;
+          response["eval_success_boards"] = eval_succ;
+          response["eval_failure_boards"] = std::max(0, eval_tot - eval_succ);
+        }
         response["num_lines"] = lines.size();
         response["lines"] = std::move(lines_json);
         if (has_actual_deal && !line_actual_hands[0].is_null()) {
@@ -2298,7 +2346,8 @@ std::string WebServer::SolveJson(const std::string &req_body,
           response["distribution_summary"] = lines[0].summary();
         }
         if (lines[0].has_failure_summary()) {
-          response["failure_distribution_summary"] = lines[0].failure_summary();
+          response["failure_distribution_summary"] =
+              lines[0].failure_summary();
         }
       } else {
         success_boards = 0;
@@ -2399,6 +2448,7 @@ std::string WebServer::SolveJson(const std::string &req_body,
     response["covered_boards"] = covered_boards;
     response["num_threads"] = num_threads;
     response["solve_ms"] = solve_ms;
+    response["eval_ms"] = eval_ms;
     response["invariant_ms"] = invariant_ms;
     if (tree_node) {
       if (!is_fuzzy || !response.contains("lines")) {

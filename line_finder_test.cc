@@ -1458,3 +1458,78 @@ TEST(LineFinderTest, LineFinder_Hand15TrumpCoverAndFalsecardResistance) {
   ASSERT_FALSE(last_step.unmatched_card.empty());
   EXPECT_NE(last_step.unmatched_card[0], 'H') << last_step.trick_str;
 }
+
+TEST(LineFinderTest, LineFinder_FinalistOutOfSampleEvalDeterministicAndHand15) {
+  // 1. Verify deterministic out-of-sample evaluation with fixed seed and
+  // descending sorting across multiple finalist lines.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S 532; H T7; D T32; C 6;"),
+        0,
+        ParseHand("S K9; H -; D A854; C AKJ;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+
+    srand48(7);
+    LineFinder lf1(50);
+    lf1.SetMaxFinalistLines(4);
+    lf1.SetFinalistEvalDeals(800);
+    lf1.SetFinalistEvalSeed(123456789ULL);
+    std::vector<ConditionalLine> lines1 =
+        lf1.Solve(6, hands, unknown, /*leader=*/0, HEARTS, {}, /*threads=*/2);
+    ASSERT_GE(lines1.size(), 2u);
+    EXPECT_GT(lf1.eval_ms(), 0.0);
+    for (size_t i = 0; i < lines1.size(); ++i) {
+      EXPECT_EQ(lines1[i].eval_total_boards(), 800);
+      EXPECT_GT(lines1[i].eval_covered_boards(), 0);
+      if (i > 0) {
+        EXPECT_LE(lines1[i].eval_covered_boards(),
+                  lines1[i - 1].eval_covered_boards());
+      }
+    }
+
+    srand48(7);
+    LineFinder lf2(50);
+    lf2.SetMaxFinalistLines(4);
+    lf2.SetFinalistEvalDeals(800);
+    lf2.SetFinalistEvalSeed(123456789ULL);
+    std::vector<ConditionalLine> lines2 =
+        lf2.Solve(6, hands, unknown, /*leader=*/0, HEARTS, {}, /*threads=*/2);
+    ASSERT_EQ(lines1.size(), lines2.size());
+    for (size_t i = 0; i < lines1.size(); ++i) {
+      EXPECT_EQ(lines1[i].eval_covered_boards(),
+                lines2[i].eval_covered_boards());
+    }
+  }
+
+  // 2. Verify Hand 15 (4H on S2 lead, missing HKQ83) retains multiple
+  // distinct finalist lines and evaluates them out-of-sample.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("H T96; D KQ85; C AQJ4;"),
+        ParseHand("S 2;"),
+        ParseHand("S 8; H AJ7542; D A6; C K8;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S T75; H KQ83; D JT97432; C T976532;");
+    std::vector<CardType> cur_trick = {Card::ParseStringCard("S2")};
+
+    srand48(0);
+    LineFinder lf(40);
+    lf.SetMaxFinalistLines(4);
+    lf.SetFinalistEvalDeals(800);
+    lf.SetFinalistEvalSeed(424242ULL);
+    std::vector<ConditionalLine> lines = lf.Solve(
+        10, hands, unknown, /*leader=*/1, HEARTS, cur_trick, /*threads=*/8);
+    ASSERT_GE(lines.size(), 2u);
+    EXPECT_EQ(lines[0].eval_total_boards(), 800);
+    EXPECT_GT(lines[0].eval_covered_boards(), 450);
+    for (size_t i = 1; i < lines.size(); ++i) {
+      EXPECT_EQ(lines[i].eval_total_boards(), 800);
+      EXPECT_LE(lines[i].eval_covered_boards(),
+                lines[i - 1].eval_covered_boards());
+    }
+  }
+}
+

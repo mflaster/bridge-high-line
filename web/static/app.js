@@ -460,27 +460,83 @@ function updateActualStat(data) {
   }
 }
 
+function getHeadlineSolveCounts(data) {
+  const sampleTotal = (data && data.total_boards) ? data.total_boards : 1;
+  const sampleSuccess = (data && data.success_boards !== undefined)
+    ? data.success_boards
+    : ((data && data.covered_boards) || 0);
+  const sampleFailure = (data && data.failure_boards !== undefined)
+    ? data.failure_boards
+    : Math.max(0, sampleTotal - sampleSuccess);
+  const hasEval = Boolean(
+    data &&
+    typeof data.eval_total_boards === 'number' &&
+    data.eval_total_boards > 0 &&
+    typeof data.eval_success_boards === 'number'
+  );
+  const total = hasEval ? data.eval_total_boards : sampleTotal;
+  const success = hasEval ? data.eval_success_boards : sampleSuccess;
+  const failure = hasEval
+    ? ((typeof data.eval_failure_boards === 'number')
+        ? data.eval_failure_boards
+        : Math.max(0, total - success))
+    : sampleFailure;
+  return {
+    total,
+    success,
+    failure,
+    hasEval,
+    sampleTotal,
+    sampleSuccess,
+    sampleFailure
+  };
+}
+
+function formatBoardRatioText(count, total) {
+  const pct = ((count / Math.max(1, total)) * 100).toFixed(1);
+  return `${count.toLocaleString()}/${total.toLocaleString()} (${pct}%)`;
+}
+
+function formatSolveTimingText(data, elapsedMsStr) {
+  if (!data || typeof data.solve_ms !== 'number' ||
+      typeof data.invariant_ms !== 'number') {
+    return `${elapsedMsStr} ms`;
+  }
+  const parts = [`solve: ${(data.solve_ms / 1000).toFixed(3)} s`];
+  if (typeof data.eval_ms === 'number' && data.eval_ms > 0) {
+    parts.push(`eval: ${(data.eval_ms / 1000).toFixed(2)} s`);
+  }
+  parts.push(`invariant: ${data.invariant_ms.toFixed(1)} ms`);
+  return parts.join(', ');
+}
+
 function updateViewMode(mode) {
-  if (mode === 'actual' && (!currentSolveData || !currentSolveData.actual_hand)) {
+  if (mode === 'actual' &&
+      (!currentSolveData || !currentSolveData.actual_hand)) {
     mode = 'success';
   }
   activeViewMode = mode;
-  const total = (currentSolveData && currentSolveData.total_boards) ? currentSolveData.total_boards : 1;
-  const success = (currentSolveData && currentSolveData.success_boards !== undefined)
-    ? currentSolveData.success_boards
-    : ((currentSolveData && currentSolveData.covered_boards) || 0);
-  const failure = (currentSolveData && currentSolveData.failure_boards !== undefined)
-    ? currentSolveData.failure_boards
-    : Math.max(0, total - success);
+  const counts = getHeadlineSolveCounts(currentSolveData);
+  const total = counts.sampleTotal;
+  const success = counts.sampleSuccess;
+  const failure = counts.sampleFailure;
 
-  if (cardStatSuccess) cardStatSuccess.classList.toggle('active', mode === 'success');
-  if (cardStatFailure) cardStatFailure.classList.toggle('active', mode === 'failure');
-  if (cardStatActual) cardStatActual.classList.toggle('active', mode === 'actual');
+  if (cardStatSuccess) {
+    cardStatSuccess.classList.toggle('active', mode === 'success');
+  }
+  if (cardStatFailure) {
+    cardStatFailure.classList.toggle('active', mode === 'failure');
+  }
+  if (cardStatActual) {
+    cardStatActual.classList.toggle('active', mode === 'actual');
+  }
 
   if (mode === 'actual' && currentSolveData && currentSolveData.actual_hand) {
     const ah = currentSolveData.actual_hand;
     const statusText = ah.succeeded ? 'MAKES' : 'FAILS';
-    const tricksText = ah.ns_tricks !== undefined ? `, ${ah.ns_tricks} tricks won by N/S` : '';
+    const tricksText = ah.ns_tricks !== undefined
+      ? `, ${ah.ns_tricks} tricks won by N/S`
+      : '';
     if (summaryModeBadge) {
       summaryModeBadge.className = 'mode-badge mode-actual';
       summaryModeBadge.textContent = 'Actual Deal (#0)';
@@ -522,13 +578,21 @@ function updateViewMode(mode) {
     }
     if (currentSolveData) {
       const pct = ((success / total) * 100).toFixed(1);
+      const evalPct = ((counts.success / counts.total) * 100).toFixed(1);
       if (summaryModeSub) {
-        summaryModeSub.textContent = `(${success}/${total} boards, ${pct}%)`;
+        summaryModeSub.textContent = counts.hasEval
+          ? `(${success}/${total} traced boards; ${evalPct}% on ` +
+            `${counts.total.toLocaleString()} eval deals)`
+          : `(${success}/${total} boards, ${pct}%)`;
       }
       const sampleList = currentSolveData.sample_hands || [];
+      const actualSuffix = currentSolveData.actual_hand ? ' + Actual #0' : '';
       if (sampleHandsModeSub) {
-        sampleHandsModeSub.textContent =
-          `(${success}/${total} boards, ${pct}% — showing ${sampleList.length}${currentSolveData.actual_hand ? ' + Actual #0' : ''})`;
+        sampleHandsModeSub.textContent = counts.hasEval
+          ? `(${success}/${total} traced boards — showing ` +
+            `${sampleList.length}${actualSuffix})`
+          : `(${success}/${total} boards, ${pct}% — showing ` +
+            `${sampleList.length}${actualSuffix})`;
       }
     }
     if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
@@ -537,7 +601,9 @@ function updateViewMode(mode) {
     if (currentSolveData && currentSolveData.distribution_summary) {
       renderDistributionSummary(currentSolveData.distribution_summary);
     } else {
-      clearDistributionSummary('No distribution summary available for success deals.');
+      clearDistributionSummary(
+        'No distribution summary available for success deals.'
+      );
     }
 
     const handsToShow = [];
@@ -563,13 +629,21 @@ function updateViewMode(mode) {
     }
     if (currentSolveData) {
       const pct = ((failure / total) * 100).toFixed(1);
+      const evalFailPct = ((counts.failure / counts.total) * 100).toFixed(1);
       if (summaryModeSub) {
-        summaryModeSub.textContent = `(${failure}/${total} boards, ${pct}%)`;
+        summaryModeSub.textContent = counts.hasEval
+          ? `(${failure}/${total} traced boards; ${evalFailPct}% on ` +
+            `${counts.total.toLocaleString()} eval deals)`
+          : `(${failure}/${total} boards, ${pct}%)`;
       }
       const failSampleList = currentSolveData.failure_sample_hands || [];
+      const actualSuffix = currentSolveData.actual_hand ? ' + Actual #0' : '';
       if (sampleHandsModeSub) {
-        sampleHandsModeSub.textContent =
-          `(${failure}/${total} boards, ${pct}% — showing ${failSampleList.length}${currentSolveData.actual_hand ? ' + Actual #0' : ''})`;
+        sampleHandsModeSub.textContent = counts.hasEval
+          ? `(${failure}/${total} traced boards — showing ` +
+            `${failSampleList.length}${actualSuffix})`
+          : `(${failure}/${total} boards, ${pct}% — showing ` +
+            `${failSampleList.length}${actualSuffix})`;
       }
     }
     if (summaryModeHeader) summaryModeHeader.classList.remove('hidden');
@@ -2084,14 +2158,25 @@ solveBtn.addEventListener('click', async () => {
       return;
     }
 
-    let timeStr = `${elapsed} ms`;
-    if (typeof data.solve_ms === 'number' && typeof data.invariant_ms === 'number') {
-      timeStr = `solve: ${(data.solve_ms / 1000).toFixed(3)} s, invariant: ${data.invariant_ms.toFixed(1)} ms`;
-    }
+    const timeStr = formatSolveTimingText(data, elapsed);
 
-    const numLines = Array.isArray(data.lines) ? data.lines.length : (data.num_lines || 1);
+    const linesArr = Array.isArray(data.lines) ? data.lines : [];
+    const numLines = linesArr.length > 0
+      ? linesArr.length
+      : (data.num_lines || 1);
+    const allLinesTied = linesArr.length > 1 && linesArr.every(l => {
+      const c0 = l.eval_total_boards
+        ? l.eval_covered_boards
+        : l.covered_boards;
+      const b0 = linesArr[0].eval_total_boards
+        ? linesArr[0].eval_covered_boards
+        : linesArr[0].covered_boards;
+      return c0 === b0;
+    });
     const completeMsg = numLines > 1
-      ? `Solve complete! (${numLines} equivalent lines found)`
+      ? (allLinesTied
+          ? `Solve complete! (${numLines} equivalent lines found)`
+          : `Solve complete! (${numLines} finalist lines evaluated)`)
       : 'Solve complete!';
     setStatus('success', completeMsg, timeStr);
     execTime.textContent = timeStr;
@@ -2117,27 +2202,36 @@ solveBtn.addEventListener('click', async () => {
         numIters: numIters.value,
         curTrick: initCurTrick,
         declarerSeat: currentDeclarerSeat || 'N',
-        actualDeal: activeActualDeal ? Object.assign({}, activeActualDeal) : null
+        actualDeal: activeActualDeal
+          ? Object.assign({}, activeActualDeal)
+          : null
       }
     };
     updateProposeLineBarUI();
 
     // Show summary
     resultsSummary.classList.remove('hidden');
-    statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
+    statTricks.textContent = data.tricks_won !== undefined
+      ? data.tricks_won
+      : '-';
     updateLeadStat(data);
     updateActualStat(data);
 
-    const total = data.total_boards || 1;
-    const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
-    const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
-    const successPct = ((success / total) * 100).toFixed(1);
-    const failurePct = ((failure / total) * 100).toFixed(1);
+    const counts = getHeadlineSolveCounts(data);
+    const successPct = ((counts.success / counts.total) * 100).toFixed(1);
 
-    if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
-    if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+    if (statSuccess) {
+      statSuccess.textContent =
+        formatBoardRatioText(counts.success, counts.total);
+    }
+    if (statFailure) {
+      statFailure.textContent =
+        formatBoardRatioText(counts.failure, counts.total);
+    }
     if (traceHandInput) {
-      traceHandInput.placeholder = data.actual_hand ? `0..${total}` : `1..${total}`;
+      traceHandInput.placeholder = data.actual_hand
+        ? `0..${counts.sampleTotal}`
+        : `1..${counts.sampleTotal}`;
     }
 
     const solveAttrs = {
@@ -2407,20 +2501,26 @@ if (resetLineBtn) {
     updateLeadStat(data);
     updateActualStat(data);
 
-    const total = data.total_boards || 1;
-    const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
-    const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
-    const successPct = ((success / total) * 100).toFixed(1);
-    const failurePct = ((failure / total) * 100).toFixed(1);
-
-    if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
-    if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+    const counts = getHeadlineSolveCounts(data);
+    if (statSuccess) {
+      statSuccess.textContent = formatBoardRatioText(
+        counts.success,
+        counts.total
+      );
+    }
+    if (statFailure) {
+      statFailure.textContent = formatBoardRatioText(
+        counts.failure,
+        counts.total
+      );
+    }
     if (traceHandInput) {
       const maxHand = Math.max(
-        total,
+        counts.sampleTotal,
         Array.isArray(data.all_hands) ? data.all_hands.length : 0
       );
-      traceHandInput.placeholder = data.actual_hand ? `0..${maxHand}` : `1..${maxHand}`;
+      const minIdx = data.actual_hand ? 0 : 1;
+      traceHandInput.placeholder = `${minIdx}..${maxHand}`;
     }
 
     setStatus('success', 'Restored original solved line.');
@@ -2793,14 +2893,11 @@ if (computeNewLineBtn) {
         return;
       }
 
-      let timeStr = `${elapsed} ms`;
-      if (typeof data.solve_ms === 'number' && typeof data.invariant_ms === 'number') {
-        timeStr = `solve: ${(data.solve_ms / 1000).toFixed(3)} s, invariant: ${data.invariant_ms.toFixed(1)} ms`;
-      }
-
-      const total = data.total_boards || 1;
-      const success = data.success_boards !== undefined ? data.success_boards : (data.covered_boards || 0);
-      const failure = data.failure_boards !== undefined ? data.failure_boards : Math.max(0, total - success);
+      const timeStr = formatSolveTimingText(data, elapsed);
+      const counts = getHeadlineSolveCounts(data);
+      const total = counts.sampleTotal;
+      const success = counts.sampleSuccess;
+      const failure = counts.sampleFailure;
 
       if (prefixTricksToSplice.length > 0) {
         data.tree = splicePrefixTricksOntoTree(
@@ -2828,7 +2925,9 @@ if (computeNewLineBtn) {
         if (originalSolveSnapshot && originalSolveSnapshot.inputs) {
           data.leader = originalSolveSnapshot.inputs.leader;
         }
-        if (originalSolveSnapshot && originalSolveSnapshot.data && originalSolveSnapshot.data.best_lead) {
+        if (originalSolveSnapshot &&
+            originalSolveSnapshot.data &&
+            originalSolveSnapshot.data.best_lead) {
           data.best_lead = originalSolveSnapshot.data.best_lead;
         }
       }
@@ -2839,15 +2938,21 @@ if (computeNewLineBtn) {
         Array.isArray(originalSolveSnapshot.inputs.curTrick) &&
         originalSolveSnapshot.inputs.curTrick.length > 0
       );
-      data.is_forced_lead = origForcedLead || (ctx.trickNum === 1 && proposedCards.length > 0);
+      data.is_forced_lead =
+        origForcedLead || (ctx.trickNum === 1 && proposedCards.length > 0);
       data.declarer_seat =
-        (originalSolveSnapshot && originalSolveSnapshot.inputs && originalSolveSnapshot.inputs.declarerSeat) ||
+        (originalSolveSnapshot &&
+          originalSolveSnapshot.inputs &&
+          originalSolveSnapshot.inputs.declarerSeat) ||
         (currentSolveData && currentSolveData.declarer_seat) ||
         currentDeclarerSeat ||
         'N';
 
       const altNumber = proposedAltLines.length + 1;
-      const altDescriptor = formatProposedCardsDescriptor(proposedCards, ctx.trickNum);
+      const altDescriptor = formatProposedCardsDescriptor(
+        proposedCards,
+        ctx.trickNum
+      );
       const altLabel = `Alt line ${altNumber}: ${altDescriptor}`;
       proposedAltLines.push({
         label: altLabel,
@@ -2864,7 +2969,8 @@ if (computeNewLineBtn) {
           total,
           Array.isArray(data.all_hands) ? data.all_hands.length : 0
         );
-        traceHandInput.placeholder = data.actual_hand ? `0..${maxHand}` : `1..${maxHand}`;
+        const minIdx = data.actual_hand ? 0 : 1;
+        traceHandInput.placeholder = `${minIdx}..${maxHand}`;
       }
       updateProposeLineBarUI();
       const allEntries = buildSelectableLinesList();
@@ -2875,14 +2981,26 @@ if (computeNewLineBtn) {
       execTime.textContent = timeStr;
 
       resultsSummary.classList.remove('hidden');
-      statTricks.textContent = data.tricks_won !== undefined ? data.tricks_won : '-';
+      statTricks.textContent =
+        data.tricks_won !== undefined ? data.tricks_won : '-';
       updateLeadStat(data);
       updateActualStat(data);
 
-      const successPct = ((success / total) * 100).toFixed(1);
-      const failurePct = ((failure / total) * 100).toFixed(1);
-      if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
-      if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+      const successPct = (
+        (counts.success / Math.max(1, counts.total)) * 100
+      ).toFixed(1);
+      if (statSuccess) {
+        statSuccess.textContent = formatBoardRatioText(
+          counts.success,
+          counts.total
+        );
+      }
+      if (statFailure) {
+        statFailure.textContent = formatBoardRatioText(
+          counts.failure,
+          counts.total
+        );
+      }
 
       const propSolveAttrs = {
         solve_kind: 'proposed_line',

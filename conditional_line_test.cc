@@ -1,8 +1,12 @@
 #include <iostream>
+#include <random>
 #include <gtest/gtest.h>
 
-#include "golden_serializer.h"
 #include "conditional_line.h"
+#include "deal.h"
+#include "golden_serializer.h"
+#include "interface_dds.h"
+#include "line_finder.h"
 
 static std::string FormatGroupedTricks(
     const std::vector<std::vector<GeneralizedTrick>> &grouped_tricks) {
@@ -1451,3 +1455,87 @@ TEST(ConditionalLineTest,
     EXPECT_EQ(trace.node_tricks[0].second.rfind("C6 CQ CJ ", 0), 0u);
   }
 }
+
+TEST(ConditionalLineTest,
+     EvaluateBoardAdversarialFastMatchesReferenceAndOneTrickEndings) {
+  // 1. Verify IsDealMakeable handles 1-trick endings in C++ across 0..3 cards
+  // already played in cur_trick (avoiding DDS's cardCount <= 4 SOLVER_DONE).
+  {
+    BoardState bs = MakeBoardState(
+        {ParseHand("S Q"), ParseHand("S A"),
+         ParseHand("S 2"), ParseHand("S K")},
+        2, NOTRUMP);
+    bool called_dds = true;
+    EXPECT_FALSE(IsDealMakeable(bs, 1, &called_dds));
+    EXPECT_FALSE(called_dds);
+    EXPECT_TRUE(IsDealMakeable(bs, 0, &called_dds));
+
+    bs.PlayCard(bs.CurPlayer(), Card::ParseStringCard("S2"));
+    EXPECT_FALSE(IsDealMakeable(bs, 1, &called_dds));
+    bs.PlayCard(bs.CurPlayer(), Card::ParseStringCard("SK"));
+    EXPECT_FALSE(IsDealMakeable(bs, 1, &called_dds));
+    bs.PlayCard(bs.CurPlayer(), Card::ParseStringCard("SQ"));
+    EXPECT_FALSE(IsDealMakeable(bs, 1, &called_dds));
+
+    BoardState bs_win = MakeBoardState(
+        {ParseHand("S A"), ParseHand("S Q"),
+         ParseHand("S 2"), ParseHand("S K")},
+        2, NOTRUMP);
+    EXPECT_TRUE(IsDealMakeable(bs_win, 1, &called_dds));
+    bs_win.PlayCard(bs_win.CurPlayer(), Card::ParseStringCard("S2"));
+    EXPECT_TRUE(IsDealMakeable(bs_win, 1, &called_dds));
+    bs_win.PlayCard(bs_win.CurPlayer(), Card::ParseStringCard("SK"));
+    EXPECT_TRUE(IsDealMakeable(bs_win, 1, &called_dds));
+    bs_win.PlayCard(bs_win.CurPlayer(), Card::ParseStringCard("SA"));
+    EXPECT_TRUE(IsDealMakeable(bs_win, 1, &called_dds));
+  }
+
+  // 2. Verify EvaluateBoardAdversarialFast (with shared per-deal
+  // DefenderEvalCache + DDS mode=2 TT reuse) agrees board-for-board with
+  // ResultsOnHandAdversarial across 250 out-of-sample deals and multiple
+  // finalist lines.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S 532; H T7; D T32; C 6;"),
+        0,
+        ParseHand("S K9; H -; D A854; C AKJ;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+
+    srand48(11);
+    LineFinder lf(60);
+    lf.SetMaxFinalistLines(4);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(6, hands, unknown, /*leader=*/0, HEARTS, {}, /*threads=*/2);
+    ASSERT_GE(lines.size(), 2u);
+
+    std::mt19937_64 rng(20261030ULL);
+    for (int d = 0; d < 250; ++d) {
+      auto [e_hand, w_hand] = FastDealTwoHands(unknown, 9, rng);
+      BoardState bs;
+      bs.SetHands({hands[0], e_hand, hands[2], w_hand});
+      bs.set_board_id(static_cast<uint32_t>(100000 + d));
+      bs.SetTrump(HEARTS);
+      bs.SetLead(0);
+      bs.MarkMissingCardsAsPlayed();
+
+      bool called_dds = false;
+      bool makeable = IsDealMakeable(bs, 6, &called_dds, false);
+      ConditionalLine::DefenderEvalCache eval_cache;
+      eval_cache.tt_initialized = called_dds;
+      for (size_t i = 0; i < lines.size(); ++i) {
+        bool fast_ok =
+            makeable &&
+            lines[i].EvaluateBoardAdversarialFast(bs, 6, &eval_cache);
+        ConditionalLine::RescoreBoardTrace ref_trace;
+        int ref_tricks =
+            lines[i].ResultsOnHandAdversarial(bs, nullptr, &ref_trace);
+        bool ref_ok = (ref_tricks >= 6 && ref_trace.leaf != nullptr);
+        ASSERT_EQ(fast_ok, ref_ok)
+            << "Mismatch on deal " << d << ", finalist " << i;
+      }
+    }
+  }
+}
+
