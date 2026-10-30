@@ -2036,13 +2036,14 @@ const ConditionalLine *MatchWinnerContinuation(
 }
 
 ConditionalLine::DefenderStateKey MakeDefenderStateKey(const BoardState &bs) {
+  uint64_t played = bs.played_cards();
   uint64_t cur_bits =
       (static_cast<uint64_t>(bs.cur_trick_leader() & 3) << 13) |
       (static_cast<uint64_t>(bs.CardsPlayedThisTrick() & 3) << 29);
   for (int i = 0; i < bs.CardsPlayedThisTrick(); ++i) {
     cur_bits |= bs.trick_cards_played()[i];
   }
-  return {bs.played_cards(), cur_bits};
+  return {played, cur_bits, bs.GetHand(1) & ~played, bs.GetHand(3) & ~played};
 }
 
 bool IsSingleCandidateCompatibleAtLead(const BoardState &bs,
@@ -2905,7 +2906,7 @@ void ConditionalLine::ApplyUnmakeableBoardCounts(
   }
 }
 
-void ConditionalLine::DeepCloneChildren() {
+void ConditionalLine::DeepCloneChildren(bool is_root) {
   std::vector<ConditionalLine *> action_children;
   for (auto &[cond, child] : conditions_) {
     if (child) {
@@ -2913,7 +2914,7 @@ void ConditionalLine::DeepCloneChildren() {
       if (!child->do_first_.Empty()) {
         action_children.push_back(child.get());
       }
-      child->DeepCloneChildren();
+      child->DeepCloneChildren(/*is_root=*/false);
     }
   }
   if (action_children.size() > 1 &&
@@ -2925,14 +2926,50 @@ void ConditionalLine::DeepCloneChildren() {
         break;
       }
     }
+    bool can_relax_specific_tj =
+        !is_root && action_children.size() == conditions_.size();
     bool updated_cond_str = false;
-    for (size_t k = 0; has_wildcard_lead && k < action_children.size(); ++k) {
+    for (size_t k = 0;
+         (has_wildcard_lead || can_relax_specific_tj) &&
+         k < action_children.size();
+         ++k) {
       ConditionalLine *ck = action_children[k];
       GeneralizedTrick &gt_k = ck->do_first_;
       const std::string &opp1_k = gt_k.demi1.opp_card;
       if (opp1_k.size() < 2 || opp1_k[0] == '_' || opp1_k[0] == 'R' ||
           opp1_k[1] == '_') {
         continue;
+      }
+      if (!has_wildcard_lead) {
+        const std::string &my1_k = gt_k.demi1.my_card;
+        const std::string &my2_k = gt_k.demi2.my_card;
+        if (opp1_k.size() != 2 || (opp1_k[1] != 'T' && opp1_k[1] != 'J')) {
+          continue;
+        }
+        bool sound_cover = false;
+        if (my1_k.size() == 2 && my1_k[0] == opp1_k[0]) {
+          int opp_rv = Card::DecodeCard(Card::ParseStringCard(opp1_k)).second;
+          int my1_rv = Card::DecodeCard(Card::ParseStringCard(my1_k)).second;
+          sound_cover = (my1_rv > opp_rv);
+          if (sound_cover && my2_k.size() == 2 && my2_k[0] == opp1_k[0]) {
+            int my2_rv = Card::DecodeCard(Card::ParseStringCard(my2_k)).second;
+            if (my2_rv >= 8 && my2_rv < opp_rv) {
+              sound_cover = false;
+            }
+          }
+        }
+        bool sound_ruff = !gt_k.board_entries.empty();
+        for (const auto &e : gt_k.board_entries) {
+          if (e.winner % 2 != 0 || e.win_card[0] == '\0' ||
+              e.win_card[0] == opp1_k[0] ||
+              (my1_k != e.win_card && my2_k != e.win_card)) {
+            sound_ruff = false;
+            break;
+          }
+        }
+        if (!sound_cover && !sound_ruff) {
+          continue;
+        }
       }
       bool another_same_suit = false;
       for (size_t m = 0; m < action_children.size(); ++m) {

@@ -17,13 +17,13 @@ Example Play (Board 4):
   #4 (N) SA* S8 S2 S9
   #5 (N) S3 ST SK* SQ
   #6 (S) HK* SJ S4 HQ
-Example Failed Play (Board 0):
+Example Failed Play (Board 2):
   #1 (N) DQ* H9 D2 H8
-  #2 (N) DK* HQ D3 HJ
-  #3 (N) DA* S7 D4 HT
-  #4 (N) SA* S9 S2 S8
-  #5 (N) S3 SJ SK* ST
-  #6 (S) HK SQ S4 HA*
+  #2 (N) DK* HJ D3 HT
+  #3 (N) DA* HQ D4 S7
+  #4 (N) SA* SQ S2 S8
+  #5 (N) S3 ST SK* S9
+  #6 (S) HK HA* S4 SJ
 
   after DQ (__) D2 (__): DQ (__) D2 (__) [4,5,14,19,21,27,35,45,47,49,53] / DQ H8 D2 S7 / DQ H8 D2 S7 / DQ HT D2 S8 / DQ S7 D2 H9 / DQ H8 D2 SJ
     when 0 wins the DQ: 
