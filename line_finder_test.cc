@@ -1605,3 +1605,70 @@ TEST(LineFinderTest, LineFinder_DistinctFinalistSetEquivalenceAndRanking) {
     }
   }
 }
+
+TEST(LineFinderTest, LineFinder_SpineDeviationFindsTrick3FinalistLines) {
+  // 11-card ending in Clubs (Goal = 11 tricks, zero losers allowed; West leads
+  // C5, cur_trick = {C5, CA, C8}):
+  // - Trick 1 (lvl = 0): South must play C9 under North's CA.
+  // - Trick 2 (lvl = 1): Cashing SA/HA/DA from North (AQT) drops West's J from
+  //   KJ doubleton and leaves K over QT, so North must cross C7 -> CK.
+  // - Trick 3 (lvl = 2): South chooses S2 (boards 0..5), H2 (boards 6..11), or
+  //   D2 (boards 12..16). Phase 1 caps TopKForLevel(2) at 2; Phase 2
+  //   (ExploreSpineDeviations) expands Trick 3 with spine_root = true and
+  //   surfaces all 3 disjoint finalist lines (6, 6, and 5 boards).
+  std::vector<uint64_t> hands = {
+      ParseHand("S AQT; H AQT; D AQT; C A7;"),
+      ParseHand("C 8;"),
+      ParseHand("S 32; H 32; D 32; C KQJT9;"),
+      ParseHand("C 5;"),
+  };
+  uint64_t unknown = ParseHand("S KJ9876; H KJ9876; D KJ9876; C 64;");
+  std::vector<CardType> cur_trick = {
+      Card::ParseStringCard("C5"),
+      Card::ParseStringCard("CA"),
+      Card::ParseStringCard("C8"),
+  };
+
+  std::vector<BoardState> boards(17);
+  auto set_board = [&](int idx, const char *east_str, const char *west_str) {
+    std::vector<uint64_t> h = {
+        hands[0],
+        ParseHand(east_str),
+        hands[2],
+        ParseHand(west_str),
+    };
+    boards[idx].SetHands(h);
+    boards[idx].SetTrump(CLUBS);
+    boards[idx].SetLead(3);
+    boards[idx].set_board_id(idx + 1);
+  };
+  for (int i = 0; i < 6; ++i) {
+    set_board(i, "C 86; S 9876; H KJ9; D KJ;", "C 54; S KJ; H 876; D 9876;");
+  }
+  for (int i = 6; i < 12; ++i) {
+    set_board(i, "C 86; H 9876; D KJ9; S KJ;", "C 54; H KJ; D 876; S 9876;");
+  }
+  for (int i = 12; i < 17; ++i) {
+    set_board(i, "C 86; D 9876; S KJ9; H KJ;", "C 54; D KJ; S 876; H 9876;");
+  }
+
+  LineFinder lf(17);
+  lf.SetPredealtBoards(boards);
+  lf.SetMaxFinalistLines(3);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(11, hands, unknown, /*leader=*/3, CLUBS, cur_trick,
+               /*num_threads=*/2);
+  ASSERT_EQ(lines.size(), 3u);
+  EXPECT_EQ(lines[0].CoveredFinalBoards(), 6);
+  EXPECT_EQ(lines[1].CoveredFinalBoards(), 6);
+  EXPECT_EQ(lines[2].CoveredFinalBoards(), 5);
+
+  std::set<int> union_covered;
+  for (const ConditionalLine &line : lines) {
+    std::set<int> cov = line.CoveredBoardsSet();
+    for (int b : cov) {
+      EXPECT_TRUE(union_covered.insert(b).second);
+    }
+  }
+  EXPECT_EQ(union_covered.size(), 17u);
+}
