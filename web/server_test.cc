@@ -2130,6 +2130,54 @@ assert(sandbox.parseDealCountInput("25,000", 10000) === 25000,
        "parseDealCountInput handles comma-formatted 25,000");
 assert(sandbox.parseDealCountInput("0", 10000) === 0,
        "parseDealCountInput preserves explicit 0");
+assert(getEl("compareLinesHint").textContent === "3 of 3 selected",
+       "Compare Lines auto-selects all 3 distinct finalists: " +
+       getEl("compareLinesHint").textContent);
+assert(getEl("compareLinesResults").children.length === 3,
+       "Compare Lines renders all 3 pairwise comparisons");
+
+// Distinct covered-board sets that happen to tie on sample count without eval
+// are still labeled Finalist Lines rather than Equivalent Lines.
+const tiedSampleDistinct = {
+  success: true,
+  tricks_won: 6,
+  total_boards: 100,
+  covered_boards: 75,
+  success_boards: 75,
+  failure_boards: 25,
+  best_lead: "HT",
+  tree: { id: 0, label: "Root A", children: [] },
+  lines: [
+    {
+      index: 0,
+      label: "Line 1",
+      best_lead: "HT",
+      covered_boards: 75,
+      covered_board_ids: [0, 1, 2, 3, 4],
+      tree: { id: 0, label: "Root A", children: [] }
+    },
+    {
+      index: 1,
+      label: "Line 2",
+      best_lead: "C6",
+      covered_boards: 75,
+      covered_board_ids: [0, 1, 2, 5, 6],
+      tree: { id: 0, label: "Root B", children: [] }
+    }
+  ]
+};
+vm.runInContext(
+  "selectedCompareLineIndices.clear(); " +
+  "currentSolveData = " + JSON.stringify(tiedSampleDistinct) + "; " +
+  "originalSolveSnapshot = { inputs: {}, data: " +
+  JSON.stringify(tiedSampleDistinct) + " }; " +
+  "proposedAltLines = [];",
+  sandbox
+);
+sandbox.populateEquivalentLinesControls(tiedSampleDistinct, 0);
+assert(getEl("equivalentLinesBadge").textContent === "2 Finalist Lines",
+       "Tied count on distinct covered sets shows Finalist Lines badge: " +
+       getEl("equivalentLinesBadge").textContent);
 ' )NODE";
     EXPECT_EQ(std::system(cmd.c_str()), 0);
   }
@@ -2146,39 +2194,47 @@ TEST(ServerTest, SolveJsonFinalistOutOfSampleEval) {
       {"trump", "HEARTS"},
       {"leader", "NORTH"},
       {"min_tricks", 6},
-      {"num_iters", 50},
-      {"num_threads", 2},
-      {"max_finalists", 4},
-      {"eval_iters", 400},
+      {"num_iters", 100},
+      {"num_threads", 4},
+      {"eval_iters", 500},
       {"eval_seed", 987654321}};
 
   WebServer ws;
   std::string body = ws.SolveJson(req.dump());
   nlohmann::json res = nlohmann::json::parse(body);
   ASSERT_TRUE(res["success"].get<bool>()) << body;
-  EXPECT_EQ(res["total_boards"].get<int>(), 50);
+  EXPECT_EQ(res["total_boards"].get<int>(), 100);
   ASSERT_TRUE(res.contains("eval_total_boards")) << body;
-  EXPECT_EQ(res["eval_total_boards"].get<int>(), 400);
+  EXPECT_EQ(res["eval_total_boards"].get<int>(), 500);
   ASSERT_TRUE(res.contains("eval_success_boards"));
   ASSERT_TRUE(res.contains("eval_failure_boards"));
   EXPECT_EQ(res["eval_success_boards"].get<int>() +
                 res["eval_failure_boards"].get<int>(),
-            400);
+            500);
   ASSERT_TRUE(res.contains("eval_ms"));
   EXPECT_GE(res["eval_ms"].get<double>(), 0.0);
 
   ASSERT_TRUE(res.contains("lines"));
   ASSERT_GE(res["lines"].size(), 2u);
+  EXPECT_LE(res["lines"].size(), 3u);
   EXPECT_EQ(res["lines"][0]["eval_covered_boards"].get<int>(),
             res["eval_success_boards"].get<int>());
+  std::vector<std::set<int>> cov_sets(res["lines"].size());
   for (size_t i = 0; i < res["lines"].size(); ++i) {
-    EXPECT_EQ(res["lines"][i]["eval_total_boards"].get<int>(), 400);
+    EXPECT_EQ(res["lines"][i]["eval_total_boards"].get<int>(), 500);
+    for (int bid : res["lines"][i]["covered_board_ids"]) {
+      cov_sets[i].insert(bid);
+    }
     if (i > 0) {
       EXPECT_LE(res["lines"][i]["eval_covered_boards"].get<int>(),
                 res["lines"][i - 1]["eval_covered_boards"].get<int>());
     }
+    for (size_t j = 0; j < i; ++j) {
+      std::vector<int> sym_diff;
+      std::set_symmetric_difference(cov_sets[i].begin(), cov_sets[i].end(),
+                                    cov_sets[j].begin(), cov_sets[j].end(),
+                                    std::back_inserter(sym_diff));
+      EXPECT_GT(sym_diff.size(), 1u);
+    }
   }
 }
-
-
-

@@ -2003,13 +2003,20 @@ std::string WebServer::SolveJson(const std::string &req_body,
 
       bool can_multi_finalist =
           replay_tricks.empty() && branch_board_ids.empty();
-      int max_finalists = can_multi_finalist ? 4 : 1;
+      int max_finalists = can_multi_finalist ? 3 : 1;
       if (req_json.contains("max_finalists") &&
           req_json["max_finalists"].is_number_integer()) {
         max_finalists =
             std::clamp(req_json["max_finalists"].get<int>(), 1, 16);
       }
       lf->SetMaxFinalistLines(max_finalists);
+      double equiv_diff_pct = 0.01;
+      if (req_json.contains("equiv_diff_pct") &&
+          req_json["equiv_diff_pct"].is_number()) {
+        equiv_diff_pct =
+            std::clamp(req_json["equiv_diff_pct"].get<double>(), 0.0, 0.5);
+      }
+      lf->SetFinalistEquivDiffPct(equiv_diff_pct);
 
       int eval_iters = 0;
       double eval_max_ms = 0.0;

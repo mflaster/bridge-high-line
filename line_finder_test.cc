@@ -1533,3 +1533,75 @@ TEST(LineFinderTest, LineFinder_FinalistOutOfSampleEvalDeterministicAndHand15) {
   }
 }
 
+TEST(LineFinderTest, LineFinder_DistinctFinalistSetEquivalenceAndRanking) {
+  // 1. Trivial card-order transpositions (<= 1% covered-board set difference)
+  // collapse to a single finalist line on Safety Play (100 deals).
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S A43; H A54; D 432; C -;"),
+        0,
+        ParseHand("S 2; H 32; D AK8765; C -;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S KQJT987 H KQJT987 D QJT9");
+
+    srand48(42);
+    LineFinder lf(100);
+    lf.SetMaxFinalistLines(3);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(7, hands, unknown, /*leader=*/0, NOTRUMP, {}, /*threads=*/4);
+    ASSERT_EQ(lines.size(), 1u);
+
+    std::set<int> expected_set = lines[0].CoveredBoardsSet();
+    std::vector<uint64_t> mask;
+    lines[0].FillCoveredBoardsBitmask(&mask);
+    std::set<int> mask_set;
+    for (size_t w = 0; w < mask.size(); ++w) {
+      for (unsigned bit = 0; bit < 64; ++bit) {
+        if ((mask[w] & (1ULL << bit)) != 0) {
+          mask_set.insert(static_cast<int>((w << 6) | bit));
+        }
+      }
+    }
+    EXPECT_EQ(mask_set, expected_set);
+  }
+
+  // 2. Non-trivially different lines (> 1% covered-board set difference) are
+  // retained up to max_finalists = 3 and ranked by out-of-sample test deals.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S 532; H T7; D T32; C 6;"),
+        0,
+        ParseHand("S K9; H -; D A854; C AKJ;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S AJTQ64 D KQJ976 C T43Q98");
+
+    srand48(42);
+    LineFinder lf(100);
+    lf.SetMaxFinalistLines(3);
+    lf.SetFinalistEvalDeals(1000);
+    lf.SetFinalistEvalSeed(12345ULL);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(6, hands, unknown, /*leader=*/0, HEARTS, {}, /*threads=*/4);
+    ASSERT_GE(lines.size(), 2u);
+    EXPECT_LE(lines.size(), 3u);
+
+    std::vector<std::set<int>> cov_sets(lines.size());
+    for (size_t i = 0; i < lines.size(); ++i) {
+      cov_sets[i] = lines[i].CoveredBoardsSet();
+      EXPECT_EQ(lines[i].eval_total_boards(), 1000);
+      if (i > 0) {
+        EXPECT_LE(lines[i].eval_covered_boards(),
+                  lines[i - 1].eval_covered_boards());
+      }
+      for (size_t j = 0; j < i; ++j) {
+        std::vector<int> sym_diff;
+        std::set_symmetric_difference(cov_sets[i].begin(), cov_sets[i].end(),
+                                      cov_sets[j].begin(), cov_sets[j].end(),
+                                      std::back_inserter(sym_diff));
+        EXPECT_GT(sym_diff.size(), 1u);
+      }
+    }
+  }
+}
