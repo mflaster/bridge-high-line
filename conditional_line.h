@@ -437,6 +437,10 @@ class ConditionalLine {  // ConditionalLineBranch
   // Recursively gathers set of distinct final boards covered across all leaf subtrees, avoiding cycles.
   std::set<int> CoveredFinalBoardsSet(std::set<const ConditionalLine*> visited = {}) const;
 
+  // Populates `mask` with bits set for every non-negative board ID covered by
+  // terminal leaves under this node, avoiding heap-heavy std::set allocations.
+  void FillCoveredBoardsBitmask(std::vector<uint64_t> *mask) const;
+
   // Returns, for each covered board, the cards declarer's side plays along
   // this line, trick by trick. Two lines with equal signatures prescribe the
   // same plays on every covered board and differ only in how the tree happens

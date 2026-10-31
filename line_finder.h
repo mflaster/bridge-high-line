@@ -147,6 +147,11 @@ class LineFinder {
   }
   int max_finalist_lines() const { return max_finalist_lines_; }
 
+  void SetFinalistEquivDiffPct(double pct) {
+    finalist_equiv_diff_pct_ = std::max(0.0, std::min(1.0, pct));
+  }
+  double finalist_equiv_diff_pct() const { return finalist_equiv_diff_pct_; }
+
   void SetFinalistEvalDeals(int n) { finalist_eval_deals_ = std::max(0, n); }
   int finalist_eval_deals() const { return finalist_eval_deals_; }
 
@@ -316,6 +321,7 @@ class LineFinder {
   int top_k_lines_ = 20;
   int top_k_lvl1_ = 4;
   int max_finalist_lines_ = 1;
+  double finalist_equiv_diff_pct_ = 0.01;
   int finalist_eval_deals_ = 0;
   double finalist_eval_max_ms_ = 0.0;
   uint64_t finalist_eval_seed_ = 0;

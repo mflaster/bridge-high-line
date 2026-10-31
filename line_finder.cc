@@ -1310,50 +1310,71 @@ uint64_t MixEvalSeed64(uint64_t z) {
   return z ^ (z >> 31);
 }
 
+size_t BitmaskSymDiffCount(const std::vector<uint64_t> &a,
+                           const std::vector<uint64_t> &b) {
+  size_t n = std::max(a.size(), b.size());
+  size_t diff = 0;
+  for (size_t i = 0; i < n; ++i) {
+    uint64_t wa = (i < a.size()) ? a[i] : 0ULL;
+    uint64_t wb = (i < b.size()) ? b[i] : 0ULL;
+    diff += static_cast<size_t>(PopCount64(wa ^ wb));
+  }
+  return diff;
+}
+
+size_t BitmaskMinusCount(const std::vector<uint64_t> &a,
+                         const std::vector<uint64_t> &b) {
+  size_t count = 0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    uint64_t wb = (i < b.size()) ? b[i] : 0ULL;
+    count += static_cast<size_t>(PopCount64(a[i] & ~wb));
+  }
+  return count;
+}
+
 void SelectDistinctFinalistLines(std::vector<ConditionalLine> *lines,
                                  int max_finalists, int active_total,
-                                 bool declarer_on_lead) {
+                                 double equiv_diff_pct) {
   if (lines->empty() || max_finalists <= 0) return;
   int best_cov = (*lines)[0].CoveredFinalBoards();
   int margin = std::max(
-      3, static_cast<int>(
-             std::ceil(1.8 * std::sqrt(std::max(1, active_total) * 0.25))));
+      4, static_cast<int>(
+             std::ceil(2.8 * std::sqrt(std::max(1, active_total) * 0.25))));
   int min_cov = (best_cov > 0) ? std::max(1, best_cov - margin) : 0;
+  size_t max_equiv_diff = static_cast<size_t>(
+      std::floor(std::max(0.0, equiv_diff_pct) * std::max(0, active_total) +
+                 1e-9));
 
   std::vector<ConditionalLine> kept;
-  std::vector<std::map<int, std::string>> kept_sigs;
-  std::vector<std::set<int>> kept_sets;
-  std::vector<Trick1CardPair> kept_t1s;
+  std::vector<std::vector<uint64_t>> kept_masks;
+  std::vector<int> kept_covs;
+  std::vector<uint64_t> cand_mask;
 
   for (ConditionalLine &cand : *lines) {
     int cov = cand.CoveredFinalBoards();
     if (cov < min_cov) {
       break;
     }
-    std::map<int, std::string> sig = cand.DeclarerPlaySignature();
-    if (std::find(kept_sigs.begin(), kept_sigs.end(), sig) != kept_sigs.end()) {
-      continue;
-    }
-    std::set<int> cov_set = cand.CoveredBoardsSet();
-    Trick1CardPair t1 = GetPrimaryTrick1Play(cand);
-    bool dominated = false;
+    cand.FillCoveredBoardsBitmask(&cand_mask);
+    bool redundant = false;
     for (size_t k = 0; k < kept.size(); ++k) {
-      bool same_t1 = (!t1.first.empty() || !t1.second.empty()) &&
-                     (t1 == kept_t1s[k]);
-      bool is_subset = std::includes(kept_sets[k].begin(), kept_sets[k].end(),
-                                     cov_set.begin(), cov_set.end());
-      if (is_subset &&
-          (same_t1 || (!declarer_on_lead && cov < best_cov))) {
-        dominated = true;
+      size_t sym_diff = BitmaskSymDiffCount(cand_mask, kept_masks[k]);
+      if (sym_diff <= max_equiv_diff) {
+        redundant = true;
+        break;
+      }
+      size_t new_boards = BitmaskMinusCount(cand_mask, kept_masks[k]);
+      if (new_boards == 0 ||
+          (cov < kept_covs[k] && new_boards <= max_equiv_diff)) {
+        redundant = true;
         break;
       }
     }
-    if (dominated) {
+    if (redundant) {
       continue;
     }
-    kept_sigs.push_back(std::move(sig));
-    kept_sets.push_back(std::move(cov_set));
-    kept_t1s.push_back(std::move(t1));
+    kept_masks.push_back(cand_mask);
+    kept_covs.push_back(cov);
     kept.push_back(std::move(cand));
     if (static_cast<int>(kept.size()) >= max_finalists) {
       break;
@@ -1805,7 +1826,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
       (adversarial_rescore_ || top_k_lines_ > 1)) {
     if (max_finalist_lines_ > 1) {
       SelectDistinctFinalistLines(&ans, max_finalist_lines_, active_total,
-                                  leader % 2 == 0);
+                                  finalist_equiv_diff_pct_);
     } else {
       int best_cov = ans[0].CoveredFinalBoards();
       size_t keep_n = 1;
@@ -2053,11 +2074,17 @@ std::vector<ConditionalLine> AssembleBranchLines(
   }
   std::vector<size_t> min_picks(branches.size(), 0);
   size_t diff_branches = 0;
+  std::vector<uint64_t> base_mask;
+  std::vector<uint64_t> alt_mask;
   for (size_t idx = 0; idx < branches.size(); ++idx) {
     if (branches[idx].empty()) continue;
     size_t base_fc = FalsecardableSplits(*branches[idx][0]);
     size_t base_nseb = NonStateExtraBranches(*branches[idx][0]);
     bool base_trump = LeadsTrumpInitially(*branches[idx][0], trump_suit);
+    if (allow_clean_finalist_alts && lvl == 1 && base_fc == 0 &&
+        branches[idx].size() > 1) {
+      branches[idx][0]->FillCoveredBoardsBitmask(&base_mask);
+    }
     auto min_key = std::make_pair(base_fc, base_nseb);
     for (size_t alt = 1; alt < branches[idx].size(); ++alt) {
       size_t fc = FalsecardableSplits(*branches[idx][alt]);
@@ -2073,6 +2100,13 @@ std::vector<ConditionalLine> AssembleBranchLines(
       bool clean_finalist_alt =
           (allow_clean_finalist_alts && lvl <= 3 && base_fc == 0 && fc == 0 &&
            nseb <= base_nseb && out.size() < 4);
+      if (!clean_finalist_alt && allow_clean_finalist_alts && lvl == 1 &&
+          base_fc == 0 && fc == 0 && out.size() < 4) {
+        branches[idx][alt]->FillCoveredBoardsBitmask(&alt_mask);
+        if (BitmaskMinusCount(alt_mask, base_mask) > 0) {
+          clean_finalist_alt = true;
+        }
+      }
       if (lvl > 0 && !novel_trump_alt && !clean_finalist_alt &&
           (drops_clean_trump ||
            (base_fc > 0 && fc >= base_fc) ||
@@ -2553,7 +2587,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       (top_k <= 1 || top_k_lvl1_ <= 1 || board_offsets.size() < 4)
           ? 1
           : ((lvl == 0 && groupings.size() == 1)
-                 ? std::min(top_k, top_k_lvl1_)
+                 ? std::min(top_k, TopKForLevel(1, board_offsets.size()))
                  : std::min(top_k, TopKForLevel(lvl, board_offsets.size())));
   struct TopCandidate {
     int covered = 0;
@@ -2567,6 +2601,7 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     bool own_fc = false;
     bool leads_trump = false;
     std::map<int, std::string> sig;
+    std::vector<uint64_t> cov_mask;
     ConditionalLine line;
   };
   std::vector<TopCandidate> top_candidates;
@@ -2607,6 +2642,14 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       int slack = (!cand_has_fc && all_cands_falsecardable())
                       ? std::max(2, ref_cov / 4)
                       : std::max(2, ref_cov / 6);
+      if (lvl == 0 && max_finalist_lines_ > 1 && !cand_has_fc) {
+        int finalist_slack = std::max(
+            4, static_cast<int>(std::ceil(
+                   2.8 * std::sqrt(
+                             std::max<size_t>(1, board_offsets.size()) *
+                             0.25))));
+        slack = std::max(slack, finalist_slack);
+      }
       return std::max(1, ref_cov - slack);
     }
     return std::max(1, min_covered);
@@ -2769,6 +2812,10 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     std::map<int, std::string> sig =
         (top_k > 1) ? cand.DeclarerPlaySignature()
                     : std::map<int, std::string>{};
+    std::vector<uint64_t> cov_mask;
+    if (max_finalist_lines_ > 1 && top_k > 1 && lvl == 0) {
+      cand.FillCoveredBoardsBitmask(&cov_mask);
+    }
     size_t conds = cand.conditions().size();
     size_t extra_br = (top_k > 1) ? cand.ExtraBranches() : 0;
     size_t nseb = (top_k > 1) ? NonStateExtraBranches(cand) : 0;
@@ -2805,7 +2852,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
         min_bkt_eb = tc.extra_branches;
         min_bkt_dt = tc.draws_trump;
       }
-      if (top_k > 1 && tc.sig == sig) {
+      bool same_clean_cov_set =
+          (!cov_mask.empty() && !tc.cov_mask.empty() && fc == 0 && !group_fc &&
+           unforced_fc == 0 && tc.falsecard_splits == 0 && !tc.own_fc &&
+           tc.unforced_fc == 0 && cand_leads_trump == tc.leads_trump &&
+           BitmaskSymDiffCount(cov_mask, tc.cov_mask) == 0);
+      if (top_k > 1 && (tc.sig == sig || same_clean_cov_set)) {
         found_sig = true;
         bool beats_ufc = (unforced_fc == 0 && tc.unforced_fc > 0 &&
                           cov >= tc.covered - tc.unforced_fc);
@@ -2824,6 +2876,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
           tc.draws_trump = draws_trump;
           tc.own_fc = group_fc;
           tc.leads_trump = cand_leads_trump;
+          tc.sig = std::move(sig);
+          tc.cov_mask = std::move(cov_mask);
           tc.line = cand;
           changed = true;
         }
@@ -2860,7 +2914,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
                             min_bkt_eb, min_bkt_dt))))) {
         top_candidates.push_back(TopCandidate{
             cov, unforced_fc, conds, extra_br, nseb, fc, td, draws_trump,
-            group_fc, cand_leads_trump, std::move(sig), cand});
+            group_fc, cand_leads_trump, std::move(sig), std::move(cov_mask),
+            cand});
         changed = true;
       }
     }

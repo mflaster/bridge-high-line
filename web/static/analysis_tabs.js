@@ -470,8 +470,14 @@ function renderCompareLinesTab() {
     }
   });
   if (selectedCompareLineIndices.size === 0 && entries.length >= 2) {
-    selectedCompareLineIndices.add(0);
-    selectedCompareLineIndices.add(hasAlts ? entries.length - 1 : 1);
+    if (!hasAlts && entries.length <= 3) {
+      for (let k = 0; k < entries.length; k++) {
+        selectedCompareLineIndices.add(k);
+      }
+    } else {
+      selectedCompareLineIndices.add(0);
+      selectedCompareLineIndices.add(hasAlts ? entries.length - 1 : 1);
+    }
   } else if (selectedCompareLineIndices.size === 0 && entries.length === 1) {
     selectedCompareLineIndices.add(0);
   } else if (selectedCompareLineIndices.size === 1 && entries.length === 2) {
@@ -524,6 +530,13 @@ function renderCompareLinesTab() {
       pctBadge.className = 'compare-line-pct-badge';
       pctBadge.textContent =
         `${succ.toLocaleString()}/${total.toLocaleString()} (${pct}%)`;
+      if (entry.lineObj &&
+          typeof entry.lineObj.eval_total_boards === 'number' &&
+          entry.lineObj.eval_total_boards > 0 &&
+          entry.totalBoards > 0) {
+        pctBadge.title =
+          `Solve sample: ${entry.coveredBoards}/${entry.totalBoards}`;
+      }
       right.appendChild(pctBadge);
 
       const toggleSelection = () => {
@@ -611,11 +624,22 @@ function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
     const allEqualScore = entries.every(
       e => e.headlineCovered === firstCov && e.headlineTotal === firstTot
     );
+    const hasEval = Boolean(
+      entries[0].lineObj &&
+      typeof entries[0].lineObj.eval_total_boards === 'number' &&
+      entries[0].lineObj.eval_total_boards > 0
+    );
+    const baseSet = new Set(entries[0].coveredBoardIds || []);
+    const allSameCoveredSet =
+      allEqualScore && !hasEval && entries.every(e => {
+        const ids = e.coveredBoardIds || [];
+        return ids.length === baseSet.size && ids.every(b => baseSet.has(b));
+      });
     if (equivalentLinesBadge) {
       if (hasAlts) {
         equivalentLinesBadge.textContent =
           `${entries.length} Lines (Original + ${proposedAltLines.length} Alt)`;
-      } else if (allEqualScore) {
+      } else if (allSameCoveredSet) {
         equivalentLinesBadge.textContent = `${entries.length} Equivalent Lines`;
       } else {
         equivalentLinesBadge.textContent = `${entries.length} Finalist Lines`;
@@ -625,18 +649,16 @@ function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
       if (hasAlts) {
         equivalentLinesHint.textContent =
           'Switch between original and proposed lines:';
-      } else if (allEqualScore) {
-        equivalentLinesHint.textContent =
-          'Choose an equally optimal line of play:';
-      } else if (entries[0].lineObj &&
-                 typeof entries[0].lineObj.eval_total_boards === 'number' &&
-                 entries[0].lineObj.eval_total_boards > 0) {
+      } else if (hasEval) {
         equivalentLinesHint.textContent =
           `Ranked on ${firstTot.toLocaleString('en-US')} deals` +
           ' — switch to inspect:';
+      } else if (allSameCoveredSet) {
+        equivalentLinesHint.textContent =
+          'Choose an equally optimal line of play:';
       } else {
         equivalentLinesHint.textContent =
-          'Top candidate lines of play — switch to inspect:';
+          'Top distinct lines of play — switch to inspect:';
       }
     }
     equivalentLinesBar.classList.remove('hidden');

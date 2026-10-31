@@ -74,6 +74,44 @@ std::set<int> ConditionalLine::CoveredFinalBoardsSet(std::set<const ConditionalL
   return CoveredFinalBoardsSetHelper(this, visited);
 }
 
+static void FillCoveredBoardsBitmaskHelper(
+    const ConditionalLine *line_ptr, std::vector<uint64_t> *mask,
+    std::vector<const ConditionalLine *> *visited) {
+  if (line_ptr == nullptr) {
+    return;
+  }
+  for (const ConditionalLine *v : *visited) {
+    if (v == line_ptr) {
+      return;
+    }
+  }
+  visited->push_back(line_ptr);
+  if (!line_ptr->final_covered_boards().empty()) {
+    for (int b : line_ptr->final_covered_boards()) {
+      if (b < 0) continue;
+      size_t word = static_cast<size_t>(b) >> 6;
+      if (word >= mask->size()) {
+        mask->resize(word + 1, 0ULL);
+      }
+      (*mask)[word] |= (1ULL << (static_cast<unsigned>(b) & 63u));
+    }
+    return;
+  }
+  for (const auto &[_condition, child_line] : line_ptr->conditions()) {
+    if (child_line) {
+      FillCoveredBoardsBitmaskHelper(child_line.get(), mask, visited);
+    }
+  }
+}
+
+void ConditionalLine::FillCoveredBoardsBitmask(
+    std::vector<uint64_t> *mask) const {
+  mask->clear();
+  std::vector<const ConditionalLine *> visited;
+  visited.reserve(32);
+  FillCoveredBoardsBitmaskHelper(this, mask, &visited);
+}
+
 namespace {
 // Extracts the cards played by declarer's side (even seats) from a concrete
 // four-card trick string led by `leader`.

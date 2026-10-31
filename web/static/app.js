@@ -2219,19 +2219,15 @@ solveBtn.addEventListener('click', async () => {
     const numLines = linesArr.length > 0
       ? linesArr.length
       : (data.num_lines || 1);
-    const allLinesTied = linesArr.length > 1 && linesArr.every(l => {
-      const c0 = l.eval_total_boards
-        ? l.eval_covered_boards
-        : l.covered_boards;
-      const b0 = linesArr[0].eval_total_boards
-        ? linesArr[0].eval_covered_boards
-        : linesArr[0].covered_boards;
-      return c0 === b0;
-    });
+    const hasEval = linesArr.length > 0 && linesArr[0].eval_total_boards > 0;
+    const CompleteMsgForMultiLines = () => {
+      if (hasEval) {
+        return `Solve complete! (${numLines} finalist lines evaluated)`;
+      }
+      return `Solve complete! (${numLines} distinct lines found)`;
+    };
     const completeMsg = numLines > 1
-      ? (allLinesTied
-          ? `Solve complete! (${numLines} equivalent lines found)`
-          : `Solve complete! (${numLines} finalist lines evaluated)`)
+      ? CompleteMsgForMultiLines()
       : 'Solve complete!';
     setStatus('success', completeMsg, timeStr);
     execTime.textContent = timeStr;
