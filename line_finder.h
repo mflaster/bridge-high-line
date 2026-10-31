@@ -246,7 +246,8 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
-      int *out_unsplit_ub = nullptr);
+      int *out_unsplit_ub = nullptr,
+      bool spine_root = false);
 
   // Attempts to improve board coverage when single-trick groupings do not
   // cover all solvable boards by branching on IsCardGoodCondition for the
@@ -262,7 +263,8 @@ class LineFinder {
       SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
       Suit prev_suit_led = NOTRUMP, int state_depth = 0,
-      int unsplit_ub = -1);
+      int unsplit_ub = -1,
+      bool spine_root = false);
 
   // Recursive workhorse for finding optimal play lines.
   // - Base case (cards_left == 0): returns empty vector if min_tricks > 0
@@ -288,7 +290,17 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
-      Suit prev_suit_led = NOTRUMP, int state_depth = 0);
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0,
+      bool spine_root = false);
+
+  std::vector<ConditionalLine> ExploreSpineDeviations(
+      const std::vector<ConditionalLine> &spine_bases,
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets,
+      int leader, int ref_trunk_cov, int active_total,
+      int effective_threads);
 
   int TopKForLevel(int lvl, size_t num_boards) const;
 

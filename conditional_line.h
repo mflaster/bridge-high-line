@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <memory>
@@ -207,10 +208,16 @@ class ConditionalLine {  // ConditionalLineBranch
   // to a child ConditionalLine continuation node.
   void AddCondition(PlayCondition *c,
                     const ConditionalLine &continue_with) {
-    AddCondition(c, std::make_shared<ConditionalLine>(continue_with));
+    AddCondition(std::shared_ptr<PlayCondition>(c),
+                 std::make_shared<ConditionalLine>(continue_with));
   }
 
   void AddCondition(PlayCondition *c,
+                    std::shared_ptr<ConditionalLine> continue_with) {
+    AddCondition(std::shared_ptr<PlayCondition>(c), std::move(continue_with));
+  }
+
+  void AddCondition(std::shared_ptr<PlayCondition> c,
                     std::shared_ptr<ConditionalLine> continue_with) {
     assert(final_covered_boards_.empty());
     if (continue_with) {
@@ -219,8 +226,31 @@ class ConditionalLine {  // ConditionalLineBranch
           std::min(covered_count_,
                    unforced_fc_count_ + continue_with->unforced_fc_count());
     }
-    conditions_.emplace_back(std::shared_ptr<PlayCondition>(c),
-                             std::move(continue_with));
+    conditions_.emplace_back(std::move(c), std::move(continue_with));
+  }
+
+  ConditionalLine WithReplacedChild(
+      size_t cond_idx, std::shared_ptr<ConditionalLine> new_child) const {
+    assert(cond_idx < conditions_.size());
+    ConditionalLine out;
+    if (!do_first_.Empty()) {
+      out.SetAction(do_first_);
+    }
+    int old_child_ufc_sum = 0;
+    for (const auto &[_c, ch] : conditions_) {
+      if (ch) old_child_ufc_sum += ch->unforced_fc_count();
+    }
+    int own_ufc = std::max(0, unforced_fc_count_ - old_child_ufc_sum);
+    for (size_t i = 0; i < conditions_.size(); ++i) {
+      out.AddCondition(conditions_[i].first,
+                       (i == cond_idx) ? new_child : conditions_[i].second);
+    }
+    if (own_ufc > 0) {
+      out.set_unforced_fc_count(
+          std::min(out.CoveredFinalBoards(),
+                   out.unforced_fc_count() + own_ufc));
+    }
+    return out;
   }
 
   // Sets the next trick action (GeneralizedTrick) to be played at this node in

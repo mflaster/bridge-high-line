@@ -901,6 +901,25 @@ let PRESETS = {
       S: 'S QJ64; H J95; D AKQT; C J7;',
       W: 'S 532; H Q732; D 9432; C 85;'
     }
+  },
+  hand_15_261028: {
+    name: 'Hand 15 from 261028',
+    trump: 'HEARTS',
+    leader: 'EAST',
+    cur_trick: ['S2'],
+    target: 10,
+    iters: 100,
+    north: 'S -; H T96; D KQ85; C AQJ4;',
+    east: 'S 2; H -; D -; C -;',
+    south: 'S 8; H AJ7542; D A6; C K8;',
+    west: '',
+    unknown_cards: 'S T75 H KQ83 D JT97432 C T976532',
+    actual_deal: {
+      N: 'S -; H T96; D KQ85; C AQJ4;',
+      E: 'S 752; H K83; D J2; C T32;',
+      S: 'S 8; H AJ7542; D A6; C K8;',
+      W: 'S T; H Q; D T9743; C 9765;'
+    }
   }
 };
 
