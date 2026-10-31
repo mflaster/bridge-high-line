@@ -1,9 +1,12 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -16,6 +19,14 @@
 
 class FuzzyBoardState {
  public:
+  struct FastDealSpec {
+    std::array<uint64_t, 4> known_hands = {};
+    uint64_t unknown_cards = 0;
+    int hand1_needed = 0;
+    std::vector<std::shared_ptr<HandRequirements>> active_reqs1;
+    std::vector<std::shared_ptr<HandRequirements>> active_reqs3;
+  };
+
   FuzzyBoardState() = default;
   FuzzyBoardState(const std::vector<uint64_t> &hands, uint64_t unknown_cards) {
     SetHands(hands, unknown_cards);
@@ -49,6 +60,9 @@ class FuzzyBoardState {
   }
 
   BoardState Randomize(bool deal_missing_cards = false);
+  FastDealSpec PrepareFastDealSpec() const;
+  static BoardState FastRandomize(const FastDealSpec &spec,
+                                  std::mt19937_64 &rng);
 
  private:
   std::vector<uint64_t> known_hands_;
@@ -87,6 +101,7 @@ class LineFinder {
     base_unknown_cards_ = 0;
     base_leader_ = -1;
     base_min_tricks_ = -1;
+    base_eval_seed_ = 0;
     solve_memo_ = std::make_unique<SolveMemo>();
   }
   const std::vector<std::shared_ptr<HandRequirements>> &hand_reqs1() const {
@@ -122,6 +137,26 @@ class LineFinder {
 
   void SetKeepAllTopK(bool v) { keep_all_top_k_ = v; }
   bool keep_all_top_k() const { return keep_all_top_k_; }
+
+  void SetMaxFinalistLines(int k) {
+    int clamped = std::max(1, k);
+    if (clamped != max_finalist_lines_) {
+      max_finalist_lines_ = clamped;
+      solve_memo_ = std::make_unique<SolveMemo>();
+    }
+  }
+  int max_finalist_lines() const { return max_finalist_lines_; }
+
+  void SetFinalistEvalDeals(int n) { finalist_eval_deals_ = std::max(0, n); }
+  int finalist_eval_deals() const { return finalist_eval_deals_; }
+
+  void SetFinalistEvalMaxMs(double ms) {
+    finalist_eval_max_ms_ = std::max(0.0, ms);
+  }
+  double finalist_eval_max_ms() const { return finalist_eval_max_ms_; }
+
+  void SetFinalistEvalSeed(uint64_t seed) { finalist_eval_seed_ = seed; }
+  uint64_t finalist_eval_seed() const { return finalist_eval_seed_; }
 
   // Solves for optimal play lines to achieve min_tricks across simulated boards.
   //
@@ -164,6 +199,7 @@ class LineFinder {
 
   double solve_ms() const { return solve_ms_; }
   double rescore_ms() const { return rescore_ms_; }
+  double eval_ms() const { return eval_ms_; }
   double invariant_ms() const { return invariant_ms_; }
   const std::vector<BoardState> &boards() const { return boards_; }
   const std::vector<BoardState> &initial_boards() const {
@@ -279,6 +315,11 @@ class LineFinder {
   int num_iters_;
   int top_k_lines_ = 20;
   int top_k_lvl1_ = 4;
+  int max_finalist_lines_ = 1;
+  int finalist_eval_deals_ = 0;
+  double finalist_eval_max_ms_ = 0.0;
+  uint64_t finalist_eval_seed_ = 0;
+  uint64_t base_eval_seed_ = 0;
   bool adversarial_rescore_ = true;
   bool keep_all_top_k_ = false;
   FuzzyBoardState fuzzy_state_;
@@ -300,5 +341,6 @@ class LineFinder {
   std::unique_ptr<SolveMemo> solve_memo_;
   double solve_ms_ = 0.0;
   double rescore_ms_ = 0.0;
+  double eval_ms_ = 0.0;
   double invariant_ms_ = 0.0;
 };

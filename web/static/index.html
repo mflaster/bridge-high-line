@@ -242,9 +242,20 @@
 
         <!-- Solve Controls & Action Button -->
         <div class="solve-footer">
-          <div class="solve-iters-control" title="Number of random unseen defender layouts to sample when solving">
-            <label for="numIters">Random deals:</label>
-            <input type="text" inputmode="numeric" id="numIters" value="100" class="number-input solve-iters-input">
+          <div class="solve-iters-group">
+            <div class="solve-iters-control"
+                 title="Random unseen layouts sampled to find candidate lines">
+              <label for="numIters">Random deals for solve:</label>
+              <input type="text" inputmode="numeric" id="numIters" value="100"
+                     class="number-input solve-iters-input">
+            </div>
+            <div class="solve-iters-control"
+                 title="Fresh random deals to test finalist lines (0 to skip)">
+              <label for="numTestIters">Random deals for test:</label>
+              <input type="text" inputmode="numeric" id="numTestIters"
+                     value="10,000"
+                     class="number-input solve-iters-input solve-test-input">
+            </div>
           </div>
           <div class="solve-action-container">
             <button id="solveBtn" class="btn btn-primary btn-large">

@@ -839,7 +839,11 @@ function renderSvgAuction() {
 }
 
 // Sync Input Events
-[inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards, trumpSelect, leaderSelect, targetTricks, numIters].forEach(el => {
+[
+  inputNorth, inputEast, inputSouth, inputWest, inputUnknownCards,
+  trumpSelect, leaderSelect, targetTricks, numIters,
+  typeof numTestIters !== 'undefined' ? numTestIters : null
+].forEach(el => {
   if (el) {
     el.addEventListener('input', () => {
       activeTrickCardStates = null;

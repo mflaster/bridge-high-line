@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <mutex>
+#include <random>
 #include <sstream>
 #include "cross_hand_summarizer.h"
 #include "deal.h"
@@ -69,6 +70,53 @@ BoardState FuzzyBoardState::Randomize(bool deal_missing_cards) {
           << HandDebugString(hands[1], true) << " // "
           << HandDebugString(hands[2], true) << " // "
           << HandDebugString(hands[3], true);
+  return bs;
+}
+
+FuzzyBoardState::FastDealSpec FuzzyBoardState::PrepareFastDealSpec() const {
+  FastDealSpec spec;
+  for (size_t i = 0; i < 4 && i < known_hands_.size(); ++i) {
+    spec.known_hands[i] = known_hands_[i];
+  }
+  spec.unknown_cards = unknown_cards_;
+  int max_cards = 0;
+  for (uint64_t h : spec.known_hands) {
+    max_cards = std::max(max_cards, CountCardsInHand(h));
+  }
+  int unk_cnt = CountCardsInHand(spec.unknown_cards);
+  int hand1_known = CountCardsInHand(spec.known_hands[1]);
+  int hand3_known = CountCardsInHand(spec.known_hands[3]);
+  int target_cards = max_cards;
+  if (target_cards == 0 ||
+      (hand1_known + hand3_known + unk_cnt) != 2 * target_cards) {
+    target_cards = (hand1_known + hand3_known + unk_cnt) / 2;
+  }
+  spec.hand1_needed = std::max(0, target_cards - hand1_known);
+  for (const auto &r : hand_reqs1_) {
+    if (r && (target_cards == 13 || r->AppliesToRemainingHand())) {
+      spec.active_reqs1.push_back(r);
+    }
+  }
+  for (const auto &r : hand_reqs3_) {
+    if (r && (target_cards == 13 || r->AppliesToRemainingHand())) {
+      spec.active_reqs3.push_back(r);
+    }
+  }
+  return spec;
+}
+
+BoardState FuzzyBoardState::FastRandomize(const FastDealSpec &spec,
+                                          std::mt19937_64 &rng) {
+  std::vector<uint64_t> hands(spec.known_hands.begin(), spec.known_hands.end());
+  if (spec.unknown_cards != 0) {
+    auto [hand1, hand3] = FastDealTwoRequiredHands(
+        spec.unknown_cards, spec.active_reqs1, spec.active_reqs3,
+        spec.hand1_needed, hands[1], hands[3], rng);
+    hands[1] |= hand1;
+    hands[3] |= hand3;
+  }
+  BoardState bs;
+  bs.SetHands(hands);
   return bs;
 }
 
@@ -1256,6 +1304,179 @@ void RescoreTopLinesAdversarial(
       });
 }
 
+uint64_t MixEvalSeed64(uint64_t z) {
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return z ^ (z >> 31);
+}
+
+void SelectDistinctFinalistLines(std::vector<ConditionalLine> *lines,
+                                 int max_finalists, int active_total,
+                                 bool declarer_on_lead) {
+  if (lines->empty() || max_finalists <= 0) return;
+  int best_cov = (*lines)[0].CoveredFinalBoards();
+  int margin = std::max(
+      3, static_cast<int>(
+             std::ceil(1.8 * std::sqrt(std::max(1, active_total) * 0.25))));
+  int min_cov = (best_cov > 0) ? std::max(1, best_cov - margin) : 0;
+
+  std::vector<ConditionalLine> kept;
+  std::vector<std::map<int, std::string>> kept_sigs;
+  std::vector<std::set<int>> kept_sets;
+  std::vector<Trick1CardPair> kept_t1s;
+
+  for (ConditionalLine &cand : *lines) {
+    int cov = cand.CoveredFinalBoards();
+    if (cov < min_cov) {
+      break;
+    }
+    std::map<int, std::string> sig = cand.DeclarerPlaySignature();
+    if (std::find(kept_sigs.begin(), kept_sigs.end(), sig) != kept_sigs.end()) {
+      continue;
+    }
+    std::set<int> cov_set = cand.CoveredBoardsSet();
+    Trick1CardPair t1 = GetPrimaryTrick1Play(cand);
+    bool dominated = false;
+    for (size_t k = 0; k < kept.size(); ++k) {
+      bool same_t1 = (!t1.first.empty() || !t1.second.empty()) &&
+                     (t1 == kept_t1s[k]);
+      bool is_subset = std::includes(kept_sets[k].begin(), kept_sets[k].end(),
+                                     cov_set.begin(), cov_set.end());
+      if (is_subset &&
+          (same_t1 || (!declarer_on_lead && cov < best_cov))) {
+        dominated = true;
+        break;
+      }
+    }
+    if (dominated) {
+      continue;
+    }
+    kept_sigs.push_back(std::move(sig));
+    kept_sets.push_back(std::move(cov_set));
+    kept_t1s.push_back(std::move(t1));
+    kept.push_back(std::move(cand));
+    if (static_cast<int>(kept.size()) >= max_finalists) {
+      break;
+    }
+  }
+  *lines = std::move(kept);
+}
+
+void EvaluateFinalistLinesOutOfSample(
+    const FuzzyBoardState &fuzzy_state, Suit trump, int leader,
+    const std::vector<CardType> &cur_trick, int min_tricks, int target_deals,
+    double max_eval_ms, uint64_t eval_seed, int num_threads,
+    std::vector<ConditionalLine> *lines) {
+  if (lines->empty() || target_deals <= 0) {
+    return;
+  }
+  const size_t num_lines = lines->size();
+  for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+    (*lines)[l_i].set_min_tricks(min_tricks);
+  }
+  FuzzyBoardState::FastDealSpec deal_spec = fuzzy_state.PrepareFastDealSpec();
+  std::unique_ptr<std::atomic<int>[]> line_hits(
+      new std::atomic<int>[num_lines]);
+  for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+    line_hits[l_i].store(0, std::memory_order_relaxed);
+  }
+
+  constexpr int kBatchSize = 250;
+  constexpr int kMinDealsBeforeBudgetStop = 1000;
+  auto start_tp = std::chrono::steady_clock::now();
+  int deals_done = 0;
+  std::string noun =
+      (num_lines == 1) ? " finalist line (" : " finalist lines (";
+
+  while (deals_done < target_deals && !LineFinder::IsStopRequested()) {
+    LineFinder::SetSolveStatus("Evaluating " + std::to_string(num_lines) +
+                               noun + std::to_string(deals_done) + "/" +
+                               std::to_string(target_deals) + " deals)...");
+    int batch_n = std::min(kBatchSize, target_deals - deals_done);
+    int batch_base = deals_done;
+    ParallelForDynamic(
+        static_cast<size_t>(batch_n), num_threads, [&](size_t offset) {
+          if (LineFinder::IsStopRequested()) return;
+          int d = batch_base + static_cast<int>(offset);
+          uint64_t seed_d = MixEvalSeed64(
+              eval_seed + static_cast<uint64_t>(d) * 0x9e3779b97f4a7c15ULL);
+          std::mt19937_64 rng(seed_d);
+          BoardState bs = FuzzyBoardState::FastRandomize(deal_spec, rng);
+          bs.set_board_id(static_cast<uint32_t>(1000000u + d));
+          bs.set_check_card_play(false);
+          bs.SetTrump(trump);
+          bs.SetLead(leader);
+          for (CardType c : cur_trick) {
+            bs.PlayCard(bs.CurPlayer(), c);
+          }
+
+          bool called_dds = false;
+          if (!IsDealMakeable(bs, min_tricks, &called_dds,
+                              /*reuse_tt=*/false)) {
+            return;
+          }
+          ConditionalLine::DefenderEvalCache eval_cache;
+          eval_cache.tt_initialized = called_dds;
+          for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+            if ((*lines)[l_i].EvaluateBoardAdversarialFast(bs, min_tricks,
+                                                           &eval_cache)) {
+              line_hits[l_i].fetch_add(1, std::memory_order_relaxed);
+            }
+          }
+        });
+    if (LineFinder::IsStopRequested()) {
+      break;
+    }
+    deals_done += batch_n;
+    if (max_eval_ms > 0.0 && deals_done >= kMinDealsBeforeBudgetStop &&
+        deals_done < target_deals) {
+      double elapsed_ms =
+          std::chrono::duration<double, std::milli>(
+              std::chrono::steady_clock::now() - start_tp)
+              .count();
+      if (elapsed_ms >= max_eval_ms) {
+        LOG(INFO) << "Finalist evaluation reached time budget (" << elapsed_ms
+                  << " ms >= " << max_eval_ms << " ms) after " << deals_done
+                  << " deals.";
+        break;
+      }
+    }
+  }
+
+  if (deals_done <= 0 || LineFinder::IsStopRequested()) {
+    return;
+  }
+  for (size_t l_i = 0; l_i < num_lines; ++l_i) {
+    (*lines)[l_i].set_eval_covered_boards(
+        line_hits[l_i].load(std::memory_order_relaxed));
+    (*lines)[l_i].set_eval_total_boards(deals_done);
+  }
+  std::stable_sort(
+      lines->begin(), lines->end(),
+      [trump](const ConditionalLine &a, const ConditionalLine &b) {
+        if (a.eval_covered_boards() != b.eval_covered_boards()) {
+          return a.eval_covered_boards() > b.eval_covered_boards();
+        }
+        if (a.CoveredFinalBoards() != b.CoveredFinalBoards()) {
+          return a.CoveredFinalBoards() > b.CoveredFinalBoards();
+        }
+        if (a.conditions().size() != b.conditions().size()) {
+          return a.conditions().size() < b.conditions().size();
+        }
+        size_t fc_a = FalsecardableSplits(a);
+        size_t fc_b = FalsecardableSplits(b);
+        if (fc_a != fc_b) {
+          return fc_a < fc_b;
+        }
+        size_t td_a = InitialTrumpDrawScore(a, trump);
+        size_t td_b = InitialTrumpDrawScore(b, trump);
+        if (td_a != td_b) {
+          return td_a > td_b;
+        }
+        return a.ExtraBranches() < b.ExtraBranches();
+      });
+}
+
 void PopulateDealSummaries(const std::vector<BoardState> &boards,
                            const std::set<int> &board_offsets,
                            int num_iters, int min_tricks, int num_threads,
@@ -1418,6 +1639,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
   std::set<int> board_offsets;
   std::vector<BoardState> boards;
   if (can_reuse_deals) {
+    fuzzy_state_.SetHands(hands, unknown_cards);
     initial_boards_ = base_boards_;
     boards = base_boards_;
     for (size_t i = 0; i < boards.size(); ++i) {
@@ -1498,6 +1720,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
     base_trump_ = trump;
     base_leader_ = leader;
     base_min_tricks_ = min_tricks;
+    base_eval_seed_ = 0;
   }
   for (size_t i = 0; i < boards.size(); i++) {
     if (init_trees[i]) {
@@ -1563,6 +1786,7 @@ std::vector<ConditionalLine> LineFinder::Solve(
   DeduplicateTopLevelLines(&ans, !adversarial_rescore_ && top_k_lines_ <= 1);
 
   rescore_ms_ = 0.0;
+  eval_ms_ = 0.0;
   if (adversarial_rescore_ && !ans.empty()) {
     SetSolveStatus("Re-scoring top " + std::to_string(ans.size()) +
                    " lines against adversarial defense...");
@@ -1579,14 +1803,68 @@ std::vector<ConditionalLine> LineFinder::Solve(
   }
   if (!keep_all_top_k_ && !ans.empty() &&
       (adversarial_rescore_ || top_k_lines_ > 1)) {
-    int best_cov = ans[0].CoveredFinalBoards();
-    size_t keep_n = 1;
-    while (keep_n < ans.size() &&
-           ans[keep_n].CoveredFinalBoards() == best_cov) {
-      ++keep_n;
+    if (max_finalist_lines_ > 1) {
+      SelectDistinctFinalistLines(&ans, max_finalist_lines_, active_total,
+                                  leader % 2 == 0);
+    } else {
+      int best_cov = ans[0].CoveredFinalBoards();
+      size_t keep_n = 1;
+      while (keep_n < ans.size() &&
+             ans[keep_n].CoveredFinalBoards() == best_cov) {
+        ++keep_n;
+      }
+      ans.resize(keep_n);
+      DeduplicateTopLevelLines(&ans, /*collapse_same_t1=*/true);
     }
-    ans.resize(keep_n);
-    DeduplicateTopLevelLines(&ans, /*collapse_same_t1=*/true);
+  }
+
+  bool known_cur_trick = true;
+  for (size_t k = 0; k < cur_trick.size(); ++k) {
+    int seat = (leader + static_cast<int>(k)) % 4;
+    if ((hands[seat] & cur_trick[k]) == 0) {
+      known_cur_trick = false;
+      break;
+    }
+  }
+  bool can_eval_out_of_sample =
+      finalist_eval_deals_ > 0 && !ans.empty() &&
+      ans[0].CoveredFinalBoards() > 0 && unknown_cards != 0 &&
+      predealt_boards_.empty() && replay_tricks_.empty() &&
+      branch_board_ids_.empty() && known_cur_trick;
+  if (can_eval_out_of_sample) {
+    uint64_t eval_seed = finalist_eval_seed_;
+    if (eval_seed == 0 && can_reuse_deals && base_eval_seed_ != 0) {
+      eval_seed = base_eval_seed_;
+    }
+    if (eval_seed == 0) {
+      std::random_device rd;
+      uint64_t now_ns = static_cast<uint64_t>(
+          std::chrono::steady_clock::now().time_since_epoch().count());
+      eval_seed = MixEvalSeed64((static_cast<uint64_t>(rd()) << 32) ^
+                                static_cast<uint64_t>(rd()) ^ now_ns);
+      if (eval_seed == 0) eval_seed = 1;
+      if (cur_trick.empty() && replay_tricks_.empty() &&
+          branch_board_ids_.empty() && predealt_boards_.empty()) {
+        base_eval_seed_ = eval_seed;
+      }
+    }
+    auto start_eval = std::chrono::high_resolution_clock::now();
+    EvaluateFinalistLinesOutOfSample(
+        fuzzy_state_, trump, leader, cur_trick, min_tricks,
+        finalist_eval_deals_, finalist_eval_max_ms_, eval_seed,
+        effective_threads, &ans);
+    auto end_eval = std::chrono::high_resolution_clock::now();
+    eval_ms_ = std::chrono::duration<double, std::milli>(
+                   end_eval - start_eval)
+                   .count();
+    if (IsStopRequested()) {
+      SetSolveStatus("Solve stopped.");
+      return {};
+    }
+    LOG(INFO) << "TIMING: eval_ms=" << eval_ms_
+              << " eval_deals=" << ans[0].eval_total_boards()
+              << " top_eval_cov=" << ans[0].eval_covered_boards()
+              << " finalists=" << ans.size();
   }
 
   auto start_invariant = std::chrono::high_resolution_clock::now();
@@ -1624,7 +1902,8 @@ namespace {
 // deduplicates identical non-zero (FalsecardableSplits, NonStateExtraBranches)
 // pairs to the front when truncating to `limit`, and retains the minimum pair.
 void FinalizeTopKLines(std::vector<ConditionalLine> *lines, int limit,
-                       Suit trump_suit = NOTRUMP) {
+                       Suit trump_suit = NOTRUMP,
+                       bool allow_clean_finalist_alts = false) {
   auto cmp = [trump_suit](const ConditionalLine &a, const ConditionalLine &b) {
     if ((a.unforced_fc_count() > 0) != (b.unforced_fc_count() > 0)) {
       int eff_a = a.CoveredFinalBoards() - a.unforced_fc_count();
@@ -1657,7 +1936,7 @@ void FinalizeTopKLines(std::vector<ConditionalLine> *lines, int limit,
         [&](const ConditionalLine &l) {
           size_t fc = FalsecardableSplits(l);
           size_t nseb = NonStateExtraBranches(l);
-          return (fc == 0 && nseb == 0) ||
+          return (fc == 0 && (nseb == 0 || allow_clean_finalist_alts)) ||
                  seen_fc_nseb.insert({fc, nseb}).second;
         });
     if (limit > 1) {
@@ -1765,7 +2044,7 @@ template <typename BuildLineFn>
 std::vector<ConditionalLine> AssembleBranchLines(
     const std::vector<std::vector<std::shared_ptr<ConditionalLine>>> &branches,
     bool include_alts, int lvl, size_t min_diff_branches, Suit trump_suit,
-    BuildLineFn build_line) {
+    BuildLineFn build_line, bool allow_clean_finalist_alts = false) {
   std::vector<ConditionalLine> out;
   std::vector<size_t> picks(branches.size(), 0);
   out.push_back(build_line(picks));
@@ -1791,7 +2070,10 @@ std::vector<ConditionalLine> AssembleBranchLines(
         min_picks[idx] = alt;
       }
       bool novel_trump_alt = (lvl <= 1 && !base_trump && alt_trump);
-      if (lvl > 0 && !novel_trump_alt &&
+      bool clean_finalist_alt =
+          (allow_clean_finalist_alts && lvl <= 3 && base_fc == 0 && fc == 0 &&
+           nseb <= base_nseb && out.size() < 4);
+      if (lvl > 0 && !novel_trump_alt && !clean_finalist_alt &&
           (drops_clean_trump ||
            (base_fc > 0 && fc >= base_fc) ||
            (base_fc == 0 && (fc > 0 || nseb >= base_nseb)))) {
@@ -2042,7 +2324,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
                 ->GetTrump();
   std::vector<ConditionalLine> candidates = AssembleBranchLines(
       shared_branches, child_top_k > 1, lvl, /*min_diff_branches=*/1,
-      trump_suit, [&](const std::vector<size_t> &picks) {
+      trump_suit,
+      [&](const std::vector<size_t> &picks) {
         ConditionalLine line;
         line.SetAction(gen_trick);
         for (size_t idx = 0; idx < entries.size(); ++idx) {
@@ -2054,7 +2337,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
           }
         }
         return line;
-      });
+      },
+      max_finalist_lines_ > 1);
 
   int primary_cov = candidates[0].CoveredFinalBoards();
   if ((min_covered > 0 && primary_cov < min_covered) || primary_cov <= 0) {
@@ -2070,7 +2354,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromTrick(
                          return cl.CoveredFinalBoards() < alt_floor;
                        }),
         candidates.end());
-    FinalizeTopKLines(&candidates, child_top_k, trump_suit);
+    FinalizeTopKLines(&candidates, child_top_k, trump_suit,
+                      max_finalist_lines_ > 1 && lvl <= 3);
   }
   return candidates;
 }
@@ -2585,10 +2870,12 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
       if (static_cast<int>(top_candidates.size()) > top_k) {
         if (lvl > 0 && top_k > 1) {
           std::set<std::pair<size_t, size_t>> seen_fc_nseb;
+          bool keep_clean_alts = (max_finalist_lines_ > 1 && lvl <= 4);
           std::stable_partition(
               top_candidates.begin(), top_candidates.end(),
               [&](const TopCandidate &tc) {
-                return (tc.falsecard_splits == 0 && tc.non_state_eb == 0) ||
+                return (tc.falsecard_splits == 0 &&
+                        (tc.non_state_eb == 0 || keep_clean_alts)) ||
                        seen_fc_nseb
                            .insert({tc.falsecard_splits, tc.non_state_eb})
                            .second;
@@ -2674,7 +2961,13 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
                (group_has_fc[j] || !all_cands_falsecardable())) {
       int ref_cov = group_has_fc[j] ? most_boards_covered : best_eff_cov;
       if (ref_cov > 0) {
-        req = std::max(req, ref_cov);
+        int slack = 0;
+        if (max_finalist_lines_ > 1 && top_k > 1 && decl_leads_here &&
+            lvl <= 4 && groupings[j].size() == 1 && !group_has_fc[j] &&
+            board_offsets.size() >= 12) {
+          slack = (board_offsets.size() >= 20) ? 2 : 1;
+        }
+        req = std::max(req, std::max(1, ref_cov - slack));
       }
     }
     if (top_k <= 1 && known_best_cov > 0) {
@@ -3051,7 +3344,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
     }
     std::vector<ConditionalLine> group_lines = AssembleBranchLines(
         group_branches, child_top_k > 1, lvl, /*min_diff_branches=*/1,
-        trump_suit, [&](const std::vector<size_t> &picks) {
+        trump_suit,
+        [&](const std::vector<size_t> &picks) {
           ConditionalLine cl;
           for (size_t m = 0; m < group.size(); ++m) {
             cl.AddCondition(new TrickPlayCondition(keys[i][m]),
@@ -3061,7 +3355,8 @@ std::vector<ConditionalLine> LineFinder::GetLinesFromGroups(
               std::min(cl.CoveredFinalBoards(),
                        cl.unforced_fc_count() + group_unforced_fc_count[i]));
           return cl;
-        });
+        },
+        max_finalist_lines_ > 1);
     bool changed = false;
     for (size_t g_idx = 0; g_idx < group_lines.size(); ++g_idx) {
       const Trick1CardPair &t1 =
@@ -3234,12 +3529,14 @@ void LineFinder::TryBranchOnGoodCards(
     }
     std::vector<ConditionalLine> new_splits = AssembleBranchLines(
         split_branches, top_k > 1, /*lvl=*/1, /*min_diff_branches=*/2,
-        trump_suit, [&](const std::vector<size_t> &picks) {
+        trump_suit,
+        [&](const std::vector<size_t> &picks) {
           ConditionalLine sl;
           sl.AddCondition(make_cond(true), split_branches[0][picks[0]]);
           sl.AddCondition(make_cond(false), split_branches[1][picks[1]]);
           return sl;
-        });
+        },
+        max_finalist_lines_ > 1);
     int alt_slack = std::max(2, total_cov / 4);
     int alt_floor = std::max(1, total_cov - alt_slack);
     if (new_splits.size() > 1) {
@@ -3296,7 +3593,8 @@ void LineFinder::TryBranchOnGoodCards(
     for (auto &sl : new_splits) {
       ans.push_back(std::move(sl));
     }
-    FinalizeTopKLines(&ans, top_k, trump_suit);
+    FinalizeTopKLines(&ans, top_k, trump_suit,
+                      max_finalist_lines_ > 1 && lvl <= 3);
   };
 
   uint64_t mask = ~first_bs->played_cards();

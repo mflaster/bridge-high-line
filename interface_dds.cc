@@ -778,24 +778,129 @@ std::pair<int, int> ChooseDefenderPlay(const BoardState &bs, int level,
   return {final_choice.group_idx, final_choice.rank};
 }
 
+// Fast check for when all legal plays in `valid` belong to the same suit and
+// have no unplayed cards of other hands (or cards already played to the current
+// trick) lying strictly between `min_rank` and `max_rank`. When true, all
+// legal plays are double-dummy isomorphic and form a single DDS equivalence
+// group without needing a `SolveBoard` call.
+bool TryBuildSingleGroupFutureTricks(const BoardState &bs,
+                                     const std::vector<CardType> &valid,
+                                     futureTricks *futp) {
+  if (valid.size() <= 1 || futp == nullptr) {
+    return false;
+  }
+  auto [s0, v0] = Card::DecodeCard(valid[0]);
+  int min_val = v0;
+  int max_val = v0;
+  unsigned int dds_rank_mask = 1u << (v0 + 2);
+  for (size_t k = 1; k < valid.size(); ++k) {
+    auto [sk, vk] = Card::DecodeCard(valid[k]);
+    if (sk != s0) {
+      return false;
+    }
+    min_val = std::min(min_val, vk);
+    max_val = std::max(max_val, vk);
+    dds_rank_mask |= (1u << (vk + 2));
+  }
+  if (max_val > min_val + 1) {
+    int me = bs.CurPlayer();
+    uint64_t other_and_table = 0;
+    for (int h = 0; h < 4; ++h) {
+      if (h != me) {
+        other_and_table |= bs.GetHand(h);
+      }
+    }
+    other_and_table &= ~bs.played_cards();
+    for (int k = 0; k < bs.CardsPlayedThisTrick(); ++k) {
+      other_and_table |= bs.trick_cards_played()[k];
+    }
+    uint16_t other_suit_bits = static_cast<uint16_t>(
+        (other_and_table >> (static_cast<int>(s0) * 16)) & 0x1fffULL);
+    uint16_t between_excl = static_cast<uint16_t>(
+        ((1u << max_val) - 1u) & ~((1u << (min_val + 1)) - 1u));
+    if ((other_suit_bits & between_excl) != 0) {
+      return false;
+    }
+  }
+  *futp = futureTricks{};
+  futp->cards = 1;
+  futp->suit[0] = static_cast<int>(s0);
+  futp->rank[0] = max_val + 2;
+  futp->equals[0] = static_cast<int>(dds_rank_mask & ~(1u << (max_val + 2)));
+  futp->score[0] = -1;
+  return true;
+}
+
 }  // namespace
+
+bool IsDealMakeable(const BoardState &bs, int min_ns_tricks,
+                    bool *out_called_dds, bool reuse_tt) {
+  if (out_called_dds != nullptr) {
+    *out_called_dds = false;
+  }
+  int needed_ns = min_ns_tricks - bs.tricks_won_even();
+  if (needed_ns <= 0) {
+    return true;
+  }
+  uint64_t cur_hand = bs.GetHand(bs.CurPlayer()) & ~bs.played_cards();
+  int total_tricks = __builtin_popcountll(cur_hand);
+  if (needed_ns > total_tricks) {
+    return false;
+  }
+  if (total_tricks == 1) {
+    BoardState copy = bs;
+    for (int k = copy.CardsPlayedThisTrick(); k < 4; ++k) {
+      std::vector<CardType> valid = copy.ValidCardsToPlay();
+      if (valid.empty()) break;
+      copy.PlayCard(copy.CurPlayer(), valid[0]);
+    }
+    return copy.tricks_won_even() >= min_ns_tricks;
+  }
+  DoInit();
+  deal dl;
+  PopulateDeal(bs, &dl);
+  futureTricks futp{};
+  int mode = reuse_tt ? 2 : 1;
+  int threadindex = omp_get_thread_num();
+  if (out_called_dds != nullptr) {
+    *out_called_dds = true;
+  }
+  if (bs.CurPlayer() % 2 == 0) {
+    int rc = SolveBoard(dl, /*target=*/needed_ns, /*solutions=*/1, mode, &futp,
+                        threadindex);
+    return rc == RETURN_NO_FAULT && futp.cards > 0 &&
+           futp.score[0] >= needed_ns;
+  }
+  int def_target = total_tricks - needed_ns + 1;
+  int rc = SolveBoard(dl, /*target=*/def_target, /*solutions=*/1, mode, &futp,
+                      threadindex);
+  if (rc != RETURN_NO_FAULT) {
+    return true;
+  }
+  return !(futp.cards > 0 && futp.score[0] >= def_target);
+}
 
 std::string FindBestDefenderCard(const BoardState &bs, int noise_pct) {
   DoInit();
   std::vector<CardType> valid = bs.ValidCardsToPlay();
+  if (valid.empty()) {
+    return "";
+  }
   if (valid.size() == 1) {
     return Card::PrintCard(valid[0]);
   }
-  deal dl;
-  PopulateDeal(bs, &dl);
   futureTricks futp{};
-  int target = -1;
-  int solutions = 2;
-  int mode = 1;
-  int threadindex = omp_get_thread_num();
-  int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
-  if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
-    return valid.empty() ? "" : Card::PrintCard(valid[0]);
+  if (!TryBuildSingleGroupFutureTricks(bs, valid, &futp)) {
+    deal dl;
+    PopulateDeal(bs, &dl);
+    int target = -1;
+    int solutions = 2;
+    int mode = 1;
+    int threadindex = omp_get_thread_num();
+    int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
+    if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
+      return Card::PrintCard(valid[0]);
+    }
   }
   int level = bs.CardsPlayedThisTrick();
   auto [card_to_play, defender_rank_to_play] =
@@ -804,7 +909,12 @@ std::string FindBestDefenderCard(const BoardState &bs, int noise_pct) {
                             defender_rank_to_play);
 }
 
-std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs) {
+std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs,
+                                                  int *out_max_def_tricks,
+                                                  bool reuse_tt) {
+  if (out_max_def_tricks != nullptr) {
+    *out_max_def_tricks = -1;
+  }
   DoInit();
   std::vector<CardType> valid = bs.ValidCardsToPlay();
   if (valid.empty()) {
@@ -813,16 +923,21 @@ std::vector<std::string> FindOptimalDefenderCards(const BoardState &bs) {
   if (valid.size() == 1) {
     return {Card::PrintCard(valid[0])};
   }
-  deal dl;
-  PopulateDeal(bs, &dl);
   futureTricks futp{};
-  int target = -1;
-  int solutions = 2;
-  int mode = 1;
-  int threadindex = omp_get_thread_num();
-  int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
-  if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
-    return {Card::PrintCard(valid[0])};
+  if (!TryBuildSingleGroupFutureTricks(bs, valid, &futp)) {
+    deal dl;
+    PopulateDeal(bs, &dl);
+    int target = -1;
+    int solutions = 2;
+    int mode = reuse_tt ? 2 : 1;
+    int threadindex = omp_get_thread_num();
+    int rc = SolveBoard(dl, target, solutions, mode, &futp, threadindex);
+    if (rc != RETURN_NO_FAULT || futp.cards <= 0) {
+      return {Card::PrintCard(valid[0])};
+    }
+    if (out_max_def_tricks != nullptr) {
+      *out_max_def_tricks = futp.score[0];
+    }
   }
   int level = bs.CardsPlayedThisTrick();
   auto [heur_idx, heur_rank] =

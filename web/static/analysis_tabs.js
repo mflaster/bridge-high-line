@@ -48,7 +48,22 @@ function buildSelectableLinesList() {
         const lineSucc = (lineObj && lineObj.covered_boards !== undefined)
           ? lineObj.covered_boards
           : baseSuccess;
-        const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
+        const hasLineEval = Boolean(
+          lineObj &&
+          typeof lineObj.eval_total_boards === 'number' &&
+          lineObj.eval_total_boards > 0 &&
+          typeof lineObj.eval_covered_boards === 'number'
+        );
+        const headlineCovered = hasLineEval
+          ? lineObj.eval_covered_boards
+          : lineSucc;
+        const headlineTotal = hasLineEval
+          ? lineObj.eval_total_boards
+          : baseTotal;
+        const pctPrefix = formatLineSuccessPctPrefix(
+          headlineCovered,
+          headlineTotal
+        );
         let covIds = Array.isArray(lineObj && lineObj.covered_board_ids)
           ? lineObj.covered_board_ids
           : null;
@@ -61,6 +76,8 @@ function buildSelectableLinesList() {
           label: `${pctPrefix}${label}`,
           coveredBoards: lineSucc,
           totalBoards: baseTotal,
+          headlineCovered: headlineCovered,
+          headlineTotal: headlineTotal,
           coveredBoardIds: covIds || [],
           activeBoardIds: baseActiveIds,
           lineObj: lineObj,
@@ -73,20 +90,43 @@ function buildSelectableLinesList() {
         best_lead: baseData.best_lead,
         covered_boards: baseData.covered_boards,
         covered_board_ids: baseData.covered_board_ids,
+        eval_total_boards: baseData.eval_total_boards,
+        eval_covered_boards: baseData.eval_success_boards,
         actual_hand: baseData.actual_hand,
         distribution_summary: baseData.distribution_summary,
         failure_distribution_summary: baseData.failure_distribution_summary
       };
-      const lineSucc = (singleLineObj && singleLineObj.covered_boards !== undefined)
-        ? singleLineObj.covered_boards
-        : baseSuccess;
-      const pctPrefix = formatLineSuccessPctPrefix(lineSucc, baseTotal);
-      let rawTitle = (singleLineObj && singleLineObj.label)
-        ? fmtFrontend(singleLineObj.label).replace(/^Line\s+1:/i, 'Original line:')
+      const lineSucc =
+        (singleLineObj && singleLineObj.covered_boards !== undefined)
+          ? singleLineObj.covered_boards
+          : baseSuccess;
+      const hasLineEval = Boolean(
+        singleLineObj &&
+        typeof singleLineObj.eval_total_boards === 'number' &&
+        singleLineObj.eval_total_boards > 0 &&
+        typeof singleLineObj.eval_covered_boards === 'number'
+      );
+      const headlineCovered = hasLineEval
+        ? singleLineObj.eval_covered_boards
+        : lineSucc;
+      const headlineTotal = hasLineEval
+        ? singleLineObj.eval_total_boards
+        : baseTotal;
+      const pctPrefix = formatLineSuccessPctPrefix(
+        headlineCovered,
+        headlineTotal
+      );
+      const rawTitle = (singleLineObj && singleLineObj.label)
+        ? fmtFrontend(singleLineObj.label).replace(
+            /^Line\s+1:/i,
+            'Original line:'
+          )
         : 'Original line';
       let covIds = Array.isArray(singleLineObj && singleLineObj.covered_board_ids)
         ? singleLineObj.covered_board_ids
-        : (Array.isArray(baseData.covered_board_ids) ? baseData.covered_board_ids : null);
+        : (Array.isArray(baseData.covered_board_ids)
+            ? baseData.covered_board_ids
+            : null);
       if (!covIds && singleLineObj && singleLineObj.tree) {
         covIds = Array.from(extractCoveredBoardIdsFromTree(singleLineObj.tree));
       }
@@ -96,6 +136,8 @@ function buildSelectableLinesList() {
         label: `${pctPrefix}Original line`,
         coveredBoards: lineSucc,
         totalBoards: baseTotal,
+        headlineCovered: headlineCovered,
+        headlineTotal: headlineTotal,
         coveredBoardIds: covIds || [],
         activeBoardIds: baseActiveIds,
         lineObj: singleLineObj,
@@ -105,22 +147,36 @@ function buildSelectableLinesList() {
   }
 
   if (hasAlts) {
-    const fmtFrontend = (s) => (typeof formatCardTokensForFrontend === 'function')
-      ? formatCardTokensForFrontend(s)
-      : s;
+    const fmtFrontend = (s) =>
+      (typeof formatCardTokensForFrontend === 'function')
+        ? formatCardTokensForFrontend(s)
+        : s;
     proposedAltLines.forEach((altEntry) => {
       const altData = altEntry.data || {};
       const altTotal = altData.total_boards || 1;
       const altSuccess = altData.success_boards !== undefined
         ? altData.success_boards
         : (altData.covered_boards || 0);
-      const pctPrefix = formatLineSuccessPctPrefix(altSuccess, altTotal);
+      const hasAltEval = Boolean(
+        typeof altData.eval_total_boards === 'number' &&
+        altData.eval_total_boards > 0 &&
+        typeof altData.eval_success_boards === 'number'
+      );
+      const headlineCovered = hasAltEval
+        ? altData.eval_success_boards
+        : altSuccess;
+      const headlineTotal = hasAltEval ? altData.eval_total_boards : altTotal;
+      const pctPrefix = formatLineSuccessPctPrefix(
+        headlineCovered,
+        headlineTotal
+      );
       const altOrigLines = Array.isArray(altData.lines) ? altData.lines : [];
       let covIds = Array.isArray(altData.covered_board_ids)
         ? altData.covered_board_ids
-        : (altOrigLines.length > 0 && Array.isArray(altOrigLines[0].covered_board_ids)
-            ? altOrigLines[0].covered_board_ids
-            : null);
+        : (altOrigLines.length > 0 &&
+            Array.isArray(altOrigLines[0].covered_board_ids)
+              ? altOrigLines[0].covered_board_ids
+              : null);
       if (!covIds && altData.tree) {
         covIds = Array.from(extractCoveredBoardIdsFromTree(altData.tree));
       }
@@ -136,6 +192,8 @@ function buildSelectableLinesList() {
         label: `${pctPrefix}${formattedAltLabel}`,
         coveredBoards: altSuccess,
         totalBoards: altTotal,
+        headlineCovered: headlineCovered,
+        headlineTotal: headlineTotal,
         coveredBoardIds: covIds || [],
         activeBoardIds: altActiveIds,
         altData: altEntry.data
@@ -403,7 +461,9 @@ function renderCompareLinesTab() {
     compareLinesContent.classList.remove('hidden');
   }
 
-  // Prune out-of-range selected indices and auto-select the first 2 lines if <2 are selected
+  // Prune out-of-range selected indices and auto-select 2 lines if <2 selected.
+  const hasAlts =
+    Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
   Array.from(selectedCompareLineIndices).forEach(idx => {
     if (idx < 0 || idx >= entries.length) {
       selectedCompareLineIndices.delete(idx);
@@ -411,18 +471,19 @@ function renderCompareLinesTab() {
   });
   if (selectedCompareLineIndices.size === 0 && entries.length >= 2) {
     selectedCompareLineIndices.add(0);
-    selectedCompareLineIndices.add(entries.length - 1);
+    selectedCompareLineIndices.add(hasAlts ? entries.length - 1 : 1);
   } else if (selectedCompareLineIndices.size === 0 && entries.length === 1) {
     selectedCompareLineIndices.add(0);
   } else if (selectedCompareLineIndices.size === 1 && entries.length === 2) {
-    // When a second line (e.g. an Alt line) is computed, auto-select both for immediate comparison
+    // Auto-select both when a second line (e.g. an Alt line) is computed.
     selectedCompareLineIndices.add(0);
     selectedCompareLineIndices.add(1);
   }
 
   if (compareLinesHint) {
     compareLinesHint.textContent = entries.length < 2
-      ? 'Only 1 line computed so far — propose a card on the deal diagram and click "Compute new line" to compare!'
+      ? 'Only 1 line computed so far — propose a card on the deal diagram ' +
+        'and click "Compute new line" to compare!'
       : `${selectedCompareLineIndices.size} of ${entries.length} selected`;
   }
 
@@ -454,12 +515,15 @@ function renderCompareLinesTab() {
       const right = document.createElement('div');
       right.className = 'compare-line-right';
 
-      const total = entry.totalBoards || 1;
-      const succ = entry.coveredBoards !== undefined ? entry.coveredBoards : 0;
+      const total = entry.headlineTotal || entry.totalBoards || 1;
+      const succ = entry.headlineCovered !== undefined
+        ? entry.headlineCovered
+        : (entry.coveredBoards !== undefined ? entry.coveredBoards : 0);
       const pct = ((succ / total) * 100).toFixed(1);
       const pctBadge = document.createElement('span');
       pctBadge.className = 'compare-line-pct-badge';
-      pctBadge.textContent = `${succ}/${total} (${pct}%)`;
+      pctBadge.textContent =
+        `${succ.toLocaleString()}/${total.toLocaleString()} (${pct}%)`;
       right.appendChild(pctBadge);
 
       const toggleSelection = () => {
@@ -487,13 +551,16 @@ function renderCompareLinesTab() {
 
   if (compareLinesResults) {
     compareLinesResults.innerHTML = '';
-    const sortedSelected = Array.from(selectedCompareLineIndices).sort((a, b) => a - b);
+    const sortedSelected =
+      Array.from(selectedCompareLineIndices).sort((a, b) => a - b);
     if (sortedSelected.length < 2) {
       const promptEl = document.createElement('div');
       promptEl.className = 'summary-empty';
       promptEl.textContent = entries.length < 2
-        ? 'Compute at least 2 lines to compare their succeeding and failing deals.'
-        : 'Select at least 2 lines above to view the comparison chart and differing deals.';
+        ? 'Compute at least 2 lines to compare their succeeding and failing ' +
+          'deals.'
+        : 'Select at least 2 lines above to view the comparison chart and ' +
+          'differing deals.';
       compareLinesResults.appendChild(promptEl);
     } else {
       for (let i = 0; i < sortedSelected.length; i++) {
@@ -501,7 +568,13 @@ function renderCompareLinesTab() {
           const idxA = sortedSelected[i];
           const idxB = sortedSelected[j];
           compareLinesResults.appendChild(
-            renderComparePairSection(entries[idxA], idxA, entries[idxB], idxB, entries)
+            renderComparePairSection(
+              entries[idxA],
+              idxA,
+              entries[idxB],
+              idxB,
+              entries
+            )
           );
         }
       }
@@ -513,7 +586,8 @@ function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
   if (!equivalentLinesBar || !equivalentLineSelect) return;
   equivalentLineSelect.innerHTML = '';
   const entries = buildSelectableLinesList();
-  const hasAlts = Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
+  const hasAlts =
+    Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
 
   if (entries.length > 1) {
     entries.forEach((entry, idx) => {
@@ -522,22 +596,48 @@ function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
       opt.textContent = entry.label;
       equivalentLineSelect.appendChild(opt);
     });
-    const activeIdx = (selectedEntryIndex !== null && selectedEntryIndex >= 0 && selectedEntryIndex < entries.length)
-      ? selectedEntryIndex
-      : 0;
+    const activeIdx =
+      (selectedEntryIndex !== null &&
+        selectedEntryIndex >= 0 &&
+        selectedEntryIndex < entries.length)
+        ? selectedEntryIndex
+        : 0;
     equivalentLineSelect.value = String(activeIdx);
     if (currentSolveData) {
       currentSolveData.active_line_index = activeIdx;
     }
+    const firstCov = entries[0].headlineCovered;
+    const firstTot = entries[0].headlineTotal;
+    const allEqualScore = entries.every(
+      e => e.headlineCovered === firstCov && e.headlineTotal === firstTot
+    );
     if (equivalentLinesBadge) {
-      equivalentLinesBadge.textContent = hasAlts
-        ? `${entries.length} Lines (Original + ${proposedAltLines.length} Alt)`
-        : `${entries.length} Equivalent Lines`;
+      if (hasAlts) {
+        equivalentLinesBadge.textContent =
+          `${entries.length} Lines (Original + ${proposedAltLines.length} Alt)`;
+      } else if (allEqualScore) {
+        equivalentLinesBadge.textContent = `${entries.length} Equivalent Lines`;
+      } else {
+        equivalentLinesBadge.textContent = `${entries.length} Finalist Lines`;
+      }
     }
     if (equivalentLinesHint) {
-      equivalentLinesHint.textContent = hasAlts
-        ? 'Switch between original and proposed lines:'
-        : 'Choose an equally optimal line of play:';
+      if (hasAlts) {
+        equivalentLinesHint.textContent =
+          'Switch between original and proposed lines:';
+      } else if (allEqualScore) {
+        equivalentLinesHint.textContent =
+          'Choose an equally optimal line of play:';
+      } else if (entries[0].lineObj &&
+                 typeof entries[0].lineObj.eval_total_boards === 'number' &&
+                 entries[0].lineObj.eval_total_boards > 0) {
+        equivalentLinesHint.textContent =
+          `Ranked on ${firstTot.toLocaleString('en-US')} deals` +
+          ' — switch to inspect:';
+      } else {
+        equivalentLinesHint.textContent =
+          'Top candidate lines of play — switch to inspect:';
+      }
     }
     equivalentLinesBar.classList.remove('hidden');
   } else {
@@ -598,10 +698,25 @@ function selectEquivalentLine(rawIndex) {
         baseCopy.covered_boards = coveredSet.size;
         baseCopy.failure_boards = Math.max(0, total - coveredSet.size);
       }
+      if (typeof lineObj.eval_total_boards === 'number' &&
+          lineObj.eval_total_boards > 0 &&
+          typeof lineObj.eval_covered_boards === 'number') {
+        baseCopy.eval_total_boards = lineObj.eval_total_boards;
+        baseCopy.eval_success_boards = lineObj.eval_covered_boards;
+        baseCopy.eval_failure_boards = Math.max(
+          0,
+          lineObj.eval_total_boards - lineObj.eval_covered_boards
+        );
+      } else {
+        delete baseCopy.eval_total_boards;
+        delete baseCopy.eval_success_boards;
+        delete baseCopy.eval_failure_boards;
+      }
     }
     currentSolveData = baseCopy;
     currentSolveData.active_line_index = idx;
-    hasComputedProposedLine = (Array.isArray(proposedAltLines) && proposedAltLines.length > 0);
+    hasComputedProposedLine =
+      Array.isArray(proposedAltLines) && proposedAltLines.length > 0;
   }
 
   activeProposalContext = null;
@@ -615,17 +730,32 @@ function selectEquivalentLine(rawIndex) {
   }
   updateLeadStat(currentSolveData);
   updateActualStat(currentSolveData);
-  const total = currentSolveData.total_boards || 1;
-  const success = currentSolveData.success_boards !== undefined
-    ? currentSolveData.success_boards
-    : (currentSolveData.covered_boards || 0);
-  const failure = currentSolveData.failure_boards !== undefined
-    ? currentSolveData.failure_boards
-    : Math.max(0, total - success);
-  const successPct = ((success / total) * 100).toFixed(1);
-  const failurePct = ((failure / total) * 100).toFixed(1);
-  if (statSuccess) statSuccess.textContent = `${success}/${total} (${successPct}%)`;
-  if (statFailure) statFailure.textContent = `${failure}/${total} (${failurePct}%)`;
+  const counts = (typeof getHeadlineSolveCounts === 'function')
+    ? getHeadlineSolveCounts(currentSolveData)
+    : {
+        total: currentSolveData.total_boards || 1,
+        success: currentSolveData.success_boards !== undefined
+          ? currentSolveData.success_boards
+          : (currentSolveData.covered_boards || 0),
+        failure: currentSolveData.failure_boards !== undefined
+          ? currentSolveData.failure_boards
+          : Math.max(
+              0,
+              (currentSolveData.total_boards || 1) -
+                (currentSolveData.success_boards !== undefined
+                  ? currentSolveData.success_boards
+                  : (currentSolveData.covered_boards || 0))
+            )
+      };
+  const fmtRatio = (typeof formatBoardRatioText === 'function')
+    ? formatBoardRatioText
+    : (c, t) => `${c}/${t} (${((c / Math.max(1, t)) * 100).toFixed(1)}%)`;
+  if (statSuccess) {
+    statSuccess.textContent = fmtRatio(counts.success, counts.total);
+  }
+  if (statFailure) {
+    statFailure.textContent = fmtRatio(counts.failure, counts.total);
+  }
 
   if (equivalentLineSelect) {
     equivalentLineSelect.value = String(idx);

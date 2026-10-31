@@ -320,13 +320,21 @@ function drawDealConfigurationPanelOnPdf(ctx, x, y, w, h) {
   const itersVal = (currentSolveData && currentSolveData.total_boards)
     ? String(currentSolveData.total_boards)
     : (numIters ? numIters.value : '100');
+  const evalTotal = (
+    currentSolveData &&
+    typeof currentSolveData.eval_total_boards === 'number' &&
+    currentSolveData.eval_total_boards > 0
+  ) ? currentSolveData.eval_total_boards : 0;
 
   const centerRows = [
     ['Trump:', `${PDF_SUIT_SYMBOLS[trumpVal] || ''} ${trumpVal}`],
     ['Leader:', leaderVal],
     ['Target:', `${targetVal} tricks`],
-    ['Deals:', `${itersVal}`]
+    [evalTotal > 0 ? 'Solve:' : 'Deals:', `${itersVal}`]
   ];
+  if (evalTotal > 0) {
+    centerRows.push(['Test:', evalTotal.toLocaleString('en-US')]);
+  }
   const initCur = (typeof getActiveInitialCurTrick === 'function')
     ? getActiveInitialCurTrick()
     : [];
@@ -406,15 +414,30 @@ function drawOverallStatsPanelOnPdf(ctx, x, y, w, h) {
   ctx.fillText('Overall Solve Results', x + 24, y + 34);
 
   const data = currentSolveData || {};
-  const total = data.total_boards || 1;
-  const success = data.success_boards !== undefined
-    ? data.success_boards
-    : (data.covered_boards || 0);
-  const failure = data.failure_boards !== undefined
-    ? data.failure_boards
-    : Math.max(0, total - success);
+  const counts = (typeof getHeadlineSolveCounts === 'function')
+    ? getHeadlineSolveCounts(data)
+    : {
+        total: data.total_boards || 1,
+        success: data.success_boards !== undefined
+          ? data.success_boards
+          : (data.covered_boards || 0),
+        failure: data.failure_boards !== undefined
+          ? data.failure_boards
+          : Math.max(
+              0,
+              (data.total_boards || 1) -
+                (data.success_boards !== undefined
+                  ? data.success_boards
+                  : (data.covered_boards || 0))
+            )
+      };
+  const total = Math.max(1, counts.total || 1);
+  const success = counts.success || 0;
+  const failure = counts.failure || 0;
   const succPct = ((success / total) * 100).toFixed(1);
   const failPct = ((failure / total) * 100).toFixed(1);
+  const succRatio = `${success.toLocaleString()}/${total.toLocaleString()}`;
+  const failRatio = `${failure.toLocaleString()}/${total.toLocaleString()}`;
   const tricksWon = data.tricks_won !== undefined
     ? String(data.tricks_won)
     : '-';
@@ -468,18 +491,18 @@ function drawOverallStatsPanelOnPdf(ctx, x, y, w, h) {
   ctx.font = '600 16px Inter, system-ui, sans-serif';
   ctx.fillStyle = '#a7f3d0';
   ctx.fillText('SUCCESS RATE', cX1 + 20, rY2 + 30);
-  ctx.font = 'bold 30px Inter, system-ui, sans-serif';
+  ctx.font = 'bold 28px Inter, system-ui, sans-serif';
   ctx.fillStyle = '#ecfdf5';
-  ctx.fillText(`${succPct}% (${success}/${total})`, cX1 + 20, rY2 + 74);
+  ctx.fillText(`${succPct}% (${succRatio})`, cX1 + 20, rY2 + 74);
 
   // 4. Failure Rate
   pdfFillStrokeCard(ctx, cX2, rY2, cardW, cardH, 12, '#450a0a', '#ef4444', 2);
   ctx.font = '600 16px Inter, system-ui, sans-serif';
   ctx.fillStyle = '#fecaca';
   ctx.fillText('FAILURE RATE', cX2 + 20, rY2 + 30);
-  ctx.font = 'bold 30px Inter, system-ui, sans-serif';
+  ctx.font = 'bold 28px Inter, system-ui, sans-serif';
   ctx.fillStyle = '#fef2f2';
-  ctx.fillText(`${failPct}% (${failure}/${total})`, cX2 + 20, rY2 + 74);
+  ctx.fillText(`${failPct}% (${failRatio})`, cX2 + 20, rY2 + 74);
 
   let curY = rY2 + cardH + 22;
 

@@ -102,6 +102,63 @@ std::pair<uint64_t, uint64_t> DealTwoRequiredHands(
   throw std::runtime_error("Couldn't meet requirements");
 }
 
+std::pair<uint64_t, uint64_t> FastDealTwoHands(uint64_t cards, int hand1_count,
+                                               std::mt19937_64 &rng) {
+  constexpr uint64_t kAllCardsMask = 0x1FFF1FFF1FFF1FFFULL;
+  CardType deck[52];
+  int n = 0;
+  uint64_t rem = cards & kAllCardsMask;
+  while (rem != 0) {
+    uint64_t lsb = rem & (~rem + 1ULL);
+    deck[n++] = lsb;
+    rem ^= lsb;
+  }
+  CHECK_GE(n, 1);
+  int target1 = std::clamp((hand1_count >= 0) ? hand1_count : (n / 2), 0, n);
+  uint64_t hand1 = 0;
+  for (int i = 0; i < target1; ++i) {
+    std::uniform_int_distribution<int> dist(i, n - 1);
+    int pick = dist(rng);
+    hand1 |= deck[pick];
+    deck[pick] = deck[i];
+  }
+  uint64_t hand2 = (cards & kAllCardsMask) & ~hand1;
+  return {hand1, hand2};
+}
+
+std::pair<uint64_t, uint64_t> FastDealTwoRequiredHands(
+    uint64_t cards,
+    const std::vector<std::shared_ptr<HandRequirements>> &reqs1,
+    const std::vector<std::shared_ptr<HandRequirements>> &reqs2,
+    int hand1_count, uint64_t known_hand1, uint64_t known_hand2,
+    std::mt19937_64 &rng) {
+  for (int i = 0; i < 1000 * 1000; ++i) {
+    auto [hand1, hand2] = FastDealTwoHands(cards, hand1_count, rng);
+    uint64_t full_hand1 = known_hand1 | hand1;
+    uint64_t full_hand2 = known_hand2 | hand2;
+    bool meets_reqs = true;
+    for (const auto &req : reqs1) {
+      if (!req->MeetsRequirement(full_hand1)) {
+        meets_reqs = false;
+        break;
+      }
+    }
+    if (meets_reqs) {
+      for (const auto &req : reqs2) {
+        if (!req->MeetsRequirement(full_hand2)) {
+          meets_reqs = false;
+          break;
+        }
+      }
+    }
+    if (meets_reqs) {
+      return {hand1, hand2};
+    }
+  }
+  LOG(ERROR) << "Couldn't meet requirements";
+  throw std::runtime_error("Couldn't meet requirements");
+}
+
 
 uint64_t DealOneHand(uint64_t cards) {
   std::multiset<std::pair<double, CardType>> deck;
