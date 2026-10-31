@@ -1,6 +1,12 @@
 # Developer & Agent Guidelines
 
-## 1. Prerequisites
+## 1. Web Frontend Change Policy
+
+Any time you change the web frontend, you must include screenshots in your PR description.
+
+---
+
+## 2. Prerequisites
 
 Before building or testing the codebase, ensure the following tools and packages are installed:
 
@@ -15,7 +21,7 @@ Before building or testing the codebase, ensure the following tools and packages
 
 ---
 
-## 2. Native C++ Build and Test Instructions
+## 3. Native C++ Build and Test Instructions
 
 ### Building Native Targets
 
@@ -65,7 +71,7 @@ Individual test executables can be run directly from the `build` directory or vi
 
 ---
 
-## 3. Web Server Execution
+## 4. Web Server Execution
 
 To run the local C++ HTTP web server (`bridge_server`):
 
@@ -83,7 +89,7 @@ By default, the server listens at `http://0.0.0.0:8080`. Additional CLI flags ca
 
 ---
 
-## 4. WebAssembly Build and Smoke Testing
+## 5. WebAssembly Build and Smoke Testing
 
 ### Setting Up Emscripten SDK
 
@@ -156,9 +162,3 @@ node -e '(() => {
   vm.runInThisContext(fs.readFileSync(wasmJs, "utf8"), { filename: wasmJs });
 })()'
 ```
-
----
-
-## 5. Web Frontend Change Policy
-
-Any time you change the web frontend, you must include screenshots in your PR description.
