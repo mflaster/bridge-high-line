@@ -1359,11 +1359,26 @@ size_t BitmaskMinusCount(const std::vector<uint64_t> &a,
   return count;
 }
 
+bool AreCoveredBitmasksDistinct(const std::vector<uint64_t> &a,
+                                const std::vector<uint64_t> &b,
+                                size_t max_equiv_diff) {
+  return BitmaskMinusCount(a, b) > max_equiv_diff &&
+         BitmaskMinusCount(b, a) > max_equiv_diff;
+}
+
 void SelectDistinctFinalistLines(std::vector<ConditionalLine> *lines,
                                  int max_finalists, int active_total,
                                  double equiv_diff_pct) {
   if (lines->empty() || max_finalists <= 0) return;
-  int best_cov = (*lines)[0].CoveredFinalBoards();
+  int best_cov = 0;
+  bool is_cov_sorted = true;
+  for (size_t i = 0; i < lines->size(); ++i) {
+    int c = (*lines)[i].CoveredFinalBoards();
+    best_cov = std::max(best_cov, c);
+    if (i > 0 && c > (*lines)[i - 1].CoveredFinalBoards()) {
+      is_cov_sorted = false;
+    }
+  }
   int margin = std::max(
       4, static_cast<int>(
              std::ceil(2.8 * std::sqrt(std::max(1, active_total) * 0.25))));
@@ -1376,23 +1391,25 @@ void SelectDistinctFinalistLines(std::vector<ConditionalLine> *lines,
   std::vector<std::vector<uint64_t>> kept_masks;
   std::vector<int> kept_covs;
   std::vector<uint64_t> cand_mask;
+  std::vector<size_t> dominated_kept;
 
   for (ConditionalLine &cand : *lines) {
     int cov = cand.CoveredFinalBoards();
     if (cov < min_cov) {
+      if (is_cov_sorted) break;
       continue;
     }
     cand.FillCoveredBoardsBitmask(&cand_mask);
     bool redundant = false;
+    dominated_kept.clear();
     for (size_t k = 0; k < kept.size(); ++k) {
-      size_t sym_diff = BitmaskSymDiffCount(cand_mask, kept_masks[k]);
-      if (sym_diff <= max_equiv_diff) {
-        redundant = true;
-        break;
+      if (AreCoveredBitmasksDistinct(cand_mask, kept_masks[k],
+                                     max_equiv_diff)) {
+        continue;
       }
-      size_t new_boards = BitmaskMinusCount(cand_mask, kept_masks[k]);
-      if (new_boards == 0 ||
-          (cov < kept_covs[k] && new_boards <= max_equiv_diff)) {
+      if (cov > kept_covs[k]) {
+        dominated_kept.push_back(k);
+      } else {
         redundant = true;
         break;
       }
@@ -1400,10 +1417,28 @@ void SelectDistinctFinalistLines(std::vector<ConditionalLine> *lines,
     if (redundant) {
       continue;
     }
-    kept_masks.push_back(cand_mask);
-    kept_covs.push_back(cov);
-    kept.push_back(std::move(cand));
-    if (static_cast<int>(kept.size()) >= max_finalists) {
+    if (!dominated_kept.empty()) {
+      size_t ins_pos = dominated_kept[0];
+      for (size_t idx = dominated_kept.size(); idx > 0; --idx) {
+        auto off = static_cast<ptrdiff_t>(dominated_kept[idx - 1]);
+        kept.erase(kept.begin() + off);
+        kept_masks.erase(kept_masks.begin() + off);
+        kept_covs.erase(kept_covs.begin() + off);
+      }
+      auto ins_off = static_cast<ptrdiff_t>(ins_pos);
+      kept_masks.insert(kept_masks.begin() + ins_off, cand_mask);
+      kept_covs.insert(kept_covs.begin() + ins_off, cov);
+      kept.insert(kept.begin() + ins_off, std::move(cand));
+    } else {
+      if (static_cast<int>(kept.size()) >= max_finalists) {
+        if (is_cov_sorted) break;
+        continue;
+      }
+      kept_masks.push_back(cand_mask);
+      kept_covs.push_back(cov);
+      kept.push_back(std::move(cand));
+    }
+    if (is_cov_sorted && static_cast<int>(kept.size()) >= max_finalists) {
       break;
     }
   }
@@ -1414,6 +1449,7 @@ void EvaluateFinalistLinesOutOfSample(
     const FuzzyBoardState &fuzzy_state, Suit trump, int leader,
     const std::vector<CardType> &cur_trick, int min_tricks, int target_deals,
     double max_eval_ms, uint64_t eval_seed, int num_threads,
+    int filter_max_finalists, double equiv_diff_pct,
     std::vector<ConditionalLine> *lines) {
   if (lines->empty() || target_deals <= 0) {
     return;
@@ -1428,13 +1464,27 @@ void EvaluateFinalistLinesOutOfSample(
   for (size_t l_i = 0; l_i < num_lines; ++l_i) {
     line_hits[l_i].store(0, std::memory_order_relaxed);
   }
+  const bool track_eval_masks = (filter_max_finalists > 1 && num_lines > 1);
+  const size_t mask_words = (static_cast<size_t>(target_deals) + 63u) / 64u;
+  const size_t mask_stride = (mask_words + 7u) & ~size_t{7};
+  std::unique_ptr<std::atomic<uint64_t>[]> eval_masks;
+  if (track_eval_masks) {
+    eval_masks.reset(new std::atomic<uint64_t>[num_lines * mask_stride]);
+    for (size_t i = 0; i < num_lines * mask_stride; ++i) {
+      eval_masks[i].store(0ULL, std::memory_order_relaxed);
+    }
+  }
 
   constexpr int kBatchSize = 250;
   constexpr int kMinDealsBeforeBudgetStop = 1000;
   auto start_tp = std::chrono::steady_clock::now();
   int deals_done = 0;
-  std::string noun =
-      (num_lines == 1) ? " finalist line (" : " finalist lines (";
+  const bool over_pool =
+      filter_max_finalists > 0 &&
+      num_lines > static_cast<size_t>(filter_max_finalists);
+  std::string noun = over_pool ? " candidate lines ("
+                               : ((num_lines == 1) ? " finalist line ("
+                                                   : " finalist lines (");
 
   while (deals_done < target_deals && !LineFinder::IsStopRequested()) {
     LineFinder::SetSolveStatus("Evaluating " + std::to_string(num_lines) +
@@ -1465,10 +1515,16 @@ void EvaluateFinalistLinesOutOfSample(
           }
           ConditionalLine::DefenderEvalCache eval_cache;
           eval_cache.tt_initialized = called_dds;
+          const size_t w = static_cast<size_t>(d) >> 6;
+          const uint64_t bit = 1ULL << (static_cast<unsigned>(d) & 63u);
           for (size_t l_i = 0; l_i < num_lines; ++l_i) {
             if ((*lines)[l_i].EvaluateBoardAdversarialFast(bs, min_tricks,
                                                            &eval_cache)) {
               line_hits[l_i].fetch_add(1, std::memory_order_relaxed);
+              if (eval_masks) {
+                eval_masks[l_i * mask_stride + w].fetch_or(
+                    bit, std::memory_order_relaxed);
+              }
             }
           }
         });
@@ -1499,9 +1555,14 @@ void EvaluateFinalistLinesOutOfSample(
         line_hits[l_i].load(std::memory_order_relaxed));
     (*lines)[l_i].set_eval_total_boards(deals_done);
   }
+  std::vector<size_t> order(num_lines);
+  for (size_t i = 0; i < num_lines; ++i) {
+    order[i] = i;
+  }
   std::stable_sort(
-      lines->begin(), lines->end(),
-      [trump](const ConditionalLine &a, const ConditionalLine &b) {
+      order.begin(), order.end(), [lines, trump](size_t ia, size_t ib) {
+        const ConditionalLine &a = (*lines)[ia];
+        const ConditionalLine &b = (*lines)[ib];
         if (a.eval_covered_boards() != b.eval_covered_boards()) {
           return a.eval_covered_boards() > b.eval_covered_boards();
         }
@@ -1523,6 +1584,50 @@ void EvaluateFinalistLinesOutOfSample(
         }
         return a.ExtraBranches() < b.ExtraBranches();
       });
+
+  std::vector<ConditionalLine> out_lines;
+  if (track_eval_masks && (*lines)[order[0]].eval_covered_boards() > 0) {
+    const size_t used_words = (static_cast<size_t>(deals_done) + 63u) / 64u;
+    const size_t max_eval_equiv_diff = static_cast<size_t>(
+        std::floor(std::max(0.0, equiv_diff_pct) * std::max(0, deals_done) +
+                   1e-9));
+    std::vector<std::vector<uint64_t>> kept_eval_masks;
+    std::vector<uint64_t> cand_mask(used_words, 0ULL);
+    for (size_t idx : order) {
+      if ((*lines)[idx].eval_covered_boards() <= 0) {
+        break;
+      }
+      for (size_t w = 0; w < used_words; ++w) {
+        cand_mask[w] =
+            eval_masks[idx * mask_stride + w].load(std::memory_order_relaxed);
+      }
+      bool redundant = false;
+      for (const auto &km : kept_eval_masks) {
+        if (!AreCoveredBitmasksDistinct(cand_mask, km, max_eval_equiv_diff)) {
+          redundant = true;
+          break;
+        }
+      }
+      if (redundant) {
+        continue;
+      }
+      kept_eval_masks.push_back(cand_mask);
+      out_lines.push_back(std::move((*lines)[idx]));
+      if (static_cast<int>(out_lines.size()) >= filter_max_finalists) {
+        break;
+      }
+    }
+  } else {
+    size_t cap = (filter_max_finalists > 0)
+                     ? std::min(num_lines,
+                                static_cast<size_t>(filter_max_finalists))
+                     : num_lines;
+    out_lines.reserve(cap);
+    for (size_t i = 0; i < cap; ++i) {
+      out_lines.push_back(std::move((*lines)[order[i]]));
+    }
+  }
+  *lines = std::move(out_lines);
 }
 
 void PopulateDealSummaries(const std::vector<BoardState> &boards,
@@ -1863,6 +1968,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
       spine_bases.push_back(step1_ans[orig_indices[0]]);
       Trick1CardPair t1_0 = GetPrimaryTrick1Play(spine_bases[0]);
       int best_cov = ans[0].CoveredFinalBoards();
+      for (size_t k = 1; k < ans.size(); ++k) {
+        best_cov = std::max(best_cov, ans[k].CoveredFinalBoards());
+      }
       int margin = std::max(
           4, static_cast<int>(std::ceil(
                  2.8 * std::sqrt(std::max(1, active_total) * 0.25))));
@@ -1875,13 +1983,12 @@ std::vector<ConditionalLine> LineFinder::Solve(
       ans[0].FillCoveredBoardsBitmask(&mask0);
       for (size_t k = 1; k < ans.size(); ++k) {
         if (ans[k].CoveredFinalBoards() < std::max(1, best_cov - margin)) {
-          break;
+          continue;
         }
         const ConditionalLine &s1_k = step1_ans[orig_indices[k]];
         if (GetPrimaryTrick1Play(s1_k) == t1_0) continue;
         ans[k].FillCoveredBoardsBitmask(&mask_k);
-        if (BitmaskSymDiffCount(mask_k, mask0) > max_eq &&
-            BitmaskMinusCount(mask_k, mask0) > max_eq) {
+        if (AreCoveredBitmasksDistinct(mask_k, mask0, max_eq)) {
           spine_bases.push_back(s1_k);
           break;
         }
@@ -1985,10 +2092,27 @@ std::vector<ConditionalLine> LineFinder::Solve(
     SetSolveStatus("Solve stopped.");
     return {};
   }
-  if (!keep_all_top_k_ && !ans.empty() &&
-      (adversarial_rescore_ || top_k_lines_ > 1)) {
+  bool known_cur_trick = true;
+  for (size_t k = 0; k < cur_trick.size(); ++k) {
+    int seat = (leader + static_cast<int>(k)) % 4;
+    if ((hands[seat] & cur_trick[k]) == 0) {
+      known_cur_trick = false;
+      break;
+    }
+  }
+  const bool want_out_of_sample_eval =
+      finalist_eval_deals_ > 0 && unknown_cards != 0 &&
+      predealt_boards_.empty() && replay_tricks_.empty() &&
+      branch_board_ids_.empty() && known_cur_trick;
+  const bool filter_finalists =
+      !keep_all_top_k_ && (adversarial_rescore_ || top_k_lines_ > 1);
+
+  if (filter_finalists && !ans.empty()) {
     if (max_finalist_lines_ > 1) {
-      SelectDistinctFinalistLines(&ans, max_finalist_lines_, active_total,
+      int solve_pool_limit = want_out_of_sample_eval
+                                 ? (max_finalist_lines_ * 2)
+                                 : max_finalist_lines_;
+      SelectDistinctFinalistLines(&ans, solve_pool_limit, active_total,
                                   finalist_equiv_diff_pct_);
     } else {
       int best_cov = ans[0].CoveredFinalBoards();
@@ -2002,19 +2126,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
     }
   }
 
-  bool known_cur_trick = true;
-  for (size_t k = 0; k < cur_trick.size(); ++k) {
-    int seat = (leader + static_cast<int>(k)) % 4;
-    if ((hands[seat] & cur_trick[k]) == 0) {
-      known_cur_trick = false;
-      break;
-    }
-  }
   bool can_eval_out_of_sample =
-      finalist_eval_deals_ > 0 && !ans.empty() &&
-      ans[0].CoveredFinalBoards() > 0 && unknown_cards != 0 &&
-      predealt_boards_.empty() && replay_tricks_.empty() &&
-      branch_board_ids_.empty() && known_cur_trick;
+      want_out_of_sample_eval && !ans.empty() &&
+      ans[0].CoveredFinalBoards() > 0;
   if (can_eval_out_of_sample) {
     uint64_t eval_seed = finalist_eval_seed_;
     if (eval_seed == 0 && can_reuse_deals && base_eval_seed_ != 0) {
@@ -2032,11 +2146,13 @@ std::vector<ConditionalLine> LineFinder::Solve(
         base_eval_seed_ = eval_seed;
       }
     }
+    int eval_filter_max =
+        (filter_finalists && max_finalist_lines_ > 1) ? max_finalist_lines_ : 0;
     auto start_eval = std::chrono::high_resolution_clock::now();
     EvaluateFinalistLinesOutOfSample(
         fuzzy_state_, trump, leader, cur_trick, min_tricks,
         finalist_eval_deals_, finalist_eval_max_ms_, eval_seed,
-        effective_threads, &ans);
+        effective_threads, eval_filter_max, finalist_equiv_diff_pct_, &ans);
     auto end_eval = std::chrono::high_resolution_clock::now();
     eval_ms_ = std::chrono::duration<double, std::milli>(
                    end_eval - start_eval)
@@ -2049,6 +2165,9 @@ std::vector<ConditionalLine> LineFinder::Solve(
               << " eval_deals=" << ans[0].eval_total_boards()
               << " top_eval_cov=" << ans[0].eval_covered_boards()
               << " finalists=" << ans.size();
+  } else if (filter_finalists && max_finalist_lines_ > 1 &&
+             ans.size() > static_cast<size_t>(max_finalist_lines_)) {
+    ans.resize(static_cast<size_t>(max_finalist_lines_));
   }
 
   auto start_invariant = std::chrono::high_resolution_clock::now();

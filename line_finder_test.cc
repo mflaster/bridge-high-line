@@ -1566,8 +1566,9 @@ TEST(LineFinderTest, LineFinder_DistinctFinalistSetEquivalenceAndRanking) {
     EXPECT_EQ(mask_set, expected_set);
   }
 
-  // 2. Non-trivially different lines (> 1% covered-board set difference) are
-  // retained up to max_finalists = 3 and ranked by out-of-sample test deals.
+  // 2. Non-trivially different lines (> 1% unique wins in EACH direction, so
+  // neither line is equivalent to nor a subset of another) are retained up to
+  // max_finalists = 3 and ranked by out-of-sample test deals.
   {
     std::vector<uint64_t> hands = {
         ParseHand("S 532; H T7; D T32; C 6;"),
@@ -1596,12 +1597,81 @@ TEST(LineFinderTest, LineFinder_DistinctFinalistSetEquivalenceAndRanking) {
                   lines[i - 1].eval_covered_boards());
       }
       for (size_t j = 0; j < i; ++j) {
-        std::vector<int> sym_diff;
-        std::set_symmetric_difference(cov_sets[i].begin(), cov_sets[i].end(),
-                                      cov_sets[j].begin(), cov_sets[j].end(),
-                                      std::back_inserter(sym_diff));
-        EXPECT_GT(sym_diff.size(), 1u);
+        std::vector<int> only_i;
+        std::vector<int> only_j;
+        std::set_difference(cov_sets[i].begin(), cov_sets[i].end(),
+                            cov_sets[j].begin(), cov_sets[j].end(),
+                            std::back_inserter(only_i));
+        std::set_difference(cov_sets[j].begin(), cov_sets[j].end(),
+                            cov_sets[i].begin(), cov_sets[i].end(),
+                            std::back_inserter(only_j));
+        EXPECT_GT(only_i.size(), 1u);
+        EXPECT_GT(only_j.size(), 1u);
       }
+    }
+  }
+
+  // 3. A line whose covered boards are a strict subset of a better line is
+  // strictly worse (not "different") and must be dropped even when its
+  // symmetric difference exceeds 1% and its coverage is within margin.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("C AK; S A;"),
+        0,
+        ParseHand("C 32; S 2;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("C QJ9; S KQ; D 2;");
+    std::vector<BoardState> boards(17);
+    auto set_board = [&](int idx, const char *east_str, const char *west_str) {
+      std::vector<uint64_t> h = {
+          hands[0],
+          ParseHand(east_str),
+          hands[2],
+          ParseHand(west_str),
+      };
+      boards[idx].SetHands(h);
+      boards[idx].SetTrump(CLUBS);
+      boards[idx].SetLead(0);
+      boards[idx].set_board_id(idx + 1);
+    };
+    // Boards 0..11: Spades 1-1, so cashing SA before drawing trumps survives.
+    for (int i = 0; i < 12; ++i) {
+      set_board(i, "C Q9; S K;", "C J; S Q; D 2;");
+    }
+    // Boards 12..16: East is void in Spades and ruffs an early SA, whereas
+    // drawing trumps first (CA, CK, then SA) succeeds on all 17 boards.
+    for (int i = 12; i < 17; ++i) {
+      set_board(i, "C Q9; D 2;", "C J; S KQ;");
+    }
+
+    LineFinder raw_lf(17);
+    raw_lf.SetPredealtBoards(boards);
+    raw_lf.SetMaxFinalistLines(3);
+    raw_lf.SetKeepAllTopK(true);
+    std::vector<ConditionalLine> raw_lines =
+        raw_lf.Solve(3, hands, unknown, /*leader=*/0, CLUBS, {}, /*threads=*/2);
+    bool saw_strict_subset = false;
+    std::set<int> full_set = raw_lines[0].CoveredBoardsSet();
+    for (size_t i = 1; i < raw_lines.size(); ++i) {
+      std::set<int> sub_set = raw_lines[i].CoveredBoardsSet();
+      if (sub_set.size() == 12u &&
+          std::includes(full_set.begin(), full_set.end(), sub_set.begin(),
+                        sub_set.end())) {
+        saw_strict_subset = true;
+      }
+    }
+    ASSERT_TRUE(saw_strict_subset);
+
+    for (bool adv_rescore : {true, false}) {
+      LineFinder lf(17);
+      lf.SetPredealtBoards(boards);
+      lf.SetMaxFinalistLines(3);
+      lf.SetAdversarialRescore(adv_rescore);
+      std::vector<ConditionalLine> lines =
+          lf.Solve(3, hands, unknown, /*leader=*/0, CLUBS, {}, /*threads=*/2);
+      ASSERT_EQ(lines.size(), 1u);
+      EXPECT_EQ(lines[0].CoveredFinalBoards(), 17);
     }
   }
 }
