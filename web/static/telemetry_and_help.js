@@ -177,7 +177,13 @@ function collectFeedbackDealSnapshot() {
     trump: trumpSelect ? trumpSelect.value : '',
     leader: leaderSelect ? leaderSelect.value : '',
     min_tricks: targetTricks ? (parseInt(targetTricks.value, 10) || 1) : 1,
-    num_iters: numIters ? (parseInt(numIters.value, 10) || 100) : 100,
+    num_iters: (typeof parseDealCountInput === 'function')
+      ? Math.max(1, parseDealCountInput(numIters ? numIters.value : '100', 100))
+      : (numIters ? (parseInt(numIters.value, 10) || 100) : 100),
+    eval_iters: (
+      typeof numTestIters !== 'undefined' && numTestIters &&
+      typeof parseDealCountInput === 'function'
+    ) ? parseDealCountInput(numTestIters.value, 10000) : 10000,
     cur_trick: getActiveInitialCurTrick(),
     proposed_cards: (activeProposalContext && Array.isArray(activeProposalContext.proposedCards))
       ? activeProposalContext.proposedCards.map(c => `${c.suit}${c.rank}`)
@@ -610,6 +616,10 @@ if (statusFeedbackBtn) {
     const leaderVal = leaderSelect ? leaderSelect.value : 'NORTH';
     const targetVal = targetTricks ? targetTricks.value : '1';
     const itersVal = numIters ? numIters.value : '100';
+    const testItersVal =
+      (typeof numTestIters !== 'undefined' && numTestIters)
+        ? numTestIters.value
+        : '10,000';
     const backendVal = backendMode || 'unknown';
     const nHand = inputNorth ? inputNorth.value.trim() : '';
     const eHand = inputEast ? inputEast.value.trim() : '';
@@ -623,13 +633,17 @@ if (statusFeedbackBtn) {
         ? lastSolveRequestInfo.hand_label
         : handInfo.hand_label;
 
+    const dealCtx = `Trump=${trumpVal}, Leader=${leaderVal}, ` +
+      `Target=${targetVal}, SolveDeals=${itersVal}, TestDeals=${testItersVal}`;
+    const handsCtx = `N="${nHand}" | E="${eHand}" | S="${sHand}" | ` +
+      `W="${wHand}"${uHand ? ` | U="${uHand}"` : ''}`;
     const lines = [
       '[Status Error Report]',
       `Preset / Hand: ${solveHandLabel}`,
       `Error: ${errorMsg}`,
       `Backend: ${backendVal}`,
-      `Deal Context: Trump=${trumpVal}, Leader=${leaderVal}, Target=${targetVal}, Iterations=${itersVal}`,
-      `Hands: N="${nHand}" | E="${eHand}" | S="${sHand}" | W="${wHand}"${uHand ? ` | U="${uHand}"` : ''}`
+      `Deal Context: ${dealCtx}`,
+      `Hands: ${handsCtx}`
     ];
     if (lastSolveRequestInfo) {
       lines.push(`Last Solve Kind: ${lastSolveRequestInfo.solve_kind || 'main'}`);

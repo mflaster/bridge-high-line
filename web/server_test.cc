@@ -35,7 +35,11 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("panelCompareLines") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("compareLinesList") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("compareLinesResults") != std::string::npos);
-  ASSERT_TRUE(res_index->body.find("Random deals:") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Random deals for solve:") !=
+              std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Random deals for test:") !=
+              std::string::npos);
+  ASSERT_TRUE(res_index->body.find("numTestIters") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openHelpBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpModal") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);
@@ -2120,6 +2124,12 @@ assert(getEl("statSuccess").textContent === "7,345/10,000 (73.5%)",
 assert(getEl("statFailure").textContent === "2,655/10,000 (26.6%)",
        "selectEquivalentLine(1) statFailure: " +
        getEl("statFailure").textContent);
+assert(sandbox.parseDealCountInput("10,000", 10000) === 10000,
+       "parseDealCountInput handles comma-formatted 10,000");
+assert(sandbox.parseDealCountInput("25,000", 10000) === 25000,
+       "parseDealCountInput handles comma-formatted 25,000");
+assert(sandbox.parseDealCountInput("0", 10000) === 0,
+       "parseDealCountInput preserves explicit 0");
 ' )NODE";
     EXPECT_EQ(std::system(cmd.c_str()), 0);
   }

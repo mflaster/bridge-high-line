@@ -320,13 +320,21 @@ function drawDealConfigurationPanelOnPdf(ctx, x, y, w, h) {
   const itersVal = (currentSolveData && currentSolveData.total_boards)
     ? String(currentSolveData.total_boards)
     : (numIters ? numIters.value : '100');
+  const evalTotal = (
+    currentSolveData &&
+    typeof currentSolveData.eval_total_boards === 'number' &&
+    currentSolveData.eval_total_boards > 0
+  ) ? currentSolveData.eval_total_boards : 0;
 
   const centerRows = [
     ['Trump:', `${PDF_SUIT_SYMBOLS[trumpVal] || ''} ${trumpVal}`],
     ['Leader:', leaderVal],
     ['Target:', `${targetVal} tricks`],
-    ['Deals:', `${itersVal}`]
+    [evalTotal > 0 ? 'Solve:' : 'Deals:', `${itersVal}`]
   ];
+  if (evalTotal > 0) {
+    centerRows.push(['Test:', evalTotal.toLocaleString('en-US')]);
+  }
   const initCur = (typeof getActiveInitialCurTrick === 'function')
     ? getActiveInitialCurTrick()
     : [];

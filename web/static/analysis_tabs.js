@@ -628,9 +628,12 @@ function populateEquivalentLinesControls(data, selectedEntryIndex = null) {
       } else if (allEqualScore) {
         equivalentLinesHint.textContent =
           'Choose an equally optimal line of play:';
-      } else if (typeof firstTot === 'number' && firstTot >= 1000) {
+      } else if (entries[0].lineObj &&
+                 typeof entries[0].lineObj.eval_total_boards === 'number' &&
+                 entries[0].lineObj.eval_total_boards > 0) {
         equivalentLinesHint.textContent =
-          `Ranked on ${firstTot.toLocaleString()} deals — switch to inspect:`;
+          `Ranked on ${firstTot.toLocaleString('en-US')} deals` +
+          ' — switch to inspect:';
       } else {
         equivalentLinesHint.textContent =
           'Top candidate lines of play — switch to inspect:';

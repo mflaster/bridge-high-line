@@ -2015,8 +2015,10 @@ std::string WebServer::SolveJson(const std::string &req_body,
       double eval_max_ms = 0.0;
       if (req_json.contains("eval_iters") &&
           req_json["eval_iters"].is_number_integer()) {
-        eval_iters =
-            std::clamp(req_json["eval_iters"].get<int>(), 0, 100000);
+        if (can_multi_finalist) {
+          eval_iters =
+              std::clamp(req_json["eval_iters"].get<int>(), 0, 100000);
+        }
       } else if (num_iters >= 50 && can_multi_finalist) {
         eval_iters = 10000;
 #ifdef __EMSCRIPTEN__

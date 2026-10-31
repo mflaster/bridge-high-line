@@ -11,10 +11,19 @@ const trumpSelect = document.getElementById('trumpSelect');
 const leaderSelect = document.getElementById('leaderSelect');
 const targetTricks = document.getElementById('targetTricks');
 const numIters = document.getElementById('numIters');
+const numTestIters = document.getElementById('numTestIters');
 const presetSelect = document.getElementById('presetSelect');
 const solveBtn = document.getElementById('solveBtn');
 const stopSolveBtn = document.getElementById('stopSolveBtn');
 const stopSolveActionBtn = document.getElementById('stopSolveActionBtn');
+
+function parseDealCountInput(rawVal, fallback) {
+  if (rawVal === null || rawVal === undefined) return fallback;
+  const cleaned = String(rawVal).replace(/[,\s_]/g, '');
+  if (!cleaned) return fallback;
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? fallback : Math.max(0, parsed);
+}
 
 const inputNorth = document.getElementById('inputNorth');
 const inputEast = document.getElementById('inputEast');
@@ -66,6 +75,7 @@ function captureCurrentDealState() {
     leader: leaderSelect ? leaderSelect.value : 'EAST',
     target: targetTricks ? targetTricks.value : '1',
     iters: numIters ? numIters.value : '100',
+    test_iters: numTestIters ? numTestIters.value : '10,000',
     cur_trick: Array.isArray(presetCurTrick) ? presetCurTrick.slice() : [],
     loadedBoardHands: loadedBoardHands ? { ...loadedBoardHands } : null,
     loadedActualDeal: loadedActualDeal ? { ...loadedActualDeal } : null,
@@ -81,8 +91,12 @@ function captureCurrentDealState() {
         : []
     },
     importedSuitVoids: {
-      E: new Set(importedSuitVoids && importedSuitVoids.E ? importedSuitVoids.E : []),
-      W: new Set(importedSuitVoids && importedSuitVoids.W ? importedSuitVoids.W : [])
+      E: new Set(
+        importedSuitVoids && importedSuitVoids.E ? importedSuitVoids.E : []
+      ),
+      W: new Set(
+        importedSuitVoids && importedSuitVoids.W ? importedSuitVoids.W : []
+      )
     },
     declarerSeat: currentDeclarerSeat || 'N',
     wHcpLow: wHcpLowEl ? wHcpLowEl.value : '',
@@ -159,18 +173,28 @@ function applySessionCustomHand(entry) {
       : []
   };
   importedSuitVoids = {
-    E: new Set(s.importedSuitVoids && s.importedSuitVoids.E ? s.importedSuitVoids.E : []),
-    W: new Set(s.importedSuitVoids && s.importedSuitVoids.W ? s.importedSuitVoids.W : [])
+    E: new Set(
+      s.importedSuitVoids && s.importedSuitVoids.E ? s.importedSuitVoids.E : []
+    ),
+    W: new Set(
+      s.importedSuitVoids && s.importedSuitVoids.W ? s.importedSuitVoids.W : []
+    )
   };
   presetCurTrick = Array.isArray(s.cur_trick) ? s.cur_trick.slice() : [];
   updateDeclarerBarUI(s.declarerSeat || 'N');
   clearPanels();
-  setStatus('idle', `Loaded ${entry.label}. Configure hands and click "Solve Deal".`);
+  setStatus(
+    'idle',
+    `Loaded ${entry.label}. Configure hands and click "Solve Deal".`
+  );
 
   if (trumpSelect) trumpSelect.value = s.trump;
   if (leaderSelect) leaderSelect.value = s.leader;
   if (targetTricks) targetTricks.value = s.target;
   if (numIters) numIters.value = s.iters;
+  if (numTestIters) {
+    numTestIters.value = s.test_iters !== undefined ? s.test_iters : '10,000';
+  }
 
   if (inputNorth) inputNorth.value = s.north || '';
   if (inputEast) inputEast.value = s.east || '';
@@ -1421,6 +1445,11 @@ function loadPreset(key, isInitialLoad = false) {
   leaderSelect.value = p.leader;
   targetTricks.value = p.target;
   numIters.value = p.iters;
+  if (numTestIters) {
+    numTestIters.value = p.test_iters !== undefined
+      ? String(p.test_iters)
+      : '10,000';
+  }
 
   inputNorth.value = p.north || '';
   inputEast.value = p.east || '';
@@ -1949,8 +1978,16 @@ function parseAndApplyDealText(text, sourceFileName = null) {
     }
 
     if (keyValues.iters || keyValues.num_iters || keyValues.iterations) {
-      const it = parseInt(keyValues.iters || keyValues.num_iters || keyValues.iterations, 10);
-      if (!isNaN(it)) numIters.value = it;
+      const rawIt =
+        keyValues.iters || keyValues.num_iters || keyValues.iterations;
+      const it = parseDealCountInput(rawIt, -1);
+      if (it > 0) numIters.value = it;
+    }
+
+    if (numTestIters && (keyValues.test_iters || keyValues.eval_iters)) {
+      const rawTestIt = keyValues.test_iters || keyValues.eval_iters;
+      const testIt = parseDealCountInput(rawTestIt, -1);
+      if (testIt >= 0) numTestIters.value = testIt.toLocaleString('en-US');
     }
 
     if (keyValues.cur_trick) {
@@ -1963,8 +2000,11 @@ function parseAndApplyDealText(text, sourceFileName = null) {
     inputWest.value = plainLines[3];
   }
 
-  const fileSource = sourceFileName ? { fileName: sourceFileName, fileFormat: 'txt', loadType: 'txt' } : activeLoadedFileInfo;
-  const boardVal = keyValues.board || keyValues.board_number || keyValues.hand || '1';
+  const fileSource = sourceFileName
+    ? { fileName: sourceFileName, fileFormat: 'txt', loadType: 'txt' }
+    : activeLoadedFileInfo;
+  const boardVal =
+    keyValues.board || keyValues.board_number || keyValues.hand || '1';
   const sourceMeta = fileSource ? {
     fileName: fileSource.fileName,
     boardLabel: boardVal,
@@ -1972,8 +2012,10 @@ function parseAndApplyDealText(text, sourceFileName = null) {
     loadType: fileSource.loadType || 'txt'
   } : null;
 
-  if (countHandCards(inputNorth.value) > 0 && countHandCards(inputEast.value) > 0 &&
-      countHandCards(inputSouth.value) > 0 && countHandCards(inputWest.value) > 0) {
+  if (countHandCards(inputNorth.value) > 0 &&
+      countHandCards(inputEast.value) > 0 &&
+      countHandCards(inputSouth.value) > 0 &&
+      countHandCards(inputWest.value) > 0) {
     loadedBoardHands = {
       N: inputNorth.value.trim(),
       E: inputEast.value.trim(),
@@ -2030,7 +2072,17 @@ solveBtn.addEventListener('click', async () => {
   const startTime = performance.now();
 
   const numThreadsSelect = document.getElementById('numThreads');
-  const parsedThreads = numThreadsSelect ? parseInt(numThreadsSelect.value, 10) : 16;
+  const parsedThreads = numThreadsSelect
+    ? parseInt(numThreadsSelect.value, 10)
+    : 16;
+  const parsedSolveIters = Math.max(
+    1,
+    parseDealCountInput(numIters ? numIters.value : '100', 100)
+  );
+  const parsedTestIters = parseDealCountInput(
+    numTestIters ? numTestIters.value : '10,000',
+    10000
+  );
 
   const payload = {
     hands: {
@@ -2041,8 +2093,11 @@ solveBtn.addEventListener('click', async () => {
     },
     trump: trumpSelect.value,
     leader: leaderSelect.value,
-    min_tricks: isNaN(parseInt(targetTricks.value, 10)) ? 1 : parseInt(targetTricks.value, 10),
-    num_iters: isNaN(parseInt(numIters.value, 10)) ? 100 : parseInt(numIters.value, 10),
+    min_tricks: isNaN(parseInt(targetTricks.value, 10))
+      ? 1
+      : parseInt(targetTricks.value, 10),
+    num_iters: parsedSolveIters,
+    eval_iters: parsedTestIters,
     num_threads: isNaN(parsedThreads) ? 16 : parsedThreads
   };
 
@@ -2200,6 +2255,7 @@ solveBtn.addEventListener('click', async () => {
         leader: leaderSelect.value,
         targetTricks: targetTricks.value,
         numIters: numIters.value,
+        numTestIters: numTestIters ? numTestIters.value : '10,000',
         curTrick: initCurTrick,
         declarerSeat: currentDeclarerSeat || 'N',
         actualDeal: activeActualDeal
@@ -2480,7 +2536,12 @@ if (resetLineBtn) {
       leaderSelect.value = snap.inputs.leader;
       targetTricks.value = snap.inputs.targetTricks;
       numIters.value = snap.inputs.numIters;
-      presetCurTrick = Array.isArray(snap.inputs.curTrick) ? snap.inputs.curTrick.slice() : [];
+      if (numTestIters && snap.inputs.numTestIters !== undefined) {
+        numTestIters.value = snap.inputs.numTestIters;
+      }
+      presetCurTrick = Array.isArray(snap.inputs.curTrick)
+        ? snap.inputs.curTrick.slice()
+        : [];
     }
 
     hasComputedProposedLine = false;
@@ -2681,9 +2742,14 @@ if (computeNewLineBtn) {
       m => Object.keys(m).length > 0
     );
 
-    const parsedNumIters = isNaN(parseInt(numIters.value, 10))
-      ? 100
-      : parseInt(numIters.value, 10);
+    const parsedNumIters = Math.max(
+      1,
+      parseDealCountInput(numIters ? numIters.value : '100', 100)
+    );
+    const parsedTestIters = parseDealCountInput(
+      numTestIters ? numTestIters.value : '10,000',
+      10000
+    );
     const payload = {
       hands: {
         N: formatSuitsToHandStr(remainingBeforeTrickK.N, false),
@@ -2700,7 +2766,8 @@ if (computeNewLineBtn) {
       start_trick_num: startTrickNumForSolve,
       initial_ns_tricks: nsTricksBeforeSolve,
       reuse_deals: true,
-      replay_tricks: replayTricksPayload
+      replay_tricks: replayTricksPayload,
+      max_finalists: 1
     };
     if (hasAnyBoardTrickMap) {
       payload.replay_board_tricks = replayBoardTricksPayload;
@@ -2721,8 +2788,10 @@ if (computeNewLineBtn) {
         }
         const pRank = (pCard.clickedToken || pCard.rankStr || '');
         const bRank = (bCard.rankStr || '');
-        const normP = (pRank === '10' ? 'T' : (pRank === 'X' ? 'H' : pRank)).toUpperCase();
-        const normB = (bRank === '10' ? 'T' : (bRank === 'X' ? 'H' : bRank)).toUpperCase();
+        const normP =
+          (pRank === '10' ? 'T' : (pRank === 'X' ? 'H' : pRank)).toUpperCase();
+        const normB =
+          (bRank === '10' ? 'T' : (bRank === 'X' ? 'H' : bRank)).toUpperCase();
         if (pCard.suit !== bCard.suit || normP !== normB) {
           keptDefenderBranchInTrick = false;
           break;
@@ -2745,6 +2814,12 @@ if (computeNewLineBtn) {
         candidateBranchIds.length < baseTotalDeals) {
       payload.branch_board_ids = candidateBranchIds;
     }
+    const canEvalProposed =
+      startTrickNumForSolve === 1 &&
+      replayTricksPayload.length === 0 &&
+      !payload.branch_board_ids &&
+      !proposedCards.some(c => c.fromUnknown);
+    payload.eval_iters = canEvalProposed ? parsedTestIters : 0;
 
     const remUnknownStr = formatSuitsToHandStr(remainingBeforeTrickK.U, true);
     if (remUnknownStr) {
