@@ -105,7 +105,7 @@ const WASM_NUM_THREADS =
     ? 8
     : 4;
 
-async function ensureCrossOriginIsolation() {
+async function ensureCrossOriginIsolation(allowReload = true) {
   if (window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') {
     try {
       sessionStorage.removeItem('bridge_coi_reloaded');
@@ -117,7 +117,7 @@ async function ensureCrossOriginIsolation() {
   }
   try {
     const reg = await navigator.serviceWorker.register('coi_serviceworker.js');
-    if (reg && (reg.installing || reg.waiting || reg.active)) {
+    if (allowReload && reg && (reg.installing || reg.waiting || reg.active)) {
       if (!sessionStorage.getItem('bridge_coi_reloaded')) {
         sessionStorage.setItem('bridge_coi_reloaded', '1');
         if (navigator.serviceWorker.controller) {
@@ -149,6 +149,7 @@ async function ensureBackendMode() {
   backendDetectPromise = (async () => {
     if (window.BRIDGE_FORCE_WASM === true) {
       backendMode = 'wasm';
+      if (typeof window !== 'undefined') window.backendMode = backendMode;
       setSentryGlobalAttribute('backend_mode', backendMode);
       configureWasmThreadsUI();
       await ensureCrossOriginIsolation();
@@ -161,12 +162,14 @@ async function ensureBackendMode() {
         const data = await res.json();
         if (data && data.status === 'ok') {
           backendMode = 'server';
+          if (typeof window !== 'undefined') window.backendMode = backendMode;
           setSentryGlobalAttribute('backend_mode', backendMode);
           return backendMode;
         }
       }
     } catch (_) {}
     backendMode = 'wasm';
+    if (typeof window !== 'undefined') window.backendMode = backendMode;
     setSentryGlobalAttribute('backend_mode', backendMode);
     configureWasmThreadsUI();
     await ensureCrossOriginIsolation();
@@ -176,20 +179,22 @@ async function ensureBackendMode() {
   return backendDetectPromise;
 }
 
-async function apiSolve(payload, signal) {
-  const mode = await ensureBackendMode();
-  if (mode === 'server') {
-    return fetch('/api/solve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal
-    });
-  }
+function dispatchWasmSolve(payload, signal) {
   const worker = initWasmWorker();
   const reqId = wasmNextRequestId++;
-  wasmLatestStatus = { status: 'Starting solve...', progress: -1 };
+  wasmLatestStatus = { status: 'Solving in WebAssembly...', progress: -1 };
   return new Promise((resolve) => {
+    if (signal && signal.aborted) {
+      resolve({
+        ok: false,
+        json: async () => ({
+          success: false,
+          stopped: true,
+          error: 'Solve stopped by user.'
+        })
+      });
+      return;
+    }
     wasmActiveRequest = { id: reqId, resolve };
     if (signal) {
       signal.addEventListener('abort', () => {
@@ -216,12 +221,105 @@ async function apiSolve(payload, signal) {
   });
 }
 
+async function apiSolve(payload, signal) {
+  const mode = await ensureBackendMode();
+  if (mode === 'server') {
+    try {
+      return await fetch('/api/solve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal
+      });
+    } catch (err) {
+      // If the solve was aborted by the user, re-throw to allow normal cancellation handling.
+      if ((signal && signal.aborted) || (err && err.name === 'AbortError')) {
+        throw err;
+      }
+
+      // Server fetch failed due to network / connection drop; fall back to WebAssembly.
+      backendMode = 'wasm';
+      if (typeof window !== 'undefined') window.backendMode = backendMode;
+      backendDetectPromise = Promise.resolve('wasm');
+
+      // Update Sentry attributes and report fallback transition event.
+      setSentryGlobalAttribute('backend_mode', backendMode);
+      if (typeof emitSentryMetricCount === 'function') {
+        emitSentryMetricCount('backend_fallback_to_wasm', 1, {
+          source: 'fetch_rejection',
+          error: (err && err.message) || String(err)
+        });
+      }
+      if (typeof window !== 'undefined' && window.Sentry) {
+        if (typeof window.Sentry.addBreadcrumb === 'function') {
+          window.Sentry.addBreadcrumb({
+            category: 'backend',
+            message: 'Server fetch rejected; falling back to WebAssembly: ' +
+              ((err && err.message) || String(err)),
+            level: 'warning'
+          });
+        }
+        if (typeof window.Sentry.captureMessage === 'function') {
+          window.Sentry.captureMessage(
+            'Server fetch rejected; falling back to WebAssembly: ' +
+              ((err && err.message) || String(err)),
+            'warning'
+          );
+        }
+      }
+      if (typeof reportRuntimeErrorToSentry === 'function') {
+        reportRuntimeErrorToSentry(err, {
+          source: 'server_fetch_fallback_to_wasm',
+          previous_mode: 'server',
+          target_mode: 'wasm'
+        });
+      }
+
+      // Lock thread controls to WebAssembly specifications.
+      configureWasmThreadsUI();
+
+      // Update status message informing user of local WebAssembly execution.
+      const fallbackStatusMsg = 'Server unreachable. Running client-side WebAssembly solver...';
+      if (typeof setStatus === 'function') {
+        setStatus('running', fallbackStatusMsg);
+      } else if (typeof window !== 'undefined' && typeof window.setStatus === 'function') {
+        window.setStatus('running', fallbackStatusMsg);
+      }
+
+      // Ensure cross-origin isolation without reloading the browser, then initialize worker.
+      await ensureCrossOriginIsolation(false);
+      initWasmWorker();
+
+      // Dispatch solve payload to local WebAssembly worker and return worker promise.
+      return dispatchWasmSolve(payload, signal);
+    }
+  }
+  return dispatchWasmSolve(payload, signal);
+}
+
 async function apiSolveStatus() {
   const mode = await ensureBackendMode();
   if (mode === 'server') {
-    return fetch('/api/solve_status');
+    try {
+      return await fetch('/api/solve_status');
+    } catch (_) {
+      if (backendMode === 'wasm') {
+        const st = { status: wasmLatestStatus.status || 'Solving in WebAssembly...' };
+        if (typeof wasmLatestStatus.progress === 'number' && wasmLatestStatus.progress >= 0) {
+          st.progress = wasmLatestStatus.progress;
+        }
+        return {
+          ok: true,
+          json: async () => st
+        };
+      }
+      return {
+        ok: false,
+        json: async () => ({ status: 'Connecting...' })
+      };
+    }
   }
-  const st = { status: wasmLatestStatus.status || 'Solving...' };
+  const st = { status: wasmLatestStatus.status || 'Solving in WebAssembly...' };
   if (typeof wasmLatestStatus.progress === 'number' && wasmLatestStatus.progress >= 0) {
     st.progress = wasmLatestStatus.progress;
   }

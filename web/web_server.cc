@@ -1391,6 +1391,11 @@ std::string WebServer::StopSolveJson() {
 
 #ifndef __EMSCRIPTEN__
 void WebServer::RegisterRoutes() {
+  svr_.set_default_headers({
+      {"Cross-Origin-Opener-Policy", "same-origin"},
+      {"Cross-Origin-Embedder-Policy", "require-corp"}
+  });
+
   svr_.Get("/", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::INDEX_HTML, "text/html");
   });
@@ -1479,7 +1484,8 @@ void WebServer::RegisterRoutes() {
       return;
     }
     std::string name = req.matches[1].str();
-    const char *candidates[] = {"docs/images/", "../docs/images/"};
+    const char *candidates[] = {
+        "bridge-high-line/docs/images/", "docs/images/", "../docs/images/"};
     for (const char *dir : candidates) {
       std::ifstream ifs(std::string(dir) + name, std::ios::binary);
       if (ifs) {
@@ -1493,6 +1499,33 @@ void WebServer::RegisterRoutes() {
   };
   svr_.Get(R"(/images/([A-Za-z0-9_.-]+\.png))", serve_doc_image);
   svr_.Get(R"(/docs/images/([A-Za-z0-9_.-]+\.png))", serve_doc_image);
+
+  auto serve_static_file = [](const char *path, const char *content_type) {
+    return [path, content_type](const httplib::Request &, httplib::Response &res) {
+      const char *candidates[] = {
+          "bridge-high-line/web/static/", "web/static/", "../web/static/",
+          "bridge-high-line/build-wasm/", "build-wasm/", "../build-wasm/", ""};
+      for (const char *dir : candidates) {
+        std::ifstream ifs(std::string(dir) + path, std::ios::binary);
+        if (ifs) {
+          std::ostringstream ss;
+          ss << ifs.rdbuf();
+          res.set_content(ss.str(), content_type);
+          return;
+        }
+      }
+      res.status = 404;
+    };
+  };
+
+  svr_.Get("/solver_worker.js",
+           serve_static_file("solver_worker.js", "application/javascript"));
+  svr_.Get("/coi_serviceworker.js",
+           serve_static_file("coi_serviceworker.js", "application/javascript"));
+  svr_.Get("/bridge_wasm.js",
+           serve_static_file("bridge_wasm.js", "application/javascript"));
+  svr_.Get("/bridge_wasm.wasm",
+           serve_static_file("bridge_wasm.wasm", "application/wasm"));
 
   svr_.Get("/api/health", [this](const httplib::Request &req, httplib::Response &res) {
     HandleHealth(req, res);

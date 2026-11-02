@@ -273,6 +273,45 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   server.Stop();
 }
 
+TEST(ServerTest, CrossOriginIsolationHeaders) {
+  int port = 18082;
+  WebServer server("127.0.0.1", port);
+  ASSERT_TRUE(server.Start(/*async=*/true));
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+  httplib::Client client("127.0.0.1", port);
+  client.set_keep_alive(false);
+
+  auto check_coi_headers = [](const httplib::Result &res) {
+    ASSERT_TRUE(res);
+    ASSERT_TRUE(res->status == 200);
+    ASSERT_TRUE(res->has_header("Cross-Origin-Opener-Policy"));
+    EXPECT_EQ(res->get_header_value("Cross-Origin-Opener-Policy"), "same-origin");
+    ASSERT_TRUE(res->has_header("Cross-Origin-Embedder-Policy"));
+    EXPECT_EQ(res->get_header_value("Cross-Origin-Embedder-Policy"), "require-corp");
+  };
+
+  // Test static assets and health endpoint
+  check_coi_headers(client.Get("/"));
+  check_coi_headers(client.Get("/app.js"));
+  check_coi_headers(client.Get("/solver_api.js"));
+  check_coi_headers(client.Get("/api/health"));
+
+  // Test /api/solve endpoint
+  nlohmann::json solve_req;
+  solve_req["hands"]["N"] = "S A; H -; D -; C -;";
+  solve_req["hands"]["E"] = "S 2; H -; D -; C -;";
+  solve_req["hands"]["S"] = "S 3; H -; D -; C -;";
+  solve_req["hands"]["W"] = "S 4; H -; D -; C -;";
+  solve_req["trump"] = "SPADES";
+  solve_req["leader"] = "NORTH";
+
+  check_coi_headers(client.Post("/api/solve", solve_req.dump(), "application/json"));
+
+  server.Stop();
+}
+
 TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
   int port = 18081;
   WebServer server("127.0.0.1", port);
@@ -2238,3 +2277,142 @@ TEST(ServerTest, SolveJsonFinalistOutOfSampleEval) {
     }
   }
 }
+
+TEST(ServerTest, AutomaticWasmSolverFallbackOnFetchFailure) {
+  if (std::system("command -v node >/dev/null 2>&1") == 0) {
+    std::string cmd = R"NODE(node -e '
+const fs = require("fs");
+const vm = require("vm");
+const path = require("path");
+const assert = require("assert");
+
+const solverApiPath = path.resolve(__dirname, "web/static/solver_api.js");
+const code = fs.readFileSync(solverApiPath, "utf8");
+
+async function run() {
+  const sentryAttrs = {};
+  const metrics = [];
+  const statusCalls = [];
+  let postedWorkerMessage = null;
+
+  class MockWorker {
+    constructor(script) {
+      this.script = script;
+      this.onmessage = null;
+      MockWorker.instance = this;
+    }
+    postMessage(msg) {
+      postedWorkerMessage = msg;
+      if (msg.type === "solve") {
+        setTimeout(() => {
+          if (this.onmessage) {
+            this.onmessage({
+              data: {
+                type: "solve_result",
+                id: msg.id,
+                resultJson: JSON.stringify({ success: true, tricks_won: 3 })
+              }
+            });
+          }
+        }, 5);
+      }
+    }
+    terminate() {}
+  }
+
+  const numThreadsEl = { value: "1", disabled: false, title: "" };
+  const sandbox = {
+    console,
+    setTimeout,
+    clearTimeout,
+    Promise,
+    TypeError,
+    Error,
+    JSON,
+    Object,
+    String,
+    Boolean,
+    window: { crossOriginIsolated: true },
+    document: {
+      getElementById: (id) => (id === "numThreads" ? numThreadsEl : null)
+    },
+    navigator: { hardwareConcurrency: 8 },
+    Worker: MockWorker,
+    setSentryGlobalAttribute: (k, v) => { sentryAttrs[k] = v; },
+    emitSentryMetricCount: (name, val, extra) => { metrics.push({ name, val, extra }); },
+    reportRuntimeErrorToSentry: () => {},
+    setStatus: (type, msg, timeStr, pr) => { statusCalls.push({ type, msg, timeStr, pr }); },
+    fetch: async (url) => {
+      if (url === "/api/health") {
+        return { ok: true, json: async () => ({ status: "ok" }) };
+      }
+      if (url === "/api/solve") {
+        throw new TypeError("Failed to fetch");
+      }
+      throw new Error("Unexpected url: " + url);
+    }
+  };
+  sandbox.global = sandbox;
+  sandbox.self = sandbox;
+  sandbox.window.setStatus = sandbox.setStatus;
+
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox);
+
+  // 1. Initial health check discovers server mode
+  const initialMode = await vm.runInContext("ensureBackendMode()", sandbox);
+  assert.strictEqual(initialMode, "server");
+  assert.strictEqual(vm.runInContext("backendMode", sandbox), "server");
+
+  // 2. apiSolve fails network fetch -> triggers automatic fallback to wasm
+  const solvePayload = { trump: "SPADES", min_tricks: 3 };
+  const res = await vm.runInContext("apiSolve", sandbox)(solvePayload);
+  assert.strictEqual(vm.runInContext("backendMode", sandbox), "wasm");
+  assert.strictEqual(sentryAttrs["backend_mode"], "wasm");
+  assert.strictEqual(numThreadsEl.disabled, true);
+  assert(numThreadsEl.value === "8" || numThreadsEl.value === "4");
+  assert(statusCalls.some(c => c.msg && c.msg.includes("WebAssembly")));
+  assert(postedWorkerMessage !== null);
+  assert.strictEqual(postedWorkerMessage.type, "solve");
+  const parsedPayload = JSON.parse(postedWorkerMessage.payloadJson);
+  assert.strictEqual(parsedPayload.trump, "SPADES");
+  assert(parsedPayload.num_threads > 0);
+
+  const resData = await res.json();
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(resData.success, true);
+  assert.strictEqual(resData.tricks_won, 3);
+
+  // 3. Status polling reads local worker status after fallback
+  const stRes = await vm.runInContext("apiSolveStatus()", sandbox);
+  assert.strictEqual(stRes.ok, true);
+  const stData = await stRes.json();
+  assert(stData.status !== undefined);
+
+  // 4. User cancellations (aborted signal) do NOT trigger wasm fallback
+  sandbox.fetch = async () => {
+    const abortErr = new Error("The operation was aborted");
+    abortErr.name = "AbortError";
+    throw abortErr;
+  };
+  vm.runInContext("backendMode = \"server\"; backendDetectPromise = Promise.resolve(\"server\");", sandbox);
+  let abortedCaught = false;
+  try {
+    await vm.runInContext("apiSolve", sandbox)({ trump: "HEARTS" }, { aborted: true });
+  } catch (e) {
+    abortedCaught = true;
+    assert.strictEqual(e.name, "AbortError");
+  }
+  assert.strictEqual(abortedCaught, true);
+  assert.strictEqual(vm.runInContext("backendMode", sandbox), "server");
+}
+
+run().catch(err => {
+  console.error("Test failed:", err);
+  process.exit(1);
+});
+')NODE";
+    EXPECT_EQ(std::system(cmd.c_str()), 0);
+  }
+}
+
