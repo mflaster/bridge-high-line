@@ -1605,3 +1605,42 @@ TEST(LineFinderTest, LineFinder_DistinctFinalistSetEquivalenceAndRanking) {
     }
   }
 }
+
+TEST(LineFinderTest, LineFinder_Hand15FindsTrumpCoverAndDropFinalists) {
+  std::vector<uint64_t> hands = {
+      ParseHand("H T96; D KQ85; C AQJ4;"),
+      ParseHand("S 2;"),
+      ParseHand("S 8; H AJ7542; D A6; C K8;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("S T75; H KQ83; D JT97432; C T976532;");
+  std::vector<CardType> cur_trick = {Card::ParseStringCard("S2")};
+
+  srand48(0);
+  LineFinder lf(100);
+  lf.SetMaxFinalistLines(3);
+  lf.SetFinalistEvalDeals(2000);
+  lf.SetFinalistEvalSeed(424242ULL);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(10, hands, unknown, /*leader=*/1, HEARTS, cur_trick, 8);
+  ASSERT_GE(lines.size(), 2u);
+  EXPECT_LE(lines.size(), 3u);
+
+  int cover_idx = -1;
+  int drop_idx = -1;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    std::string desc = lines[i].Describe(0);
+    if (desc.find("after (S_) S8 (__) H6:") == std::string::npos) continue;
+    if (cover_idx < 0 &&
+        desc.find("after HT (Hx) H2") != std::string::npos &&
+        desc.find("after HT (HX) HA") != std::string::npos) {
+      cover_idx = static_cast<int>(i);
+    }
+    if (drop_idx < 0 && desc.find("after HT (H_) HA") != std::string::npos) {
+      drop_idx = static_cast<int>(i);
+    }
+  }
+  ASSERT_GE(cover_idx, 0);
+  ASSERT_GE(drop_idx, 0);
+  EXPECT_LT(cover_idx, drop_idx);
+}

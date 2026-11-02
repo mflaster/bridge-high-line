@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <chrono>
 #include <functional>
 #include <thread>
@@ -8,8 +11,39 @@
 #include "third_party/nlohmann/json.hpp"
 #include "web_server.h"
 
+namespace {
+int PickFreePort() {
+  int fd = ::socket(AF_INET6, SOCK_STREAM, 0);
+  if (fd >= 0) {
+    sockaddr_in6 addr6{};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_addr = in6addr_any;
+    addr6.sin6_port = 0;
+    socklen_t len = sizeof(addr6);
+    if (::bind(fd, reinterpret_cast<sockaddr *>(&addr6), len) == 0 &&
+        ::getsockname(fd, reinterpret_cast<sockaddr *>(&addr6), &len) == 0) {
+      int port = ntohs(addr6.sin6_port);
+      ::close(fd);
+      return port;
+    }
+    ::close(fd);
+  }
+  fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;
+  socklen_t len = sizeof(addr);
+  ::bind(fd, reinterpret_cast<sockaddr *>(&addr), len);
+  ::getsockname(fd, reinterpret_cast<sockaddr *>(&addr), &len);
+  int port = ntohs(addr.sin_port);
+  ::close(fd);
+  return port;
+}
+}  // namespace
+
 TEST(ServerTest, WebServerHealthAndStaticAssets) {
-  int port = 18080;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
@@ -53,6 +87,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("hand_15_261028") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
@@ -231,6 +266,13 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["bid"] == "X");
   ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["after"] == "P 1S");
   ASSERT_TRUE(h6["requirements"]["W"]["would_bid"][0]["bid"] == "P");
+  ASSERT_TRUE(presets_file_json.contains("hand_15_261028"));
+  const auto &h15 = presets_file_json["hand_15_261028"];
+  ASSERT_TRUE(h15["trump"] == "HEARTS");
+  ASSERT_TRUE(h15["leader"] == "EAST");
+  ASSERT_TRUE(h15["cur_trick"] == nlohmann::json::array({"S2"}));
+  ASSERT_TRUE(h15["target"] == 10);
+  ASSERT_TRUE(h15.contains("actual_deal"));
   for (const auto& [key, preset] : presets_file_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -248,6 +290,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(presets_api_json.contains("two_way_finesse"));
   ASSERT_TRUE(presets_api_json.contains("hand_8_261014"));
   ASSERT_TRUE(presets_api_json.contains("hand_6_261014"));
+  ASSERT_TRUE(presets_api_json.contains("hand_15_261028"));
   for (const auto& [key, preset] : presets_api_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -274,7 +317,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
 }
 
 TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
-  int port = 18081;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
@@ -917,7 +960,7 @@ TEST(ServerTest, UnmatchedDefenderPlayAttachesToConditionNode) {
 }
 
 TEST(ServerTest, WebServerConcurrentMultithreadedApiSolveRequests) {
-  int port = 18082;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
