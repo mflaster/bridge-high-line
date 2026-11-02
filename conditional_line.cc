@@ -1498,12 +1498,35 @@ bool OppSlotDistinguishable(const GeneralizedTrick &trick1,
   if (!CardsAreRedundant(opp1, opp2) && !is_any_vs_discard) {
     return true;
   }
-  if (trick1.leader % 2 == 0) {
-    return false;
-  }
   if (opp1 == opp2 ||
       !trick1.HasBoardTricks() ||
       !trick2.HasBoardTricks()) {
+    return false;
+  }
+  if (trick1.leader % 2 == 0) {
+    auto is_suited = [](const std::string &p) {
+      return p.size() >= 2 && p[0] != '_' && p[0] != 'R';
+    };
+    if (opp1 == "__" && is_suited(opp2)) {
+      if (mask1 != nullptr) {
+        if (!mask1->computed) {
+          *mask1 = BuildTrickOppPatternMask(trick1, opp_pos);
+        }
+        return mask1->has_discard && !mask1->Matches(opp2);
+      }
+      TrickOppPatternMask m1 = BuildTrickOppPatternMask(trick1, opp_pos);
+      return m1.has_discard && !m1.Matches(opp2);
+    }
+    if (opp2 == "__" && is_suited(opp1)) {
+      if (mask2 != nullptr) {
+        if (!mask2->computed) {
+          *mask2 = BuildTrickOppPatternMask(trick2, opp_pos);
+        }
+        return mask2->has_discard && !mask2->Matches(opp1);
+      }
+      TrickOppPatternMask m2 = BuildTrickOppPatternMask(trick2, opp_pos);
+      return m2.has_discard && !m2.Matches(opp1);
+    }
     return false;
   }
   int spec1 = PatternSpecificity(opp1);
@@ -1672,10 +1695,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
   }
 
   bool def_leads = (input[0].leader % 2 != 0);
-  std::vector<std::array<TrickOppPatternMask, 2>> opp_masks;
-  if (def_leads) {
-    opp_masks.resize(input.size());
-  }
+  std::vector<std::array<TrickOppPatternMask, 2>> opp_masks(input.size());
 
   std::vector<int> key_id;
   std::unordered_map<int, int> ungrouped_by_my1;
@@ -1700,9 +1720,9 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
       }
     }
     const GeneralizedTrick &trick = input[j];
-    auto *m_j = def_leads ? &opp_masks[j] : nullptr;
+    auto *m_j = &opp_masks[j];
     for (int idx : group_indices) {
-      auto *m_idx = def_leads ? &opp_masks[idx] : nullptr;
+      auto *m_idx = &opp_masks[idx];
       if (!AreCardsDistinguishable(input[idx], trick, m_idx, m_j,
                                    my1_id[idx], my1_id[j],
                                    my2_id[idx], my2_id[j])) {
@@ -1729,7 +1749,7 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
       group_mask[w] = mi[w];
     }
 
-    if (def_leads && input[i].HasBoardTricks()) {
+    if (input[i].HasBoardTricks()) {
       for (unsigned int j = 0; j < i; j++) {
         try_add(j);
       }
@@ -1818,9 +1838,15 @@ std::vector<std::vector<GeneralizedTrick>> GroupTricksImpl(
 
   ans.reserve(group_idx_list.size());
   for (const auto &g_indices : group_idx_list) {
+    std::vector<int> ordered = g_indices;
+    if (!def_leads && ordered.size() > 1) {
+      std::stable_partition(ordered.begin(), ordered.end(), [&](int idx) {
+        return input[idx].demi1.opp_card != "__";
+      });
+    }
     std::vector<GeneralizedTrick> group;
-    group.reserve(g_indices.size());
-    for (int idx : g_indices) {
+    group.reserve(ordered.size());
+    for (int idx : ordered) {
       if (mutable_input != nullptr && --ref_count[idx] == 0) {
         group.push_back(std::move((*mutable_input)[idx]));
       } else {
@@ -3354,12 +3380,28 @@ void ConditionalLine::DeepCloneChildren(bool is_root) {
       if (!has_wildcard_lead) {
         const std::string &my1_k = gt_k.demi1.my_card;
         const std::string &my2_k = gt_k.demi2.my_card;
-        if (opp1_k.size() != 2 || (opp1_k[1] != 'T' && opp1_k[1] != 'J')) {
+        int opp_rv = -1;
+        if (opp1_k.size() == 2 && (opp1_k[1] == 'T' || opp1_k[1] == 'J')) {
+          opp_rv = Card::DecodeCard(Card::ParseStringCard(opp1_k)).second;
+        } else if (opp1_k.size() == 2 && opp1_k[1] == 'X' &&
+                   !gt_k.board_entries.empty()) {
+          for (const auto &e : gt_k.board_entries) {
+            if (e.trick_str.size() >= 2 && e.trick_str[0] == opp1_k[0]) {
+              int rv = Card::DecodeCard(
+                           Card::ParseStringCard(e.trick_str.substr(0, 2)))
+                           .second;
+              opp_rv = std::max(opp_rv, rv);
+            } else {
+              opp_rv = 100;
+            }
+          }
+          if (opp_rv > 9) opp_rv = -1;
+        }
+        if (opp_rv < 0) {
           continue;
         }
         bool sound_cover = false;
         if (my1_k.size() == 2 && my1_k[0] == opp1_k[0]) {
-          int opp_rv = Card::DecodeCard(Card::ParseStringCard(opp1_k)).second;
           int my1_rv = Card::DecodeCard(Card::ParseStringCard(my1_k)).second;
           sound_cover = (my1_rv > opp_rv);
           if (sound_cover && my2_k.size() == 2 && my2_k[0] == opp1_k[0]) {
@@ -3444,12 +3486,242 @@ void ConditionalLine::CollapseUniformInSuitSplits() {
   }
 }
 
+void ConditionalLine::RelaxEquivalentHonorSplits(
+    const std::array<uint16_t, 4> &equiv_opp_honors, Suit trump_suit,
+    bool is_root) {
+  std::vector<ConditionalLine *> trick_children;
+  std::vector<ConditionalLine *> solo_children;
+  for (auto &[cond, child] : conditions_) {
+    if (!child) continue;
+    child->RelaxEquivalentHonorSplits(equiv_opp_honors, trump_suit,
+                                      /*is_root=*/false);
+    if (!child->do_first_.Empty()) {
+      if (dynamic_cast<const TrickPlayCondition *>(cond.get()) != nullptr) {
+        trick_children.push_back(child.get());
+      } else {
+        solo_children.push_back(child.get());
+      }
+    }
+  }
+
+  auto is_specific_honor = [](const std::string &pat, int *out_s,
+                              int *out_rv) -> bool {
+    if (pat.size() != 2) return false;
+    if (pat[0] != 'S' && pat[0] != 'H' && pat[0] != 'D' && pat[0] != 'C') {
+      return false;
+    }
+    if (pat[1] != 'T' && pat[1] != 'J' && pat[1] != 'Q' && pat[1] != 'K' &&
+        pat[1] != 'A') {
+      return false;
+    }
+    auto [s, rv] = Card::DecodeCard(Card::ParseStringCard(pat));
+    *out_s = static_cast<int>(s);
+    *out_rv = rv;
+    return rv >= 8;
+  };
+
+  auto trick_winner_seat = [&](const std::array<std::pair<Suit, int>, 4> &cs,
+                               int ldr) {
+    Suit s_led = cs[0].first;
+    int best_i = 0;
+    for (int p = 1; p < 4; ++p) {
+      bool best_tr = (trump_suit != NOTRUMP && cs[best_i].first == trump_suit);
+      bool cur_tr = (trump_suit != NOTRUMP && cs[p].first == trump_suit);
+      if (cur_tr && !best_tr) {
+        best_i = p;
+      } else if (cs[p].first == cs[best_i].first &&
+                 (cur_tr || cs[p].first == s_led) &&
+                 cs[p].second > cs[best_i].second) {
+        best_i = p;
+      }
+    }
+    return (ldr + best_i) % 4;
+  };
+
+  auto relax_group = [&](const std::vector<ConditionalLine *> &group) -> bool {
+    bool any_updated = false;
+    for (size_t k = 0; k < group.size(); ++k) {
+      GeneralizedTrick &gt_k = group[k]->do_first_;
+      if (gt_k.board_entries.empty()) continue;
+      bool decl_leads = (gt_k.leader % 2 == 0);
+      for (int which = 0; which < 2; ++which) {
+        bool is_d1 = (which == 0);
+        std::string &opp_pat =
+            is_d1 ? gt_k.demi1.opp_card : gt_k.demi2.opp_card;
+        int s = -1;
+        int rv = -1;
+        if (!is_specific_honor(opp_pat, &s, &rv)) continue;
+        uint16_t eq_h = equiv_opp_honors[s];
+        if ((eq_h & (1u << rv)) == 0) continue;
+
+        int opp_pos = is_d1 ? (decl_leads ? 1 : 0) : (decl_leads ? 3 : 2);
+        bool sib_conflict = false;
+        for (size_t m = 0; m < group.size(); ++m) {
+          if (m == k) continue;
+          const GeneralizedTrick &gt_m = group[m]->do_first_;
+          if (decl_leads && gt_m.demi1.my_card != gt_k.demi1.my_card) continue;
+          if (!is_d1 && (gt_m.demi1.opp_card != gt_k.demi1.opp_card ||
+                         gt_m.demi1.my_card != gt_k.demi1.my_card)) {
+            continue;
+          }
+          const std::string &sib_pat =
+              is_d1 ? gt_m.demi1.opp_card : gt_m.demi2.opp_card;
+          if (sib_pat.size() >= 2 && sib_pat[0] == opp_pat[0] &&
+              sib_pat[1] != '_' && sib_pat[1] != 'x') {
+            sib_conflict = true;
+            break;
+          }
+          if (sib_pat == "__" && gt_m.HasBoardTricks() &&
+              BuildTrickOppPatternMask(gt_m, opp_pos)
+                  .Matches(std::string(1, opp_pat[0]) + "X")) {
+            sib_conflict = true;
+            break;
+          }
+        }
+        if (sib_conflict) continue;
+
+        Suit suit_enum = static_cast<Suit>(s);
+        bool all_entries_ok = true;
+        for (const auto &e : gt_k.board_entries) {
+          if (e.trick_str.size() < 11) {
+            all_entries_ok = false;
+            break;
+          }
+          std::array<std::pair<Suit, int>, 4> cs;
+          for (int p = 0; p < 4; ++p) {
+            cs[p] = Card::DecodeCard(
+                Card::ParseStringCard(e.trick_str.substr(p * 3, 2)));
+          }
+          for (int r = 8; r <= 12; ++r) {
+            if ((eq_h & (1u << r)) == 0) continue;
+            bool dup = false;
+            for (int p = 0; p < 4; ++p) {
+              if (p != opp_pos && cs[p].first == suit_enum &&
+                  cs[p].second == r) {
+                dup = true;
+                break;
+              }
+            }
+            if (dup) continue;
+            auto test_cs = cs;
+            test_cs[opp_pos] = {suit_enum, r};
+            if (trick_winner_seat(test_cs, gt_k.leader) !=
+                static_cast<int>(e.winner)) {
+              all_entries_ok = false;
+              break;
+            }
+          }
+          if (!all_entries_ok) break;
+        }
+        if (!all_entries_ok) continue;
+
+        char suit_ch = opp_pat[0];
+        opp_pat = std::string(1, suit_ch) + "X";
+        any_updated = true;
+
+        int opp_seat = (gt_k.leader + opp_pos) % 4;
+        if (opp_seat % 2 != 0) {
+          std::set<std::string> full_eq_cards;
+          for (int r = 8; r <= 12; ++r) {
+            if ((eq_h & (1u << r)) != 0) {
+              full_eq_cards.insert(
+                  Card::PrintCard(Card::GetSuitedCard(suit_enum, r)));
+            }
+          }
+          for (auto &[w_cond, _w_ch] : group[k]->conditions_) {
+            const auto *wpc =
+                dynamic_cast<const WinnerPlayCondition *>(w_cond.get());
+            if (wpc == nullptr || wpc->who() != opp_seat ||
+                wpc->winning_cards().empty()) {
+              continue;
+            }
+            bool subset = true;
+            for (const std::string &wc : wpc->winning_cards()) {
+              if (full_eq_cards.count(wc) == 0) {
+                subset = false;
+                break;
+              }
+            }
+            if (subset && wpc->winning_cards() != full_eq_cards) {
+              w_cond = std::make_shared<WinnerPlayCondition>(opp_seat,
+                                                             full_eq_cards);
+            }
+          }
+        }
+      }
+    }
+    return any_updated;
+  };
+
+  if (is_root && !do_first_.Empty()) {
+    relax_group({this});
+  }
+  for (ConditionalLine *solo : solo_children) {
+    relax_group({solo});
+  }
+  bool any_d2_relaxed = false;
+  if (trick_children.size() >= 2 &&
+      trick_children[0]->do_first_.leader % 2 == 0) {
+    for (size_t k = 0; k < trick_children.size(); ++k) {
+      GeneralizedTrick &gt_k = trick_children[k]->do_first_;
+      const std::string &my1 = gt_k.demi1.my_card;
+      if (my1.size() != 2 || gt_k.board_entries.empty()) continue;
+      Suit s_led = Card::ParseSuit(my1[0]);
+      if (trump_suit != NOTRUMP && s_led != trump_suit) continue;
+      if (gt_k.demi1.opp_card.empty() || gt_k.demi1.opp_card[0] != my1[0]) {
+        continue;
+      }
+      if (gt_k.demi2.opp_card != std::string(1, my1[0]) + "_") continue;
+      bool decl_wins_all = true;
+      for (const auto &e : gt_k.board_entries) {
+        if (e.winner % 2 != 0) {
+          decl_wins_all = false;
+          break;
+        }
+      }
+      if (!decl_wins_all) continue;
+      bool sib_has_void = false;
+      bool d2_split = false;
+      for (size_t m = 0; m < trick_children.size(); ++m) {
+        if (m == k) continue;
+        const GeneralizedTrick &gt_m = trick_children[m]->do_first_;
+        if (gt_m.demi1.my_card != my1) continue;
+        if (gt_m.demi1.opp_card.empty() || gt_m.demi1.opp_card[0] != my1[0]) {
+          continue;
+        }
+        if (gt_m.demi1.opp_card == gt_k.demi1.opp_card &&
+            gt_m.demi2.my_card == gt_k.demi2.my_card) {
+          d2_split = true;
+          break;
+        }
+        if (gt_m.demi2.opp_card == "__" || gt_m.demi2.opp_card == "R_") {
+          sib_has_void = true;
+        }
+      }
+      if (sib_has_void && !d2_split) {
+        gt_k.demi2.opp_card = "__";
+        any_d2_relaxed = true;
+      }
+    }
+  }
+  if (!trick_children.empty() &&
+      (relax_group(trick_children) || any_d2_relaxed)) {
+    for (auto &[cond, child] : conditions_) {
+      if (!child || child->do_first_.Empty()) continue;
+      if (dynamic_cast<const TrickPlayCondition *>(cond.get()) != nullptr) {
+        cond = std::make_shared<TrickPlayCondition>(
+            child->do_first_.ToString(true));
+      }
+    }
+  }
+}
+
 void ConditionalLine::ApplyRescoredBoards(
     const std::unordered_map<const ConditionalLine *, std::set<int>>
         &leaf_boards,
     const std::unordered_map<const ConditionalLine *,
                              std::map<int, std::string>> &node_board_tricks) {
-  if (!has_rescored_boards_) {
+  if (!has_rescored_boards_ && !has_step1_count_) {
     step1_covered_count_ = covered_count_;
   }
   has_rescored_boards_ = true;
@@ -3483,6 +3755,56 @@ void ConditionalLine::ApplyRescoredBoards(
     }
   }
   covered_count_ = sum;
+}
+
+std::shared_ptr<ConditionalLine> ConditionalLine::CloneRestrictedChild(
+    const ConditionalLine *src, const std::set<int> &allowed,
+    RestrictedCloneMap *memo) {
+  if (src == nullptr) return nullptr;
+  auto it = memo->find(src);
+  if (it != memo->end()) return it->second;
+  auto dst = std::make_shared<ConditionalLine>(*src);
+  if (!dst->has_step1_count_ && !dst->has_rescored_boards_) {
+    dst->step1_covered_count_ = dst->covered_count_;
+    dst->has_step1_count_ = true;
+  }
+  dst->RestrictNodeWithClonedChildren(allowed, memo);
+  (*memo)[src] = dst;
+  return dst;
+}
+
+void ConditionalLine::RestrictNodeWithClonedChildren(
+    const std::set<int> &allowed, RestrictedCloneMap *memo) {
+  if (conditions_.empty()) {
+    for (auto it = final_covered_boards_.begin();
+         it != final_covered_boards_.end();) {
+      if (allowed.count(*it) == 0) {
+        it = final_covered_boards_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    covered_count_ = static_cast<int>(final_covered_boards_.size());
+    unforced_fc_count_ = std::min(unforced_fc_count_, covered_count_);
+    return;
+  }
+  final_covered_boards_.clear();
+  int sum = 0;
+  for (auto &[_cond, child] : conditions_) {
+    if (child) {
+      child = CloneRestrictedChild(child.get(), allowed, memo);
+      sum += child->CoveredFinalBoards();
+    }
+  }
+  covered_count_ = sum;
+  unforced_fc_count_ = std::min(unforced_fc_count_, covered_count_);
+}
+
+void ConditionalLine::CloneAndRestrictCoveredBoards(
+    const std::set<int> &allowed, RestrictedCloneMap *memo) {
+  RestrictedCloneMap local_memo;
+  RestrictedCloneMap *active_memo = (memo != nullptr) ? memo : &local_memo;
+  RestrictNodeWithClonedChildren(allowed, active_memo);
 }
 
 

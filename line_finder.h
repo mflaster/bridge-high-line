@@ -163,6 +163,9 @@ class LineFinder {
   void SetFinalistEvalSeed(uint64_t seed) { finalist_eval_seed_ = seed; }
   uint64_t finalist_eval_seed() const { return finalist_eval_seed_; }
 
+  void SetProgressiveSearch(bool v) { progressive_search_ = v; }
+  bool progressive_search() const { return progressive_search_; }
+
   // Solves for optimal play lines to achieve min_tricks across simulated boards.
   //
   // Returns:
@@ -290,6 +293,16 @@ class LineFinder {
       int min_covered = 0, int top_k = -1,
       Suit prev_suit_led = NOTRUMP, int state_depth = 0);
 
+  std::vector<ConditionalLine> SolveGuidedLine(
+      const ConditionalLine &guide,
+      int min_tricks,
+      SolverCache &cache,
+      std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
+      const std::set<int> &board_offsets,
+      int leader, int lvl,
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0,
+      int guide_depth = 0);
+
   int TopKForLevel(int lvl, size_t num_boards) const;
 
  private:
@@ -328,6 +341,8 @@ class LineFinder {
   uint64_t base_eval_seed_ = 0;
   bool adversarial_rescore_ = true;
   bool keep_all_top_k_ = false;
+  bool progressive_search_ = true;
+  bool wide_beam_ = false;
   FuzzyBoardState fuzzy_state_;
   std::vector<BoardState> boards_;
   std::vector<BoardState> initial_boards_;

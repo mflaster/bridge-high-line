@@ -53,6 +53,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("hand_15_261028") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
@@ -231,6 +232,13 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["bid"] == "X");
   ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["after"] == "P 1S");
   ASSERT_TRUE(h6["requirements"]["W"]["would_bid"][0]["bid"] == "P");
+  ASSERT_TRUE(presets_file_json.contains("hand_15_261028"));
+  const auto &h15 = presets_file_json["hand_15_261028"];
+  ASSERT_TRUE(h15["trump"] == "HEARTS");
+  ASSERT_TRUE(h15["leader"] == "EAST");
+  ASSERT_TRUE(h15["cur_trick"] == nlohmann::json::array({"S2"}));
+  ASSERT_TRUE(h15["target"] == 10);
+  ASSERT_TRUE(h15.contains("actual_deal"));
   for (const auto& [key, preset] : presets_file_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -248,6 +256,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(presets_api_json.contains("two_way_finesse"));
   ASSERT_TRUE(presets_api_json.contains("hand_8_261014"));
   ASSERT_TRUE(presets_api_json.contains("hand_6_261014"));
+  ASSERT_TRUE(presets_api_json.contains("hand_15_261028"));
   for (const auto& [key, preset] : presets_api_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }

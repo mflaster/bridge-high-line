@@ -373,6 +373,13 @@ class ConditionalLine {  // ConditionalLineBranch
   // declarer leads.
   void CollapseUniformInSuitSplits();
 
+  // Relaxes specific single-honor opponent patterns (e.g. HK or HQ) to HX when
+  // all opponent honors in that suit form an unbroken equivalence class and
+  // preserve trick winners without conflicting with sibling branches.
+  void RelaxEquivalentHonorSplits(
+      const std::array<uint16_t, 4> &equiv_opp_honors, Suit trump_suit,
+      bool is_root = true);
+
   // Updates leaf final_covered_boards_, action board_to_trick maps, and
   // bottom-up covered_count_ from Step-2 rescored results while preserving
   // step1_covered_count_.
@@ -384,8 +391,14 @@ class ConditionalLine {  // ConditionalLineBranch
           &node_board_tricks = {});
   bool has_rescored_boards() const { return has_rescored_boards_; }
   int step1_covered_boards() const {
-    return has_rescored_boards_ ? step1_covered_count_ : covered_count_;
+    return (has_rescored_boards_ || has_step1_count_) ? step1_covered_count_
+                                                      : covered_count_;
   }
+  using RestrictedCloneMap =
+      std::unordered_map<const ConditionalLine *,
+                         std::shared_ptr<ConditionalLine>>;
+  void CloneAndRestrictCoveredBoards(const std::set<int> &allowed,
+                                     RestrictedCloneMap *memo = nullptr);
 
   struct PlayedTrickStep {
     int leader = 0;
@@ -482,6 +495,13 @@ class ConditionalLine {  // ConditionalLineBranch
   int step1_covered_count_ = 0;
   int unforced_fc_count_ = 0;
   bool has_rescored_boards_ = false;
+  bool has_step1_count_ = false;
+
+  static std::shared_ptr<ConditionalLine> CloneRestrictedChild(
+      const ConditionalLine *src, const std::set<int> &allowed,
+      RestrictedCloneMap *memo);
+  void RestrictNodeWithClonedChildren(const std::set<int> &allowed,
+                                      RestrictedCloneMap *memo);
 
   // Total number of simulated deal iterations in the run.
   int total_boards_ = 0;
