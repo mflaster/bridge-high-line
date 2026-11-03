@@ -1396,7 +1396,10 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
               (rho_known_out_of_led || r > opp_highest_rank[suit_led])) ||
              (s == trump && suit_led != trump &&
               (rho_known_cant_overruff || r > opp_highest_rank[trump])));
-        if (sure_third_win && r > cheapest_third &&
+        bool opp_can_ruff_between =
+            (s == trump && trick_ruffed && cur_winner != partner &&
+             (opp_suit_mask[s] & RanksBetweenMask(cheapest_third, r)) != 0);
+        if (sure_third_win && r > cheapest_third && !opp_can_ruff_between &&
             !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
                                       partner_after_suit[s], cheapest_third,
                                       r)) {
@@ -1410,7 +1413,10 @@ int DDSSolveHelper(int min_tricks, const BoardState &bs, deal &dl, int level,
         }
         int win_bucket = (s == suit_led && r >= 10) ? 1 : 0;
         int cheapest_fourth = cheapest_fourth_hand_win_rank[s][win_bucket];
-        if (wins_so_far && r > cheapest_fourth &&
+        bool opp_can_ruff_between =
+            (s == trump && trick_ruffed && cur_winner != partner &&
+             (opp_suit_mask[s] & RanksBetweenMask(cheapest_fourth, r)) != 0);
+        if (wins_so_far && r > cheapest_fourth && !opp_can_ruff_between &&
             !CanNeedUnblockForPartner(my_suit_mask[s], partner_suit_mask[s],
                                       partner_after_suit[s], cheapest_fourth,
                                       r)) {

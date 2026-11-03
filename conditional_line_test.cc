@@ -1618,3 +1618,114 @@ TEST(ConditionalLineTest,
     EXPECT_EQ(tricks[0].ToString(true), "(D_) D5 (D_) DA");
   }
 }
+
+TEST(ConditionalLineTest, OverruffSoundnessAndCrossSuitSameMy2Grouping) {
+  // 1. GeneralizedDemiPlay does not generalize an overruff to a trump pattern
+  // that includes higher opponent trumps, while preserving "__" and sound spot
+  // overruffs such as ("Hx", "H9") or ("Hx", "H8") when N/S hold H9.
+  {
+    GeneralizedDemiPlay low_overruff(HEARTS);
+    low_overruff.RecordOptimalPlay("H3", "H6", 0, nullptr, /*ns_won=*/true);
+    GeneralizedPlaysVector low_plays =
+        low_overruff.GetGeneralizedPlays(1, SPADES, 10);
+    for (const auto &p : low_plays) {
+      EXPECT_NE(p.opp_card, "Hx");
+      EXPECT_NE(p.opp_card, "H_");
+    }
+    ASSERT_EQ(low_plays.size(), 1u);
+    EXPECT_EQ(low_plays[0].opp_card, "__");
+    EXPECT_EQ(low_plays[0].my_card, "H6");
+
+    GeneralizedDemiPlay high_spot_overruff(HEARTS);
+    high_spot_overruff.RecordOptimalPlay("H3", "H9", 0, nullptr,
+                                         /*ns_won=*/true);
+    GeneralizedPlaysVector high_plays =
+        high_spot_overruff.GetGeneralizedPlays(1, SPADES, 10);
+    bool saw_hx_h9 = false;
+    for (const auto &p : high_plays) {
+      EXPECT_NE(p.opp_card, "H_");
+      if (p.opp_card == "Hx" && p.my_card == "H9") {
+        saw_hx_h9 = true;
+      }
+    }
+    EXPECT_TRUE(saw_hx_h9);
+
+    uint16_t ns_holds_h9 = static_cast<uint16_t>(1u << 7);
+    GeneralizedDemiPlay h8_with_ns_h9(HEARTS, ns_holds_h9);
+    h8_with_ns_h9.RecordOptimalPlay("H3", "H8", 0, nullptr, /*ns_won=*/true);
+    GeneralizedPlaysVector h8_plays =
+        h8_with_ns_h9.GetGeneralizedPlays(1, SPADES, 10);
+    bool saw_hx_h8 = false;
+    for (const auto &p : h8_plays) {
+      EXPECT_NE(p.opp_card, "H_");
+      if (p.opp_card == "Hx" && p.my_card == "H8") {
+        saw_hx_h8 = true;
+      }
+    }
+    EXPECT_TRUE(saw_hx_h8);
+  }
+
+  // 2. When declarer leads a plain suit and LHO ruffs in 2nd hand, 3rd-hand
+  // overruffs also reject trump patterns containing higher opponent trumps.
+  {
+    GeneralizedTrickFinder finder(SPADES);
+    finder.RecordOptimalTrick(2, "D8 S4 S8 DT", 0);
+    GeneralizedTricksVector s8_tricks = finder.GetGeneralizedTricks(20);
+    for (const auto &gt : s8_tricks) {
+      EXPECT_NE(gt.demi1.opp_card, "S_");
+      EXPECT_NE(gt.demi1.opp_card, "Sx");
+    }
+
+    GeneralizedTrickFinder s9_finder(SPADES);
+    s9_finder.RecordOptimalTrick(2, "D8 S4 S9 DT", 0);
+    GeneralizedTricksVector s9_tricks = s9_finder.GetGeneralizedTricks(20);
+    bool saw_sx_s9 = false;
+    for (const auto &gt : s9_tricks) {
+      EXPECT_NE(gt.demi1.opp_card, "S_");
+      if (gt.demi1.opp_card == "Sx" && gt.demi2.my_card == "S9") {
+        saw_sx_s9 = true;
+      }
+    }
+    EXPECT_TRUE(saw_sx_s9);
+  }
+
+  // 3. GroupTricks allows a trump-ruff branch to share my2 with a led-suit
+  // branch when paired alongside a differing-my2 branch (e.g. ST -> H6 +
+  // __ -> D5 + H_ -> H6), without grouping ST -> H6 + H_ -> H6 on their own.
+  {
+    uint16_t no_higher_hearts = static_cast<uint16_t>(0x1fe0);
+    GeneralizedTrickFinder finder(HEARTS, no_higher_hearts);
+    finder.RecordOptimalTrick(1, "S2 S8 ST H6", 0);
+    finder.RecordOptimalTrick(1, "S2 S8 ST H6", 1);
+    finder.RecordOptimalTrick(1, "S2 S8 C3 D5", 2);
+    finder.RecordOptimalTrick(1, "S2 S8 D3 D5", 3);
+    finder.RecordOptimalTrick(1, "S2 S8 C7 D5", 4);
+    finder.RecordOptimalTrick(1, "S2 S8 H3 H6", 5);
+    GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(50);
+    auto groups = GroupTricks(tricks);
+
+    bool found_three_way = false;
+    for (const auto &g : groups) {
+      bool has_d5 = false;
+      bool has_st_h6 = false;
+      bool has_h_h6 = false;
+      for (const auto &gt : g) {
+        if (gt.demi2.my_card == "D5") has_d5 = true;
+        if (gt.demi2.opp_card == "ST" && gt.demi2.my_card == "H6") {
+          has_st_h6 = true;
+        }
+        if (!gt.demi2.opp_card.empty() && gt.demi2.opp_card[0] == 'H' &&
+            gt.demi2.my_card == "H6") {
+          has_h_h6 = true;
+        }
+      }
+      if (has_d5 && has_st_h6 && has_h_h6) {
+        found_three_way = true;
+      }
+      if (!has_d5) {
+        EXPECT_FALSE(has_st_h6 && has_h_h6);
+      }
+    }
+    EXPECT_TRUE(found_three_way);
+  }
+}

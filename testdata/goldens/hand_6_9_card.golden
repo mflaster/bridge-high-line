@@ -62,7 +62,7 @@ Example Failed Play (Board 3):
                           when 2 wins the CA: 
                             after DA (__) CJ (D_): DA (__) CJ (D_) [91,111,140,176] / DA CT CJ D7 / DA DK CJ D7 / DA C7 CJ D9 / DA HT CJ DT
                               when 2 wins the DA: 
-                                after D8 (S_) S8 (D_): D8 (S_) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 D9
+                                after D8 (Sx) S8 (D_): D8 (Sx) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 D9
                                   when 0 wins the S8: 
                                     after SA (__) DQ (SQ): SA (__) DQ (SQ) [91,111,140,176] / SA DK DQ SQ / SA DJ DQ SQ / SA DK DQ SQ / SA DK DQ SQ
                                       when 0 wins the SA: HAND SUCCEEDED FOR: 91, 111, 140, 176
@@ -123,7 +123,7 @@ Example Failed Play (Board 3):
                           when 2 wins the CA: 
                             after DA (__) CJ (D_): DA (__) CJ (D_) [91,111,140,176] / DA CT CJ D7 / DA DK CJ D7 / DA C7 CJ D9 / DA HT CJ DT
                               when 2 wins the DA: 
-                                after D8 (S_) S8 (D_): D8 (S_) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 D9
+                                after D8 (Sx) S8 (D_): D8 (Sx) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 D9
                                   when 0 wins the S8: 
                                     after SA (__) DQ (SQ): SA (__) DQ (SQ) [91,111,140,176] / SA DK DQ SQ / SA DJ DQ SQ / SA DK DQ SQ / SA DK DQ SQ
                                       when 0 wins the SA: HAND SUCCEEDED FOR: 91, 111, 140, 176

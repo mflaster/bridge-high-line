@@ -1730,3 +1730,86 @@ TEST(LineFinderTest,
   }
 }
 
+TEST(LineFinderTest, LineFinder_Hand15PitchLineOverruffsSmallRuffsWithHT) {
+  std::vector<uint64_t> hands = {
+      ParseHand("H T96; D KQ85; C AQJ4;"),
+      ParseHand("S 2;"),
+      ParseHand("S 8; H AJ7542; D A6; C K8;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("S T75; H KQ83; D JT97432; C T976532;");
+  std::vector<CardType> cur_trick = {Card::ParseStringCard("S2")};
+
+  const char *west_hands[] = {
+      "S T; H Q83; D J94; C T952;",
+      "S T7; H Q83; D 974; C T92;",
+      "S T5; H K3; D 9732; C 953;",
+      "S T; H 83; D J742; C T932;",
+      "S 7; H Q3; D 9432; C T976;",
+      "S 5; H Q3; D J972; C T732;",
+      "H Q83; D JT74; C T765;",
+      "H Q83; D J743; C T753;",
+      "H Q8; D J9743; C T765;",
+      "H 83; D J9432; C T653;",
+  };
+  constexpr int kNumDeals =
+      static_cast<int>(sizeof(west_hands) / sizeof(west_hands[0]));
+  std::vector<BoardState> boards(kNumDeals);
+  for (int i = 0; i < kNumDeals; ++i) {
+    uint64_t w_hand = ParseHand(west_hands[i]);
+    ASSERT_EQ(PopCount64(w_hand), 11);
+    ASSERT_EQ(w_hand & ~unknown, 0ULL);
+    uint64_t e_hand = hands[1] | (unknown & ~w_hand);
+    boards[i].SetHands({hands[0], e_hand, hands[2], w_hand});
+    boards[i].SetTrump(HEARTS);
+    boards[i].SetLead(1);
+    boards[i].set_board_id(static_cast<uint32_t>(i + 1));
+  }
+
+  LineFinder lf(kNumDeals);
+  lf.SetPredealtBoards(boards);
+  lf.SetKeepAllTopK(true);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(10, hands, unknown, /*leader=*/1, HEARTS, cur_trick, 4);
+  ASSERT_FALSE(lines.empty());
+  const auto &solved_boards = lf.boards();
+
+  bool saw_unsplit_ruff = false;
+  bool saw_pitch_with_overruff = false;
+  for (const ConditionalLine &line : lines) {
+    std::string desc = line.Describe(0);
+    if (desc.find("after (S_) S8 (__) H6:") != std::string::npos) {
+      saw_unsplit_ruff = true;
+    }
+    bool is_pitch_st_line =
+        (desc.find("after (S_) S8 (ST) H6:") != std::string::npos &&
+         (desc.find("after (S_) S8 (__) C4:") != std::string::npos ||
+          desc.find("after (S_) S8 (__) D5:") != std::string::npos));
+    if (!is_pitch_st_line) continue;
+
+    EXPECT_NE(desc.find("after (S_) S8 (Hx) HT:"), std::string::npos) << desc;
+    EXPECT_EQ(desc.find("after (S_) S8 (Hx) H6:"), std::string::npos) << desc;
+    EXPECT_EQ(desc.find("after (S_) S8 (H_) H6:"), std::string::npos) << desc;
+
+    for (int b = 0; b < kNumDeals; ++b) {
+      auto tr = line.TraceOnBoard(solved_boards[b], b);
+      if (!tr.steps.empty() && tr.steps[0].winner == 3) {
+        EXPECT_NE(tr.steps[0].winning_card, "H3") << "Board " << b << "\n"
+                                                  << desc;
+        EXPECT_NE(tr.steps[0].winning_card, "H8") << "Board " << b << "\n"
+                                                  << desc;
+      }
+    }
+    if (!saw_pitch_with_overruff) {
+      saw_pitch_with_overruff = true;
+      EXPECT_EQ(line.CoveredFinalBoards(), kNumDeals) << desc;
+      for (int b = 0; b < kNumDeals; ++b) {
+        EXPECT_GE(line.ResultsOnHandAdversarial(solved_boards[b]), 10)
+            << "Board " << b << "\n"
+            << desc;
+      }
+    }
+  }
+  EXPECT_TRUE(saw_unsplit_ruff);
+  EXPECT_TRUE(saw_pitch_with_overruff);
+}
