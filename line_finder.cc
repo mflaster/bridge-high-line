@@ -1411,7 +1411,42 @@ void SelectDistinctFinalistLines(
   std::vector<uint64_t> cand_mask;
   bool any_replaced = false;
 
+  std::vector<bool> dominated(lines->size(), false);
+  if (trump_suit != NOTRUMP) {
+    for (size_t i = 0; i < lines->size(); ++i) {
+      const ConditionalLine &c = (*lines)[i];
+      if (use_eval && c.eval_covered_boards() < min_eval_cov) break;
+      if (c.CoveredFinalBoards() < min_cov) {
+        if (use_eval) continue;
+        break;
+      }
+      if (InitialTrumpDrawScore(c, trump_suit) * 2 >=
+          static_cast<size_t>(c.CoveredFinalBoards())) {
+        continue;
+      }
+      for (size_t j = 0; j < lines->size(); ++j) {
+        if (j == i) continue;
+        const ConditionalLine &o = (*lines)[j];
+        if (use_eval && o.eval_covered_boards() < min_eval_cov) break;
+        if (o.CoveredFinalBoards() < min_cov) {
+          if (use_eval) continue;
+          break;
+        }
+        if (InitialTrumpDrawScore(o, trump_suit) >=
+                static_cast<size_t>(o.CoveredFinalBoards()) &&
+            FalsecardableSplits(o) <= FalsecardableSplits(c) &&
+            o.CoveredFinalBoards() >= c.CoveredFinalBoards() &&
+            (!use_eval || c.eval_covered_boards() <= o.eval_covered_boards() +
+                              static_cast<int>(max_eval_equiv_diff))) {
+          dominated[i] = true;
+          break;
+        }
+      }
+    }
+  }
+
   for (size_t idx = 0; idx < lines->size(); ++idx) {
+    if (dominated[idx]) continue;
     ConditionalLine &cand = (*lines)[idx];
     if (use_eval && cand.eval_covered_boards() < min_eval_cov) {
       break;
