@@ -12,6 +12,7 @@ const leaderSelect = document.getElementById('leaderSelect');
 const targetTricks = document.getElementById('targetTricks');
 const numIters = document.getElementById('numIters');
 const numTestIters = document.getElementById('numTestIters');
+const progressiveSolve = document.getElementById('progressiveSolve');
 const presetSelect = document.getElementById('presetSelect');
 const solveBtn = document.getElementById('solveBtn');
 const stopSolveBtn = document.getElementById('stopSolveBtn');
@@ -76,6 +77,7 @@ function captureCurrentDealState() {
     target: targetTricks ? targetTricks.value : '1',
     iters: numIters ? numIters.value : '100',
     test_iters: numTestIters ? numTestIters.value : '10,000',
+    progressive: progressiveSolve ? Boolean(progressiveSolve.checked) : true,
     cur_trick: Array.isArray(presetCurTrick) ? presetCurTrick.slice() : [],
     loadedBoardHands: loadedBoardHands ? { ...loadedBoardHands } : null,
     loadedActualDeal: loadedActualDeal ? { ...loadedActualDeal } : null,
@@ -194,6 +196,9 @@ function applySessionCustomHand(entry) {
   if (numIters) numIters.value = s.iters;
   if (numTestIters) {
     numTestIters.value = s.test_iters !== undefined ? s.test_iters : '10,000';
+  }
+  if (progressiveSolve && s.progressive !== undefined) {
+    progressiveSolve.checked = Boolean(s.progressive);
   }
 
   if (inputNorth) inputNorth.value = s.north || '';
@@ -2117,6 +2122,7 @@ solveBtn.addEventListener('click', async () => {
       : parseInt(targetTricks.value, 10),
     num_iters: parsedSolveIters,
     eval_iters: parsedTestIters,
+    progressive: progressiveSolve ? Boolean(progressiveSolve.checked) : true,
     num_threads: isNaN(parsedThreads) ? 16 : parsedThreads
   };
 
@@ -2271,6 +2277,9 @@ solveBtn.addEventListener('click', async () => {
         targetTricks: targetTricks.value,
         numIters: numIters.value,
         numTestIters: numTestIters ? numTestIters.value : '10,000',
+        progressiveSolve: progressiveSolve
+          ? Boolean(progressiveSolve.checked)
+          : true,
         curTrick: initCurTrick,
         declarerSeat: currentDeclarerSeat || 'N',
         actualDeal: activeActualDeal
@@ -2554,6 +2563,9 @@ if (resetLineBtn) {
       if (numTestIters && snap.inputs.numTestIters !== undefined) {
         numTestIters.value = snap.inputs.numTestIters;
       }
+      if (progressiveSolve && snap.inputs.progressiveSolve !== undefined) {
+        progressiveSolve.checked = Boolean(snap.inputs.progressiveSolve);
+      }
       presetCurTrick = Array.isArray(snap.inputs.curTrick)
         ? snap.inputs.curTrick.slice()
         : [];
@@ -2776,6 +2788,7 @@ if (computeNewLineBtn) {
       leader: leaderForSolve,
       min_tricks: remainingMinTricks,
       num_iters: parsedNumIters,
+      progressive: progressiveSolve ? Boolean(progressiveSolve.checked) : true,
       num_threads: isNaN(parsedThreads) ? 16 : parsedThreads,
       cur_trick: curTrickForSolve,
       start_trick_num: startTrickNumForSolve,

@@ -74,6 +74,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("Random deals for test:") !=
               std::string::npos);
   ASSERT_TRUE(res_index->body.find("numTestIters") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("progressiveSolve") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Progressive solve") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openHelpBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpModal") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);
@@ -135,6 +137,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".import-intro-box") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".solve-iters-input") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".solve-progressive-toggle") !=
+              std::string::npos);
 
   // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");
@@ -151,6 +155,9 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") !=
               std::string::npos);
   ASSERT_TRUE(res_js->body.find("function openImportHandModal") !=
+              std::string::npos);
+  ASSERT_TRUE(res_js->body.find(
+                  "document.getElementById('progressiveSolve')") !=
               std::string::npos);
 
   auto res_solver_api_js = client.Get("/solver_api.js");
@@ -2300,7 +2307,6 @@ TEST(ServerTest, SolveJsonProgressiveSearch) {
       {"min_tricks", 6},
       {"num_iters", 50},
       {"num_threads", 4},
-      {"progressive", true},
       {"progressive_stage1_deals", 20},
       {"eval_iters", 400},
       {"eval_seed", 123456789}};
@@ -2315,4 +2321,11 @@ TEST(ServerTest, SolveJsonProgressiveSearch) {
   EXPECT_EQ(res["eval_total_boards"].get<int>(), 400);
   ASSERT_TRUE(res.contains("lines"));
   EXPECT_GE(res["lines"].size(), 2u);
+
+  req["progressive"] = false;
+  std::string body_off = ws.SolveJson(req.dump());
+  nlohmann::json res_off = nlohmann::json::parse(body_off);
+  ASSERT_TRUE(res_off["success"].get<bool>()) << body_off;
+  EXPECT_EQ(res_off["total_boards"].get<int>(), 50);
+  EXPECT_GT(res_off["covered_boards"].get<int>(), 0);
 }
