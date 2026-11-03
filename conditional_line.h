@@ -32,17 +32,22 @@ struct GeneralizedDemiStruct {
 
 using GeneralizedPlaysVector = std::vector<GeneralizedDemiStruct>;
 
+uint16_t UnavailableTrumpMask(const BoardState &bs);
+
 class GeneralizedDemiPlay {
  public:
-  GeneralizedDemiPlay(Suit trump_suit)
-      : trump_suit_(trump_suit) {
+  explicit GeneralizedDemiPlay(Suit trump_suit,
+                               uint16_t unavailable_trump_mask = 0)
+      : trump_suit_(trump_suit),
+        unavailable_trump_mask_(unavailable_trump_mask) {
   }
 
   void RecordOptimalPlay(const std::string &opp_card,
                          const std::string &my_card,
                          int board_num,
                          const std::string *trick = nullptr,
-                         bool ns_won = false);
+                         bool ns_won = false,
+                         const std::string *overruff_card = nullptr);
 
   GeneralizedPlaysVector GetGeneralizedPlays(
       int leader, Suit suit_led, unsigned int top = 10,
@@ -55,12 +60,14 @@ class GeneralizedDemiPlay {
     Suit suit_led;
     std::string opp_card;
     std::string my_card;
+    int8_t overruff_rv = -1;
     std::vector<int> boards;
     bool ns_wins_any = false;
   };
   std::vector<RawPlayBucket> buckets_;
   bool has_by_suit_ = false;
   Suit trump_suit_;
+  uint16_t unavailable_trump_mask_ = 0;
 };
 
 struct GeneralizedTrick {
@@ -78,6 +85,7 @@ struct GeneralizedTrick {
   std::set<int> boards;
   std::vector<BoardTrickEntry> board_entries;
   int leader = 0;
+  Suit trump_suit = NOTRUMP;
   size_t opp1_step1_boards = 0;
   size_t opp2_step1_boards = 0;
   size_t opp1_unmakeable_boards = 0;
@@ -108,8 +116,10 @@ using GeneralizedTricksVector = std::vector<GeneralizedTrick>;
 
 class GeneralizedTrickFinder {
  public:
-  GeneralizedTrickFinder(Suit trump_suit)
-      : trump_suit_(trump_suit) {
+  explicit GeneralizedTrickFinder(Suit trump_suit,
+                                  uint16_t unavailable_trump_mask = 0)
+      : trump_suit_(trump_suit),
+        unavailable_trump_mask_(unavailable_trump_mask) {
   }
 
   void RecordOptimalTrick(int leader, const std::string &trick, int board);
@@ -140,6 +150,7 @@ class GeneralizedTrickFinder {
   std::vector<std::string> raw_tricks_;
   int leader_ = -1;
   Suit trump_suit_ = NOTRUMP;
+  uint16_t unavailable_trump_mask_ = 0;
   bool monotonic_boards_ = true;
 };
 

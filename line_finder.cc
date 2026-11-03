@@ -1939,7 +1939,8 @@ std::vector<ConditionalLine> LineFinder::Solve(
             << get_line_from_trick_calls.load();
 
   if (ans.empty() && !cur_trick.empty() && !board_offsets.empty()) {
-    GeneralizedTrickFinder gen_trick_finder(trump);
+    GeneralizedTrickFinder gen_trick_finder(
+        trump, UnavailableTrumpMask(boards[*board_offsets.begin()]));
     for (int b : board_offsets) {
       auto tree0 = OptimalPlayTree::FindOptimalPlayTree(
           boards[b], /*min_tricks=*/0, &cache, /*deepen_levels=*/0);
@@ -3915,7 +3916,10 @@ void LineFinder::TryBranchOnGoodCards(
     }
     int req_true = std::max(min_branch_cov, cur_target - false_ub);
     Suit suit_enum = static_cast<Suit>(suit);
-    GeneralizedTrickFinder cash_finder(trump_suit);
+    GeneralizedTrickFinder cash_finder(
+        trump_suit,
+        UnavailableTrumpMask(
+            *board_trees.at(*good_boards[suit].begin())->MyBoard()));
     for (int b : good_boards[suit]) {
       const OptimalLines &lines = board_trees.at(b)->GetLines();
       for (const OptimalLine &trick : lines) {
@@ -4272,7 +4276,8 @@ std::vector<ConditionalLine> LineFinder::SolveHelperUncached(
       board_trees.at(*board_offsets.begin());
   Suit trump_suit = first_tree->MyBoard()->GetTrump();
   int cards_left = first_tree->CardsLeft();
-  GeneralizedTrickFinder gen_trick_finder(trump_suit);
+  GeneralizedTrickFinder gen_trick_finder(
+      trump_suit, UnavailableTrumpMask(*first_tree->MyBoard()));
   for (int b : board_offsets) {
     const std::shared_ptr<OptimalPlayTree> &play_tree = board_trees.at(b);
     const OptimalLines &lines = play_tree->GetLines();
