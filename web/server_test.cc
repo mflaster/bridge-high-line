@@ -2286,3 +2286,33 @@ TEST(ServerTest, SolveJsonFinalistOutOfSampleEval) {
     }
   }
 }
+
+TEST(ServerTest, SolveJsonProgressiveSearch) {
+  nlohmann::json req = {
+      {"hands",
+       {{"N", "S 532; H T7; D T32; C 6;"},
+        {"E", ""},
+        {"S", "S K9; H -; D A854; C AKJ;"},
+        {"W", ""}}},
+      {"unknown_cards", "S AJTQ64 D KQJ976 C T43Q98"},
+      {"trump", "HEARTS"},
+      {"leader", "NORTH"},
+      {"min_tricks", 6},
+      {"num_iters", 50},
+      {"num_threads", 4},
+      {"progressive", true},
+      {"progressive_stage1_deals", 20},
+      {"eval_iters", 400},
+      {"eval_seed", 123456789}};
+
+  WebServer ws;
+  std::string body = ws.SolveJson(req.dump());
+  nlohmann::json res = nlohmann::json::parse(body);
+  ASSERT_TRUE(res["success"].get<bool>()) << body;
+  EXPECT_EQ(res["total_boards"].get<int>(), 50);
+  EXPECT_GT(res["covered_boards"].get<int>(), 0);
+  ASSERT_TRUE(res.contains("eval_total_boards")) << body;
+  EXPECT_EQ(res["eval_total_boards"].get<int>(), 400);
+  ASSERT_TRUE(res.contains("lines"));
+  EXPECT_GE(res["lines"].size(), 2u);
+}

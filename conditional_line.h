@@ -227,6 +227,11 @@ class ConditionalLine {  // ConditionalLineBranch
 
   void AddCondition(PlayCondition *c,
                     std::shared_ptr<ConditionalLine> continue_with) {
+    AddCondition(std::shared_ptr<PlayCondition>(c), std::move(continue_with));
+  }
+
+  void AddCondition(std::shared_ptr<PlayCondition> c,
+                    std::shared_ptr<ConditionalLine> continue_with) {
     assert(final_covered_boards_.empty());
     if (continue_with) {
       covered_count_ += continue_with->CoveredFinalBoards();
@@ -234,8 +239,7 @@ class ConditionalLine {  // ConditionalLineBranch
           std::min(covered_count_,
                    unforced_fc_count_ + continue_with->unforced_fc_count());
     }
-    conditions_.emplace_back(std::shared_ptr<PlayCondition>(c),
-                             std::move(continue_with));
+    conditions_.emplace_back(std::move(c), std::move(continue_with));
   }
 
   // Sets the next trick action (GeneralizedTrick) to be played at this node in
