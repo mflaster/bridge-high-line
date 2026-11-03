@@ -19,6 +19,8 @@ struct GeneralizedDemiStruct {
   std::set<int> boards;
   std::vector<int> boards_vec;
   std::map<int, std::string> board_to_trick;
+  bool ns_wins_any = false;
+  bool mixed_suit_wild = false;
 
   GeneralizedDemiStruct(const std::string &opp,
                         const std::string &me,
@@ -39,7 +41,8 @@ class GeneralizedDemiPlay {
   void RecordOptimalPlay(const std::string &opp_card,
                          const std::string &my_card,
                          int board_num,
-                         const std::string *trick = nullptr);
+                         const std::string *trick = nullptr,
+                         bool ns_won = false);
 
   GeneralizedPlaysVector GetGeneralizedPlays(
       int leader, Suit suit_led, unsigned int top = 10,
@@ -53,6 +56,7 @@ class GeneralizedDemiPlay {
     std::string opp_card;
     std::string my_card;
     std::vector<int> boards;
+    bool ns_wins_any = false;
   };
   std::vector<RawPlayBucket> buckets_;
   bool has_by_suit_ = false;

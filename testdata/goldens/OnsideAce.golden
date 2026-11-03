@@ -12,42 +12,40 @@ Invariant Rules for 7 card ending:
   - hand 1 always contains the DA (holds: 38%, success when holds: 100%)
 Example Play (Board 3):
   #1 (S) C4 C7 C9* S4
-  #2 (N) D9 D7 DK* D8
-  #3 (S) CT* H7 S3 DT
-  #4 (S) CJ* DQ S7 S5
-  #5 (S) CQ* H8 SK S8
-  #6 (S) D4 DJ D3 DA*
-  #7 (E) SA C6* ST H2
+  #2 (N) D3 D7 DK* D8
+  #3 (S) CT* H7 H2 DT
+  #4 (S) CJ* H8 S3 S5
+  #5 (S) CQ* DQ S7 S8
+  #6 (S) C6* ST D9 SA
+  #7 (S) D4 DJ SK DA*
 Example Failed Play (Board 0):
   #1 (S) C4 H7 C9* C7
-  #2 (N) D9 D7 DK DA*
+  #2 (N) D3 D7 DK DA*
 
   after C4 (__) C9 (__): C4 (__) C9 (__) [3,4,9,15,18,19,20,21,24,25,32,33,34,37,38,41,44,46,47,51] / C4 C7 C9 S4 / C4 S5 C9 C7 / C4 D8 C9 C7 / C4 C7 C9 D8 / C4 C7 C9 D7
     when 0 wins the C9: 
-      after D9 (D<A) DK (D_): D9 (D<A) DK (D_) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / D9 D7 DK D8 / D9 D8 DK D7 / D9 D7 DK DQ / D9 DT DK D7 / D9 D8 DK DT
+      after D3 (D<A) DK (D_): D3 (D<A) DK (D_) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / D3 D7 DK D8 / D3 D8 DK D7 / D3 D7 DK DQ / D3 DT DK D7 / D3 D8 DK DT
         when 2 wins the DK: 
-          after CT (__) S3 (__): CT (__) S3 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / CT H7 S3 DT / CT H7 S3 DT / CT H8 S3 DT / CT DJ S3 H8 / CT H7 S3 DJ
+          after CT (__) H2 (__): CT (__) H2 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / CT H7 H2 DT / CT H7 H2 DT / CT H8 H2 DT / CT DQ H2 H8 / CT H7 H2 DJ
             when 2 wins the CT: 
-              after CJ (__) S7 (__): CJ (__) S7 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / CJ DQ S7 S5 / CJ S8 S7 DJ / CJ S4 S7 H7 / CJ H7 S7 S5 / CJ S8 S7 S4
+              after CJ (__) S3 (__): CJ (__) S3 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / CJ H8 S3 S5 / CJ DQ S3 H8 / CJ S4 S3 H7 / CJ H7 S3 S5 / CJ DQ S3 H8
                 when 2 wins the CJ: 
-                  after CQ (__) SK (__): CQ (__) SK (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / CQ H8 SK S8 / CQ ST SK S4 / CQ S8 SK S5 / CQ S4 SK S8 / CQ ST SK S5
+                  after CQ (__) S7 (__): CQ (__) S7 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / CQ DQ S7 S8 / CQ S8 S7 DJ / CQ DJ S7 S5 / CQ DJ S7 S8 / CQ S8 S7 S4
                     when 2 wins the CQ: 
-                      after D4 (__) D3 (__): D4 (__) D3 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / D4 DJ D3 DA / D4 DQ D3 DA / D4 DJ D3 DA / D4 DQ D3 DA / D4 DQ D3 DA
-                        if 1 wins the DA: 
-                          after (__) C6 (__) H2: (__) C6 (__) H2 [4,9,15,18,19,20,24,32,33,34,38,41,46,47,51] / H8 C6 SA H2 / SA C6 ST H2 / SA C6 ST H2 / H8 C6 SA H2 / SA C6 H8 H2
-                            when 2 wins the C6: HAND SUCCEEDED FOR: 3, 4, 9, 15, 18, 19, 20, 24, 25, 32, 33, 34, 38, 41, 44, 46, 47, 51
-                        if 3 wins the DJ,DQ: 
-                          after (__) H2 (__) C6: (__) H2 (__) C6 [3,25,44] / ST H2 SA C6  / ST H2 S8 C6  / H8 H2 SA C6 
-                            when 2 wins the C6: 
-      after D9 (DA) D4 (D_): D9 (DA) D4 (D_) [21,37] / D9 DA D4 D8 / D9 DA D4 D8
+                      after C6 (__) D9 (__): C6 (__) D9 (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / C6 ST D9 SA / C6 ST D9 S4 / C6 S8 D9 SA / C6 S4 D9 SA / C6 ST D9 S5
+                        when 2 wins the C6: 
+                          after D4 (__) SK (__): D4 (__) SK (__) [3,4,9,15,18,19,20,24,25,32,33,34,38,41,44,46,47,51] / D4 DJ SK DA / D4 SA SK DA / D4 ST SK DA / D4 ST SK DA / D4 SA SK DA
+                            if 1 wins the DA: HAND SUCCEEDED FOR: 3, 4, 9, 15, 18, 19, 20, 24, 25, 32, 33, 34, 38, 41, 44, 46, 47, 51
+                            if 3 wins the DJ: 
+      after D3 (DA) D4 (D_): D3 (DA) D4 (D_) [21,37] / D3 DA D4 D8 / D3 DA D4 D8
         when 1 wins the DA: 
-          after (H_) CT (__) H2: (H_) CT (__) H2 [21,37] / H7 CT DJ H2 / H7 CT H8 H2
-            when 2 wins the CT: 
-              after DK (DX) D3 (__): DK (DX) D3 (__) [21,37] / DK DT D3 H8 / DK DQ D3 S4
+          after (H_) C6 (__) H2: (H_) C6 (__) H2 [21,37] / H7 C6 DT H2 / H7 C6 H8 H2
+            when 2 wins the C6: 
+              after DK (DX) D9 (__): DK (DX) D9 (__) [21,37] / DK DJ D9 H8 / DK DT D9 S4
                 when 2 wins the DK: 
-                  after CJ (__) S3 (__): CJ (__) S3 (__) [21,37] / CJ DQ S3 S4 / CJ DJ S3 S5
-                    when 2 wins the CJ: 
-                      after CQ (__) S7 (__): CQ (__) S7 (__) [21,37] / CQ S5 S7 S8 / CQ DT S7 ST
-                        when 2 wins the CQ: 
-                          after C6 (__) SK (__): C6 (__) SK (__) [21,37] / C6 ST SK SA / C6 S8 SK SA
-                            when 2 wins the C6: HAND SUCCEEDED FOR: 21, 37
+                  after CT (__) S3 (__): CT (__) S3 (__) [21,37] / CT DQ S3 S4 / CT DQ S3 S5
+                    when 2 wins the CT: 
+                      after CJ (__) S7 (__): CJ (__) S7 (__) [21,37] / CJ S5 S7 S8 / CJ DJ S7 ST
+                        when 2 wins the CJ: 
+                          after CQ (__) SK (__): CQ (__) SK (__) [21,37] / CQ ST SK SA / CQ S8 SK SA
+                            when 2 wins the CQ: HAND SUCCEEDED FOR: 21, 37

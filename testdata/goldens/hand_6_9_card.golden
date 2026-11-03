@@ -54,15 +54,15 @@ Example Failed Play (Board 3):
           when 2 wins the S9: 
             after D3 (D_) SJ (D_): D3 (D_) SJ (D_) [91,111,140,176] / D3 D9 SJ D2 / D3 D4 SJ D2 / D3 D4 SJ D2 / D3 D6 SJ D4
               when 0 wins the SJ: 
-                after CJ (C_) CA (C_): CJ (C_) CA (C_) [91,111,140,176] / CJ C4 CA C5 / CJ C4 CA C5 / CJ CT CA C4 / CJ C7 CA C4
-                  when 2 wins the CA: 
+                after C8 (C_) CQ (C_): C8 (C_) CQ (C_) [91,111,140,176] / C8 C4 CQ C5 / C8 C4 CQ C5 / C8 CT CQ C4 / C8 C7 CQ C4
+                  when 2 wins the CQ: 
                     after D5 (DX) S7 (D_): D5 (DX) S7 (D_) [91,111,140,176] / D5 DJ S7 D4 / D5 DT S7 D6 / D5 DT S7 D6 / D5 DJ S7 D7
                       when 0 wins the S7: 
-                        after C8 (__) CQ (C_): C8 (__) CQ (C_) [91,111,140,176] / C8 D6 CQ C7 / C8 C7 CQ CT / C8 D7 CQ C5 / C8 CT CQ C5
-                          when 2 wins the CQ: 
-                            after DA (__) CK (D_): DA (__) CK (D_) [91,111,140,176] / DA CT CK D7 / DA DK CK D7 / DA C7 CK D9 / DA HT CK D9
+                        after CK (__) CA (C_): CK (__) CA (C_) [91,111,140,176] / CK D6 CA C7 / CK C7 CA CT / CK D7 CA C5 / CK CT CA C5
+                          when 2 wins the CA: 
+                            after DA (__) CJ (D_): DA (__) CJ (D_) [91,111,140,176] / DA CT CJ D7 / DA DK CJ D7 / DA C7 CJ D9 / DA HT CJ DT
                               when 2 wins the DA: 
-                                after D8 (S_) S8 (D_): D8 (S_) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 DT
+                                after D8 (S_) S8 (D_): D8 (S_) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 D9
                                   when 0 wins the S8: 
                                     after SA (__) DQ (SQ): SA (__) DQ (SQ) [91,111,140,176] / SA DK DQ SQ / SA DJ DQ SQ / SA DK DQ SQ / SA DK DQ SQ
                                       when 0 wins the SA: HAND SUCCEEDED FOR: 91, 111, 140, 176
@@ -117,13 +117,13 @@ Example Failed Play (Board 3):
               when 2 wins the S9: 
                 after D5 (DX) SJ (D_): D5 (DX) SJ (D_) [66,91,111,140,176] / D5 DK SJ D9  / D5 DJ SJ D4 / D5 DT SJ D6 / D5 DT SJ D6 / D5 DJ SJ D7
                   when 0 wins the SJ: 
-                    after CJ (C_) CA (C_): CJ (C_) CA (C_) [66,91,111,140,176] / CJ C4 CA C7  / CJ C4 CA C5 / CJ C4 CA C5 / CJ CT CA C4 / CJ C7 CA C4
-                      when 2 wins the CA: 
-                        after CQ (C_) C8 (__): CQ (C_) C8 (__) [91,111,140,176] / CQ C7 C8 D6 / CQ CT C8 C7 / CQ C5 C8 D7 / CQ C5 C8 CT
-                          when 2 wins the CQ: 
-                            after DA (__) CK (D_): DA (__) CK (D_) [91,111,140,176] / DA CT CK D7 / DA DK CK D7 / DA C7 CK D9 / DA HT CK D9
+                    after C8 (C_) CQ (C_): C8 (C_) CQ (C_) [66,91,111,140,176] / C8 C4 CQ C7  / C8 C4 CQ C5 / C8 C4 CQ C5 / C8 CT CQ C4 / C8 C7 CQ C4
+                      when 2 wins the CQ: 
+                        after CA (C_) CK (__): CA (C_) CK (__) [91,111,140,176] / CA C7 CK D6 / CA CT CK C7 / CA C5 CK D7 / CA C5 CK CT
+                          when 2 wins the CA: 
+                            after DA (__) CJ (D_): DA (__) CJ (D_) [91,111,140,176] / DA CT CJ D7 / DA DK CJ D7 / DA C7 CJ D9 / DA HT CJ DT
                               when 2 wins the DA: 
-                                after D8 (S_) S8 (D_): D8 (S_) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 DT
+                                after D8 (S_) S8 (D_): D8 (S_) S8 (D_) [91,111,140,176] / D8 S4 S8 DT / D8 S4 S8 D9 / D8 S4 S8 DJ / D8 S4 S8 D9
                                   when 0 wins the S8: 
                                     after SA (__) DQ (SQ): SA (__) DQ (SQ) [91,111,140,176] / SA DK DQ SQ / SA DJ DQ SQ / SA DK DQ SQ / SA DK DQ SQ
                                       when 0 wins the SA: HAND SUCCEEDED FOR: 91, 111, 140, 176

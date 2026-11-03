@@ -687,15 +687,20 @@ TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
     ASSERT_TRUE(found_branch_cond);
   }
 
-  // Find outcome leaf at depth 4
-  nlohmann::json *curr = &p_trick1;
+  // Depth 4: Trick 4 and outcome leaf
+  auto &p_trick4 = find_trick(p_trick3["children"][0], "#4:");
+  ASSERT_TRUE(p_trick4["label"].get<std::string>().find("#4:") !=
+              std::string::npos);
+  nlohmann::json *curr = &p_trick4;
   while (curr->contains("children") && !(*curr)["children"].empty()) {
     curr = &((*curr)["children"][0]);
   }
   ASSERT_TRUE((*curr)["type"] == "outcome");
   ASSERT_TRUE((*curr)["success_boards"] > 0);
   ASSERT_TRUE((*curr).contains("ns_tricks"));
-  ASSERT_TRUE((*curr)["label"].get<std::string>().find("#") != std::string::npos);
+  std::string leaf_lbl = (*curr)["label"].get<std::string>();
+  ASSERT_TRUE(leaf_lbl.find("#4:") != std::string::npos ||
+              leaf_lbl.find("Hand Succeeded") != std::string::npos);
 
   server.Stop();
 }

@@ -1,21 +1,21 @@
 # Setup: GeneralizedTrickFinders: leader 1 top tricks
-(Hx) H4 (HK) HT [1,2] / H7 H4 HK HT / H7 H4 HK HT
-(Hx) H4 (HK) H5 [1,2] / H7 H4 HK H5 / H7 H4 HK H5
-(Hx) H4 (HJ) HT [1,2] / H7 H4 HJ HT / H7 H4 HJ HT
-(HQ) H4 (HK) HT [1,2] / HQ H4 HK HT / HQ H4 HK HT
-(HQ) H4 (HK) H5 [1,2] / HQ H4 HK H5 / HQ H4 HK H5
-(HQ) H4 (HJ) HT [1,2] / HQ H4 HJ HT / HQ H4 HJ HT
-(HQ) H4 (HJ) H5 [1,2] / HQ H4 HJ H5 / HQ H4 HJ H5
-(Hx) HT (HJ) HA [0] / H7 HT HJ HA
-(Hx) HT (HJ) H4 [0] / H7 HT HJ H4
-(Hx) HA (Hx) HT [2] / H7 HA H8 HT
-(Hx) HA (Hx) H5 [2] / H7 HA H8 H5
-(Hx) HA (Hx) H2 [2] / H7 HA H8 H2
-(Hx) HA (HK) HT [2] / H7 HA HK HT
-(Hx) HA (HK) H5 [2] / H7 HA HK H5
-(Hx) HA (HK) H2 [2] / H7 HA HK H2
-(Hx) HA (HJ) HT [2] / H7 HA HJ HT
-(Hx) HA (HJ) H2 [2] / H7 HA HJ H2
+(H_) H4 (HK) H5 [1,2] / HQ H4 HK H5 / HQ H4 HK H5
+(H_) H4 (HJ) H5 [1,2] / HQ H4 HJ H5 / HQ H4 HJ H5
+(H_) H4 (HK) HT [1,2] / H7 H4 HK HT / HQ H4 HK HT
+(H_) H4 (HJ) HT [1,2] / H7 H4 HJ HT / HQ H4 HJ HT
+(D_) DJ (D_) D7 [1] / D9 DJ D2 D7
+(H_) HA (Hx) H2 [2] / HQ HA H8 H2
+(H_) HA (Hx) HT [2] / HQ HA H8 HT
 (Hx) H5 (Hx) HA [0] / H7 H5 H8 HA
-(Hx) H5 (Hx) H4 [0] / H7 H5 H8 H4
+(Hx) HA (Hx) H5 [2] / H7 HA H8 H5
+(HQ) HA (H_) H2 [2] / HQ HA H8 H2
+(DQ) D3 (D_) DA [1] / DQ D3 D2 DA
+(DQ) D6 (D_) DA [1] / DQ D6 D2 DA
+(DQ) D8 (D_) DA [1] / DQ D8 D2 DA
+(HQ) HA (H_) HT [2] / HQ HA H8 HT
+(Hx) HA (HK) H2 [2] / H7 HA HK H2
+(Hx) HA (HJ) H2 [2] / H7 HA HJ H2
 (Hx) H5 (HJ) HA [0] / H7 H5 HJ HA
+(Hx) HA (HK) H5 [2] / H7 HA HK H5
+(Hx) HT (HJ) HA [0] / H7 HT HJ HA
+(Hx) HA (HK) HT [2] / H7 HA HK HT
