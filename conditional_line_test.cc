@@ -1539,3 +1539,82 @@ TEST(ConditionalLineTest,
   }
 }
 
+TEST(ConditionalLineTest,
+     GeneralizedPlayAndTrickSortConservesHonorsAndPrefersWinningTricks) {
+  // 1. GeneralizedDemiPlay conserves honors and trumps on equal-count buckets.
+  {
+    GeneralizedDemiPlay demi(HEARTS);
+    demi.RecordOptimalPlay("C4", "CK", 0, nullptr, /*ns_won=*/true);
+    demi.RecordOptimalPlay("C4", "C8", 0, nullptr, /*ns_won=*/true);
+    demi.RecordOptimalPlay("C7", "CK", 1, nullptr, /*ns_won=*/true);
+    demi.RecordOptimalPlay("C7", "C8", 1, nullptr, /*ns_won=*/true);
+    GeneralizedPlaysVector plays = demi.GetGeneralizedPlays(3, CLUBS, 10);
+    ASSERT_GE(plays.size(), 2u);
+    EXPECT_EQ(plays[0].opp_card, "C_");
+    EXPECT_EQ(plays[0].my_card, "C8");
+    EXPECT_EQ(plays[1].opp_card, "C_");
+    EXPECT_EQ(plays[1].my_card, "CK");
+
+    GeneralizedDemiPlay discard_vs_ruff(HEARTS);
+    discard_vs_ruff.RecordOptimalPlay("S4", "H2", 0, nullptr, /*ns_won=*/true);
+    discard_vs_ruff.RecordOptimalPlay("S4", "D9", 0, nullptr, /*ns_won=*/true);
+    GeneralizedPlaysVector dr_plays =
+        discard_vs_ruff.GetGeneralizedPlays(0, SPADES, 10);
+    ASSERT_GE(dr_plays.size(), 2u);
+    EXPECT_EQ(dr_plays[0].my_card, "D9");
+    EXPECT_EQ(dr_plays[1].my_card, "H2");
+  }
+
+  // 2. Defender club lead: (C_) CJ (C_) C8 precedes (C_) CJ (C_) CK and (__).
+  {
+    GeneralizedTrickFinder finder(HEARTS);
+    for (int b = 0; b < 3; ++b) {
+      finder.RecordOptimalTrick(3, "C5 CJ C2 CK", b);
+      finder.RecordOptimalTrick(3, "C5 CJ C2 C8", b);
+    }
+    GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(10);
+    ASSERT_GE(tricks.size(), 2u);
+    EXPECT_EQ(tricks[0].ToString(true), "(C_) CJ (C_) C8");
+    EXPECT_EQ(tricks[1].ToString(true), "(C_) CJ (C_) CK");
+  }
+
+  // 3. Finesse/sequence where both plays win >= 1 board: ST -> S2 beats ST->SA.
+  {
+    GeneralizedTrickFinder finder(NOTRUMP);
+    finder.RecordOptimalTrick(0, "ST S4 S2 S5", 0);
+    finder.RecordOptimalTrick(0, "ST S4 SA S5", 0);
+    finder.RecordOptimalTrick(0, "ST S6 S2 S3", 1);
+    finder.RecordOptimalTrick(0, "ST S6 SA S3", 1);
+    finder.RecordOptimalTrick(0, "ST SK S2 S3", 2);
+    finder.RecordOptimalTrick(0, "ST SK SA S3", 2);
+    GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(10);
+    ASSERT_GE(tricks.size(), 2u);
+    EXPECT_EQ(tricks[0].demi1.my_card, "ST");
+    EXPECT_EQ(tricks[0].demi2.my_card, "S2");
+  }
+
+  // 4. Cross-suit tie: cashing winner DA -> D2 (ns_wins_any = true) beats a
+  // pure 0-win duck S9 -> S2 (ns_wins_any = false) despite higher card rank.
+  {
+    GeneralizedTrickFinder finder(HEARTS);
+    for (int b = 0; b < 3; ++b) {
+      finder.RecordOptimalTrick(2, "S9 SJ S2 S4", b);
+      finder.RecordOptimalTrick(2, "DA C3 D2 D6", b);
+    }
+    GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(10);
+    ASSERT_GE(tricks.size(), 2u);
+    EXPECT_EQ(tricks[0].demi1.my_card, "DA");
+    EXPECT_EQ(tricks[0].demi2.my_card, "D2");
+  }
+
+  // 5. Same-board spot + honor defender leads consolidate to (D_) rather than
+  // letting ASCII 'J' < '_' suppress (D_) in favor of (DJ) + (Dx).
+  {
+    GeneralizedTrickFinder finder(HEARTS);
+    finder.RecordOptimalTrick(3, "DJ D5 D4 DA", 0);
+    finder.RecordOptimalTrick(3, "D7 D5 D4 DA", 0);
+    GeneralizedTricksVector tricks = finder.GetGeneralizedTricks(10);
+    ASSERT_FALSE(tricks.empty());
+    EXPECT_EQ(tricks[0].ToString(true), "(D_) D5 (D_) DA");
+  }
+}

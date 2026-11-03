@@ -1441,7 +1441,11 @@ TEST(LineFinderTest, LineFinder_Hand15TrumpCoverAndFalsecardResistance) {
   size_t w_hkq_pos = desc.find("if 3 wins the HK,HQ:");
   ASSERT_NE(w_hkq_pos, std::string::npos) << desc;
   std::string w_hkq_sub = desc.substr(w_hkq_pos, hx_pos - w_hkq_pos);
-  EXPECT_NE(w_hkq_sub.find("after (C_)"), std::string::npos) << desc;
+  EXPECT_NE(w_hkq_sub.find("after (C_) CJ (C_) C8:"), std::string::npos)
+      << desc;
+  EXPECT_EQ(w_hkq_sub.find("after (C_) CJ (C_) CK:"), std::string::npos)
+      << desc;
+  EXPECT_NE(w_hkq_sub.find("H9 (H_) HA"), std::string::npos) << desc;
   EXPECT_NE(w_hkq_sub.find("after (D_)"), std::string::npos) << desc;
   EXPECT_NE(w_hkq_sub.find("after (S_)"), std::string::npos) << desc;
   EXPECT_EQ(desc.find("after (CT)"), std::string::npos) << desc;
@@ -1635,12 +1639,94 @@ TEST(LineFinderTest, LineFinder_Hand15FindsTrumpCoverAndDropFinalists) {
         desc.find("after HT (Hx) H2") != std::string::npos &&
         desc.find("after HT (HX) HA") != std::string::npos) {
       cover_idx = static_cast<int>(i);
-    }
-    if (drop_idx < 0 && desc.find("after HT (H_) HA") != std::string::npos) {
+    } else if (drop_idx < 0 &&
+               desc.find("after HT (H_) HA") != std::string::npos) {
       drop_idx = static_cast<int>(i);
     }
   }
   ASSERT_GE(cover_idx, 0);
   ASSERT_GE(drop_idx, 0);
   EXPECT_LT(cover_idx, drop_idx);
+  std::string cover_desc = lines[cover_idx].Describe(0);
+  EXPECT_NE(cover_desc.find("after (C_) CJ (C_) C8:"), std::string::npos)
+      << cover_desc;
+  EXPECT_EQ(cover_desc.find("after (C_) CJ (C_) CK:"), std::string::npos)
+      << cover_desc;
 }
+
+TEST(LineFinderTest,
+     LineFinder_DefenderLeadMultiSuitReturnAndOvertakeToDrawTrumps) {
+  // 1. Dummy holds a trump (HT): on West's club lead, declarer conserves CA
+  // (playing C2 under CQ) so dummy stays on lead to play HT at Trick 2.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S 2; H T; D KQ; C KQ;"),
+        0,
+        ParseHand("H AQ; D A2; C A2;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S 8; H K43; D JT9; C JT987;");
+    const std::pair<const char *, const char *> ew_deals[] = {
+        {"S 8; H 3; D JT9; C 7;", "H K4; C JT98;"},
+        {"S 8; H 4; D 9; C JT9;", "H K3; D JT; C 87;"},
+    };
+    std::vector<BoardState> boards(2);
+    for (int i = 0; i < 2; ++i) {
+      boards[i].SetHands({hands[0], ParseHand(ew_deals[i].first), hands[2],
+                          ParseHand(ew_deals[i].second)});
+      boards[i].SetTrump(HEARTS);
+      boards[i].SetLead(3);
+      boards[i].set_board_id(i);
+      boards[i].MarkMissingCardsAsPlayed();
+    }
+    LineFinder lf(2);
+    lf.SetPredealtBoards(boards);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(5, hands, unknown, /*leader=*/3, HEARTS);
+    ASSERT_FALSE(lines.empty());
+    std::string desc = lines[0].Describe(0);
+    EXPECT_EQ(lines[0].CoveredFinalBoards(), 2) << desc;
+    EXPECT_NE(desc.find("after (C_) CQ (C_) C2:"), std::string::npos) << desc;
+    EXPECT_NE(desc.find("after HT (H_) HA (H_):"), std::string::npos) << desc;
+    EXPECT_EQ(desc.find("CQ (C_) CA:"), std::string::npos) << desc;
+  }
+
+  // 2. Twin hand where dummy has NO trumps: declarer handles multi-suit
+  // defender leads without extra-split pruning penalty, overtaking DQ with DA
+  // on Deal 1 and CQ with CA on Deal 0 so South cashes HA at Trick 2, then
+  // conserves C2 once trumps are drawn and West returns a club at Trick 4.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("S 32; D KQ; C KQ;"),
+        0,
+        ParseHand("H AQ; D A2; C A2;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S 8; H K43; D JT9; C JT987;");
+    const std::pair<const char *, const char *> ew_deals[] = {
+        {"S 8; H 3; D JT9; C 7;", "H K4; C JT98;"},
+        {"S 8; H 4; D 9; C JT9;", "H K3; D JT; C 87;"},
+    };
+    std::vector<BoardState> boards(2);
+    for (int i = 0; i < 2; ++i) {
+      boards[i].SetHands({hands[0], ParseHand(ew_deals[i].first), hands[2],
+                          ParseHand(ew_deals[i].second)});
+      boards[i].SetTrump(HEARTS);
+      boards[i].SetLead(3);
+      boards[i].set_board_id(i);
+      boards[i].MarkMissingCardsAsPlayed();
+    }
+    LineFinder lf(2);
+    lf.SetPredealtBoards(boards);
+    std::vector<ConditionalLine> lines =
+        lf.Solve(5, hands, unknown, /*leader=*/3, HEARTS);
+    ASSERT_FALSE(lines.empty());
+    std::string desc = lines[0].Describe(0);
+    EXPECT_EQ(lines[0].CoveredFinalBoards(), 2) << desc;
+    EXPECT_NE(desc.find("after (DJ) DQ (D_) DA:"), std::string::npos) << desc;
+    EXPECT_NE(desc.find("after (CJ) CQ (C_) CA:"), std::string::npos) << desc;
+    EXPECT_NE(desc.find("after HA (H_) S2 (H_):"), std::string::npos) << desc;
+    EXPECT_NE(desc.find("after (C_) CQ (C_) C2:"), std::string::npos) << desc;
+  }
+}
+
