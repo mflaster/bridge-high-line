@@ -577,6 +577,11 @@ function renderDecisionTree(rootNode, resetView = false) {
           activeTracedNodeSet.has(node) &&
           activeTracedNodeSet.has(child)
         );
+        const handleEdgeClick = (e) => {
+          e.stopPropagation();
+          expandAndInspectNode(child, rootNode, e);
+        };
+
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const startX = node._x + nodeWidth / 2;
         const startY = node._y + nodeHeight;
@@ -595,12 +600,29 @@ function renderDecisionTree(rootNode, resetView = false) {
           'marker-end',
           isTracedEdge ? 'url(#arrow-traced)' : (child.failure ? 'url(#arrow-failure)' : 'url(#arrow)')
         );
+        path.style.cursor = 'pointer';
+        path.addEventListener('click', handleEdgeClick);
         treeRootGroup.appendChild(path);
+
+        const hitTarget = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hitTarget.setAttribute('d', d);
+        hitTarget.setAttribute('fill', 'none');
+        hitTarget.setAttribute('stroke', 'transparent');
+        hitTarget.setAttribute('stroke-width', '16');
+        hitTarget.setAttribute('pointer-events', 'stroke');
+        hitTarget.setAttribute('class', 'tree-link-hit-target');
+        hitTarget.style.cursor = 'pointer';
+        hitTarget.addEventListener('click', handleEdgeClick);
+        hitTarget.addEventListener('mouseenter', () => path.classList.add('tree-link-hovered'));
+        hitTarget.addEventListener('mouseleave', () => path.classList.remove('tree-link-hovered'));
+        treeRootGroup.appendChild(hitTarget);
 
         if (child.condition) {
           const midX = (startX + endX) / 2;
           const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
           labelGroup.setAttribute('class', 'tree-edge-label-group');
+          labelGroup.style.cursor = 'pointer';
+          labelGroup.addEventListener('click', handleEdgeClick);
 
           let condText = child.condition;
           if (condText.startsWith('after ')) {

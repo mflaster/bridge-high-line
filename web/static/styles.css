@@ -1414,19 +1414,45 @@ body.is-resizing * {
   fill: none;
   stroke: #334155;
   stroke-width: 2;
+  cursor: pointer;
   transition: stroke 0.2s ease;
+}
+
+.tree-link:hover,
+.tree-link.tree-link-hovered {
+  stroke: #94a3b8;
+}
+
+.tree-link-hit-target {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16px;
+  cursor: pointer;
+}
+
+.tree-edge-label-group {
+  cursor: pointer;
 }
 
 .tree-edge-label-bg {
   fill: #0f172a;
   stroke: #475569;
   stroke-width: 1px;
+  cursor: pointer;
+  transition: stroke 0.2s ease, fill 0.2s ease;
+}
+
+.tree-edge-label-bg:hover,
+.tree-edge-label-group:hover .tree-edge-label-bg {
+  fill: #1e293b;
+  stroke: #94a3b8;
 }
 
 .tree-edge-label {
   fill: #cbd5e1;
   font-size: 11px;
   font-weight: 600;
+  pointer-events: none;
 }
 
 .node-detail-banner {
@@ -1595,8 +1621,19 @@ body.is-resizing * {
   stroke-dasharray: 6 4;
 }
 
+.tree-link-failure:hover,
+.tree-link-failure.tree-link-hovered {
+  stroke: #ef4444;
+}
+
 .tree-edge-label-bg-failure {
   stroke: #b91c1c;
+}
+
+.tree-edge-label-bg-failure:hover,
+.tree-edge-label-group:hover .tree-edge-label-bg-failure {
+  stroke: #ef4444;
+  fill: #1e293b;
 }
 
 .tree-edge-label-failure {
@@ -1901,11 +1938,25 @@ body.is-resizing * {
   stroke: #22d3ee !important;
   stroke-width: 3.5px !important;
   filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.5));
+  cursor: pointer;
+}
+
+.tree-link.traced-branch-link:hover,
+.tree-link.traced-branch-link.tree-link-hovered {
+  stroke: #22d3ee !important;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.8));
 }
 
 .tree-edge-label-bg-traced {
   stroke: #22d3ee !important;
   stroke-width: 1.5px !important;
+  cursor: pointer;
+}
+
+.tree-edge-label-bg-traced:hover,
+.tree-edge-label-group:hover .tree-edge-label-bg-traced {
+  stroke: #22d3ee !important;
+  fill: #164e63;
 }
 
 .tree-edge-label-traced {
