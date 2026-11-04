@@ -1,4 +1,7 @@
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <chrono>
 #include <functional>
 #include <thread>
@@ -8,8 +11,39 @@
 #include "third_party/nlohmann/json.hpp"
 #include "web_server.h"
 
+namespace {
+int PickFreePort() {
+  int fd = ::socket(AF_INET6, SOCK_STREAM, 0);
+  if (fd >= 0) {
+    sockaddr_in6 addr6{};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_addr = in6addr_any;
+    addr6.sin6_port = 0;
+    socklen_t len = sizeof(addr6);
+    if (::bind(fd, reinterpret_cast<sockaddr *>(&addr6), len) == 0 &&
+        ::getsockname(fd, reinterpret_cast<sockaddr *>(&addr6), &len) == 0) {
+      int port = ntohs(addr6.sin6_port);
+      ::close(fd);
+      return port;
+    }
+    ::close(fd);
+  }
+  fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;
+  socklen_t len = sizeof(addr);
+  ::bind(fd, reinterpret_cast<sockaddr *>(&addr), len);
+  ::getsockname(fd, reinterpret_cast<sockaddr *>(&addr), &len);
+  int port = ntohs(addr.sin_port);
+  ::close(fd);
+  return port;
+}
+}  // namespace
+
 TEST(ServerTest, WebServerHealthAndStaticAssets) {
-  int port = 18080;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
@@ -40,6 +74,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("Random deals for test:") !=
               std::string::npos);
   ASSERT_TRUE(res_index->body.find("numTestIters") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("progressiveSolve") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Progressive solve") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openHelpBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpModal") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);
@@ -53,6 +89,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("Hand record preferred") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importSampleSheetBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("hand_15_261028") != std::string::npos);
 
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
@@ -100,6 +137,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_css->body.find(".feedback-modal-overlay") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".import-intro-box") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".solve-iters-input") != std::string::npos);
+  ASSERT_TRUE(res_css->body.find(".solve-progressive-toggle") !=
+              std::string::npos);
 
   // Test JS serving across modular JS files
   auto res_js = client.Get("/app.js");
@@ -116,6 +155,9 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") !=
               std::string::npos);
   ASSERT_TRUE(res_js->body.find("function openImportHandModal") !=
+              std::string::npos);
+  ASSERT_TRUE(res_js->body.find(
+                  "document.getElementById('progressiveSolve')") !=
               std::string::npos);
 
   auto res_solver_api_js = client.Get("/solver_api.js");
@@ -231,6 +273,13 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["bid"] == "X");
   ASSERT_TRUE(h6["requirements"]["E"]["would_bid"][0]["after"] == "P 1S");
   ASSERT_TRUE(h6["requirements"]["W"]["would_bid"][0]["bid"] == "P");
+  ASSERT_TRUE(presets_file_json.contains("hand_15_261028"));
+  const auto &h15 = presets_file_json["hand_15_261028"];
+  ASSERT_TRUE(h15["trump"] == "HEARTS");
+  ASSERT_TRUE(h15["leader"] == "EAST");
+  ASSERT_TRUE(h15["cur_trick"] == nlohmann::json::array({"S2"}));
+  ASSERT_TRUE(h15["target"] == 10);
+  ASSERT_TRUE(h15.contains("actual_deal"));
   for (const auto& [key, preset] : presets_file_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -248,6 +297,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(presets_api_json.contains("two_way_finesse"));
   ASSERT_TRUE(presets_api_json.contains("hand_8_261014"));
   ASSERT_TRUE(presets_api_json.contains("hand_6_261014"));
+  ASSERT_TRUE(presets_api_json.contains("hand_15_261028"));
   for (const auto& [key, preset] : presets_api_json.items()) {
     ASSERT_TRUE(preset["iters"].get<int>() >= 100);
   }
@@ -274,7 +324,7 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
 }
 
 TEST(ServerTest, CrossOriginIsolationHeaders) {
-  int port = 18082;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
@@ -313,7 +363,7 @@ TEST(ServerTest, CrossOriginIsolationHeaders) {
 }
 
 TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
-  int port = 18081;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
@@ -683,15 +733,20 @@ TEST(ServerTest, WebServerRESTAPIApiSolveIntegration) {
     ASSERT_TRUE(found_branch_cond);
   }
 
-  // Find outcome leaf at depth 4
-  nlohmann::json *curr = &p_trick1;
+  // Depth 4: Trick 4 and outcome leaf
+  auto &p_trick4 = find_trick(p_trick3["children"][0], "#4:");
+  ASSERT_TRUE(p_trick4["label"].get<std::string>().find("#4:") !=
+              std::string::npos);
+  nlohmann::json *curr = &p_trick4;
   while (curr->contains("children") && !(*curr)["children"].empty()) {
     curr = &((*curr)["children"][0]);
   }
   ASSERT_TRUE((*curr)["type"] == "outcome");
   ASSERT_TRUE((*curr)["success_boards"] > 0);
   ASSERT_TRUE((*curr).contains("ns_tricks"));
-  ASSERT_TRUE((*curr)["label"].get<std::string>().find("#") != std::string::npos);
+  std::string leaf_lbl = (*curr)["label"].get<std::string>();
+  ASSERT_TRUE(leaf_lbl.find("#4:") != std::string::npos ||
+              leaf_lbl.find("Hand Succeeded") != std::string::npos);
 
   server.Stop();
 }
@@ -956,7 +1011,7 @@ TEST(ServerTest, UnmatchedDefenderPlayAttachesToConditionNode) {
 }
 
 TEST(ServerTest, WebServerConcurrentMultithreadedApiSolveRequests) {
-  int port = 18082;
+  int port = PickFreePort();
   WebServer server("127.0.0.1", port);
   ASSERT_TRUE(server.Start(/*async=*/true));
 
@@ -2416,3 +2471,38 @@ run().catch(err => {
   }
 }
 
+TEST(ServerTest, SolveJsonProgressiveSearch) {
+  nlohmann::json req = {
+      {"hands",
+       {{"N", "S 532; H T7; D T32; C 6;"},
+        {"E", ""},
+        {"S", "S K9; H -; D A854; C AKJ;"},
+        {"W", ""}}},
+      {"unknown_cards", "S AJTQ64 D KQJ976 C T43Q98"},
+      {"trump", "HEARTS"},
+      {"leader", "NORTH"},
+      {"min_tricks", 6},
+      {"num_iters", 50},
+      {"num_threads", 4},
+      {"progressive_stage1_deals", 20},
+      {"eval_iters", 400},
+      {"eval_seed", 123456789}};
+
+  WebServer ws;
+  std::string body = ws.SolveJson(req.dump());
+  nlohmann::json res = nlohmann::json::parse(body);
+  ASSERT_TRUE(res["success"].get<bool>()) << body;
+  EXPECT_EQ(res["total_boards"].get<int>(), 50);
+  EXPECT_GT(res["covered_boards"].get<int>(), 0);
+  ASSERT_TRUE(res.contains("eval_total_boards")) << body;
+  EXPECT_EQ(res["eval_total_boards"].get<int>(), 400);
+  ASSERT_TRUE(res.contains("lines"));
+  EXPECT_GE(res["lines"].size(), 2u);
+
+  req["progressive"] = false;
+  std::string body_off = ws.SolveJson(req.dump());
+  nlohmann::json res_off = nlohmann::json::parse(body_off);
+  ASSERT_TRUE(res_off["success"].get<bool>()) << body_off;
+  EXPECT_EQ(res_off["total_boards"].get<int>(), 50);
+  EXPECT_GT(res_off["covered_boards"].get<int>(), 0);
+}

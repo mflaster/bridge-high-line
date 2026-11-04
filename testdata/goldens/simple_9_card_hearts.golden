@@ -61,10 +61,10 @@ Example Failed Play (Board 3):
         when 1 wins the SA: 
           after (C_) CK (C_) S3: (C_) CK (C_) S3 [9] / C7 CK C5 S3 
             when 2 wins the CK: 
-              after SK (SJ) S4 (S_): SK (SJ) S4 (S_) [9] / SK SJ S4 S9 
-                when 2 wins the SK: 
-                  after CA (C_) S5 (C_): CA (C_) S5 (C_) [9] / CA C8 S5 C9 
-                    when 2 wins the CA: 
+              after CA (C_) S4 (C_): CA (C_) S4 (C_) [9] / CA C8 S4 C9 
+                when 2 wins the CA: 
+                  after SK (SJ) S5 (S_): SK (SJ) S5 (S_) [9] / SK SJ S5 S9 
+                    when 2 wins the SK: 
                       after C2 (CT) HA (__): C2 (CT) HA (__) [9] / C2 CT HA ST 
                         when 0 wins the HA: 
           after (SX) SK (S_) S3: (SX) SK (S_) S3 [39,42,50] / SQ SK S9 S3  / SQ SK S9 S3  / SJ SK SQ S3 
@@ -81,7 +81,7 @@ Example Failed Play (Board 3):
             when 2 wins the CK: 
               after CA (__) S4 (C_): CA (__) S4 (C_) [49] / CA S9 S4 C7
                 when 2 wins the CA: 
-                  after C2 (__) S5 (C_): C2 (__) S5 (C_) [49] / C2 SJ S5 C8
-                    when 1 wins the C8: 
-                      after (CT) S6 (__) HA: (CT) S6 (__) HA [49] / CT S6 SA HA
-                        when 0 wins the HA: HAND SUCCEEDED FOR: 49
+                  after C2 (__) HA (C_): C2 (__) HA (C_) [49] / C2 SJ HA C8
+                    when 0 wins the HA: 
+                      after S5 (__) S6 (SA): S5 (__) S6 (SA) [49] / S5 CT S6 SA
+                        when 3 wins the SA: HAND SUCCEEDED FOR: 49

@@ -12,6 +12,7 @@ const leaderSelect = document.getElementById('leaderSelect');
 const targetTricks = document.getElementById('targetTricks');
 const numIters = document.getElementById('numIters');
 const numTestIters = document.getElementById('numTestIters');
+const progressiveSolve = document.getElementById('progressiveSolve');
 const presetSelect = document.getElementById('presetSelect');
 const solveBtn = document.getElementById('solveBtn');
 const stopSolveBtn = document.getElementById('stopSolveBtn');
@@ -76,6 +77,7 @@ function captureCurrentDealState() {
     target: targetTricks ? targetTricks.value : '1',
     iters: numIters ? numIters.value : '100',
     test_iters: numTestIters ? numTestIters.value : '10,000',
+    progressive: progressiveSolve ? Boolean(progressiveSolve.checked) : true,
     cur_trick: Array.isArray(presetCurTrick) ? presetCurTrick.slice() : [],
     loadedBoardHands: loadedBoardHands ? { ...loadedBoardHands } : null,
     loadedActualDeal: loadedActualDeal ? { ...loadedActualDeal } : null,
@@ -194,6 +196,9 @@ function applySessionCustomHand(entry) {
   if (numIters) numIters.value = s.iters;
   if (numTestIters) {
     numTestIters.value = s.test_iters !== undefined ? s.test_iters : '10,000';
+  }
+  if (progressiveSolve && s.progressive !== undefined) {
+    progressiveSolve.checked = Boolean(s.progressive);
   }
 
   if (inputNorth) inputNorth.value = s.north || '';
@@ -900,6 +905,25 @@ let PRESETS = {
       E: 'S T9; H T84; D J765; C QT93;',
       S: 'S QJ64; H J95; D AKQT; C J7;',
       W: 'S 532; H Q732; D 9432; C 85;'
+    }
+  },
+  hand_15_261028: {
+    name: 'Hand 15 from 261028',
+    trump: 'HEARTS',
+    leader: 'EAST',
+    cur_trick: ['S2'],
+    target: 10,
+    iters: 100,
+    north: 'S -; H T96; D KQ85; C AQJ4;',
+    east: 'S 2; H -; D -; C -;',
+    south: 'S 8; H AJ7542; D A6; C K8;',
+    west: '',
+    unknown_cards: 'S T75 H KQ83 D JT97432 C T976532',
+    actual_deal: {
+      N: 'S -; H T96; D KQ85; C AQJ4;',
+      E: 'S 752; H K83; D J2; C T32;',
+      S: 'S 8; H AJ7542; D A6; C K8;',
+      W: 'S T; H Q; D T9743; C 9765;'
     }
   }
 };
@@ -2098,6 +2122,7 @@ solveBtn.addEventListener('click', async () => {
       : parseInt(targetTricks.value, 10),
     num_iters: parsedSolveIters,
     eval_iters: parsedTestIters,
+    progressive: progressiveSolve ? Boolean(progressiveSolve.checked) : true,
     num_threads: isNaN(parsedThreads) ? 16 : parsedThreads
   };
 
@@ -2252,6 +2277,9 @@ solveBtn.addEventListener('click', async () => {
         targetTricks: targetTricks.value,
         numIters: numIters.value,
         numTestIters: numTestIters ? numTestIters.value : '10,000',
+        progressiveSolve: progressiveSolve
+          ? Boolean(progressiveSolve.checked)
+          : true,
         curTrick: initCurTrick,
         declarerSeat: currentDeclarerSeat || 'N',
         actualDeal: activeActualDeal
@@ -2535,6 +2563,9 @@ if (resetLineBtn) {
       if (numTestIters && snap.inputs.numTestIters !== undefined) {
         numTestIters.value = snap.inputs.numTestIters;
       }
+      if (progressiveSolve && snap.inputs.progressiveSolve !== undefined) {
+        progressiveSolve.checked = Boolean(snap.inputs.progressiveSolve);
+      }
       presetCurTrick = Array.isArray(snap.inputs.curTrick)
         ? snap.inputs.curTrick.slice()
         : [];
@@ -2757,6 +2788,7 @@ if (computeNewLineBtn) {
       leader: leaderForSolve,
       min_tricks: remainingMinTricks,
       num_iters: parsedNumIters,
+      progressive: progressiveSolve ? Boolean(progressiveSolve.checked) : true,
       num_threads: isNaN(parsedThreads) ? 16 : parsedThreads,
       cur_trick: curTrickForSolve,
       start_trick_num: startTrickNumForSolve,

@@ -163,6 +163,14 @@ class LineFinder {
   void SetFinalistEvalSeed(uint64_t seed) { finalist_eval_seed_ = seed; }
   uint64_t finalist_eval_seed() const { return finalist_eval_seed_; }
 
+  void SetProgressiveSearch(bool v) { progressive_search_ = v; }
+  bool progressive_search() const { return progressive_search_; }
+
+  void SetProgressiveStage1Deals(int n) {
+    progressive_stage1_deals_ = std::max(5, n);
+  }
+  int progressive_stage1_deals() const { return progressive_stage1_deals_; }
+
   // Solves for optimal play lines to achieve min_tricks across simulated boards.
   //
   // Returns:
@@ -233,7 +241,9 @@ class LineFinder {
       std::map<int, std::shared_ptr<OptimalPlayTree>> &board_trees,
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
-      int min_covered = 0, int top_k = -1);
+      int min_covered = 0, int top_k = -1,
+      const ConditionalLine *action_guide = nullptr,
+      int guide_lvls_left = 1);
 
   // Evaluates groups of generalized tricks and constructs top-level or branch ConditionalLine nodes.
   // Filters and returns all ConditionalLine options that achieve the maximum board coverage count.
@@ -246,7 +256,9 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
-      int *out_unsplit_ub = nullptr);
+      int *out_unsplit_ub = nullptr,
+      const ConditionalLine *guide = nullptr,
+      int guide_lvls_left = 1);
 
   // Attempts to improve board coverage when single-trick groupings do not
   // cover all solvable boards by branching on IsCardGoodCondition for the
@@ -262,7 +274,9 @@ class LineFinder {
       SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
       Suit prev_suit_led = NOTRUMP, int state_depth = 0,
-      int unsplit_ub = -1);
+      int unsplit_ub = -1,
+      const ConditionalLine *guide = nullptr,
+      int guide_lvls_left = 1);
 
   // Recursive workhorse for finding optimal play lines.
   // - Base case (cards_left == 0): returns empty vector if min_tricks > 0
@@ -279,7 +293,9 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
-      Suit prev_suit_led = NOTRUMP, int state_depth = 0);
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0,
+      const ConditionalLine *guide = nullptr,
+      int guide_lvls_left = 1);
 
   std::vector<ConditionalLine> SolveHelperUncached(
       int min_tricks,
@@ -288,7 +304,9 @@ class LineFinder {
       const std::set<int> &board_offsets,
       int leader, int lvl, SearchProgress::Node *progress = nullptr,
       int min_covered = 0, int top_k = -1,
-      Suit prev_suit_led = NOTRUMP, int state_depth = 0);
+      Suit prev_suit_led = NOTRUMP, int state_depth = 0,
+      const ConditionalLine *guide = nullptr,
+      int guide_lvls_left = 1);
 
   int TopKForLevel(int lvl, size_t num_boards) const;
 
@@ -328,6 +346,10 @@ class LineFinder {
   uint64_t base_eval_seed_ = 0;
   bool adversarial_rescore_ = true;
   bool keep_all_top_k_ = false;
+  bool progressive_search_ = true;
+  int progressive_stage1_deals_ = 25;
+  bool stage1_relaxed_pruning_ = false;
+  bool stage2_guided_ = false;
   FuzzyBoardState fuzzy_state_;
   std::vector<BoardState> boards_;
   std::vector<BoardState> initial_boards_;

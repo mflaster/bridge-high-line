@@ -19,6 +19,8 @@ struct GeneralizedDemiStruct {
   std::set<int> boards;
   std::vector<int> boards_vec;
   std::map<int, std::string> board_to_trick;
+  bool ns_wins_any = false;
+  bool mixed_suit_wild = false;
 
   GeneralizedDemiStruct(const std::string &opp,
                         const std::string &me,
@@ -30,16 +32,22 @@ struct GeneralizedDemiStruct {
 
 using GeneralizedPlaysVector = std::vector<GeneralizedDemiStruct>;
 
+uint16_t UnavailableTrumpMask(const BoardState &bs);
+
 class GeneralizedDemiPlay {
  public:
-  GeneralizedDemiPlay(Suit trump_suit)
-      : trump_suit_(trump_suit) {
+  explicit GeneralizedDemiPlay(Suit trump_suit,
+                               uint16_t unavailable_trump_mask = 0)
+      : trump_suit_(trump_suit),
+        unavailable_trump_mask_(unavailable_trump_mask) {
   }
 
   void RecordOptimalPlay(const std::string &opp_card,
                          const std::string &my_card,
                          int board_num,
-                         const std::string *trick = nullptr);
+                         const std::string *trick = nullptr,
+                         bool ns_won = false,
+                         const std::string *overruff_card = nullptr);
 
   GeneralizedPlaysVector GetGeneralizedPlays(
       int leader, Suit suit_led, unsigned int top = 10,
@@ -52,11 +60,14 @@ class GeneralizedDemiPlay {
     Suit suit_led;
     std::string opp_card;
     std::string my_card;
+    int8_t overruff_rv = -1;
     std::vector<int> boards;
+    bool ns_wins_any = false;
   };
   std::vector<RawPlayBucket> buckets_;
   bool has_by_suit_ = false;
   Suit trump_suit_;
+  uint16_t unavailable_trump_mask_ = 0;
 };
 
 struct GeneralizedTrick {
@@ -74,6 +85,7 @@ struct GeneralizedTrick {
   std::set<int> boards;
   std::vector<BoardTrickEntry> board_entries;
   int leader = 0;
+  Suit trump_suit = NOTRUMP;
   size_t opp1_step1_boards = 0;
   size_t opp2_step1_boards = 0;
   size_t opp1_unmakeable_boards = 0;
@@ -104,8 +116,10 @@ using GeneralizedTricksVector = std::vector<GeneralizedTrick>;
 
 class GeneralizedTrickFinder {
  public:
-  GeneralizedTrickFinder(Suit trump_suit)
-      : trump_suit_(trump_suit) {
+  explicit GeneralizedTrickFinder(Suit trump_suit,
+                                  uint16_t unavailable_trump_mask = 0)
+      : trump_suit_(trump_suit),
+        unavailable_trump_mask_(unavailable_trump_mask) {
   }
 
   void RecordOptimalTrick(int leader, const std::string &trick, int board);
@@ -136,6 +150,7 @@ class GeneralizedTrickFinder {
   std::vector<std::string> raw_tricks_;
   int leader_ = -1;
   Suit trump_suit_ = NOTRUMP;
+  uint16_t unavailable_trump_mask_ = 0;
   bool monotonic_boards_ = true;
 };
 
@@ -212,6 +227,11 @@ class ConditionalLine {  // ConditionalLineBranch
 
   void AddCondition(PlayCondition *c,
                     std::shared_ptr<ConditionalLine> continue_with) {
+    AddCondition(std::shared_ptr<PlayCondition>(c), std::move(continue_with));
+  }
+
+  void AddCondition(std::shared_ptr<PlayCondition> c,
+                    std::shared_ptr<ConditionalLine> continue_with) {
     assert(final_covered_boards_.empty());
     if (continue_with) {
       covered_count_ += continue_with->CoveredFinalBoards();
@@ -219,8 +239,7 @@ class ConditionalLine {  // ConditionalLineBranch
           std::min(covered_count_,
                    unforced_fc_count_ + continue_with->unforced_fc_count());
     }
-    conditions_.emplace_back(std::shared_ptr<PlayCondition>(c),
-                             std::move(continue_with));
+    conditions_.emplace_back(std::move(c), std::move(continue_with));
   }
 
   // Sets the next trick action (GeneralizedTrick) to be played at this node in
