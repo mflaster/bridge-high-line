@@ -413,6 +413,12 @@ function getNodeFailFraction(node) {
   return getNodeFillProportions(node).failFrac;
 }
 
+// Drag threshold tracking to distinguish clicks from pan drags
+let mouseDragStartX = 0;
+let mouseDragStartY = 0;
+let hasMouseDragged = false;
+let mouseDragResetTimeout = null;
+
 // Decision Tree SVG Rendering
 function renderDecisionTree(rootNode, resetView = false) {
   treeRootGroup.innerHTML = '';
@@ -577,6 +583,15 @@ function renderDecisionTree(rootNode, resetView = false) {
           activeTracedNodeSet.has(node) &&
           activeTracedNodeSet.has(child)
         );
+        const handleEdgeClick = (e) => {
+          if (hasMouseDragged) {
+            e.stopPropagation();
+            return;
+          }
+          e.stopPropagation();
+          expandAndInspectNode(child, rootNode, e);
+        };
+
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const startX = node._x + nodeWidth / 2;
         const startY = node._y + nodeHeight;
@@ -595,12 +610,29 @@ function renderDecisionTree(rootNode, resetView = false) {
           'marker-end',
           isTracedEdge ? 'url(#arrow-traced)' : (child.failure ? 'url(#arrow-failure)' : 'url(#arrow)')
         );
+        path.style.cursor = 'pointer';
+        path.addEventListener('click', handleEdgeClick);
         treeRootGroup.appendChild(path);
+
+        const hitTarget = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hitTarget.setAttribute('d', d);
+        hitTarget.setAttribute('fill', 'none');
+        hitTarget.setAttribute('stroke', 'transparent');
+        hitTarget.setAttribute('stroke-width', '16');
+        hitTarget.setAttribute('pointer-events', 'stroke');
+        hitTarget.setAttribute('class', 'tree-link-hit-target');
+        hitTarget.style.cursor = 'pointer';
+        hitTarget.addEventListener('click', handleEdgeClick);
+        hitTarget.addEventListener('mouseenter', () => path.classList.add('tree-link-hovered'));
+        hitTarget.addEventListener('mouseleave', () => path.classList.remove('tree-link-hovered'));
+        treeRootGroup.appendChild(hitTarget);
 
         if (child.condition) {
           const midX = (startX + endX) / 2;
           const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
           labelGroup.setAttribute('class', 'tree-edge-label-group');
+          labelGroup.style.cursor = 'pointer';
+          labelGroup.addEventListener('click', handleEdgeClick);
 
           let condText = child.condition;
           if (condText.startsWith('after ')) {
@@ -770,6 +802,10 @@ function renderDecisionTree(rootNode, resetView = false) {
 
     // Event Listeners for Interactivity
     g.addEventListener('click', (e) => {
+      if (hasMouseDragged) {
+        e.stopPropagation();
+        return;
+      }
       e.stopPropagation();
       expandAndInspectNode(node, rootNode, e);
     });
@@ -1682,19 +1718,37 @@ function zoomAroundPoint(targetZoom, focalX, focalY) {
 }
 
 treeViewport.addEventListener('mousedown', (e) => {
+  clearTimeout(mouseDragResetTimeout);
   isDragging = true;
+  mouseDragStartX = e.clientX;
+  mouseDragStartY = e.clientY;
+  hasMouseDragged = false;
   startX = e.clientX - panX;
   startY = e.clientY - panY;
 });
 
 window.addEventListener('mousemove', (e) => {
   if (!isDragging) return;
+  if (Math.hypot(e.clientX - mouseDragStartX, e.clientY - mouseDragStartY) > 4) {
+    hasMouseDragged = true;
+  }
   panX = e.clientX - startX;
   panY = e.clientY - startY;
   updateTransform();
 });
 
-window.addEventListener('mouseup', () => { isDragging = false; });
+window.addEventListener('mouseup', (e) => {
+  if (isDragging) {
+    if (Math.hypot(e.clientX - mouseDragStartX, e.clientY - mouseDragStartY) > 4) {
+      hasMouseDragged = true;
+    }
+    isDragging = false;
+    clearTimeout(mouseDragResetTimeout);
+    mouseDragResetTimeout = setTimeout(() => {
+      hasMouseDragged = false;
+    }, 50);
+  }
+});
 
 treeViewport.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -1719,6 +1773,8 @@ let pinchStartMidX = 0;
 let pinchStartMidY = 0;
 
 treeViewport.addEventListener('touchstart', (e) => {
+  clearTimeout(mouseDragResetTimeout);
+  hasMouseDragged = false;
   if (e.touches.length === 1) {
     touchDragging = true;
     pinchStartDist = 0;
@@ -1746,12 +1802,14 @@ treeViewport.addEventListener('touchmove', (e) => {
     const dy = e.touches[0].clientY - touchStartClientY;
     if (Math.hypot(dx, dy) > 4) {
       e.preventDefault();
+      hasMouseDragged = true;
       panX = touchStartPanX + dx;
       panY = touchStartPanY + dy;
       updateTransform();
     }
   } else if (e.touches.length === 2 && pinchStartDist > 0) {
     e.preventDefault();
+    hasMouseDragged = true;
     const rect = treeViewport.getBoundingClientRect();
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -1780,12 +1838,27 @@ treeViewport.addEventListener('touchend', (e) => {
     touchStartPanY = panY;
   } else {
     touchDragging = false;
+    clearTimeout(mouseDragResetTimeout);
+    mouseDragResetTimeout = setTimeout(() => {
+      hasMouseDragged = false;
+    }, 50);
   }
 });
 
 treeViewport.addEventListener('touchcancel', () => {
   touchDragging = false;
   pinchStartDist = 0;
+  clearTimeout(mouseDragResetTimeout);
+  mouseDragResetTimeout = setTimeout(() => {
+    hasMouseDragged = false;
+  }, 50);
+});
+
+window.addEventListener('blur', () => {
+  isDragging = false;
+  touchDragging = false;
+  clearTimeout(mouseDragResetTimeout);
+  hasMouseDragged = false;
 });
 
 zoomInBtn.addEventListener('click', () => {
