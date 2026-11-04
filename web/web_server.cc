@@ -2046,6 +2046,19 @@ std::string WebServer::SolveJson(const std::string &req_body,
       } else {
         lf->SetFinalistEvalSeed(0);
       }
+      bool progressive = true;
+      if (req_json.contains("progressive") &&
+          req_json["progressive"].is_boolean()) {
+        progressive = req_json["progressive"].get<bool>();
+      }
+      lf->SetProgressiveSearch(progressive);
+      int prog_s1_deals = 25;
+      if (req_json.contains("progressive_stage1_deals") &&
+          req_json["progressive_stage1_deals"].is_number_integer()) {
+        prog_s1_deals = std::clamp(
+            req_json["progressive_stage1_deals"].get<int>(), 5, 100);
+      }
+      lf->SetProgressiveStage1Deals(prog_s1_deals);
 
       std::vector<ConditionalLine> lines =
           lf->Solve(min_tricks, hands, unknown_cards, leader, trump_suit,

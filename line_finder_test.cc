@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <random>
 #include <thread>
 #include <gtest/gtest.h>
 
@@ -1813,3 +1815,51 @@ TEST(LineFinderTest, LineFinder_Hand15PitchLineOverruffsSmallRuffsWithHT) {
   EXPECT_TRUE(saw_unsplit_ruff);
   EXPECT_TRUE(saw_pitch_with_overruff);
 }
+
+TEST(LineFinderTest, LineFinder_Hand15ProgressiveSearchFindsMultiBranchLines) {
+  std::vector<uint64_t> hands = {
+      ParseHand("H T96; D KQ85; C AQJ4;"),
+      ParseHand("S 2;"),
+      ParseHand("S 8; H AJ7542; D A6; C K8;"),
+      0,
+  };
+  uint64_t unknown = ParseHand("S T75; H KQ83; D JT97432; C T976532;");
+  std::vector<CardType> cur_trick = {Card::ParseStringCard("S2")};
+
+  FuzzyBoardState fuzzy(hands, unknown);
+  auto spec = fuzzy.PrepareFastDealSpec();
+  constexpr int kNumDeals = 100;
+  std::mt19937_64 rng(10007ULL);
+  std::vector<BoardState> boards;
+  boards.reserve(kNumDeals);
+  for (int i = 0; i < kNumDeals; ++i) {
+    BoardState b = FuzzyBoardState::FastRandomize(spec, rng);
+    b.SetTrump(HEARTS);
+    b.SetLead(1);
+    boards.push_back(b);
+  }
+
+  LineFinder lf(kNumDeals);
+  lf.SetPredealtBoards(boards);
+  lf.SetProgressiveSearch(true);
+  lf.SetMaxFinalistLines(3);
+  std::vector<ConditionalLine> lines =
+      lf.Solve(10, hands, unknown, /*leader=*/1, HEARTS, cur_trick, 4);
+  ASSERT_GE(lines.size(), 2u);
+  EXPECT_GE(lines[0].CoveredFinalBoards(), 65) << lines[0].Describe(0);
+
+  bool saw_multi_branch = false;
+  const auto &solved_boards = lf.boards();
+  for (const ConditionalLine &line : lines) {
+    if (line.conditions().size() >= 2) saw_multi_branch = true;
+    int adv_made = 0;
+    for (int b = 0; b < kNumDeals; ++b) {
+      if (line.ResultsOnHandAdversarial(solved_boards[b]) >= 10) {
+        ++adv_made;
+      }
+    }
+    EXPECT_EQ(adv_made, line.CoveredFinalBoards()) << line.Describe(0);
+  }
+  EXPECT_TRUE(saw_multi_branch);
+}
+
