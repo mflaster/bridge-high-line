@@ -1391,6 +1391,11 @@ std::string WebServer::StopSolveJson() {
 
 #ifndef __EMSCRIPTEN__
 void WebServer::RegisterRoutes() {
+  svr_.set_default_headers({
+      {"Cross-Origin-Opener-Policy", "same-origin"},
+      {"Cross-Origin-Embedder-Policy", "require-corp"}
+  });
+
   svr_.Get("/", [](const httplib::Request &, httplib::Response &res) {
     res.set_content(web_assets::INDEX_HTML, "text/html");
   });
