@@ -2,6 +2,7 @@
 
 let wasmReady = false;
 let wasmLoadError = null;
+let isSingleThreaded = false;
 const pendingMessages = [];
 
 self.onBridgeSolverProgress = function(status, progress) {
@@ -22,7 +23,11 @@ self.Module = {
   },
   onRuntimeInitialized: function() {
     wasmReady = true;
-    self.postMessage({ type: 'ready' });
+    self.postMessage({
+      type: 'ready',
+      singleThreaded: isSingleThreaded,
+      num_threads: isSingleThreaded ? 1 : null
+    });
     while (pendingMessages.length > 0) {
       handleWorkerMessage(pendingMessages.shift());
     }
@@ -38,11 +43,19 @@ function handleWorkerMessage(msg) {
   if (!msg || typeof msg !== 'object') return;
   if (msg.type === 'solve') {
     try {
+      let payloadJsonStr = msg.payloadJson || '{}';
+      if (isSingleThreaded) {
+        try {
+          const parsed = JSON.parse(payloadJsonStr);
+          parsed.num_threads = 1;
+          payloadJsonStr = JSON.stringify(parsed);
+        } catch (_) {}
+      }
       const resultJson = self.Module.ccall(
         'wasm_solve_json',
         'string',
         ['string'],
-        [msg.payloadJson || '{}']
+        [payloadJsonStr]
       );
       self.postMessage({
         type: 'solve_result',
@@ -91,17 +104,34 @@ self.onmessage = function(e) {
   handleWorkerMessage(msg);
 };
 
+// Catch missing SharedArrayBuffer states and prepare for single-threaded execution
 if (typeof SharedArrayBuffer === 'undefined') {
-  wasmLoadError =
-    'WebAssembly multithreading requires SharedArrayBuffer (Cross-Origin Isolation). ' +
-    'Please reload the page after the service worker activates.';
-  self.postMessage({ type: 'error', error: wasmLoadError });
-} else {
-  try {
-    importScripts('bridge_wasm.js');
-  } catch (err) {
-    wasmLoadError =
-      'Failed to load bridge_wasm.js: ' + (err && err.message ? err.message : String(err));
-    self.postMessage({ type: 'error', error: wasmLoadError });
+  isSingleThreaded = true;
+  if (typeof self.SharedArrayBuffer === 'undefined' && typeof self.ArrayBuffer !== 'undefined') {
+    self.SharedArrayBuffer = self.ArrayBuffer;
   }
+  if (typeof WebAssembly !== 'undefined' && WebAssembly.Memory) {
+    const OrigMemory = WebAssembly.Memory;
+    WebAssembly.Memory = function(descriptor) {
+      if (descriptor && descriptor.shared) {
+        try {
+          return new OrigMemory(descriptor);
+        } catch (_) {
+          const unsharedDesc = Object.assign({}, descriptor);
+          delete unsharedDesc.shared;
+          return new OrigMemory(unsharedDesc);
+        }
+      }
+      return new OrigMemory(descriptor);
+    };
+    WebAssembly.Memory.prototype = OrigMemory.prototype;
+  }
+}
+
+try {
+  importScripts('bridge_wasm.js');
+} catch (err) {
+  wasmLoadError =
+    'Failed to load bridge_wasm.js: ' + (err && err.message ? err.message : String(err));
+  self.postMessage({ type: 'error', error: wasmLoadError });
 }
