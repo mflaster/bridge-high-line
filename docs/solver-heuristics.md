@@ -18,21 +18,37 @@ sampled deals:
    follow-suit plays) to find all contract-making declarer cards and a single
    deterministic (or noise-diversified) defender card, pruning dominated
    declarer plays within a trick.
-2. **Step 1 — Recursive Tree Search (`line_finder.cc` + `conditional_line.cc`)**:
-   Generalizes opponent card patterns (`GetGeneralizedTricks`), groups
-   distinguishable tricks into branching decision candidates (`GroupTricks`),
-   recursively solves continuation subtrees (`SolveHelperUncached`,
-   `GetLinesFromGroups`, `GetLinesFromTrick`), optionally inserts pre-trick
-   state conditions (`TryBranchOnGoodCards`), and retains up to `top_k`
-   candidate trees per level across a coverage vs. tree-complexity Pareto
-   frontier.
+2. **Step 1 — Progressive Tree Search (`line_finder.cc` + `conditional_line.cc`)**:
+   When progressive search is enabled and the deal count exceeds
+   `progressive_stage1_deals_`, executes a two-stage progressive search:
+   - **Stage 1 (Relaxed Exploration)**: Solves a small deal subset
+     (`progressive_stage1_deals_`, default 25) with relaxed pruning rules
+     (`min_split_boards = 2`).
+   - **Spine Guide Diversity Partitioning**: Extracts up to 12 diverse guide
+     lines via two-pass deduplication on opening declarer tricks and 3-trick
+     main spines.
+   - **Stage 2 (Guided Expansion)**: Expands extracted spine guides in parallel
+     across all sampled deals, pruning branches that fall below a dynamic
+     statistical margin.
+   When progressive search is disabled or the deal count is small, runs standard
+   single-stage recursive tree search (`SolveHelperUncached`,
+   `GetLinesFromGroups`, `GetLinesFromTrick`, `TryBranchOnGoodCards`) across all
+   deals.
 3. **Step 2 — Adversarial Rescoring & Post-Processing (`line_finder.cc` +
    `conditional_line.cc`)**:
-   Re-evaluates the Step-1 candidate trees against an adversarial defender
+   Re-evaluates the candidate trees against an adversarial defender
    (`RescoreTopLinesAdversarial` / `ChooseAdversarialDefenderCard`) who can
    falsecard or switch leads among DDS-optimal plays to steer declarer into
    failing branches, then prunes empty branches (`PruneEmptyBranches`) and
    collapses redundant state conditions (`CollapseRedundantNodes`).
+4. **Step 3 — Out-of-Sample Finalist Evaluation & Deduplication (`line_finder.cc` +
+   `conditional_line.cc`)**:
+   When multiple finalists are enabled (`max_finalist_lines_ > 1`), filters
+   candidate lines within a statistical confidence margin and re-evaluates them
+   across up to 10,000 independent out-of-sample deals
+   (`EvaluateFinalistLinesOutOfSample`). Deduplicates finalists using bitmask
+   symmetric difference comparisons and tie-breaks via `is_cleaner_rep`
+   (`SelectDistinctFinalistLines`).
 
 ---
 
@@ -536,7 +552,176 @@ After Step-2 adversarial rescoring updates every node's `CoveredFinalBoards()`:
 
 ---
 
-## 7. Removed Legacy Special Cases
+## 7. Two-Stage Progressive Search Engine (`line_finder.cc`)
+
+The progressive search engine speeds up large-sample solves. It explores candidate strategies on a smaller deal subset first, then expands the best diverse lines across the full deal set.
+
+### 7.1 Activation and Stage 1 Deal Sampling
+
+`LineFinder::Solve()` activates progressive search when:
+```cpp
+bool use_progressive =
+    progressive_search_ &&
+    static_cast<int>(board_offsets.size()) > progressive_stage1_deals_;
+```
+
+- When active, the solver samples the first `progressive_stage1_deals_` offsets (`s1_offsets`, default 25, clamped to `[5, 100]`).
+- The solver initializes double-dummy trees for only the Stage 1 subset (`compute_init_subset(s1_offsets)`).
+- This selective initialization avoids expensive tree construction for all deals upfront.
+
+### 7.2 Stage 1 Relaxed Pruning Rules and Memoization
+
+Stage 1 discovers broad tactical candidate lines by relaxing branching constraints:
+
+1. **Relaxed Branch Threshold (`min_split_boards = 2`)**:
+   Standard search requires at least 4 deals in a winner branch before exploring split lines (`min_split_boards = 4`). During Stage 1:
+   ```cpp
+   size_t min_split_boards = stage1_relaxed_pruning_ ? 2 : 4;
+   ```
+   Setting `min_split_boards = 2` prevents premature branch truncation on small deal counts.
+2. **Diversity Preservation (`keep_diverse`)**:
+   ```cpp
+   bool keep_diverse =
+       (max_finalist_lines_ > 1 || stage1_relaxed_pruning_ || stage2_guided_);
+   ```
+   When `keep_diverse` is true and a trick produces a single winner seat at level 0 (`lvl == 0 && entries.size() == 1`), the search expands `next_lvl_top_k` to `std::max(next_lvl_top_k, top_k_lines_)`.
+3. **Exploration Budget**:
+   Stage 1 calls `SolveHelper` with `min_covered = 0` and `top_k = std::max(top_k_lines_, 48)`. This searches deep tactical variations.
+4. **Memoization Lifecycle**:
+   Stage 1 allocates a fresh `SolveMemo` instance (`solve_memo_ = std::make_unique<SolveMemo>()`). The solver flushes and resets `solve_memo_` between Stage 1 and Stage 2.
+5. **Stage 1 Post-Processing**:
+   The engine deduplicates top-level lines with `DeduplicateTopLevelLines(&s1_lines, false)`. When `adversarial_rescore_` is true, the engine rescores candidates adversarially against `s1_offsets` with `RescoreTopLinesAdversarial`.
+
+### 7.3 Two-Pass Spine Guide Diversity Partitioning (`line_finder.cc:2027–2090`)
+
+From `s1_lines`, the solver extracts up to `kMaxGuides = 12` diverse candidate lines as guides for Stage 2. It uses two deduplication passes and two coverage floors based on `s1_best = s1_lines[0].CoveredFinalBoards()`:
+
+$$\text{s1\_t1\_floor} = \max\left(1, \text{s1\_best} - \max\left(6, \lfloor \text{s1\_best} / 2 \rfloor\right)\right)$$
+$$\text{s1\_floor} = \max\left(1, \text{s1\_best} - \max\left(5, \lfloor \text{s1\_best} / 3 \rfloor\right)\right)$$
+
+The guide level starts at `primary_guide_lvl = (leader % 2 == 0) ? 0 : 1`.
+
+```
+s1_lines (sorted by coverage DESC)
+ │
+ ├── Pass 1: Extract distinct Trick-1 declarer keys (seen_t1)
+ │           Floor: s1_t1_floor
+ │           Guide depth limit: primary_guide_lvl
+ │
+ └── Pass 2: Extract distinct 3-trick main spines (seen_spines)
+             Floor: s1_floor (from remaining untaken lines)
+             Guide depth limit: primary_guide_lvl + 1
+```
+
+1. **Pass 1 — Trick-1 Declarer Key Deduplication (`extract_first_decl_key`)**:
+   - Inspects candidate lines with `CoveredFinalBoards() >= s1_t1_floor`.
+   - Steps through the highest-coverage branches for `steps = (init_leader % 2 == 0) ? 1 : 2` tricks.
+   - Extracts the declarer card string `best_ch->do_first().demi1.my_card + ":" + best_ch->do_first().demi2.my_card`.
+   - When the key is unseen in `seen_t1`, the solver accepts the candidate into `guides`. It adds the key to `seen_t1` and the 3-trick spine to `seen_spines`.
+   - Assigns guide depth `primary_guide_lvl`.
+2. **Pass 2 — 3-Trick Main Spine Deduplication (`extract_main_spine`)**:
+   - Walks remaining untaken candidate lines with `CoveredFinalBoards() >= s1_floor`.
+   - Extracts the primary line spine up to 3 tricks (`extract_main_spine(root, /*max_tricks=*/3)`).
+   - The spine accumulates generalized tricks (`do_first().ToString(true)`) and state conditions (`S:<desc>|`).
+   - When the spine is unseen in `seen_spines`, the solver accepts the candidate into `guides` and records it in `seen_spines`.
+   - Assigns extended guide depth `primary_guide_lvl + 1`.
+3. **Guide Limit**:
+   Selection stops as soon as `guides.size() == kMaxGuides` (12 guides).
+
+### 7.4 Guided Stage 2 Parallel Expansion (`line_finder.cc:2118–2188`)
+
+Stage 2 completes tree initialization for all remaining boards (`compute_init_subset(board_offsets)`). It then expands the extracted guides across all sampled deals:
+
+1. **Memoization Flushing and Bypass**:
+   The engine re-allocates `solve_memo_` (`solve_memo_ = std::make_unique<SolveMemo>()`). Memoization is active for unguided searches. However, during guided branches (`child_guide != nullptr` or `guide != nullptr`), the search bypasses memoization to follow guide actions directly.
+2. **Statistical Margin Formula**:
+   The engine computes a dynamic statistical pruning margin based on the total active board count $N$:
+   $$\text{s2\_margin} = \max\left(4, \lceil 2.8 \times \sqrt{0.25 \times N} \rceil\right)$$
+3. **Parallel Guide Execution**:
+   - Sets `stage2_guided_ = true` and `top_k_lvl1_ = std::max(top_k_lvl1_, 4)`.
+   - **Guide 0** (highest Stage 1 coverage, weighted 2.0) executes first. It establishes initial coverage: `best_s2_cov = per_guide[0][0].CoveredFinalBoards()`.
+   - **Guides 1 to N-1** run concurrently via `ParallelTaskBatch`. Each worker thread computes a dynamic pruning floor:
+     $$\text{floor\_cov} = \begin{cases} 0 & \text{if } \text{cur\_best} \le 0 \\ \max(1, \text{cur\_best} - \text{s2\_margin}) & \text{otherwise} \end{cases}$$
+   - Any worker discovering a line that beats `best_s2_cov` updates the atomic variable via compare-and-swap.
+   - All guided results merge into the candidate list `ans`.
+
+---
+
+## 8. Out-of-Sample Finalist Evaluation & Deduplication (`line_finder.cc` & `conditional_line.cc`)
+
+When solving with Monte Carlo sampling and requesting multiple finalists (`max_finalist_lines_ > 1`), the solver verifies finalist lines on independent out-of-sample deals. This step eliminates lines that overfit the training deal sample.
+
+### 8.1 Pre-Evaluation Finalist Filtering
+
+Before running Monte Carlo evaluation, the solver filters candidates within a statistical confidence window:
+- Computes statistical margin:
+  $$\text{margin} = \max\left(4, \lceil 2.8 \times \sqrt{0.25 \times N} \rceil\right)$$
+- Sets minimum in-sample coverage floor:
+  $$\text{min\_cov} = \max(1, \text{best\_cov} - \text{margin})$$
+- Retains up to `pre_eval_cap` lines:
+  $$\text{pre\_eval\_cap} = \max\left(\text{max\_finalist\_lines\_} \times 6, \text{top\_k\_lines\_}, 16\right)$$
+
+### 8.2 Out-of-Sample Monte Carlo Simulation (`EvaluateFinalistLinesOutOfSample`)
+
+The solver evaluates surviving finalists against up to `finalist_eval_deals_` (default 10,000) independent random deals:
+
+1. **Independent Deal Generation**:
+   Generates deals with `FuzzyBoardState::FastRandomize` using 64-bit seed mixing:
+   ```cpp
+   uint64_t seed_d = MixEvalSeed64(eval_seed + static_cast<uint64_t>(d) * 0x9e3779b97f4a7c15ULL);
+   ```
+2. **Makeability Gate (`IsDealMakeable`)**:
+   Calls DDS to verify each sampled deal can make `min_tricks`. The evaluator skips unmakeable deals so only makeable deals contribute to evaluation statistics.
+3. **Dynamic Parallel Batching**:
+   Evaluates deals in parallel dynamic chunks of `kBatchSize = 250` deals via `ParallelForDynamic`.
+4. **Time Budget Guard**:
+   If `max_eval_ms > 0.0`, the evaluator checks elapsed time after completing `kMinDealsBeforeBudgetStop = 1000` deals. If elapsed wall time exceeds `max_eval_ms`, evaluation terminates early and reports the completed sample size.
+5. **Adversarial Simulation Lookahead (`conditional_line.cc:3200–3350`)**:
+   Simulates each finalist line on each deal using `EvaluateBoardAdversarialFast` with `ChooseAdversarialDefenderCard`. The defender evaluates continuation paths across three tiers:
+   - **Tier 0 (Genuine Defeat)**: Line misses a leaf and achieves `final_ns_tricks < root_min_tricks`.
+   - **Tier 1 (Covered Leaf)**: Line reaches a terminal success leaf in the decision tree.
+   - **Tier 2 (Missing Step-1 Branch)**: Line exits the decision tree but double-dummy tricks still satisfy `root_min_tricks`.
+6. **Bitmask Tracking & Out-of-Sample Ranking**:
+   The evaluator records deal success in 64-bit mask arrays (`flat_masks` / `eval_masks`) and increments atomic counters `line_hits`. It ranks finalists using the following stable sort comparator:
+   1. Out-of-sample coverage (`eval_covered_boards()` DESC),
+   2. In-sample training coverage (`CoveredFinalBoards()` DESC),
+   3. Immediate branch count (`conditions().size()` ASC),
+   4. Falsecardable split count (`FalsecardableSplits()` ASC),
+   5. Initial trump draw score (`InitialTrumpDrawScore()` DESC),
+   6. Total extra branches (`ExtraBranches()` ASC).
+
+### 8.3 Finalist Deduplication & Clustering (`SelectDistinctFinalistLines`)
+
+`SelectDistinctFinalistLines` clusters redundant lines and retains up to `max_finalist_lines_` distinct strategic options:
+
+1. **Equivalence Thresholds**:
+   Calculates allowable difference counts based on `equiv_diff_pct` (default `0.01`, or 1%):
+   $$\text{max\_equiv\_diff} = \lfloor \text{equiv\_diff\_pct} \times N + 10^{-9} \rfloor$$
+   $$\text{max\_eval\_equiv\_diff} = \lfloor \text{equiv\_diff\_pct} \times \text{eval\_total} + 10^{-9} \rfloor$$
+   $$\text{min\_eval\_cov} = \max\left(1, \text{best\_eval\_cov} - \max\left(4, \lfloor \text{eval\_total} / 6 \rfloor\right)\right)$$
+2. **Dominated Line Elimination (Trump Contracts)**:
+   In suit contracts, if candidate $A$ has low trump draw score ($2 \times \text{trump\_score} < \text{coverage}$) and candidate $B$ achieves equal or higher coverage with higher trump draw score and fewer falsecardable splits, the algorithm marks $A$ as dominated and removes it.
+3. **Bitmask Symmetric Difference Comparison**:
+   For candidate $C$ and retained representative $K$:
+   - Computes training bitmask symmetric difference:
+     $$\text{sym\_diff} = \text{BitmaskSymDiffCount}(C_{\text{mask}}, K_{\text{mask}})$$
+   - Computes out-of-sample evaluation symmetric difference:
+     $$\text{eval\_sym} = \text{BitmaskSymDiffCount}(C_{\text{eval\_mask}}, K_{\text{eval\_mask}})$$
+   - Lines are equivalent if $\text{sym\_diff} \le \text{max\_equiv\_diff}$ or $\text{eval\_sym} \le \text{max\_eval\_equiv\_diff}$.
+4. **Tie-Breaking via `is_cleaner_rep`**:
+   When candidate $C$ is equivalent to retained line $K$ within tolerance, $C$ replaces $K$ if `is_cleaner_rep(C, K)` returns true:
+   1. Fewer falsecardable splits (`FalsecardableSplits(a) < FalsecardableSplits(b)`),
+   2. Leads trump initially (`LeadsTrumpInitially(a, trump_suit) > LeadsTrumpInitially(b, trump_suit)`),
+   3. Fewer total extra branches (`a.ExtraBranches() < b.ExtraBranches()`),
+   4. Higher initial trump draw score (`InitialTrumpDrawScore(a, trump_suit) > InitialTrumpDrawScore(b, trump_suit)`).
+5. **Redundancy Pruning**:
+   Candidates that add no new winning boards ($\text{BitmaskMinusCount} == 0$) or provide fewer new boards than tolerance are discarded.
+6. **Output**:
+   Retains at most `max_finalist_lines_` distinct lines.
+
+---
+
+## 9. Removed Legacy Special Cases
 
 The following legacy mechanisms became dead or redundant after `GroupTricks`
 prohibited same-declarer-play in-suit splits (`if (!same_my1 || same_my2)

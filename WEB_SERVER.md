@@ -228,14 +228,21 @@ Solves a deal configuration and generates the interactive decision tree structur
 
 #### Request Body Schema (JSON)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `hands` | `object` | Object with keys `"N"`, `"E"`, `"S"`, `"W"` containing card string notation. |
-| `trump` | `string` | Trump suit: `"NOTRUMP"`, `"SPADES"`, `"HEARTS"`, `"DIAMONDS"`, `"CLUBS"`. |
-| `leader` | `string` or `int` | Opening lead direction: `"NORTH"`, `"EAST"`, `"SOUTH"`, `"WEST"` (or `0`..`3`). |
-| `min_tricks` | `int` | Minimum target tricks (default: `1`). |
-| `num_iters` | `int` | Simulation iterations for fuzzy/partial solves (default: `10`). |
-| `requirements` | `object` | (Optional) Hand requirement constraints object per player. |
+| Field | Type | Allowed Range | Default | Description |
+| --- | --- | --- | --- | --- |
+| `hands` | `object` | Valid card strings per hand | *Required* | Hand holdings for compass directions (`"N"`, `"E"`, `"S"`, `"W"`). |
+| `trump` | `string` | `"NOTRUMP"`, `"SPADES"`, `"HEARTS"`, `"DIAMONDS"`, `"CLUBS"` | `"NOTRUMP"` | Contract trump suit. |
+| `leader` | `string` or `int` | `"NORTH"`, `"EAST"`, `"SOUTH"`, `"WEST"` (or `0`..`3`) | `"NORTH"` | Opening lead direction or trick leader. |
+| `min_tricks` | `int` | `1` to `13` | `1` | Minimum tricks required to make contract. |
+| `num_iters` | `int` | `1` to `1000` | `10` | Number of sample deals generated for incomplete hands. |
+| `requirements` | `object` | JSON requirements object | `{}` | Hand constraint specifications per player. |
+| `progressive` | `bool` | `true`, `false` | `true` | Enables two-stage progressive search engine for large deal counts. |
+| `progressive_stage1_deals` | `int` | `5` to `100` | `25` | Number of sample deals explored in Stage 1 relaxed search. |
+| `eval_iters` | `int` | `0` to `100000` | `10000` (if `num_iters >= 50`), else `0` | Out-of-sample Monte Carlo evaluation deals for ranking finalist lines. |
+| `eval_max_ms` | `double` | `>= 0.0` | `8000.0` (native) / `4000.0` (WASM) if `num_iters >= 50`, else `0.0` | Time budget in milliseconds for out-of-sample evaluation. |
+| `eval_seed` | `int` | `0` to `2^64 - 1` | `0` | Random number generator seed for out-of-sample deals (`0` uses entropy). |
+| `max_finalists` | `int` | `1` to `16` | `3` (if multi-finalist eligible), else `1` | Maximum number of distinct finalist lines returned. |
+| `equiv_diff_pct` | `double` | `0.0` to `0.5` | `0.01` | Tolerance threshold fraction for clustering equivalent finalist lines. |
 
 #### Example Request Body
 ```json
@@ -248,7 +255,12 @@ Solves a deal configuration and generates the interactive decision tree structur
   },
   "trump": "NOTRUMP",
   "leader": "NORTH",
-  "min_tricks": 1
+  "min_tricks": 1,
+  "progressive": true,
+  "progressive_stage1_deals": 25,
+  "eval_iters": 10000,
+  "eval_max_ms": 8000.0,
+  "eval_seed": 0
 }
 ```
 
@@ -264,7 +276,9 @@ curl -X POST http://localhost:8080/api/solve \
       "W": "S J H J D J C J"
     },
     "trump": "NOTRUMP",
-    "leader": "NORTH"
+    "leader": "NORTH",
+    "min_tricks": 1,
+    "progressive": true
   }'
 ```
 
@@ -275,8 +289,15 @@ curl -X POST http://localhost:8080/api/solve \
   "tricks_won": 4,
   "best_lead": "SA",
   "sequence": "SA SK SQ SJ / HA HK HQ HJ / DA DK DQ DJ / CA CK CQ CJ",
+  "total_boards": 1,
   "covered_boards": 1,
+  "success_boards": 1,
+  "failure_boards": 0,
+  "num_threads": 4,
   "elapsed_ms": 1.42,
+  "solve_ms": 1.10,
+  "eval_ms": 0.0,
+  "invariant_ms": 0.15,
   "tree": {
     "id": "node_1",
     "type": "action",
@@ -304,3 +325,22 @@ curl -X POST http://localhost:8080/api/solve \
   }
 }
 ```
+
+#### Response Execution Timing and Statistics Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `success` | `bool` | Indicates whether the solver finished successfully. |
+| `tricks_won` | `int` | Maximum double-dummy tricks won by declarer. |
+| `best_lead` | `string` | Recommended opening lead card. |
+| `sequence` | `string` | Text summary of the primary play sequence. |
+| `total_boards` | `int` | Total count of sample deals analyzed during search. |
+| `covered_boards` | `int` | Number of sample deals solved by the primary decision tree. |
+| `success_boards` | `int` | Number of sample deals where declarer makes `min_tricks`. |
+| `failure_boards` | `int` | Number of sample deals where declarer fails to make `min_tricks`. |
+| `num_threads` | `int` | Number of worker threads used during parallel search. |
+| `elapsed_ms` | `double` | Total wall-clock time in milliseconds for the HTTP request. |
+| `solve_ms` | `double` | Wall-clock time in milliseconds spent in double-dummy tree search (Stage 1 and Stage 2). |
+| `eval_ms` | `double` | Wall-clock time in milliseconds spent in out-of-sample Monte Carlo finalist evaluation. |
+| `invariant_ms` | `double` | Wall-clock time in milliseconds spent computing deal set joint suit and honor invariants. |
+| `tree` | `object` | Root node of the interactive decision tree structure. |

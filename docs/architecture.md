@@ -11,9 +11,9 @@ The system is organized into four distinct architectural layers, ranging from co
 ```mermaid
 flowchart TB
     subgraph AnalyticalEngines["Analytical Engines Layer"]
-        LF["LineFinder<br/><code>line_finder.h</code>"]
+        LF["LineFinder<br/>(2-Stage Progressive Search & Out-of-Sample Finalist Ranking)<br/><code>line_finder.h</code>"]
         FBS["FuzzyBoardState<br/><code>line_finder.h</code>"]
-        CL["ConditionalLine<br/><code>conditional_line.h</code>"]
+        CL["ConditionalLine<br/>(Decision Trees, Adversarial Simulation & Finalist Equivalence)<br/><code>conditional_line.h</code>"]
         GTF["GeneralizedTrickFinder / GeneralizedDemiPlay<br/><code>conditional_line.h</code>"]
         PC["PlayCondition<br/>(WinnerPlayCondition, TrickPlayCondition)<br/><code>conditional_line.h</code>"]
         CHDS["CrossHandDealSetSummarizer<br/><code>cross_hand_summarizer.h</code>"]
@@ -92,7 +92,7 @@ flowchart TB
 
 ## 2. Line-Finding Evaluation Sequence Diagram
 
-The runtime execution flow during line-finding searches involves stochastic deal sampling, requirement validation, Double Dummy Solver (DDS) invocation, play tree construction, and decision tree synthesis.
+The runtime execution flow during line-finding searches involves stochastic deal sampling, requirement validation, Double Dummy Solver (DDS) invocation, two-stage progressive tree search, adversarial rescoring, and out-of-sample Monte Carlo finalist evaluation.
 
 ```mermaid
 sequenceDiagram
@@ -133,44 +133,87 @@ sequenceDiagram
         deactivate FBS
     end
 
-    loop Search & Play Tree Construction
-        LF->>OPTree: FindOptimalPlayTree(board_state, min_tricks, cache)
-        activate OPTree
-        OPTree->>SC: Check saved_optimal_plays
-        activate SC
-        SC-->>OPTree: Cache hit or miss
-        deactivate SC
-
-        alt Cache Miss
-            OPTree->>IDDS: DDSFindOptimalLines(board_state, min_tricks, cache)
-            activate IDDS
-            IDDS->>BS: PopulateDeal(bs, &dl)
-            activate BS
-            BS-->>IDDS: Binary DDS deal bitmasks
-            deactivate BS
-            IDDS->>DDS: SolveBoard(dl, target, solutions, mode)
-            activate DDS
-            DDS-->>IDDS: Solve results & card plays
-            deactivate DDS
-            IDDS->>SC: Store in SolverCache
-            IDDS-->>OPTree: OptimalLines
-            deactivate IDDS
+    alt Progressive Search Enabled (num_iters > progressive_stage1_deals)
+        Note over LF,DDS: Stage 1: Relaxed Pruning on Subset (default 25 deals)
+        loop Stage 1 Play Tree Construction (1..progressive_stage1_deals)
+            LF->>OPTree: FindOptimalPlayTree(board_state, min_tricks, cache)
+            activate OPTree
+            OPTree->>SC: Check saved_optimal_plays
+            activate SC
+            SC-->>OPTree: Cache hit or miss
+            deactivate SC
+            alt Cache Miss
+                OPTree->>IDDS: DDSFindOptimalLines(board_state, min_tricks, cache)
+                activate IDDS
+                IDDS->>BS: PopulateDeal(bs, &dl)
+                activate BS
+                BS-->>IDDS: Binary DDS deal bitmasks
+                deactivate BS
+                IDDS->>DDS: SolveBoard(dl, target, solutions, mode)
+                activate DDS
+                DDS-->>IDDS: Solve results & card plays
+                deactivate DDS
+                IDDS->>SC: Store in SolverCache
+                IDDS-->>OPTree: OptimalLines
+                deactivate IDDS
+            end
+            OPTree-->>LF: OptimalPlayTree
+            deactivate OPTree
         end
-        OPTree-->>LF: OptimalPlayTree
-        deactivate OPTree
+
+        LF->>LF: SolveHelper(stage1_relaxed_pruning=true, min_split_boards=2, min_covered=0)
+        LF->>LF: DeduplicateTopLevelLines & RescoreTopLinesAdversarial
+        LF->>LF: Two-Pass Spine Guide Partitioning (Pass 1 Trick-1 key, Pass 2 3-trick spine, max 12 guides)
+
+        Note over LF,DDS: Stage 2: Parallel Guided Expansion across all sampled deals
+        loop Remaining Deal Trees (progressive_stage1_deals+1..num_iters)
+            LF->>OPTree: FindOptimalPlayTree(board_state, min_tricks, cache)
+            OPTree-->>LF: OptimalPlayTree
+        end
+        LF->>LF: Reset SolveMemo cache (solve_memo_.reset)
+        par Guide 0 (Weight 2.0)
+            LF->>LF: SolveHelper(guide[0]) -> establishes best_s2_cov
+        and Guides 1..N-1 (Dynamic Pruning Margin: 2.8 * sqrt(0.25 * N))
+            LF->>LF: SolveHelper(guide[idx], floor_cov = best_s2_cov - s2_margin)
+        end
+
+    else Non-Progressive Single-Stage Search
+        loop All Deal Trees (1..num_iters)
+            LF->>OPTree: FindOptimalPlayTree(board_state, min_tricks, cache)
+            OPTree-->>LF: OptimalPlayTree
+        end
+        LF->>LF: SolveHelper(all boards)
     end
 
-    LF->>GTF: RecordOptimalTrick(leader, trick, board_id)
-    activate GTF
-    GTF->>GTF: Aggregate tricks across boards
-    GTF-->>LF: GeneralizedTricksVector
-    deactivate GTF
-
-    LF->>CL: GroupTricks & recursively build ConditionalLine
+    Note over LF,CL: Adversarial Rescoring & Node Cleanup
+    LF->>CL: RescoreTopLinesAdversarial / ChooseAdversarialDefenderCard
     activate CL
-    CL->>CL: Instantiate PlayCondition branches (Winner/Trick)
-    CL-->>LF: Root ConditionalLine
+    CL-->>LF: Adversarially rescored lines
     deactivate CL
+    LF->>LF: PruneEmptyBranches & CollapseRedundantNodes
+
+    opt Out-of-Sample Finalist Evaluation (max_finalist_lines > 1 && eval_iters > 0)
+        Note over LF,CL: Monte Carlo Evaluation (up to 10,000 independent unseen deals)
+        LF->>LF: Filter candidates within statistical margin: 2.8 * sqrt(0.25 * N)
+        loop Out-of-Sample Batches (kBatchSize = 250 deals)
+            LF->>FBS: FastRandomize(eval_seed + d)
+            activate FBS
+            FBS-->>LF: Out-of-sample BoardState
+            deactivate FBS
+            LF->>IDDS: IsDealMakeable(bs, min_tricks)
+            activate IDDS
+            IDDS-->>LF: true / false
+            deactivate IDDS
+            alt Deal Is Makeable
+                LF->>CL: EvaluateBoardAdversarialFast(bs, min_tricks)
+                activate CL
+                CL-->>LF: Win / Loss across 3-tier lookahead
+                deactivate CL
+            end
+        end
+        LF->>LF: Rank finalists by out-of-sample coverage DESC
+        LF->>LF: SelectDistinctFinalistLines (bitmask symmetric difference <= max_equiv_diff, is_cleaner_rep)
+    end
 
     loop Cross-Hand Deal Set Summarization
         LF->>CHDS: Summarize(covered_deals, "hand 1", "hand 3")
@@ -198,9 +241,9 @@ The system modules are categorized below by their primary architectural layer, h
 
 | Module Name | Header File | Architectural Responsibility | Key Public Interface Routines |
 | :--- | :--- | :--- | :--- |
-| **LineFinder** | `line_finder.h` | High-level search engine for discovering optimal probabilistic lines of play and opening leads across randomized deals. | - `Solve()`: Evaluates and generates conditional lines of play.<br/>- `FindBestLead()`: Identifies candidate opening leads.<br/>- `FindTricksWon()`: Computes trick distribution statistics. |
+| **LineFinder** | `line_finder.h` | High-level search engine for discovering optimal probabilistic lines of play and opening leads across randomized deals, featuring two-stage progressive search (relaxed subset exploration and guided parallel expansion) and out-of-sample finalist evaluation. | - `Solve()`: Evaluates and generates conditional lines of play.<br/>- `FindBestLead()`: Identifies candidate opening leads.<br/>- `FindTricksWon()`: Computes trick distribution statistics.<br/>- `SetProgressiveSearch()` / `SetProgressiveStage1Deals()`: Configures two-stage search.<br/>- `SetMaxFinalistLines()` / `SetFinalistEvalDeals()` / `SetFinalistEvalMaxMs()`: Configures out-of-sample finalist evaluation. |
 | **FuzzyBoardState** | `line_finder.h` | Represents partially specified bridge deals with unknown card locations and hand shape/hcp constraints. | - `SetHands()`: Sets known hand holdings.<br/>- `SetRequirements()`: Applies hand constraints.<br/>- `Randomize()`: Generates concrete deal instances. |
-| **ConditionalLine** | `conditional_line.h` | Decision tree structure representing branching lines of play conditioned on opponent actions or trick outcomes. | - `AddCondition()`: Adds a conditional branch.<br/>- `SetAction()`: Sets the initial generalized trick action.<br/>- `Describe()`: Generates human-readable line output. |
+| **ConditionalLine** | `conditional_line.h` | Decision tree structure representing branching lines of play conditioned on opponent actions or trick outcomes, with fast adversarial evaluation lookaheads and bitmask coverage tracking. | - `AddCondition()`: Adds a conditional branch.<br/>- `SetAction()`: Sets the initial generalized trick action.<br/>- `Describe()`: Generates human-readable line output.<br/>- `EvaluateBoardAdversarialFast()`: Fast three-tier out-of-sample simulation.<br/>- `FillCoveredBoardsBitmask()`: Bitmask extraction for symmetric difference deduplication. |
 | **GeneralizedTrickFinder & DemiPlay** | `conditional_line.h` | Aggregates and simplifies specific card plays into generalized suit/rank trick structures across board samples. | - `RecordOptimalTrick()`: Records trick results.<br/>- `GetGeneralizedTricks()`: Extracts top generalized tricks.<br/>- `GroupTricks()`: Groups compatible tricks. |
 | **PlayCondition** | `conditional_line.h` | Base class and implementations (`WinnerPlayCondition`, `TrickPlayCondition`) for evaluating decision tree branch conditions. | - `Describe()`: Formats condition description string. |
 | **CrossHandDealSetSummarizer** | `cross_hand_summarizer.h` | Analyzes sets of paired deals across covered board states to compute joint suit distribution bounds and honor card possession statistics. | - `Summarize()`: Generates `CrossHandSummaryReport` for paired deal sets.<br/>- `JointSuitRuleExtractor`: Extracts suit length bounds across deals.<br/>- `HonorPossessionClassifier`: Computes honor card distribution statistics. |
@@ -255,4 +298,8 @@ The system modules are categorized below by their primary architectural layer, h
 
 5. **Solver Heuristics & Tree-Complexity Reference**:
    - For a complete technical catalog of Step-0/Step-1/Step-2 solver heuristics, `ExtraBranches()` tie-breaking and competitive-window admission, pattern generalization, state-condition splitting, and adversarial rescoring, refer to [`docs/solver-heuristics.md`](solver-heuristics.md).
+
+6. **Progressive Search Scaling & Out-of-Sample Validation**:
+   - Two-stage progressive search decouples candidate discovery from full-deal tree expansion. Stage 1 searches a small deal subset with relaxed pruning (`min_split_boards = 2`) and extracts up to 12 diverse spine guides. Stage 2 expands these guides in parallel with dynamic statistical pruning margins ($2.8 \times \sqrt{0.25 \times N}$).
+   - Out-of-sample Monte Carlo re-evaluation across up to 10,000 independent unseen deals prevents overfitting to training deals, ranking finalists by empirical generalization and deduplicating equivalent lines via bitmask symmetric difference comparisons.
 
