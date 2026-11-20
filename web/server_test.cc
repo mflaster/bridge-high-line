@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <functional>
+#include <regex>
 #include <thread>
 
 #include "line_finder.h"
@@ -81,6 +82,11 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("helpTopicsNav") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("openFeedbackBtn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("feedbackModal") != std::string::npos);
+  ASSERT_TRUE(res_index->body.find("Send Bridge High Line Feedback") !=
+              std::string::npos);
+  ASSERT_TRUE(res_index->body.find(
+                  "Report a bug, unexpected line of play, or suggestion for "
+                  "Bridge High Line.") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("header-left") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("header-import-btn") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("importHandModal") != std::string::npos);
@@ -159,6 +165,10 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_js->body.find(
                   "document.getElementById('progressiveSolve')") !=
               std::string::npos);
+  ASSERT_TRUE(res_js->body.find("bridge_high_line_deal_setup_panel_width") !=
+              std::string::npos);
+  ASSERT_TRUE(res_js->body.find("bridge_deal_setup_panel_width") !=
+              std::string::npos);
 
   auto res_solver_api_js = client.Get("/solver_api.js");
   ASSERT_TRUE(res_solver_api_js);
@@ -167,6 +177,10 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
               std::string::npos);
   ASSERT_TRUE(res_solver_api_js->body.find(
                   "function ensureCrossOriginIsolation") != std::string::npos);
+  ASSERT_TRUE(res_solver_api_js->body.find("bridge_high_line_coi_reloaded") !=
+              std::string::npos);
+  ASSERT_TRUE(res_solver_api_js->body.find("bridge_coi_reloaded") !=
+              std::string::npos);
 
   auto res_deal_svg_js = client.Get("/deal_svg.js");
   ASSERT_TRUE(res_deal_svg_js);
@@ -220,6 +234,16 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_telemetry_js = client.Get("/telemetry_and_help.js");
   ASSERT_TRUE(res_telemetry_js);
   ASSERT_TRUE(res_telemetry_js->status == 200);
+  ASSERT_TRUE(res_telemetry_js->body.find(
+                  "const APP_NAME = 'Bridge High Line';") != std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("__BRIDGE_HIGH_LINE_VERSION__") ==
+              std::string::npos);
+  ASSERT_TRUE(std::regex_search(
+      res_telemetry_js->body,
+      std::regex("const RAW_APP_VERSION = '([0-9a-f]{7,40}|dev)'\\.trim\\(\\);")));
+  ASSERT_TRUE(res_telemetry_js->body.find(
+                  "const APP_RELEASE = `bridge-high-line@${APP_VERSION}`;") !=
+              std::string::npos);
   ASSERT_TRUE(res_telemetry_js->body.find("function submitSentryFeedback") !=
               std::string::npos);
   ASSERT_TRUE(res_telemetry_js->body.find("SENTRY_FEEDBACK_TUNNEL_URL") !=
@@ -235,6 +259,33 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_telemetry_js->body.find(
                   "function getActivePresetAndHandInfo") != std::string::npos);
   ASSERT_TRUE(res_telemetry_js->body.find("Preset / Hand:") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("[Bridge High Line Error Report]") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("[Status Error Report]") ==
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("Release: ${APP_RELEASE}") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find(
+                  "Thank you! Your Bridge High Line feedback has been "
+                  "recorded.") != std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("release: APP_RELEASE") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("app_name: APP_NAME") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("app_version: APP_VERSION") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("bridge_high_line_anon_user_id") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("bridge_anon_user_id") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("bridge_high_line_feedback_name") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("bridge_feedback_name") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("bridge_high_line_feedback_email") !=
+              std::string::npos);
+  ASSERT_TRUE(res_telemetry_js->body.find("bridge_feedback_email") !=
               std::string::npos);
 
   ASSERT_TRUE(res_index->body.find("saveAnalysisBtn") != std::string::npos);
@@ -2328,4 +2379,347 @@ TEST(ServerTest, SolveJsonProgressiveSearch) {
   ASSERT_TRUE(res_off["success"].get<bool>()) << body_off;
   EXPECT_EQ(res_off["total_boards"].get<int>(), 50);
   EXPECT_GT(res_off["covered_boards"].get<int>(), 0);
+}
+
+TEST(ServerTest, BrandedFeedbackSentryReleasesAndStorageKeys) {
+  if (std::system("command -v node >/dev/null 2>&1") != 0) {
+    return;
+  }
+  std::string cmd = R"NODE(node -e '
+(async () => {
+  const fs = require("fs");
+  const vm = require("vm");
+  const staticDir = process.cwd().endsWith("/build")
+    ? "../web/static"
+    : "web/static";
+  const assert = (cond, msg) => {
+    if (!cond) {
+      console.error("Assertion failed:", msg);
+      process.exit(1);
+    }
+  };
+
+  function makeStorage(initial = {}) {
+    const map = new Map(Object.entries(initial));
+    return {
+      map,
+      getItem: (k) => (map.has(k) ? map.get(k) : null),
+      setItem: (k, v) => map.set(k, String(v)),
+      removeItem: (k) => map.delete(k)
+    };
+  }
+
+  function makeEl(id = "") {
+    const listeners = {};
+    return {
+      id,
+      value: "",
+      checked: true,
+      disabled: false,
+      textContent: "",
+      className: "",
+      style: { width: "", props: {}, setProperty(k, v) { this.props[k] = v; } },
+      classList: {
+        _set: new Set(["hidden"]),
+        add(...c) { c.forEach(x => this._set.add(x)); },
+        remove(...c) { c.forEach(x => this._set.delete(x)); },
+        toggle(c, f) {
+          if (f === undefined) {
+            if (this._set.has(c)) this._set.delete(c); else this._set.add(c);
+          } else if (f) this._set.add(c); else this._set.delete(c);
+        },
+        contains(c) { return this._set.has(c); }
+      },
+      focus() {},
+      querySelectorAll() { return []; },
+      getBoundingClientRect() { return { width: 800, height: 600 }; },
+      addEventListener(ev, fn) {
+        listeners[ev] = listeners[ev] || [];
+        listeners[ev].push(fn);
+      },
+      async trigger(ev, eventObj = {}) {
+        for (const fn of (listeners[ev] || [])) {
+          await fn(eventObj);
+        }
+      }
+    };
+  }
+
+  // 1. Test telemetry_and_help.js unstamped ('dev') + legacy storage fallbacks
+  const telemetrySrc = fs.readFileSync(
+    staticDir + "/telemetry_and_help.js", "utf8"
+  );
+  const els = {};
+  const getEl = (id) => {
+    if (!els[id]) els[id] = makeEl(id);
+    return els[id];
+  };
+  const legacyUuid = "11223344556677889900aabbccddeeff";
+  const localStore = makeStorage({
+    bridge_anon_user_id: legacyUuid,
+    bridge_feedback_name: "Legacy Player",
+    bridge_feedback_email: "legacy@example.com"
+  });
+  let sentryInitOpts = null;
+  const envelopes = [];
+  let failDirectFetch = false;
+
+  const sandbox = {
+    console,
+    setTimeout: (fn) => { fn(); return 0; },
+    clearTimeout: () => {},
+    localStorage: localStore,
+    fetch: async (url, opts) => {
+      envelopes.push({ url, body: opts && opts.body });
+      if (failDirectFetch && String(url).includes("sentry.io")) {
+        throw new Error("Blocked by content blocker");
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+        text: async () => "ok"
+      };
+    },
+    window: {
+      location: { hostname: "localhost", href: "http://localhost:8080/" },
+      crypto: { randomUUID: () => "abcdef01-2345-6789-abcd-ef0123456789" },
+      addEventListener: () => {},
+      Sentry: {
+        init: (opts) => { sentryInitOpts = opts; },
+        setUser: () => {},
+        setAttributes: () => {},
+        metrics: { count: () => {}, distribution: () => {}, gauge: () => {} }
+      }
+    },
+    document: { getElementById: getEl },
+    presetSelect: Object.assign(makeEl("presetSelect"), { value: "finesse", selectedIndex: -1, options: [] }),
+    PRESETS: { finesse: { name: "Simple Finesse (Spades)" } },
+    sessionCustomHands: [],
+    loadedHandSource: null,
+    inputNorth: Object.assign(makeEl("inputNorth"), { value: "S AQ;" }),
+    inputEast: makeEl("inputEast"),
+    inputSouth: Object.assign(makeEl("inputSouth"), { value: "S 87;" }),
+    inputWest: makeEl("inputWest"),
+    inputUnknownCards: makeEl("inputUnknownCards"),
+    trumpSelect: Object.assign(makeEl("trumpSelect"), { value: "SPADES" }),
+    leaderSelect: Object.assign(makeEl("leaderSelect"), { value: "NORTH" }),
+    targetTricks: Object.assign(makeEl("targetTricks"), { value: "2" }),
+    numIters: Object.assign(makeEl("numIters"), { value: "100" }),
+    numTestIters: Object.assign(makeEl("numTestIters"), { value: "10,000" }),
+    getActiveInitialCurTrick: () => [],
+    activeProposalContext: null,
+    importedBiddingReqs: null,
+    currentSolveData: null,
+    lastStatusErrorText: "Solver failed on test deal",
+    lastSolveRequestInfo: null,
+    lastSentryErrorEventId: null,
+    currentTreeData: null,
+    currentCenteredNode: null,
+    activeTabName: "tree",
+    activeViewMode: "success",
+    zoomLevel: 1.0,
+    panX: 0,
+    panY: 0,
+    treeInspectorPanel: makeEl("treeInspectorPanel"),
+    activeTracedBoardId: null,
+    activeTracedDeal: null,
+    currentInspectedState: null,
+    proposedAltLines: [],
+    selectedCompareLineIndices: new Set(),
+    backendMode: "wasm",
+    statusFeedbackBtn: getEl("statusFeedbackBtn"),
+    statusMessage: getEl("statusMessage")
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(telemetrySrc, sandbox);
+
+  assert(vm.runInContext("APP_NAME", sandbox) === "Bridge High Line", "APP_NAME");
+  assert(vm.runInContext("APP_VERSION", sandbox) === "dev", "Unstamped APP_VERSION");
+  assert(vm.runInContext("APP_RELEASE", sandbox) === "bridge-high-line@dev", "Unstamped APP_RELEASE");
+  assert(sentryInitOpts && sentryInitOpts.release === "bridge-high-line@dev", "Sentry.init release");
+  assert(localStore.getItem("bridge_high_line_anon_user_id") === legacyUuid, "Migrates legacy anon user id");
+
+  const transformedEv = sentryInitOpts.beforeSend({ contexts: { browser: { name: "Chrome" } } });
+  assert(transformedEv.contexts.app &&
+         transformedEv.contexts.app.app_name === "Bridge High Line" &&
+         transformedEv.contexts.app.app_version === "dev",
+         "beforeSend sets contexts.app");
+  assert(transformedEv.contexts.browser.name === "Chrome", "beforeSend preserves existing contexts");
+
+  // Trigger status error report prefill and verify legacy name/email fallback
+  await getEl("statusFeedbackBtn").trigger("click");
+  assert(getEl("feedbackNameInput").value === "Legacy Player", "Fallback feedback name");
+  assert(getEl("feedbackEmailInput").value === "legacy@example.com", "Fallback feedback email");
+  const reportText = getEl("feedbackMessageInput").value;
+  assert(reportText.startsWith("[Bridge High Line Error Report]\nRelease: bridge-high-line@dev\n"),
+         "Branded error report header + release: " + reportText);
+
+  // Submit feedback directly and verify confirmation + new storage keys + envelope
+  getEl("feedbackNameInput").value = "Updated Player";
+  getEl("feedbackEmailInput").value = "updated@example.com";
+  await getEl("feedbackForm").trigger("submit", { preventDefault() {} });
+  assert(getEl("feedbackStatusMsg").textContent ===
+         "Thank you! Your Bridge High Line feedback has been recorded.",
+         "Branded feedback confirmation message");
+  assert(localStore.getItem("bridge_high_line_feedback_name") === "Updated Player",
+         "Writes bridge_high_line_feedback_name");
+  assert(localStore.getItem("bridge_high_line_feedback_email") === "updated@example.com",
+         "Writes bridge_high_line_feedback_email");
+  assert(envelopes.length === 1, "Direct feedback envelope sent");
+  const directLines = envelopes[0].body.trim().split("\n");
+  const directPayload = JSON.parse(directLines[2]);
+  assert(directPayload.release === "bridge-high-line@dev", "Direct feedback release");
+  assert(directPayload.contexts.app.app_name === "Bridge High Line" &&
+         directPayload.contexts.app.app_version === "dev",
+         "Direct feedback contexts.app");
+
+  // Submit feedback via tunnel fallback and verify tunnel envelope
+  failDirectFetch = true;
+  getEl("feedbackMessageInput").value = "Tunnel test";
+  await getEl("feedbackForm").trigger("submit", { preventDefault() {} });
+  assert(envelopes.length === 3, "Direct attempt + tunnel fallback sent");
+  const tunnelLines = envelopes[2].body.trim().split("\n");
+  const tunnelPayload = JSON.parse(tunnelLines[2]);
+  assert(tunnelPayload.release === "bridge-high-line@dev", "Tunnel feedback release");
+  assert(tunnelPayload.tags.delivery_path === "tunnel", "Tunnel delivery_path tag");
+  assert(tunnelPayload.contexts.app.app_name === "Bridge High Line" &&
+         tunnelPayload.contexts.app.app_version === "dev",
+         "Tunnel feedback contexts.app");
+
+  // 2. Test stamped telemetry_and_help.js
+  const stampedSandbox = { ...sandbox, window: { ...sandbox.window, Sentry: null } };
+  vm.createContext(stampedSandbox);
+  vm.runInContext(
+    telemetrySrc.replace("__BRIDGE_HIGH_LINE_VERSION__", "a1b2c3d4"),
+    stampedSandbox
+  );
+  assert(vm.runInContext("APP_VERSION", stampedSandbox) === "a1b2c3d4", "Stamped APP_VERSION");
+  assert(vm.runInContext("APP_RELEASE", stampedSandbox) === "bridge-high-line@a1b2c3d4",
+         "Stamped APP_RELEASE");
+
+  // 3. Test solver_api.js COI sessionStorage migration, clearing, and blocked storage
+  const solverApiSrc = fs.readFileSync(staticDir + "/solver_api.js", "utf8");
+  const runCoiScenario = async ({ isolated, sessionStore }) => {
+    let reloads = 0;
+    const coiSandbox = {
+      console,
+      setTimeout: (fn) => { fn(); return 0; },
+      navigator: {
+        hardwareConcurrency: 4,
+        serviceWorker: {
+          controller: {},
+          register: async () => ({ active: true }),
+          addEventListener: () => {}
+        }
+      },
+      window: {
+        crossOriginIsolated: isolated,
+        isSecureContext: true,
+        location: { reload: () => { reloads++; } }
+      },
+      sessionStorage: sessionStore,
+      SharedArrayBuffer: isolated ? ArrayBuffer : undefined,
+      document: { getElementById: () => null }
+    };
+    vm.createContext(coiSandbox);
+    vm.runInContext(solverApiSrc, coiSandbox);
+    await coiSandbox.ensureCrossOriginIsolation();
+    return reloads;
+  };
+
+  const isolatedStore = makeStorage({
+    bridge_coi_reloaded: "1",
+    bridge_high_line_coi_reloaded: "1"
+  });
+  assert((await runCoiScenario({ isolated: true, sessionStore: isolatedStore })) === 0,
+         "Isolated does not reload");
+  assert(isolatedStore.getItem("bridge_coi_reloaded") === null &&
+         isolatedStore.getItem("bridge_high_line_coi_reloaded") === null,
+         "Isolated clears both legacy and new COI keys");
+
+  const upgradeStore = makeStorage({ bridge_coi_reloaded: "1" });
+  assert((await runCoiScenario({ isolated: false, sessionStore: upgradeStore })) === 0,
+         "Legacy bridge_coi_reloaded prevents extra reload across upgrade");
+  assert(upgradeStore.getItem("bridge_coi_reloaded") === null &&
+         upgradeStore.getItem("bridge_high_line_coi_reloaded") === "1",
+         "Upgrade migrates to bridge_high_line_coi_reloaded and clears legacy");
+
+  const freshStore = makeStorage({});
+  assert((await runCoiScenario({ isolated: false, sessionStore: freshStore })) === 1,
+         "Fresh non-isolated session reloads once");
+  assert(freshStore.getItem("bridge_high_line_coi_reloaded") === "1",
+         "Fresh reload sets bridge_high_line_coi_reloaded");
+
+  const blockedStore = {
+    getItem: () => { throw new Error("SecurityError"); },
+    setItem: () => { throw new Error("SecurityError"); },
+    removeItem: () => { throw new Error("SecurityError"); }
+  };
+  assert((await runCoiScenario({ isolated: false, sessionStore: blockedStore })) === 0,
+         "Blocked sessionStorage does not throw or loop reloads");
+
+  // 4. Test app.js panel width legacy fallback read and bridge_high_line_* write
+  const appSrc = fs.readFileSync(staticDir + "/app.js", "utf8");
+  const panelStore = makeStorage({ bridge_deal_setup_panel_width: "42%" });
+  const appEls = {};
+  const getAppEl = (id) => {
+    if (!appEls[id]) appEls[id] = makeEl(id);
+    return appEls[id];
+  };
+  getAppEl("gridContainer").getBoundingClientRect = () => ({ width: 1000, height: 600 });
+  getAppEl("dealSetupPanel").getBoundingClientRect = () => ({ width: 420, height: 600 });
+  getAppEl("panelResizer").getBoundingClientRect = () => ({ width: 14, height: 600 });
+  const appSandbox = {
+    console,
+    setTimeout: () => 0,
+    clearTimeout: () => {},
+    setInterval: () => 0,
+    clearInterval: () => {},
+    performance: { now: () => 0 },
+    localStorage: panelStore,
+    URLSearchParams,
+    Event: class { constructor(t) { this.type = t; } },
+    window: {
+      location: { search: "", hash: "" },
+      addEventListener: () => {},
+      dispatchEvent: () => {}
+    },
+    document: {
+      body: makeEl("body"),
+      getElementById: getAppEl,
+      querySelector: () => makeEl(),
+      querySelectorAll: () => [],
+      createElement: (tag) => makeEl(tag),
+      createElementNS: (ns, tag) => makeEl(tag),
+      addEventListener: () => {}
+    },
+    updateDealSvg: () => {},
+    updateProposeLineBarUI: () => {},
+    updateLeadStat: () => {},
+    parseHandToSuits: () => ({ S: "-", H: "-", D: "-", C: "-" }),
+    countHandCards: () => 0,
+    getSeatIndex: () => 0,
+    getSeatName: () => "N",
+    getTrumpCode: () => "S",
+    extractTrickString: () => "",
+    tokenizeTrick: () => []
+  };
+  vm.createContext(appSandbox);
+  vm.runInContext(appSrc, appSandbox);
+  assert(getAppEl("dealSetupPanel").style.width === "42%",
+         "Panel width restored from legacy bridge_deal_setup_panel_width");
+  await getAppEl("panelResizer").trigger("keydown", {
+    key: "ArrowRight",
+    shiftKey: false,
+    preventDefault() {}
+  });
+  assert(panelStore.getItem("bridge_high_line_deal_setup_panel_width") === "43.5%",
+         "Resizing writes bridge_high_line_deal_setup_panel_width");
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+' )NODE";
+  EXPECT_EQ(std::system(cmd.c_str()), 0);
 }

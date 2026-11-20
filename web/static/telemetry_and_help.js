@@ -1,4 +1,11 @@
 // Sentry User Feedback, Error Reporting & Metrics
+const APP_NAME = 'Bridge High Line';
+const RAW_APP_VERSION = '__BRIDGE_HIGH_LINE_VERSION__'.trim();
+const APP_VERSION =
+  (!RAW_APP_VERSION || /^__.*__$/.test(RAW_APP_VERSION))
+    ? 'dev'
+    : RAW_APP_VERSION;
+const APP_RELEASE = `bridge-high-line@${APP_VERSION}`;
 const SENTRY_DSN =
   'https://4f773fa337d8e6b1e559790da9ee1fb1@' +
   'o4512261310709760.ingest.us.sentry.io/4512261325324288';
@@ -10,7 +17,12 @@ const SENTRY_FEEDBACK_TUNNEL_URL =
   'https://script.google.com/macros/s/' +
   'AKfycbx2O3JK7l3NxqH9J6QXTY4bQGHHQBLuwM2ByAmt38Y9vquvlfqStypcBln5YEFIut6N' +
   '/exec';
-const ANON_USER_ID_STORAGE_KEY = 'bridge_anon_user_id';
+const ANON_USER_ID_STORAGE_KEY = 'bridge_high_line_anon_user_id';
+const LEGACY_ANON_USER_ID_STORAGE_KEY = 'bridge_anon_user_id';
+const FEEDBACK_NAME_STORAGE_KEY = 'bridge_high_line_feedback_name';
+const LEGACY_FEEDBACK_NAME_STORAGE_KEY = 'bridge_feedback_name';
+const FEEDBACK_EMAIL_STORAGE_KEY = 'bridge_high_line_feedback_email';
+const LEGACY_FEEDBACK_EMAIL_STORAGE_KEY = 'bridge_feedback_email';
 let cachedAnonUserId = null;
 
 const openFeedbackBtn = document.getElementById('openFeedbackBtn');
@@ -40,10 +52,19 @@ function generateSentryEventId() {
 
 function getOrCreateAnonUserId() {
   if (cachedAnonUserId) return cachedAnonUserId;
+  const isValidAnonId = (val) => Boolean(val && /^[0-9a-f-]{16,64}$/i.test(val));
   try {
     const saved = localStorage.getItem(ANON_USER_ID_STORAGE_KEY);
-    if (saved && /^[0-9a-f-]{16,64}$/i.test(saved)) {
+    if (isValidAnonId(saved)) {
       cachedAnonUserId = saved;
+      return cachedAnonUserId;
+    }
+    const legacySaved = localStorage.getItem(LEGACY_ANON_USER_ID_STORAGE_KEY);
+    if (isValidAnonId(legacySaved)) {
+      cachedAnonUserId = legacySaved;
+      try {
+        localStorage.setItem(ANON_USER_ID_STORAGE_KEY, legacySaved);
+      } catch (_) {}
       return cachedAnonUserId;
     }
   } catch (_) {}
@@ -358,14 +379,23 @@ function initSentryRuntimeErrorReporting() {
     const anonUserId = getOrCreateAnonUserId();
     window.Sentry.init({
       dsn: SENTRY_DSN,
+      release: APP_RELEASE,
       environment,
       sendDefaultPii: true,
       beforeSend(event) {
+        event.contexts = {
+          ...(event.contexts || {}),
+          app: {
+            ...((event.contexts && event.contexts.app) || {}),
+            app_name: APP_NAME,
+            app_version: APP_VERSION
+          }
+        };
         try {
           const dealSnapshot = collectFeedbackDealSnapshot();
           const explorerSnapshot = collectFeedbackExplorerSnapshot();
           event.contexts = {
-            ...(event.contexts || {}),
+            ...event.contexts,
             deal: dealSnapshot,
             decision_tree: explorerSnapshot.decision_tree,
             line_explorer: explorerSnapshot.line_explorer
@@ -501,6 +531,10 @@ async function submitSentryFeedback({
     } : {})
   };
   const baseContexts = {
+    app: {
+      app_name: APP_NAME,
+      app_version: APP_VERSION
+    },
     feedback: {
       name: name || 'Anonymous',
       ...(email ? { contact_email: email } : {}),
@@ -523,6 +557,7 @@ async function submitSentryFeedback({
       timestamp: nowIso,
       level: 'info',
       platform: 'javascript',
+      release: APP_RELEASE,
       environment,
       user: viaTunnel ? userBase : { ...userBase, ip_address: '{{auto}}' },
       tags: {
@@ -579,8 +614,12 @@ async function submitSentryFeedback({
 function openFeedbackModal(initialMessage) {
   if (!feedbackModal) return;
   try {
-    const savedName = localStorage.getItem('bridge_feedback_name');
-    const savedEmail = localStorage.getItem('bridge_feedback_email');
+    const savedName =
+      localStorage.getItem(FEEDBACK_NAME_STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_FEEDBACK_NAME_STORAGE_KEY);
+    const savedEmail =
+      localStorage.getItem(FEEDBACK_EMAIL_STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_FEEDBACK_EMAIL_STORAGE_KEY);
     if (savedName && feedbackNameInput && !feedbackNameInput.value) {
       feedbackNameInput.value = savedName;
     }
@@ -638,7 +677,8 @@ if (statusFeedbackBtn) {
     const handsCtx = `N="${nHand}" | E="${eHand}" | S="${sHand}" | ` +
       `W="${wHand}"${uHand ? ` | U="${uHand}"` : ''}`;
     const lines = [
-      '[Status Error Report]',
+      '[Bridge High Line Error Report]',
+      `Release: ${APP_RELEASE}`,
       `Preset / Hand: ${solveHandLabel}`,
       `Error: ${errorMsg}`,
       `Backend: ${backendVal}`,
@@ -694,8 +734,8 @@ if (feedbackForm) {
     if (!message) return;
 
     try {
-      if (name) localStorage.setItem('bridge_feedback_name', name);
-      if (email) localStorage.setItem('bridge_feedback_email', email);
+      if (name) localStorage.setItem(FEEDBACK_NAME_STORAGE_KEY, name);
+      if (email) localStorage.setItem(FEEDBACK_EMAIL_STORAGE_KEY, email);
     } catch (_) {}
 
     if (submitFeedbackBtn) {
@@ -716,7 +756,8 @@ if (feedbackForm) {
       });
       if (feedbackMessageInput) feedbackMessageInput.value = '';
       if (feedbackStatusMsg) {
-        feedbackStatusMsg.textContent = 'Thank you! Your feedback has been recorded.';
+        feedbackStatusMsg.textContent =
+          'Thank you! Your Bridge High Line feedback has been recorded.';
         feedbackStatusMsg.className = 'feedback-status-msg success';
       }
       setTimeout(() => {
