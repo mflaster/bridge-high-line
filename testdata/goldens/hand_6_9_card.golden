@@ -12,9 +12,21 @@ Total Deals: 113
 Invariant Rules for 9 card ending:
   - the hand with the SQ also has at most 2 S (holds: 55%, success when holds: 100%)
   - ShortestLength(S) >= 2 (holds: 44%, success when holds: 100%)
+  - the hand with the DK also has at most 2 S (holds: 74%, success when holds: 73%)
+  - hand 1 length in S is between 0 and 2 (holds: 74%, success when holds: 70%)
+  - the hand with the DJ also has at most 2 S (holds: 77%, success when holds: 66%)
+  - the hand with the SQ also has at least 3 D (holds: 88%, success when holds: 60%)
+  - the hand with the CT also has at least 1 S (holds: 93%, success when holds: 60%)
+  - hand 1 length in D is between 3 and 6 (holds: 93%, success when holds: 59%)
   - ShortestLength(D) >= 3 (holds: 86%, success when holds: 59%)
   - ShortestLength(S) >= 1 (holds: 92%, success when holds: 59%)
-  - ShortestLength(C) >= 1 (holds: 91%, success when holds: 56%)
+  - the hand with the CT also has at most 5 D (holds: 93%, success when holds: 59%)
+  - the hand with the DT also has at most 5 D (holds: 90%, success when holds: 59%)
+  - the hand with the DJ also has at most 5 D (holds: 90%, success when holds: 59%)
+  - the hand with the HT also has at least 3 D (holds: 91%, success when holds: 58%)
+  - hand 1 always contains Diamond $honor (holds: 90%, success when holds: 58%)
+  - the hand with the DK also has at most 5 D (holds: 90%, success when holds: 57%)
+  - the hand with the DJ also has at least 1 C (holds: 93%, success when holds: 57%)
 Example Play (Board 0):
   #1 (S) SK* S3 S5 S2
   #2 (S) S9 SQ SA* S4
@@ -74,9 +86,21 @@ Total Deals: 113
 Invariant Rules for 9 card ending:
   - the hand with the SQ also has at most 2 S (holds: 55%, success when holds: 100%)
   - ShortestLength(S) >= 2 (holds: 44%, success when holds: 100%)
+  - the hand with the DK also has at most 2 S (holds: 74%, success when holds: 73%)
+  - hand 1 length in S is between 0 and 2 (holds: 74%, success when holds: 70%)
+  - the hand with the DJ also has at most 2 S (holds: 77%, success when holds: 66%)
+  - the hand with the SQ also has at least 3 D (holds: 88%, success when holds: 60%)
+  - the hand with the CT also has at least 1 S (holds: 93%, success when holds: 60%)
+  - hand 1 length in D is between 3 and 6 (holds: 93%, success when holds: 59%)
   - ShortestLength(D) >= 3 (holds: 86%, success when holds: 59%)
   - ShortestLength(S) >= 1 (holds: 92%, success when holds: 59%)
-  - ShortestLength(C) >= 1 (holds: 91%, success when holds: 56%)
+  - the hand with the CT also has at most 5 D (holds: 93%, success when holds: 59%)
+  - the hand with the DT also has at most 5 D (holds: 90%, success when holds: 59%)
+  - the hand with the DJ also has at most 5 D (holds: 90%, success when holds: 59%)
+  - the hand with the HT also has at least 3 D (holds: 91%, success when holds: 58%)
+  - hand 1 always contains Diamond $honor (holds: 90%, success when holds: 58%)
+  - the hand with the DK also has at most 5 D (holds: 90%, success when holds: 57%)
+  - the hand with the DJ also has at least 1 C (holds: 93%, success when holds: 57%)
 Example Play (Board 0):
   #1 (S) D3 D2 S5* D4
   #2 (N) S6 S2 SK* S3
