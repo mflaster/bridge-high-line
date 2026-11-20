@@ -1215,3 +1215,365 @@ TEST(CrossHandSummarizerTest, HonorPossessionClassifier_CompassDirectionFormatti
   ASSERT_TRUE(report.total_deals == 3);
   ASSERT_TRUE(report.HasRule("E has Heart $honor"));
 }
+
+#include <chrono>
+#include <cmath>
+
+TEST(CrossHandSummarizerTest, DealBitset_InlineAndHeapOperations) {
+  // Test inline storage (<= 256 bits) and heap storage (> 256 bits)
+  for (size_t n : {size_t{65}, size_t{200}, size_t{320}}) {
+    DealBitset a(n);
+    DealBitset b(n);
+    a.Set(0);
+    a.Set(63);
+    a.Set(n / 2);
+    a.Set(n - 1);
+
+    b.Set(63);
+    b.Set(n / 2);
+    b.Set(17);
+
+    EXPECT_EQ(a.PopCount(), 4);
+    EXPECT_EQ(b.PopCount(), 3);
+    EXPECT_TRUE(a.Test(0));
+    EXPECT_TRUE(a.Test(n - 1));
+    EXPECT_FALSE(a.Test(17));
+
+    DealBitset inter = a & b;
+    DealBitset uni = a | b;
+    EXPECT_EQ(inter.PopCount(), 2);
+    EXPECT_EQ(a.AndPopCount(b), 2);
+    EXPECT_EQ(uni.PopCount(), 5);
+    EXPECT_EQ(a.OrPopCount(b), 5);
+    EXPECT_EQ(a.AndNotCount(b), 2);
+    EXPECT_TRUE(inter.IsSubsetOf(a));
+    EXPECT_TRUE(inter.IsSubsetOf(b));
+    EXPECT_FALSE(a.IsSubsetOf(b));
+    EXPECT_TRUE(a.IsSubsetOf(uni));
+  }
+}
+
+TEST(CrossHandSummarizerTest, AtomicPredicateCatalog_HonorsOnlyAndBitsetEquivalence) {
+  // Unknown cards include both honors (A, K, Q, J, T) and spot cards (9..2):
+  // S K92, H Q83, D JT4, C A75 (12 unknown cards, 6 per hand).
+  std::vector<PairedDeal> target_deals = {
+      PairedDeal("S K92 H Q8 D 4", "H 3 D JT C A75"),
+      PairedDeal("S K2 H Q83 D J", "S 9 D T4 C A75"),
+      PairedDeal("S 92 H Q3 D JT", "S K H 8 D 4 C A75"),
+      PairedDeal("S K9 H 83 C A7", "S 2 H Q D JT4 C 5")
+  };
+  std::vector<PairedDeal> opposing_deals = {
+      PairedDeal("S 92 H 83 D T4", "S K H Q D J C A75"),
+      PairedDeal("D JT4 C A75", "S K92 H Q83")
+  };
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  AtomicPredicateCatalog catalog(target_deals, &opposing_deals, formatter);
+
+  EXPECT_FALSE(catalog.entries().empty());
+
+  bool saw_honor = false;
+  bool saw_suit_len = false;
+  bool saw_shortest = false;
+  bool saw_cross_suit = false;
+
+  const std::vector<std::string> forbidden_spots = {
+      "S9", "S8", "S7", "S6", "S5", "S4", "S3", "S2",
+      "H9", "H8", "H7", "H6", "H5", "H4", "H3", "H2",
+      "D9", "D8", "D7", "D6", "D5", "D4", "D3", "D2",
+      "C9", "C8", "C7", "C6", "C5", "C4", "C3", "C2"};
+
+  for (const auto& entry : catalog.entries()) {
+    ASSERT_NE(entry.invariant, nullptr);
+    for (const auto& spot : forbidden_spots) {
+      EXPECT_EQ(entry.rule.find(spot), std::string::npos)
+          << "Catalog emitted forbidden spot card in rule: " << entry.rule;
+    }
+
+    auto parsed = UnknownCardsInvariant::FromString(
+        entry.rule, formatter.hand1_label(), formatter.hand2_label());
+    ASSERT_NE(parsed, nullptr) << "Failed FromString on: " << entry.rule;
+
+    for (size_t i = 0; i < target_deals.size(); ++i) {
+      bool expected = entry.invariant->HoldsOnDeal(
+          target_deals[i], formatter.hand1_label(), formatter.hand2_label());
+      EXPECT_EQ(entry.target_bits.Test(i), expected) << entry.rule;
+      EXPECT_EQ(parsed->HoldsOnDeal(target_deals[i], formatter.hand1_label(),
+                                    formatter.hand2_label()),
+                expected);
+    }
+    for (size_t i = 0; i < opposing_deals.size(); ++i) {
+      bool expected = entry.invariant->HoldsOnDeal(
+          opposing_deals[i], formatter.hand1_label(), formatter.hand2_label());
+      EXPECT_EQ(entry.opposing_bits.Test(i), expected) << entry.rule;
+    }
+
+    if (entry.family == AtomicPredicateFamily::kHonorPossession ||
+        entry.family == AtomicPredicateFamily::kSuitHonorVariable) {
+      saw_honor = true;
+    } else if (entry.family == AtomicPredicateFamily::kExactSuitLength ||
+               entry.family == AtomicPredicateFamily::kSuitLengthRange ||
+               entry.family == AtomicPredicateFamily::kMaxSuitLength) {
+      saw_suit_len = true;
+    } else if (entry.family == AtomicPredicateFamily::kShortestLength) {
+      saw_shortest = true;
+    } else if (entry.family == AtomicPredicateFamily::kCrossSuitCard ||
+               entry.family == AtomicPredicateFamily::kCrossSuitLength) {
+      saw_cross_suit = true;
+    }
+  }
+
+  EXPECT_TRUE(saw_honor);
+  EXPECT_TRUE(saw_suit_len);
+  EXPECT_TRUE(saw_shortest);
+  EXPECT_TRUE(saw_cross_suit);
+}
+
+TEST(CrossHandSummarizerTest, UniformContrastGate_UnlocksNonShortestFamilies) {
+  // 20 target deals vs 20 opposing deals over S 8765, H A432, D 5432 (6 cards/hand).
+  // On 16/20 (80%) target deals, the hand with HA has exactly 1 Heart; on 4/20 target
+  // deals and 19/20 opposing deals, the hand with HA has 3 Hearts (only 1/20 = 5% <= 10%
+  // opposing deals have HA with 1 Heart).
+  // Under the old ShortestLength-only contrast gate, CrossSuitExactSuitLengthInvariant at
+  // 80% recall was dropped (<90%). With the uniform contrast gate (>=75% recall and <=10%
+  // opposing hold), it is retained.
+  std::vector<PairedDeal> target_deals;
+  std::vector<PairedDeal> opposing_deals;
+
+  for (int i = 0; i < 8; ++i) {
+    target_deals.emplace_back("S 876 H A D 54", "S 5 H 432 D 32");
+    target_deals.emplace_back("S 5 H 432 D 32", "S 876 H A D 54");
+  }
+  for (int i = 0; i < 2; ++i) {
+    target_deals.emplace_back("S 87 H A43 D 5", "S 65 H 2 D 432");
+    target_deals.emplace_back("S 65 H 2 D 432", "S 87 H A43 D 5");
+  }
+
+  opposing_deals.emplace_back("S 876 H A D 54", "S 5 H 432 D 32");
+  for (int i = 0; i < 19; ++i) {
+    if (i % 2 == 0) {
+      opposing_deals.emplace_back("S 87 H A43 D 5", "S 65 H 2 D 432");
+    } else {
+      opposing_deals.emplace_back("S 65 H 2 D 432", "S 87 H A43 D 5");
+    }
+  }
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport report =
+      summarizer.Summarize(target_deals, formatter, nullptr, &opposing_deals, false);
+
+  EXPECT_TRUE(report.HasRule("the hand with the HA also has exactly 1 H"));
+  for (const auto& st : report.invariant_stats) {
+    EXPECT_LT(st.holds_percent(), 95);
+    int prec = static_cast<int>(
+        std::lround(100.0 * st.success_when_holds_count / st.holds_count));
+    EXPECT_GT(prec, 50);
+    ASSERT_NE(UnknownCardsInvariant::FromString(
+                  st.invariant->ToString(), "hand 1", "hand 3"),
+              nullptr);
+  }
+}
+
+TEST(CrossHandSummarizerTest, AndBeamPass_SynthesizesDirectConjunctionWithoutInvert) {
+  // Modeled on nine_card_hearts failure partition:
+  // Unknown cards: S A432 H 5432 D 5432 C Q432 (16 cards, 8 per hand).
+  // Every deal splits all 4 suits 2-2, so no suit-length predicate separates deals;
+  // only the locations of SA and CQ vary.
+  // Failure occurs iff W holds BOTH SA and CQ (10 failure deals).
+  // Success occurs when E holds SA or E holds CQ (30 success deals: 10 both in E,
+  // 10 SA in E & CQ in W, 10 SA in W & CQ in E).
+  // Neither single atom (W has SA: 10 fail + 10 succ = 50% precision;
+  // W has CQ: 10 fail + 10 succ = 50% precision) passes the >50% precision gate,
+  // whereas AndInvariant(W has the CQ, W has the SA) holds on 10/10 failures and
+  // 0/30 successes (100% precision, 25% hold).
+  std::vector<PairedDeal> fail_deals;
+  std::vector<PairedDeal> succ_deals;
+  for (int i = 0; i < 10; ++i) {
+    fail_deals.emplace_back("S 43 H 54 D 54 C 43", "S A2 H 32 D 32 C Q2");
+    succ_deals.emplace_back("S A2 H 54 D 54 C Q2", "S 43 H 32 D 32 C 43");
+    succ_deals.emplace_back("S A2 H 54 D 54 C 43", "S 43 H 32 D 32 C Q2");
+    succ_deals.emplace_back("S 43 H 54 D 54 C Q2", "S A2 H 32 D 32 C 43");
+  }
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport fail_report =
+      summarizer.Summarize(fail_deals, formatter, nullptr, &succ_deals, true);
+  CrossHandSummaryReport succ_report =
+      summarizer.Summarize(succ_deals, formatter, nullptr, &fail_deals, false);
+
+  EXPECT_TRUE(fail_report.HasRule("AndInvariant(W has the CQ, W has the SA)"));
+  for (const auto& st : fail_report.invariant_stats) {
+    EXPECT_NE(st.invariant->ToString(), "W has the CQ");
+    EXPECT_NE(st.invariant->ToString(), "hand 3 always contains the CQ");
+    EXPECT_NE(st.invariant->ToString(), "W has the SA");
+    EXPECT_NE(st.invariant->ToString(), "hand 3 always contains the SA");
+  }
+  EXPECT_TRUE(succ_report.HasRule("OrInvariant(E has the CQ, E has the SA)"));
+}
+
+TEST(CrossHandSummarizerTest,
+     SetCoverOrBeamPass_SynthesizesThreeClauseDisjunctionAndPrunesDominated) {
+  // Synthetic 3-cause failure set over unknown cards:
+  // S 765432, H 765432, D KQ43, C A432 (20 cards, 10 per hand).
+  // 30 failure deals (3 disjoint causes of 10 deals each) vs 90 success deals:
+  //   Cause 1 (10 fail, 0 succ): ShortestLength(S) <= 1 (5-1 spade split; all other
+  //                              deals split spades 3-3)
+  //   Cause 2 (10 fail, 0 succ): the hand with the DK also has the DQ (both in E or
+  //                              both in W; all other deals split DK and DQ across E/W)
+  //   Cause 3 (10 fail, 0 succ): E has the CA (all other deals place CA in W)
+  // No 1-clause (33%) or 2-clause (67%) rule reaches the >=75% recall gate, so
+  // depth-3 set-cover OR synthesis is required to recover the 3-cause disjunction.
+  std::vector<PairedDeal> fail_deals;
+  std::vector<PairedDeal> succ_deals;
+
+  // Cause 1: spades 5-1 (5-1 split in both directions; H/D/C lengths match success deals)
+  for (int i = 0; i < 5; ++i) {
+    fail_deals.emplace_back("S 76543 H 43 D K C 43", "S 2 H 7652 D Q43 C A2");
+    fail_deals.emplace_back("S 2 H 7652 D Q43 C 43", "S 76543 H 43 D K C A2");
+  }
+  // Cause 2: DK and DQ together (5 in E, 5 in W; spades 3-3, CA in W)
+  for (int i = 0; i < 5; ++i) {
+    fail_deals.emplace_back("S 765 H 765 D KQ C 43", "S 432 H 432 D 43 C A2");
+    fail_deals.emplace_back("S 765 H 765 D 43 C 43", "S 432 H 432 D KQ C A2");
+  }
+  // Cause 3: E has CA (spades 3-3, DK and DQ split across E/W)
+  for (int i = 0; i < 5; ++i) {
+    fail_deals.emplace_back("S 765 H 765 D K4 C A4", "S 432 H 432 D Q3 C 32");
+    fail_deals.emplace_back("S 765 H 765 D Q4 C A4", "S 432 H 432 D K3 C 32");
+  }
+  // 90 success deals: spades 3-3, DK and DQ always split across E/W, CA in W
+  for (int i = 0; i < 30; ++i) {
+    succ_deals.emplace_back("S 765 H 765 D K4 C 43", "S 432 H 432 D Q3 C A2");
+    succ_deals.emplace_back("S 765 H 7654 D Q C 43", "S 432 H 32 D K43 C A2");
+    succ_deals.emplace_back("S 765 H 43 D K43 C 43", "S 432 H 7652 D Q C A2");
+  }
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport fail_report;
+  double best_elapsed_ms = 1e9;
+  for (int trial = 0; trial < 3; ++trial) {
+    auto t0 = std::chrono::steady_clock::now();
+    fail_report =
+        summarizer.Summarize(fail_deals, formatter, nullptr, &succ_deals, true);
+    double ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t0)
+                    .count();
+    best_elapsed_ms = std::min(best_elapsed_ms, ms);
+  }
+  EXPECT_LT(best_elapsed_ms, 5.0);
+
+  const std::string expected_3or =
+      "OrInvariant(OrInvariant(E has the CA, ShortestLength(S) <= 1), "
+      "the hand with the DK also has the DQ)";
+  EXPECT_TRUE(fail_report.HasRule(expected_3or));
+
+  for (const auto& st : fail_report.invariant_stats) {
+    auto parsed = UnknownCardsInvariant::FromString(
+        st.invariant->ToString(), "hand 1", "hand 3");
+    ASSERT_NE(parsed, nullptr) << "Failed round-trip: " << st.invariant->ToString();
+    EXPECT_LT(st.holds_percent(), 95);
+    int prec = static_cast<int>(
+        std::lround(100.0 * st.success_when_holds_count / st.holds_count));
+    EXPECT_GT(prec, 50);
+
+    // Dominated super-clause check: since expected_3or already achieves 100% recall
+    // and 100% precision on the 30 failure deals, no rule should wrap expected_3or
+    // in a redundant outer OrInvariant/AndInvariant with extra noisy atoms.
+    if (st.invariant->ToString() != expected_3or) {
+      EXPECT_EQ(st.invariant->ToString().find(expected_3or), std::string::npos)
+          << "Dominated super-clause was not pruned: " << st.invariant->ToString();
+    }
+  }
+}
+
+TEST(CrossHandSummarizerTest,
+     QuantileExtractors_CeilingQuantileToleranceAndSmallSampleExactness) {
+  // 1) >= 10 deals (20 deals): 19/20 (95%) agree on:
+  //    - hand 1 length in S is always 2 (exact 95% threshold)
+  //    - hand 1 always contains the HK (95% >= 90% threshold)
+  //    while 1/20 outlier deal violates both.
+  //    GetSuitBounds() must still reflect exact 100% observed min/max bounds!
+  std::vector<PairedDeal> twenty_deals;
+  for (int i = 0; i < 19; ++i) {
+    twenty_deals.emplace_back("S 43 H K D 43", "S 2 H 2 D 2 C 43");
+  }
+  // Outlier deal #20: hand 1 has 1 spade, W has HK with 1 diamond
+  twenty_deals.emplace_back("S 4 H 2 D 43 C 4", "S 32 H K D 2 C 3");
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  JointSuitRuleExtractor suit_ext(formatter);
+  HonorPossessionClassifier honor_cls(formatter);
+  for (const auto& d : twenty_deals) {
+    suit_ext.ProcessDeal(d);
+    honor_cls.ProcessDeal(d);
+  }
+
+  // Exact 100% GetSuitBounds() contract preserved
+  auto bounds = suit_ext.GetSuitBounds();
+  EXPECT_EQ(bounds.at(Suit::SPADES).min_hand1, 1);
+  EXPECT_EQ(bounds.at(Suit::SPADES).max_hand1, 2);
+
+  // 95% ceiling-quantile projections emit near-universal rules
+  auto suit_invs = suit_ext.ExtractInvariants();
+  bool found_exact_s2 = false;
+  for (const auto& inv : suit_invs) {
+    if (inv->ToString() == "hand 1 length in S is always 2") {
+      found_exact_s2 = true;
+    }
+  }
+  EXPECT_TRUE(found_exact_s2);
+
+  auto honor_invs = honor_cls.ExtractInvariants();
+  bool found_hk = false;
+  for (const auto& inv : honor_invs) {
+    if (inv->ToString() == "hand 1 always contains the HK") {
+      found_hk = true;
+    }
+  }
+  EXPECT_TRUE(found_hk);
+
+  // For CrossSuitConditionalRuleExtractor, test movable HK across hands (10 in hand 1
+  // with 2 D, 9 in hand 2 with 3 D, 1 outlier in hand 2 with 1 D => 19/20 = 95% have
+  // at least 2 D when holding HK, while the non-HK hand frequently has 0 or 1 D).
+  CrossSuitConditionalRuleExtractor movable_cond_ext;
+  for (int i = 0; i < 10; ++i) {
+    movable_cond_ext.ProcessDeal(PairedDeal("S 43 H K D 43", "S 2 H 2 D 2 C 43"));
+  }
+  for (int i = 0; i < 9; ++i) {
+    movable_cond_ext.ProcessDeal(PairedDeal("S 432 H 2 C 4", "H K D 432 C 3"));
+  }
+  movable_cond_ext.ProcessDeal(PairedDeal("S 4 H 2 D 43 C 4", "S 32 H K D 2 C 3"));
+  auto cond_invs = movable_cond_ext.ExtractInvariants();
+  bool found_cond_d2 = false;
+  for (const auto& inv : cond_invs) {
+    if (inv->ToString() == "the hand with the HK also has at least 2 D") {
+      found_cond_d2 = true;
+    }
+  }
+  EXPECT_TRUE(found_cond_d2);
+
+  // 2) < 10 deals (9 deals): 8/9 (88.9%) agree, 1/9 disagrees.
+  //    Integer ceiling quantile requires ceil(9 * 0.90) = 9 (100% agreement),
+  //    so non-unanimous rules must NOT be emitted.
+  std::vector<PairedDeal> nine_deals;
+  for (int i = 0; i < 8; ++i) {
+    nine_deals.emplace_back("S 43 H K D 43", "S 2 H 2 D 2 C 43");
+  }
+  nine_deals.emplace_back("S 4 H 2 D 43 C 4", "S 32 H K D 2 C 3");
+
+  JointSuitRuleExtractor small_suit(formatter);
+  HonorPossessionClassifier small_honor(formatter);
+  for (const auto& d : nine_deals) {
+    small_suit.ProcessDeal(d);
+    small_honor.ProcessDeal(d);
+  }
+  for (const auto& inv : small_suit.ExtractInvariants()) {
+    EXPECT_NE(inv->ToString(), "hand 1 length in S is always 2");
+  }
+  for (const auto& inv : small_honor.ExtractInvariants()) {
+    EXPECT_NE(inv->ToString(), "hand 1 always contains the HK");
+  }
+}
