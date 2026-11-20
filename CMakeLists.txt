@@ -14,6 +14,7 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
 
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
