@@ -1173,6 +1173,14 @@ body.is-resizing * {
   border: 1px solid var(--panel-border);
   border-radius: 6px;
   padding: 10px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.node-summary-card.node-summary-card-failure {
+  background-color: #2a1215;
+  border-color: rgba(239, 68, 68, 0.55);
 }
 
 .node-summary-title {
@@ -1180,12 +1188,58 @@ body.is-resizing * {
   font-weight: 700;
   color: #f8fafc;
   margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+.node-summary-card-failure .node-summary-title {
+  color: #fca5a5;
 }
 
 .node-summary-detail {
   font-size: 11px;
   color: var(--text-muted);
   font-family: monospace;
+  overflow-wrap: anywhere;
+}
+
+.trick-condition-banner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background-color: #172554;
+  border: 1px solid rgba(59, 130, 246, 0.55);
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  cursor: default;
+}
+
+.trick-condition-banner.trick-condition-banner-failure {
+  background-color: #3b0d0d;
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fca5a5;
+}
+
+.trick-condition-arrow {
+  flex-shrink: 0;
+  font-weight: 700;
+  opacity: 0.9;
+  user-select: none;
+}
+
+.trick-condition-text {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .trick-section-header {

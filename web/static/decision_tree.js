@@ -857,40 +857,98 @@ function formatNodeDeals(node) {
   return secondary ? `${primary} · ${secondary}` : primary;
 }
 
-function showNodeInspector(node, clickedNode = null) {
-  if (treeInspectorPanel) {
-    treeInspectorPanel.classList.remove('collapsed');
+function formatInspectorConditionText(rawCondition) {
+  if (!rawCondition || typeof rawCondition !== 'string') return '';
+  let cText = rawCondition.trim();
+  if (cText.startsWith('after ')) {
+    cText = cText.substring(6).trim();
   }
-  if (!inspectorContent) return;
+  if (typeof formatCardTokensForFrontend === 'function') {
+    cText = formatCardTokensForFrontend(cText);
+  }
+  return cText;
+}
+
+function buildInspectorPathModel(targetNode, options = {}) {
+  const allowTracedBoard = Boolean(options && options.allowTracedBoard);
 
   // Traverse parent pointers to assemble root-to-node path
   const path = [];
-  let curr = node;
+  let curr = targetNode;
   while (curr) {
     path.unshift(curr);
     curr = curr._parent;
   }
 
-  const isTracingBoard = (activeTracedBoardId !== null &&
-    (!node || !Array.isArray(node.boards) || node.boards.length === 0 || node.boards.includes(activeTracedBoardId)));
+  const isTracingBoard = Boolean(
+    allowTracedBoard &&
+    activeTracedBoardId !== null &&
+    (!targetNode ||
+     !Array.isArray(targetNode.boards) ||
+     targetNode.boards.length === 0 ||
+     targetNode.boards.includes(activeTracedBoardId))
+  );
   const tracedBoardKey = isTracingBoard ? String(activeTracedBoardId) : null;
 
   // Determine initial leader
-  let initialLeader = getSeatIndex(leaderSelect ? leaderSelect.value : 'NORTH');
+  let initialLeader = getSeatIndex(
+    (leaderSelect && leaderSelect.value) ? leaderSelect.value : 'NORTH'
+  );
   if (currentSolveData && currentSolveData.leader) {
     initialLeader = getSeatIndex(currentSolveData.leader);
   }
   const trumpCode = getTrumpCode();
 
+  const initCur = (
+    !isTracingBoard && typeof getActiveInitialCurTrick === 'function'
+  )
+    ? getActiveInitialCurTrick()
+    : [];
+
+  const seatPat = '([0-3]|north|east|south|west|n|e|s|w)';
+  const winRegex = new RegExp(
+    `(?:when|if)\\s+${seatPat}\\s+wins` +
+    `(?:\\s+(?:the\\s+)?([A-Z0-9_,\\(\\)\\s]+))?`,
+    'i'
+  );
+  const playRegex = new RegExp(
+    `(?:when|if)\\s+${seatPat}\\s+plays\\s+([A-Z0-9_<]+)`,
+    'i'
+  );
+  const discardRegex = new RegExp(
+    `(?:when|if)\\s+${seatPat}\\s+discards`,
+    'i'
+  );
+
   let currentLeader = initialLeader;
   const trickRows = [];
+  const pathConditions = [];
+  let pendingConditions = [];
 
   path.forEach((pathNode, stepIdx) => {
+    if (pathNode && pathNode.condition) {
+      const cText = formatInspectorConditionText(pathNode.condition);
+      if (cText) {
+        pathConditions.push({
+          trickNum: trickRows.length + 1,
+          condition: cText,
+          node: pathNode
+        });
+        pendingConditions.push({
+          text: cText,
+          parent: pathNode._parent || null,
+          failure: Boolean(pathNode.failure)
+        });
+      }
+    }
+
     let rawTrick = extractTrickString(pathNode);
     if (!rawTrick) return;
 
     let usedConcreteBoardTrick = false;
-    if (tracedBoardKey !== null && pathNode.board_to_trick && pathNode.board_to_trick[tracedBoardKey]) {
+    if (tracedBoardKey !== null &&
+        pathNode.board_to_trick &&
+        pathNode.board_to_trick[tracedBoardKey]) {
       rawTrick = pathNode.board_to_trick[tracedBoardKey];
       usedConcreteBoardTrick = true;
     }
@@ -899,16 +957,34 @@ function showNodeInspector(node, clickedNode = null) {
     if (tokens.length === 0) return;
     console.assert(tokens.length === 4, 'Expected 4 cards in trick:', rawTrick);
 
-    if (typeof pathNode.leader === 'number' && pathNode.leader >= 0 && pathNode.leader <= 3) {
+    if (typeof pathNode.leader === 'number' &&
+        pathNode.leader >= 0 &&
+        pathNode.leader <= 3) {
       currentLeader = pathNode.leader;
     }
 
-    // Parse cards
+    // Parse cards (substituting validated forced opening leads on Trick 1 when not tracing)
     const parsedCards = [];
     let leadSuit = null;
 
     tokens.forEach((tok, i) => {
-      const cardObj = parseSingleCardToken(tok, leadSuit, trumpCode);
+      const cleanTok = tok.replace(/[\(\)]/g, '').trim();
+      const isHonorWild = cleanTok.length >= 2 &&
+        (cleanTok.slice(1) === 'X' || cleanTok.slice(1) === 'H');
+      const isWildTok = !cleanTok ||
+        cleanTok.includes('_') ||
+        cleanTok.includes('x') ||
+        cleanTok.includes('<') ||
+        isHonorWild;
+      const effectiveTok = (
+        !usedConcreteBoardTrick &&
+        trickRows.length === 0 &&
+        i < initCur.length &&
+        isWildTok
+      )
+        ? initCur[i]
+        : tok;
+      const cardObj = parseSingleCardToken(effectiveTok, leadSuit, trumpCode);
       if (i === 0) {
         leadSuit = cardObj.suit;
       }
@@ -929,12 +1005,13 @@ function showNodeInspector(node, clickedNode = null) {
         const nextNode = path[stepIdx + 1];
         if (nextNode) {
           if (typeof nextNode.branch_winner === 'number' &&
-              nextNode.branch_winner >= 0 && nextNode.branch_winner <= 3) {
+              nextNode.branch_winner >= 0 &&
+              nextNode.branch_winner <= 3) {
             explicitWinnerSeat = nextNode.branch_winner;
           }
           if (nextNode.condition) {
             const cond = nextNode.condition;
-            const mWin = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+wins(?:\s+(?:the\s+)?([A-Z0-9_,\(\)\s]+))?/i);
+            const mWin = cond.match(winRegex);
             if (mWin) {
               if (explicitWinnerSeat === null) {
                 explicitWinnerSeat = getSeatIndex(mWin[1]);
@@ -946,12 +1023,12 @@ function showNodeInspector(node, clickedNode = null) {
                 }
               }
             }
-            const mPlay = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+plays\s+([A-Z0-9_<]+)/i);
+            const mPlay = cond.match(playRegex);
             if (mPlay) {
               explicitPlayedSeat = getSeatIndex(mPlay[1]);
               explicitPlayedCard = mPlay[2].trim();
             } else {
-              const mDiscard = cond.match(/(?:when|if)\s+([0-3]|north|east|south|west|n|e|s|w)\s+discards/i);
+              const mDiscard = cond.match(discardRegex);
               if (mDiscard) {
                 explicitPlayedSeat = getSeatIndex(mDiscard[1]);
                 explicitPlayedCard = 'R_';
@@ -962,8 +1039,10 @@ function showNodeInspector(node, clickedNode = null) {
       }
 
       // 2. Use pathNode.winner (populated directly from C++ WinnerPlayCondition / BoardState)
-      if (explicitWinnerSeat === null && typeof pathNode.winner === 'number' &&
-          pathNode.winner >= 0 && pathNode.winner <= 3) {
+      if (explicitWinnerSeat === null &&
+          typeof pathNode.winner === 'number' &&
+          pathNode.winner >= 0 &&
+          pathNode.winner <= 3) {
         explicitWinnerSeat = pathNode.winner;
       }
 
@@ -1014,7 +1093,9 @@ function showNodeInspector(node, clickedNode = null) {
     }
 
     if (!usedConcreteBoardTrick && winningCardIdx === -1 && explicitWinnerCard !== null) {
-      const foundIdx = parsedCards.findIndex(c => c.raw.toUpperCase().includes(explicitWinnerCard.toUpperCase()));
+      const foundIdx = parsedCards.findIndex(
+        c => c.raw.toUpperCase().includes(explicitWinnerCard.toUpperCase())
+      );
       if (foundIdx !== -1) {
         winningCardIdx = foundIdx;
       }
@@ -1052,6 +1133,9 @@ function showNodeInspector(node, clickedNode = null) {
     const winnerCard = parsedCards[winningCardIdx];
     const leadSeatName = getSeatName(currentLeader);
     const leadSeatBadge = `(${leadSeatName})`;
+    const rowConditions = pendingConditions.slice();
+    const condBeforeTrick = rowConditions.map(c => c.text).join(' → ');
+    pendingConditions = [];
 
     trickRows.push({
       trickNum: trickRows.length + 1,
@@ -1061,22 +1145,93 @@ function showNodeInspector(node, clickedNode = null) {
       cards: parsedCards,
       winningCardIdx: winningCardIdx,
       winnerSeat: winnerCard ? winnerCard.seatName : '',
+      condition: condBeforeTrick,
+      conditions: rowConditions,
       node: pathNode
     });
 
     // Next trick leader is the winner of this trick
-    currentLeader = winnerCard.seatIdx;
+    if (winnerCard) {
+      currentLeader = winnerCard.seatIdx;
+    }
+  });
+
+  const trailingConditions = pendingConditions.slice();
+  return {
+    path,
+    trickRows,
+    pathConditions,
+    trailingConditions,
+    isTracingBoard,
+    tracedBoardKey
+  };
+}
+
+function createConditionBannerEl(condItem) {
+  const condStr = typeof condItem === 'string'
+    ? condItem
+    : (condItem && condItem.text ? condItem.text : '');
+  const isFailure = Boolean(
+    condItem && typeof condItem === 'object' && condItem.failure
+  );
+  const bannerEl = document.createElement('div');
+  bannerEl.className = isFailure
+    ? 'trick-condition-banner trick-condition-banner-failure'
+    : 'trick-condition-banner';
+  bannerEl.title = `Branch condition: ${condStr}`;
+
+  const arrowEl = document.createElement('span');
+  arrowEl.className = 'trick-condition-arrow';
+  arrowEl.setAttribute('aria-hidden', 'true');
+  arrowEl.textContent = '↳';
+
+  const textEl = document.createElement('span');
+  textEl.className = 'trick-condition-text';
+  textEl.textContent = condStr;
+
+  bannerEl.appendChild(arrowEl);
+  bannerEl.appendChild(textEl);
+  return bannerEl;
+}
+
+function showNodeInspector(node, clickedNode = null) {
+  if (treeInspectorPanel) {
+    treeInspectorPanel.classList.remove('collapsed');
+  }
+  if (!inspectorContent) return;
+
+  const trumpCode = getTrumpCode();
+  const {
+    path,
+    trickRows,
+    pathConditions,
+    trailingConditions,
+    isTracingBoard,
+    tracedBoardKey
+  } = buildInspectorPathModel(node, { allowTracedBoard: true });
+
+  const trickSummaries = trickRows.map(tr => {
+    const cardsStr = tr.cards
+      .map(c => `${c.seatName}:${c.suit || ''}${c.rankStr || ''}`)
+      .join(' ');
+    const condPrefix = tr.condition ? `[${tr.condition}] ` : '';
+    return `${condPrefix}#${tr.trickNum} (${tr.leadSeatName}): ${cardsStr} -> ${tr.winnerSeat} wins`;
+  });
+  trailingConditions.forEach(tc => {
+    if (tc && tc.text) {
+      trickSummaries.push(`[${tc.text}]`);
+    }
   });
 
   currentInspectedState = {
     leafLabel: node ? (node.label || '') : '',
     selectedTrickNum: null,
-    trickSummaries: trickRows.map(tr => {
-      const cardsStr = tr.cards
-        .map(c => `${c.seatName}:${c.suit || ''}${c.rankStr || ''}`)
-        .join(' ');
-      return `#${tr.trickNum} (${tr.leadSeatName}): ${cardsStr} -> ${tr.winnerSeat} wins`;
-    })
+    trickSummaries,
+    pathConditions: pathConditions.map(pc => ({
+      trick_num: pc.trickNum,
+      condition: pc.condition
+    })),
+    trailingConditions: trailingConditions.map(tc => tc.text)
   };
 
   // Render Inspector Panel HTML
@@ -1431,10 +1586,50 @@ function showNodeInspector(node, clickedNode = null) {
   trickSection.innerHTML = `<div class="trick-section-header">Line of Play (${trickRows.length} Trick${trickRows.length !== 1 ? 's' : ''})</div>`;
 
   if (trickRows.length === 0) {
-    const emptyNote = document.createElement('div');
-    emptyNote.className = 'inspector-placeholder';
-    emptyNote.textContent = 'Root node selected. Click a decision node in the tree below to inspect played tricks.';
-    trickSection.appendChild(emptyNote);
+    const isUnselectedRoot = (
+      pathConditions.length === 0 &&
+      !(node && node.failure) &&
+      path.length <= 1
+    );
+    if (isUnselectedRoot) {
+      const emptyNote = document.createElement('div');
+      emptyNote.className = 'inspector-placeholder';
+      emptyNote.textContent = 'Root node selected. Click a decision node in the tree below to inspect played tricks.';
+      trickSection.appendChild(emptyNote);
+    } else {
+      const listContainer = document.createElement('div');
+      listContainer.className = 'trick-list';
+      trailingConditions.forEach((condItem) => {
+        listContainer.appendChild(createConditionBannerEl(condItem));
+      });
+
+      const summaryCard = document.createElement('div');
+      summaryCard.className = (node && node.failure)
+        ? 'node-summary-card node-summary-card-failure'
+        : 'node-summary-card';
+
+      const summaryTitle = document.createElement('div');
+      summaryTitle.className = 'node-summary-title';
+      const rawTitle = (node && (node.label || node.trick)) || 'Conditional Branch';
+      summaryTitle.textContent = formatInspectorConditionText(rawTitle) || rawTitle;
+      summaryCard.appendChild(summaryTitle);
+
+      const dealsLine = node ? formatNodeDeals(node) : '';
+      const statusNote = (
+        node && Array.isArray(node.children) && node.children.length > 0
+      )
+        ? 'No completed tricks yet — select a child trick node to inspect card play.'
+        : 'Branch ends before Trick 1 completes.';
+      const summaryDetail = document.createElement('div');
+      summaryDetail.className = 'node-summary-detail';
+      summaryDetail.textContent = dealsLine
+        ? `${dealsLine} · ${statusNote}`
+        : statusNote;
+      summaryCard.appendChild(summaryDetail);
+
+      listContainer.appendChild(summaryCard);
+      trickSection.appendChild(listContainer);
+    }
   } else {
     const listContainer = document.createElement('div');
     listContainer.className = 'trick-list';
@@ -1456,6 +1651,13 @@ function showNodeInspector(node, clickedNode = null) {
     listContainer.appendChild(headerRow);
 
     trickRows.forEach((tr, rowIdx) => {
+      const rowConds = (Array.isArray(tr.conditions) && tr.conditions.length > 0)
+        ? tr.conditions
+        : (tr.condition ? [tr.condition] : []);
+      rowConds.forEach((condItem) => {
+        listContainer.appendChild(createConditionBannerEl(condItem));
+      });
+
       const rowEl = document.createElement('div');
       rowEl.className = 'trick-row';
       rowEl.title = `Click to highlight Trick ${tr.trickNum} cards on deal diagram`;
@@ -1541,6 +1743,10 @@ function showNodeInspector(node, clickedNode = null) {
       listContainer.appendChild(rowEl);
     });
 
+    trailingConditions.forEach((condItem) => {
+      listContainer.appendChild(createConditionBannerEl(condItem));
+    });
+
     trickSection.appendChild(listContainer);
 
     if (clickedNode) {
@@ -1566,6 +1772,8 @@ function showNodeInspector(node, clickedNode = null) {
 if (typeof window !== 'undefined') {
   window._getCurrentTreeData = () => currentTreeData;
   window._showNodeInspector = showNodeInspector;
+  window._buildInspectorPathModel = buildInspectorPathModel;
+  window._formatInspectorConditionText = formatInspectorConditionText;
   window._expandAndInspectNode = expandAndInspectNode;
   window._centerNodeInTree = centerNodeInTree;
   window._traceHandByNumber = traceHandByNumber;
