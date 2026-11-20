@@ -178,6 +178,8 @@ jobs:
             cp build-wasm/bridge_wasm.worker.js _site/
           fi
           VER="${GITHUB_SHA::8}"
+          sed -i "s|__BRIDGE_HIGH_LINE_VERSION__|${VER:-dev}|g" \
+            _site/telemetry_and_help.js
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=${VER}\"|g" \
             _site/index.html
           sed -i -E "s|src=\"([a-z_]+\\.js)\"|src=\"\\1?v=${VER}\"|g" \
