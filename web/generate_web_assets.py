@@ -3,115 +3,87 @@ import os
 import sys
 
 
-def read_utf8(path):
-  with open(path, "r", encoding="utf-8") as f:
-    return f.read()
+def read_utf8_bytes(path):
+  with open(path, "rb") as f:
+    data = f.read()
+  data.decode("utf-8")
+  if 0 in data:
+    raise ValueError(f"Asset contains embedded NUL byte: {path}")
+  return data
+
+
+def format_byte(byte_val):
+  if byte_val < 0x80:
+    return f"0x{byte_val:02x}"
+  return f"static_cast<char>(0x{byte_val:02x})"
+
+
+def format_asset_definition(name, data):
+  if not data:
+    array_def = f"inline constexpr char {name}[] = {{0}};"
+  else:
+    tokens = [format_byte(b) for b in data] + ["0"]
+    lines = []
+    for i in range(0, len(tokens), 16):
+      lines.append("    " + ", ".join(tokens[i : i + 16]))
+    body = ",\n".join(lines)
+    array_def = f"inline constexpr char {name}[] = {{\n{body}\n}};"
+  view_def = (
+      f"inline constexpr std::string_view {name}_VIEW(\n"
+      f"    {name}, sizeof({name}) - 1);"
+  )
+  return f"{array_def}\n{view_def}"
 
 
 def main():
   script_dir = os.path.dirname(os.path.abspath(__file__))
   static_dir = os.path.join(script_dir, "static")
 
-  html_content = read_utf8(os.path.join(static_dir, "index.html"))
-  help_html_content = read_utf8(os.path.join(static_dir, "help.html"))
-  css_content = read_utf8(os.path.join(static_dir, "styles.css"))
-  app_js_content = read_utf8(os.path.join(static_dir, "app.js"))
-  solver_api_js_content = read_utf8(os.path.join(static_dir, "solver_api.js"))
-  deal_svg_js_content = read_utf8(os.path.join(static_dir, "deal_svg.js"))
-  analysis_tabs_js_content = read_utf8(
-      os.path.join(static_dir, "analysis_tabs.js")
-  )
-  photo_scanner_js_content = read_utf8(
-      os.path.join(static_dir, "photo_scanner.js")
-  )
-  decision_tree_js_content = read_utf8(
-      os.path.join(static_dir, "decision_tree.js")
-  )
-  telemetry_and_help_js_content = read_utf8(
-      os.path.join(static_dir, "telemetry_and_help.js")
-  )
-  pdf_export_js_content = read_utf8(
-      os.path.join(static_dir, "pdf_export.js")
-  )
-  presets_content = read_utf8(os.path.join(script_dir, "presets.json"))
-  strategy_doc_content = read_utf8(
-      os.path.join(script_dir, "..", "docs", "bridge-strategy.md")
-  )
-  user_guide_content = read_utf8(
-      os.path.join(script_dir, "..", "docs", "user-guide.md")
-  )
+  assets = [
+      ("INDEX_HTML", os.path.join(static_dir, "index.html")),
+      ("HELP_HTML", os.path.join(static_dir, "help.html")),
+      ("STYLES_CSS", os.path.join(static_dir, "styles.css")),
+      ("APP_JS", os.path.join(static_dir, "app.js")),
+      ("SOLVER_API_JS", os.path.join(static_dir, "solver_api.js")),
+      ("DEAL_SVG_JS", os.path.join(static_dir, "deal_svg.js")),
+      ("ANALYSIS_TABS_JS", os.path.join(static_dir, "analysis_tabs.js")),
+      ("PHOTO_SCANNER_JS", os.path.join(static_dir, "photo_scanner.js")),
+      ("DECISION_TREE_JS", os.path.join(static_dir, "decision_tree.js")),
+      (
+          "TELEMETRY_AND_HELP_JS",
+          os.path.join(static_dir, "telemetry_and_help.js"),
+      ),
+      ("PDF_EXPORT_JS", os.path.join(static_dir, "pdf_export.js")),
+      ("PRESETS_JSON", os.path.join(script_dir, "presets.json")),
+      (
+          "BRIDGE_STRATEGY_MD",
+          os.path.join(script_dir, "..", "docs", "bridge-strategy.md"),
+      ),
+      (
+          "USER_GUIDE_MD",
+          os.path.join(script_dir, "..", "docs", "user-guide.md"),
+      ),
+  ]
   out_path = (
       sys.argv[1]
       if len(sys.argv) > 1
       else os.path.join(script_dir, "web_assets.h")
   )
 
-  header_content = f"""#pragma once
+  definitions = "\n\n".join(
+      format_asset_definition(name, read_utf8_bytes(path))
+      for name, path in assets
+  )
 
-#include <string>
+  header_content = (
+      "#pragma once\n\n"
+      "#include <string_view>\n\n"
+      "namespace web_assets {\n\n"
+      f"{definitions}\n\n"
+      "}  // namespace web_assets\n"
+  )
 
-namespace web_assets {{
-
-inline const char* INDEX_HTML = R"rawhtml(
-{html_content}
-)rawhtml";
-
-inline const char* HELP_HTML = R"rawhtml(
-{help_html_content}
-)rawhtml";
-
-inline const char* STYLES_CSS = R"rawcss(
-{css_content}
-)rawcss";
-
-inline const char* APP_JS = R"rawjs(
-{app_js_content}
-)rawjs";
-
-inline const char* SOLVER_API_JS = R"rawjs(
-{solver_api_js_content}
-)rawjs";
-
-inline const char* DEAL_SVG_JS = R"rawjs(
-{deal_svg_js_content}
-)rawjs";
-
-inline const char* ANALYSIS_TABS_JS = R"rawjs(
-{analysis_tabs_js_content}
-)rawjs";
-
-inline const char* PHOTO_SCANNER_JS = R"rawjs(
-{photo_scanner_js_content}
-)rawjs";
-
-inline const char* DECISION_TREE_JS = R"rawjs(
-{decision_tree_js_content}
-)rawjs";
-
-inline const char* TELEMETRY_AND_HELP_JS = R"rawjs(
-{telemetry_and_help_js_content}
-)rawjs";
-
-inline const char* PDF_EXPORT_JS = R"rawjs(
-{pdf_export_js_content}
-)rawjs";
-
-inline const char* PRESETS_JSON = R"rawjson(
-{presets_content}
-)rawjson";
-
-inline const char* BRIDGE_STRATEGY_MD = R"rawmd(
-{strategy_doc_content}
-)rawmd";
-
-inline const char* USER_GUIDE_MD = R"rawmd(
-{user_guide_content}
-)rawmd";
-
-}} // namespace web_assets
-"""
-
-  with open(out_path, "w", encoding="utf-8") as f:
+  with open(out_path, "w", encoding="utf-8", newline="\n") as f:
     f.write(header_content)
 
   print(f"Successfully generated {out_path}")
