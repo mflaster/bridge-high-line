@@ -273,7 +273,9 @@ function collectFeedbackExplorerSnapshot() {
     const pathFromRoot = [];
     pathNodes.forEach((pn, idx) => {
       const tr = extractTrickString(pn) || '';
-      const cond = pn.condition || '';
+      const cond = (typeof formatInspectorConditionText === 'function')
+        ? formatInspectorConditionText(pn.condition || '')
+        : (pn.condition || '');
       const lbl = pn.label || '';
       if (tr || cond || lbl) {
         pathFromRoot.push(
@@ -284,7 +286,9 @@ function collectFeedbackExplorerSnapshot() {
     selectedNodeInfo = {
       label: currentCenteredNode.label || '',
       trick: extractTrickString(currentCenteredNode) || '',
-      condition: currentCenteredNode.condition || '',
+      condition: (typeof formatInspectorConditionText === 'function')
+        ? formatInspectorConditionText(currentCenteredNode.condition || '')
+        : (currentCenteredNode.condition || ''),
       depth: Math.max(0, pathNodes.length - 1),
       is_leaf: Boolean(!currentCenteredNode.children ||
                        currentCenteredNode.children.length === 0),
@@ -345,6 +349,10 @@ function collectFeedbackExplorerSnapshot() {
     trick_line: (currentInspectedState &&
                  Array.isArray(currentInspectedState.trickSummaries))
       ? currentInspectedState.trickSummaries.slice()
+      : [],
+    path_conditions: (currentInspectedState &&
+                      Array.isArray(currentInspectedState.pathConditions))
+      ? currentInspectedState.pathConditions.map(pc => pc.condition)
       : [],
     propose_line: activeProposalContext ? {
       trick_num: activeProposalContext.trickNum,

@@ -2284,6 +2284,456 @@ sandbox.populateEquivalentLinesControls(tiedSampleDistinct, 0);
 assert(getEl("equivalentLinesBadge").textContent === "2 Finalist Lines",
        "Tied count on distinct covered sets shows Finalist Lines badge: " +
        getEl("equivalentLinesBadge").textContent);
+
+// 7. Test unified inspector & PDF path model: condition banners, condition-only
+// branches before Trick 1, unselected root placeholder, all 5 cur_trick presets,
+// click-to-highlight indexing, feedback snapshots, and PDF parity.
+{
+  const els2 = {};
+  function makeEl2(id = "") {
+    const listeners = {};
+    return {
+      id,
+      value: "",
+      checked: true,
+      disabled: false,
+      title: "",
+      textContent: "",
+      _innerHTML: "",
+      get innerHTML() { return this._innerHTML; },
+      set innerHTML(v) {
+        this._innerHTML = String(v);
+        if (v === "") this.children = [];
+      },
+      className: "",
+      style: { setProperty() {} },
+      dataset: {},
+      children: [],
+      classList: {
+        _set: new Set(),
+        add(...c) { c.forEach(x => this._set.add(x)); },
+        remove(...c) { c.forEach(x => this._set.delete(x)); },
+        toggle(c, force) {
+          if (force === undefined) {
+            if (this._set.has(c)) this._set.delete(c); else this._set.add(c);
+          } else if (force) this._set.add(c); else this._set.delete(c);
+        },
+        contains(c) { return this._set.has(c); }
+      },
+      appendChild(ch) { this.children.push(ch); return ch; },
+      removeChild(ch) {
+        const idx = this.children.indexOf(ch);
+        if (idx >= 0) this.children.splice(idx, 1);
+        return ch;
+      },
+      addEventListener(ev, fn) {
+        if (!listeners[ev]) listeners[ev] = [];
+        listeners[ev].push(fn);
+      },
+      click() {
+        (listeners.click || []).forEach(fn => fn({ stopPropagation() {}, preventDefault() {} }));
+      },
+      setAttribute() {},
+      getBoundingClientRect() { return { left: 0, top: 0, right: 500, bottom: 500, width: 500, height: 500 }; },
+      querySelector(sel) {
+        if (sel === "tbody") {
+          if (!this._tbody) this._tbody = makeEl2("tbody");
+          return this._tbody;
+        }
+        return makeEl2(sel);
+      },
+      querySelectorAll() { return []; }
+    };
+  }
+  const getEl2 = (id) => {
+    if (!els2[id]) els2[id] = makeEl2(id);
+    return els2[id];
+  };
+
+  const sb2 = {
+    console,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    TextEncoder,
+    Uint8Array,
+    Buffer,
+    URLSearchParams,
+    navigator: { sendBeacon: () => true },
+    performance: { now: () => 0 },
+    window: {
+      location: { search: "", hash: "", hostname: "localhost" },
+      addEventListener() {},
+      dispatchEvent() {}
+    },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    document: {
+      body: makeEl2("body"),
+      getElementById: (id) => getEl2(id),
+      querySelector: () => makeEl2(),
+      querySelectorAll: () => [],
+      createElement: (tag) => makeEl2(tag),
+      createElementNS: (ns, tag) => makeEl2(tag),
+      addEventListener: () => {}
+    }
+  };
+  vm.createContext(sb2);
+  for (const scriptName of [
+    "app.js",
+    "solver_api.js",
+    "deal_svg.js",
+    "analysis_tabs.js",
+    "decision_tree.js",
+    "telemetry_and_help.js",
+    "pdf_export.js"
+  ]) {
+    vm.runInContext(fs.readFileSync(staticDir + "/" + scriptName, "utf8"), sb2);
+  }
+
+  const walkEls = (root, pred, acc = []) => {
+    if (!root) return acc;
+    if (pred(root)) acc.push(root);
+    (root.children || []).forEach(ch => walkEls(ch, pred, acc));
+    return acc;
+  };
+  const hasClass = (el, cls) =>
+    String(el.className || "").split(/\s+/).includes(cls) ||
+    (el.classList && el.classList.contains(cls));
+  const getChipTexts = (rowEl) => {
+    const chipsRow = (rowEl.children || []).find(c => hasClass(c, "card-chips-row"));
+    if (!chipsRow) return [];
+    return chipsRow.children.map(chip =>
+      String(chip.innerHTML || "").replace(/<[^>]+>/g, "")
+    );
+  };
+  const getBannerTexts = (container) =>
+    walkEls(container, el => hasClass(el, "trick-condition-banner"))
+      .map(b => (b.children[1] ? b.children[1].textContent : b.textContent));
+
+  // 7a. Unselected root node with zero tricks and zero conditions renders root placeholder
+  const emptyRoot = {
+    id: "node_root",
+    type: "condition",
+    label: "Declarer leads",
+    total_boards: 100,
+    success_boards: 80,
+    failure_boards: 20,
+    children: []
+  };
+  sb2.attachParentPointers(emptyRoot);
+  sb2.showNodeInspector(emptyRoot);
+  const rootPlaceholders = walkEls(getEl2("inspectorContent"), el => hasClass(el, "inspector-placeholder"));
+  assert(rootPlaceholders.length === 1 &&
+         rootPlaceholders[0].textContent.includes("Root node selected"),
+         "Unselected root with 0 tricks and 0 conditions renders Root node selected");
+
+  // 7b. Condition-only branch before Trick 1 & unmatched failure leaf without tricks
+  const condRoot = {
+    id: "r1",
+    type: "condition",
+    label: "Declarer leads",
+    total_boards: 50,
+    success_boards: 40,
+    failure_boards: 10,
+    children: [
+      {
+        id: "c_state",
+        type: "condition",
+        label: "C6 is led",
+        condition: "if SA is good",
+        total_boards: 50,
+        success_boards: 30,
+        failure_boards: 5,
+        children: []
+      },
+      {
+        id: "c_fail",
+        type: "outcome",
+        failure: true,
+        label: "Hand Failed (5/50 boards) (0 tricks won by N/S)",
+        condition: "if E plays DX",
+        total_boards: 50,
+        failure_boards: 5,
+        boards: [4, 5],
+        children: []
+      }
+    ]
+  };
+  sb2.attachParentPointers(condRoot);
+
+  sb2.showNodeInspector(condRoot.children[0], condRoot.children[0]);
+  assert(walkEls(getEl2("inspectorContent"), el => hasClass(el, "inspector-placeholder")).length === 0,
+         "Condition-only branch never shows Root node selected");
+  assert(JSON.stringify(getBannerTexts(getEl2("inspectorContent"))) === JSON.stringify(["if SA is good"]),
+         "Condition-only branch renders active condition banner");
+  const summaryTitles0 = walkEls(getEl2("inspectorContent"), el => hasClass(el, "node-summary-title"));
+  assert(summaryTitles0.length === 1 && summaryTitles0[0].textContent === "C6 is led",
+         "Condition-only branch renders node summary card title");
+
+  sb2.showNodeInspector(condRoot.children[1], condRoot.children[1]);
+  assert(walkEls(getEl2("inspectorContent"), el => hasClass(el, "inspector-placeholder")).length === 0,
+         "Zero-trick unmatched failure leaf never shows Root node selected");
+  assert(JSON.stringify(getBannerTexts(getEl2("inspectorContent"))) === JSON.stringify(["if E plays DH"]),
+         "Zero-trick failure leaf formats DX -> DH in condition banner");
+  const failBanners = walkEls(getEl2("inspectorContent"), el => hasClass(el, "trick-condition-banner-failure"));
+  assert(failBanners.length === 1, "Failure condition banner gets failure styling");
+
+  // 7c. Multi-condition path renders banners above corresponding trick rows,
+  // preserves trick click-to-highlight indexing, and matches PDF computeInspectorDataForNode
+  getEl2("trumpSelect").value = "SPADES";
+  getEl2("leaderSelect").value = "NORTH";
+  getEl2("inputNorth").value = "S A87; H K2; D 5; C Q;";
+  getEl2("inputSouth").value = "S KQ6; H A3; D 8; C K;";
+  getEl2("inputEast").value = "";
+  getEl2("inputWest").value = "";
+  getEl2("inputUnknownCards").value = "S JT5432 H QJ98 D AKQ4 C AJT9";
+
+  const multiTree = {
+    id: "t1",
+    type: "action",
+    leader: 0,
+    winner: 2,
+    label: "#1: S7 (S_) SK (S_)",
+    trick: "S7 (S_) SK (S_)",
+    board_to_trick: { "0": "S7 S2 SK S3" },
+    boards: [0, 1],
+    total_boards: 20,
+    success_boards: 18,
+    failure_boards: 2,
+    children: [
+      {
+        id: "cond_mid",
+        type: "condition",
+        label: "Declarer leads",
+        condition: "when S wins",
+        branch_winner: 2,
+        children: [
+          {
+            id: "cond_sub",
+            type: "condition",
+            label: "Declarer leads",
+            condition: "if W did not discard on S",
+            children: [
+              {
+                id: "t2",
+                type: "action",
+                leader: 2,
+                winner: 0,
+                label: "#2: S6 (SX) SA (Sx)",
+                trick: "S6 (SX) SA (Sx)",
+                condition: "if E discarded on S",
+                board_to_trick: { "0": "S6 SJ SA S4" },
+                boards: [0],
+                children: [
+                  {
+                    id: "fail_leaf",
+                    type: "outcome",
+                    failure: true,
+                    label: "Hand Failed (2/20 boards)",
+                    condition: "if W wins the DX",
+                    boards: [1],
+                    children: []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+  sb2.attachParentPointers(multiTree);
+  const t2Node = multiTree.children[0].children[0].children[0];
+  const failLeaf = t2Node.children[0];
+
+  vm.runInContext(
+    "currentSolveData = { leader: \"NORTH\", trump: \"SPADES\", total_boards: 20, tree: null }; " +
+    "currentTreeData = null; presetCurTrick = []; activeTracedBoardId = null; activeTracedDeal = null;",
+    sb2
+  );
+  sb2.showNodeInspector(failLeaf);
+
+  const listEl = walkEls(getEl2("inspectorContent"), el => hasClass(el, "trick-list"))[0];
+  assert(listEl, "Multi-condition path renders .trick-list");
+  // Expected children in listEl:
+  // [0] .trick-columns-header
+  // [1] .trick-row (#1)
+  // [2] .trick-condition-banner ("when S wins")
+  // [3] .trick-condition-banner ("if W did not discard on S")
+  // [4] .trick-condition-banner ("if E discarded on S")
+  // [5] .trick-row (#2)
+  // [6] .trick-condition-banner ("if W wins the DH")
+  const listClasses = listEl.children.map(ch => ch.className.split(/\s+/)[0]);
+  assert(JSON.stringify(listClasses) === JSON.stringify([
+    "trick-columns-header",
+    "trick-row",
+    "trick-condition-banner",
+    "trick-condition-banner",
+    "trick-condition-banner",
+    "trick-row",
+    "trick-condition-banner"
+  ]), "Condition banners appear in exact positions above #2 and trailing after #2: " + JSON.stringify(listClasses));
+  assert(JSON.stringify(getBannerTexts(listEl)) === JSON.stringify([
+    "when S wins",
+    "if W did not discard on S",
+    "if E discarded on S",
+    "if W wins the DH"
+  ]), "All multi-condition banners formatted cleanly: " + JSON.stringify(getBannerTexts(listEl)));
+
+  // Verify clicking Trick #2 row selects trickNum=2 (not offset by 3 preceding condition banners!)
+  const renderedTrickRows = walkEls(listEl, el => hasClass(el, "trick-row"));
+  assert(renderedTrickRows.length === 2, "Exactly 2 selectable trick rows");
+  renderedTrickRows[1].click();
+  const stateAfterClick = vm.runInContext("({ inspected: currentInspectedState, proposal: activeProposalContext })", sb2);
+  assert(stateAfterClick.inspected.selectedTrickNum === 2,
+         "Clicking 2nd trick row selects trick #2 despite banners");
+  assert(stateAfterClick.proposal && stateAfterClick.proposal.trickNum === 2 &&
+         stateAfterClick.proposal.selectedIdx === 1,
+         "Propose Trick context aligns with trick #2");
+  assert(hasClass(renderedTrickRows[0], "trick-row-past") &&
+         hasClass(renderedTrickRows[1], "trick-row-selected"),
+         "Trick row highlight classes align strictly with trick rows");
+
+  // Verify PDF parity across every node in multiTree
+  const allMultiNodes = [
+    multiTree,
+    multiTree.children[0],
+    multiTree.children[0].children[0],
+    t2Node,
+    failLeaf
+  ];
+  for (const n of allMultiNodes) {
+    const modelData = sb2.buildInspectorPathModel(n, { allowTracedBoard: false });
+    const pdfData = sb2.computeInspectorDataForNode(n);
+    assert(JSON.stringify(pdfData.trickRows.map(r => ({
+             trickNum: r.trickNum,
+             leadSeatName: r.leadSeatName,
+             winnerSeat: r.winnerSeat,
+             condition: r.condition,
+             cards: r.cards.map(c => c.displayStr)
+           }))) ===
+           JSON.stringify(modelData.trickRows.map(r => ({
+             trickNum: r.trickNum,
+             leadSeatName: r.leadSeatName,
+             winnerSeat: r.winnerSeat,
+             condition: r.condition,
+             cards: r.cards.map(c => c.displayStr)
+           }))),
+           "PDF trickRows parity on node " + n.id);
+    assert(JSON.stringify(pdfData.pathConditions.map(p => ({ trickNum: p.trickNum, condition: p.condition }))) ===
+           JSON.stringify(modelData.pathConditions.map(p => ({ trickNum: p.trickNum, condition: p.condition }))),
+           "PDF pathConditions parity on node " + n.id);
+    assert(JSON.stringify(pdfData.trailingConditions.map(t => t.text)) ===
+           JSON.stringify(modelData.trailingConditions.map(t => t.text)),
+           "PDF trailingConditions parity on node " + n.id);
+  }
+
+  // Verify tracing a specific deal uses concrete deal cards while keeping branch condition banners
+  vm.runInContext(
+    "activeTracedBoardId = 0; activeTracedDeal = { board_id: 0, succeeded: true, N: \"S A87;\", E: \"S 42;\", S: \"S KQ6;\", W: \"S J3;\" };",
+    sb2
+  );
+  sb2.showNodeInspector(t2Node);
+  const tracedRows = walkEls(getEl2("inspectorContent"), el => hasClass(el, "trick-row"));
+  // South (2) leads S6, West (3) plays SJ, North (0) plays SA, East (1) plays S4 -> N/E/S/W columns:
+  assert(JSON.stringify(getChipTexts(tracedRows[1])) === JSON.stringify(["♠A", "♠4", "♠6", "♠J"]),
+         "Traced board shows concrete deal cards on Trick #2: " + JSON.stringify(getChipTexts(tracedRows[1])));
+  assert(JSON.stringify(getBannerTexts(getEl2("inspectorContent"))) === JSON.stringify([
+    "when S wins",
+    "if W did not discard on S",
+    "if E discarded on S"
+  ]), "Traced board preserves condition banners");
+  vm.runInContext("activeTracedBoardId = null; activeTracedDeal = null;", sb2);
+
+  // Verify end-to-end PDF page & binary stream generation with condition banners and diff highlighting
+  vm.runInContext(
+    "currentTreeData = null; currentCenteredNode = null;",
+    sb2
+  );
+  sb2.window._testMultiTree = multiTree;
+  vm.runInContext(
+    "currentTreeData = window._testMultiTree; currentSolveData = { leader: \"NORTH\", trump: \"SPADES\", total_boards: 20, covered_boards: 18, success_boards: 18, failure_boards: 2, tree: window._testMultiTree };",
+    sb2
+  );
+  const pdfPages = sb2.generateAnalysisPdfPages();
+  assert(Array.isArray(pdfPages) && pdfPages.length >= 2,
+         "generateAnalysisPdfPages produces summary + branch snapshot pages");
+  const pdfBytes = sb2.buildPdfFromPageCanvases(pdfPages);
+  const pdfStr = Buffer.from(pdfBytes).toString("latin1");
+  assert(pdfStr.includes("%PDF-1.4") && pdfStr.includes("if W wins the DH"),
+         "Generated PDF stream contains formatted branch condition banner");
+
+  // 7d. Verify all 5 presets with cur_trick render concrete opening leads in Trick 1 chips
+  // and record resolved opening leads + formatted conditions in feedback snapshots
+  const presetsJson = JSON.parse(fs.readFileSync(
+    process.cwd().endsWith("/build") ? "../web/presets.json" : "web/presets.json",
+    "utf8"
+  ));
+  const curTrickExpectations = [
+    ["mollo_6s", "♦Q", 1, "(D_) D2 (DA) HQ"],
+    ["hand_8_261014", "♣J", 3, "(C_) CQ (__) C5"],
+    ["hand_6_261014", "♥A", 1, "(HX) H3 (H_) H5"],
+    ["7s_1021", "♠9", 1, "(S_) SJ (S_) S7"],
+    ["hand_15_261028", "♠2", 1, "(Sx) S8 (__) H6"]
+  ];
+  for (const [presetKey, expectedChip, leadSeatIdx, generalizedTrick1] of curTrickExpectations) {
+    const p = presetsJson[presetKey];
+    assert(p && Array.isArray(p.cur_trick) && p.cur_trick.length === 1,
+           "Preset exists with cur_trick: " + presetKey);
+    getEl2("trumpSelect").value = p.trump;
+    getEl2("leaderSelect").value = p.leader;
+    getEl2("inputNorth").value = p.north || "";
+    getEl2("inputEast").value = p.east || "";
+    getEl2("inputSouth").value = p.south || "";
+    getEl2("inputWest").value = p.west || "";
+    getEl2("inputUnknownCards").value = p.unknown_cards || "";
+    vm.runInContext(
+      "presetCurTrick = " + JSON.stringify(p.cur_trick) + "; " +
+      "currentSolveData = { leader: " + JSON.stringify(p.leader) + ", trump: " + JSON.stringify(p.trump) + ", total_boards: 30 };",
+      sb2
+    );
+    const presetRoot = {
+      id: "pr_" + presetKey,
+      type: "action",
+      leader: leadSeatIdx,
+      label: "#1: " + generalizedTrick1,
+      trick: generalizedTrick1,
+      children: [
+        {
+          id: "pr_c_" + presetKey,
+          type: "outcome",
+          condition: "when N wins",
+          label: "Hand Succeeded",
+          children: []
+        }
+      ]
+    };
+    sb2.attachParentPointers(presetRoot);
+    const presetLeaf = presetRoot.children[0];
+    sb2.showNodeInspector(presetLeaf);
+
+    const t1Row = walkEls(getEl2("inspectorContent"), el => hasClass(el, "trick-row"))[0];
+    const chipTexts = getChipTexts(t1Row);
+    assert(chipTexts[leadSeatIdx] === expectedChip,
+           `Preset ${presetKey} Trick 1 leader chip expected ${expectedChip}, got ${chipTexts[leadSeatIdx]} (${JSON.stringify(chipTexts)})`);
+
+    const pdfPresetData = sb2.computeInspectorDataForNode(presetLeaf);
+    const pdfLeaderCard = pdfPresetData.trickRows[0].cards.find(c => c.seatIdx === leadSeatIdx);
+    assert(pdfLeaderCard && pdfLeaderCard.displayStr === expectedChip,
+           `PDF preset ${presetKey} Trick 1 leader card expected ${expectedChip}, got ${pdfLeaderCard && pdfLeaderCard.displayStr}`);
+
+    vm.runInContext("currentTreeData = " + JSON.stringify({ id: "r", label: "Root", children: [] }) + "; currentCenteredNode = null;", sb2);
+    const fbSnap = sb2.collectFeedbackExplorerSnapshot();
+    const expectedCode = p.cur_trick[0];
+    const seatLetter = ["N", "E", "S", "W"][leadSeatIdx];
+    assert(fbSnap.line_explorer.trick_line[0].includes(`${seatLetter}:${expectedCode}`),
+           `Feedback snapshot records resolved opening lead ${seatLetter}:${expectedCode} for ${presetKey}: ${JSON.stringify(fbSnap.line_explorer.trick_line)}`);
+    assert(fbSnap.line_explorer.trick_line.includes("[when N wins]") &&
+           JSON.stringify(fbSnap.line_explorer.path_conditions) === JSON.stringify(["when N wins"]),
+           `Feedback snapshot records formatted branch conditions for ${presetKey}: ${JSON.stringify(fbSnap.line_explorer)}`);
+  }
+}
 ' )NODE";
     EXPECT_EQ(std::system(cmd.c_str()), 0);
   }

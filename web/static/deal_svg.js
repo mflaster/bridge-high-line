@@ -106,7 +106,14 @@ let activeProposalContext = null; // { trickNum, selectedIdx, leaderIdx, nsTrick
 
 function getActiveInitialCurTrick() {
   if (!Array.isArray(presetCurTrick) || presetCurTrick.length === 0) return [];
-  const leaderIdx = getSeatIndex(leaderSelect ? leaderSelect.value : 'NORTH');
+  const rawLeader = (leaderSelect && leaderSelect.value)
+    ? leaderSelect.value
+    : ((typeof currentSolveData !== 'undefined' &&
+        currentSolveData &&
+        currentSolveData.leader)
+        ? currentSolveData.leader
+        : 'NORTH');
+  const leaderIdx = getSeatIndex(rawLeader);
   const seatInputs = [
     inputNorth ? inputNorth.value : '',
     inputEast ? inputEast.value : '',
