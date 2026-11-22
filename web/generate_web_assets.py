@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import os
+import re
+import subprocess
 import sys
 
 
@@ -35,9 +37,30 @@ def format_asset_definition(name, data):
   return f"{array_def}\n{view_def}"
 
 
+def resolve_app_version(repo_dir):
+  try:
+    out = subprocess.check_output(
+        ["git", "rev-parse", "--short=8", "HEAD"],
+        cwd=repo_dir,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip()
+    if re.fullmatch(r"[0-9a-fA-F]{7,40}", out):
+      return out.lower()
+  except (OSError, subprocess.SubprocessError):
+    pass
+  return "dev"
+
+
 def main():
   script_dir = os.path.dirname(os.path.abspath(__file__))
+  repo_dir = os.path.dirname(script_dir)
   static_dir = os.path.join(script_dir, "static")
+  app_version = resolve_app_version(repo_dir)
+
+  app_version_bytes = app_version.encode("utf-8")
+  if 0 in app_version_bytes:
+    raise ValueError("Resolved app_version contains embedded NUL byte")
 
   assets = [
       ("INDEX_HTML", os.path.join(static_dir, "index.html")),
@@ -70,10 +93,13 @@ def main():
       else os.path.join(script_dir, "web_assets.h")
   )
 
-  definitions = "\n\n".join(
-      format_asset_definition(name, read_utf8_bytes(path))
-      for name, path in assets
-  )
+  rendered_assets = []
+  for name, path in assets:
+    data = read_utf8_bytes(path)
+    if name == "TELEMETRY_AND_HELP_JS":
+      data = data.replace(b"__BRIDGE_HIGH_LINE_VERSION__", app_version_bytes)
+    rendered_assets.append(format_asset_definition(name, data))
+  definitions = "\n\n".join(rendered_assets)
 
   header_content = (
       "#pragma once\n\n"
