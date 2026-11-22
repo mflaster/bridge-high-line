@@ -1395,6 +1395,23 @@ TEST(ConditionalLineTest,
     EXPECT_NE(trace.leaf, nullptr);
     ASSERT_FALSE(trace.node_tricks.empty());
     EXPECT_EQ(trace.node_tricks[0].second.rfind("C6 C2 CJ ", 0), 0u);
+
+    ConditionalLine::DefenderEvalCache eval_cache;
+    EXPECT_TRUE(root.EvaluateBoardAdversarialFast(bs_make, 1, &eval_cache));
+    EXPECT_TRUE(eval_cache.tt_initialized);
+    EXPECT_FALSE(root.EvaluateBoardAdversarialFast(bs_make, 2, &eval_cache));
+
+    BoardState bs_pre1 = bs_make;
+    bs_pre1.PlayCard(2, Card::ParseStringCard("C6"));
+    EXPECT_TRUE(root.EvaluateBoardAdversarialFast(bs_pre1, 1));
+
+    BoardState bs_pre_c2 = bs_pre1;
+    bs_pre_c2.PlayCard(3, Card::ParseStringCard("C2"));
+    EXPECT_TRUE(root.EvaluateBoardAdversarialFast(bs_pre_c2, 1));
+
+    BoardState bs_pre_cq = bs_pre1;
+    bs_pre_cq.PlayCard(3, Card::ParseStringCard("CQ"));
+    EXPECT_FALSE(root.EvaluateBoardAdversarialFast(bs_pre_cq, 1));
   }
 
   // Part 2 (Tier 0 < Tier 1): Genuine falsecard defeat (`min_tricks = 3`).
@@ -1453,6 +1470,18 @@ TEST(ConditionalLineTest,
     EXPECT_EQ(trace.leaf, nullptr);
     ASSERT_FALSE(trace.node_tricks.empty());
     EXPECT_EQ(trace.node_tricks[0].second.rfind("C6 CQ CJ ", 0), 0u);
+
+    ConditionalLine::DefenderEvalCache eval_cache;
+    EXPECT_FALSE(root.EvaluateBoardAdversarialFast(bs_defeat, 3, &eval_cache));
+    EXPECT_TRUE(eval_cache.tt_initialized);
+
+    BoardState bs_pre1 = bs_defeat;
+    bs_pre1.PlayCard(2, Card::ParseStringCard("C6"));
+    EXPECT_FALSE(root.EvaluateBoardAdversarialFast(bs_pre1, 3));
+
+    BoardState bs_pre_c2 = bs_pre1;
+    bs_pre_c2.PlayCard(3, Card::ParseStringCard("C2"));
+    EXPECT_TRUE(root.EvaluateBoardAdversarialFast(bs_pre_c2, 3));
   }
 }
 
@@ -1534,6 +1563,92 @@ TEST(ConditionalLineTest,
         bool ref_ok = (ref_tricks >= 6 && ref_trace.leaf != nullptr);
         ASSERT_EQ(fast_ok, ref_ok)
             << "Mismatch on deal " << d << ", finalist " << i;
+      }
+
+      if (d < 40) {
+        ConditionalLine::BoardPlayTrace sim_trace =
+            lines[0].SimulateBoard(bs, d, /*adversarial=*/true);
+        if (!sim_trace.steps.empty()) {
+          std::vector<CardType> trick_cards;
+          size_t pos = 0;
+          const std::string &tstr = sim_trace.steps[0].trick_str;
+          while (pos < tstr.size()) {
+            while (pos < tstr.size() && tstr[pos] == ' ') ++pos;
+            if (pos >= tstr.size()) break;
+            size_t end = pos;
+            while (end < tstr.size() && tstr[end] != ' ') ++end;
+            trick_cards.push_back(
+                Card::ParseStringCard(tstr.substr(pos, end - pos)));
+            pos = end;
+          }
+          ASSERT_EQ(trick_cards.size(), 4u);
+          BoardState bs_mid = bs;
+          for (size_t pre_n = 1; pre_n <= 3; ++pre_n) {
+            bs_mid.PlayCard(bs_mid.CurPlayer(), trick_cards[pre_n - 1]);
+            ConditionalLine::DefenderEvalCache mid_cache;
+            for (size_t i = 0; i < lines.size(); ++i) {
+              bool fast_mid =
+                  lines[i].EvaluateBoardAdversarialFast(bs_mid, 6, &mid_cache);
+              ConditionalLine::RescoreBoardTrace mid_trace;
+              int mid_tricks = lines[i].ResultsOnHandAdversarial(
+                  bs_mid, nullptr, &mid_trace);
+              bool ref_mid = (mid_tricks >= 6 && mid_trace.leaf != nullptr);
+              ASSERT_EQ(fast_mid, ref_mid)
+                  << "Pre-played (" << pre_n << " cards) mismatch on deal " << d
+                  << ", finalist " << i;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Verify EvaluateBoardAdversarialFast on defender-led pre-played cur_trick
+  // lines across out-of-sample deals.
+  {
+    std::vector<uint64_t> hands = {
+        ParseHand("H T9; D KQ; C A;"),
+        ParseHand("S 2;"),
+        ParseHand("S 8; H AJ; D A; C K;"),
+        0,
+    };
+    uint64_t unknown = ParseHand("S T75; H KQ8; D JT9;");
+    std::vector<CardType> cur_trick = {Card::ParseStringCard("S2")};
+
+    srand48(17);
+    LineFinder lf(40);
+    lf.SetMaxFinalistLines(4);
+    std::vector<ConditionalLine> lines = lf.Solve(
+        4, hands, unknown, /*leader=*/1, HEARTS, cur_trick, /*threads=*/2);
+    ASSERT_FALSE(lines.empty());
+
+    FuzzyBoardState fuzzy(hands, unknown);
+    auto spec = fuzzy.PrepareFastDealSpec();
+    std::mt19937_64 rng(20261122ULL);
+    for (int d = 0; d < 120; ++d) {
+      BoardState bs = FuzzyBoardState::FastRandomize(spec, rng);
+      bs.set_board_id(static_cast<uint32_t>(200000 + d));
+      bs.SetTrump(HEARTS);
+      bs.SetLead(1);
+      for (CardType c : cur_trick) {
+        bs.PlayCard(bs.CurPlayer(), c);
+      }
+
+      bool called_dds = false;
+      bool makeable = IsDealMakeable(bs, 4, &called_dds, false);
+      ConditionalLine::DefenderEvalCache eval_cache;
+      eval_cache.tt_initialized = called_dds;
+      for (size_t i = 0; i < lines.size(); ++i) {
+        bool fast_ok =
+            makeable &&
+            lines[i].EvaluateBoardAdversarialFast(bs, 4, &eval_cache);
+        ConditionalLine::RescoreBoardTrace ref_trace;
+        int ref_tricks =
+            lines[i].ResultsOnHandAdversarial(bs, nullptr, &ref_trace);
+        bool ref_ok = (ref_tricks >= 4 && ref_trace.leaf != nullptr);
+        ASSERT_EQ(fast_ok, ref_ok)
+            << "Defender-led cur_trick mismatch on deal " << d << ", finalist "
+            << i;
       }
     }
   }
