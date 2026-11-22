@@ -263,6 +263,254 @@ inline bool StrictlyBeatsPrecision(int tc_a, int oc_a, int tc_b, int oc_b) {
          static_cast<int64_t>(tc_b) * denom_a;
 }
 
+double LogFact(int n) {
+  static const auto kTable = []() {
+    std::array<double, 2049> t{};
+    t[0] = 0.0;
+    for (int i = 1; i <= 2048; ++i) {
+      t[i] = t[i - 1] + std::log(static_cast<double>(i));
+    }
+    return t;
+  }();
+  if (n <= 0) return 0.0;
+  if (n <= 2048) return kTable[n];
+  return std::lgamma(n + 1.0);
+}
+
+double LogChoose(int n, int k) {
+  if (k < 0 || k > n) return -1e300;
+  return LogFact(n) - LogFact(k) - LogFact(n - k);
+}
+
+// One-sided Fisher/hypergeometric upper-tail p-value P(X >= k_succ) when
+// drawing k_draws items without replacement from N_tot containing K_succ
+// target items. Used to guard compound set-cover branches against small-slice
+// multiple-testing overfitting.
+double HypergeomUpperTailPValue(int k_succ,
+                                int k_draws,
+                                int K_succ,
+                                int N_tot) {
+  if (k_draws <= 0 || K_succ <= 0 || N_tot <= 0) return 1.0;
+  int max_x = std::min(k_draws, K_succ);
+  if (k_succ > max_x) return 0.0;
+  int min_x = std::max(0, k_draws - (N_tot - K_succ));
+  if (k_succ <= min_x) return 1.0;
+  double denom = LogChoose(N_tot, k_draws);
+  double total_p = 0.0;
+  for (int x = k_succ; x <= max_x; ++x) {
+    double lp =
+        LogChoose(K_succ, x) + LogChoose(N_tot - K_succ, k_draws - x) - denom;
+    total_p += std::exp(lp);
+  }
+  return std::min(1.0, total_p);
+}
+
+// An honor card (rank >= 8) in unknown_cards is double-dummy isomorphic to a
+// spot card when every rank from 9 (rank 7) up to `rank` in the same suit also
+// belongs to unknown_cards (meaning no card in N, S, or played tricks separates
+// it from spot card 9).
+bool IsSpotConnectedHonor(uint64_t unknown_cards, CardType card) {
+  if (card == 0) return false;
+  auto [suit, rank] = Card::DecodeCard(card);
+  if (rank < 8) return true;
+  for (int k = 7; k <= rank; ++k) {
+    if ((unknown_cards & Card::GetSuitedCard(suit, k)) == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool EntryUsesSpotConnectedHonor(const AtomicPredicateEntry& entry,
+                                 uint64_t unknown_cards) {
+  if (unknown_cards == 0 || !entry.invariant) return false;
+  if (entry.family == AtomicPredicateFamily::kHonorPossession) {
+    if (auto hp =
+            dynamic_cast<const HonorPossessionInvariant*>(entry.invariant.get())) {
+      return IsSpotConnectedHonor(unknown_cards, hp->card());
+    }
+  } else if (entry.family == AtomicPredicateFamily::kSuitHonorVariable) {
+    Suit s = entry.honor_suit;
+    for (int r = 8; r <= 12; ++r) {
+      CardType c = Card::GetSuitedCard(s, r);
+      if ((unknown_cards & c) != 0 && IsSpotConnectedHonor(unknown_cards, c)) {
+        return true;
+      }
+    }
+  } else if (entry.family == AtomicPredicateFamily::kCrossSuitCard) {
+    if (auto cc = dynamic_cast<const CrossSuitCardConditionalInvariant*>(
+            entry.invariant.get())) {
+      return IsSpotConnectedHonor(unknown_cards, cc->condition_card()) ||
+             IsSpotConnectedHonor(unknown_cards, cc->target_card());
+    }
+  } else if (entry.family == AtomicPredicateFamily::kCrossSuitLength) {
+    if (auto cl = dynamic_cast<const CrossSuitConditionalInvariant*>(
+            entry.invariant.get())) {
+      return IsSpotConnectedHonor(unknown_cards, cl->condition_card());
+    }
+  }
+  return false;
+}
+
+// Rewrites CrossSuitConditionalInvariant(known_card, ...) when paired with a
+// clause that fixes which hand holds `known_card` (e.g. inside `And(E has X,
+// the hand with X has P)` -> `E has P`, and inside `Or(E has X, the hand with
+// X has P)` -> `W has P` because X is partitioned between E and W).
+std::shared_ptr<UnknownCardsInvariant> RewriteConditionalForKnownHolder(
+    const std::shared_ptr<UnknownCardsInvariant>& inv,
+    CardType known_card,
+    InvariantHandChoice holder_hand,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter) {
+  if (!inv || known_card == 0 || (unknown_cards & known_card) == 0) return inv;
+  if (auto and_inv = dynamic_cast<const AndInvariant*>(inv.get())) {
+    auto nl = RewriteConditionalForKnownHolder(
+        and_inv->left(), known_card, holder_hand, unknown_cards, hand1_size,
+        formatter);
+    auto nr = RewriteConditionalForKnownHolder(
+        and_inv->right(), known_card, holder_hand, unknown_cards, hand1_size,
+        formatter);
+    if (nl == and_inv->left() && nr == and_inv->right()) return inv;
+    if (nl->ToString() == nr->ToString()) return nl;
+    return MakeCanonicalAnd(std::move(nl), std::move(nr));
+  }
+  auto cond_inv = dynamic_cast<const CrossSuitConditionalInvariant*>(inv.get());
+  if (!cond_inv) {
+    return inv;
+  }
+
+  std::string comp_lbl = (holder_hand == InvariantHandChoice::kHand1)
+                             ? formatter.FormatCompositeHand1()
+                             : formatter.FormatCompositeHand2();
+  HonorPossessionTargetHand hp_target =
+      (holder_hand == InvariantHandChoice::kHand1)
+          ? HonorPossessionTargetHand::kHand1
+          : HonorPossessionTargetHand::kHand2;
+
+  if (auto cc = dynamic_cast<const CrossSuitCardConditionalInvariant*>(inv.get())) {
+    if (cc->condition_card() == known_card) {
+      return std::make_shared<HonorPossessionInvariant>(
+          hp_target, cc->target_card(), comp_lbl);
+    }
+    if (cc->target_card() == known_card &&
+        (unknown_cards & cc->condition_card()) != 0) {
+      return std::make_shared<HonorPossessionInvariant>(
+          hp_target, cc->condition_card(), comp_lbl);
+    }
+    return inv;
+  }
+  if (cond_inv->condition_card() != known_card) {
+    return inv;
+  }
+
+  auto suit_bounds_for_holder = [&](Suit suit) -> std::pair<int, int> {
+    int total_unknown = CountCardsInHand(unknown_cards);
+    int h1_sz = (hand1_size > 0) ? hand1_size : (total_unknown / 2);
+    int h2_sz = std::max(0, total_unknown - h1_sz);
+    int total_suit = CardsInSuit(unknown_cards, suit);
+    if (total_unknown <= 0 || h1_sz <= 0 || h1_sz >= total_unknown) {
+      return {0, total_suit};
+    }
+    if (holder_hand == InvariantHandChoice::kHand1) {
+      return {std::max(0, total_suit - h2_sz), std::min(total_suit, h1_sz)};
+    }
+    return {std::max(0, total_suit - h1_sz), std::min(total_suit, h2_sz)};
+  };
+
+  if (auto ex = dynamic_cast<const CrossSuitExactSuitLengthInvariant*>(inv.get())) {
+    return std::make_shared<ExactSuitLengthInvariant>(
+        holder_hand, ex->target_suit(), ex->length(), comp_lbl);
+  }
+  if (auto mn = dynamic_cast<const CrossSuitMinSuitLengthInvariant*>(inv.get())) {
+    auto [min_h, max_h] = suit_bounds_for_holder(mn->target_suit());
+    int lo = std::max(min_h, mn->min_len());
+    int hi = max_h;
+    if (lo > hi) return inv;
+    if (lo == hi) {
+      return std::make_shared<ExactSuitLengthInvariant>(
+          holder_hand, mn->target_suit(), lo, comp_lbl);
+    }
+    return std::make_shared<SuitLengthRangeInvariant>(
+        holder_hand, mn->target_suit(), lo, hi, comp_lbl);
+  }
+  if (auto mx = dynamic_cast<const CrossSuitMaxSuitLengthInvariant*>(inv.get())) {
+    auto [min_h, max_h] = suit_bounds_for_holder(mx->target_suit());
+    int lo = min_h;
+    int hi = std::min(max_h, mx->max_len());
+    if (lo > hi) return inv;
+    if (lo == hi) {
+      return std::make_shared<ExactSuitLengthInvariant>(
+          holder_hand, mx->target_suit(), lo, comp_lbl);
+    }
+    return std::make_shared<SuitLengthRangeInvariant>(
+        holder_hand, mx->target_suit(), lo, hi, comp_lbl);
+  }
+  return inv;
+}
+
+std::shared_ptr<UnknownCardsInvariant> MakeCanonicalAndRewritten(
+    std::shared_ptr<UnknownCardsInvariant> a,
+    std::shared_ptr<UnknownCardsInvariant> b,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter) {
+  if (auto hp_a = dynamic_cast<const HonorPossessionInvariant*>(a.get())) {
+    if (hp_a->target_hand() == HonorPossessionTargetHand::kHand1 ||
+        hp_a->target_hand() == HonorPossessionTargetHand::kHand2) {
+      auto holder = (hp_a->target_hand() == HonorPossessionTargetHand::kHand1)
+                        ? InvariantHandChoice::kHand1
+                        : InvariantHandChoice::kHand2;
+      b = RewriteConditionalForKnownHolder(
+          b, hp_a->card(), holder, unknown_cards, hand1_size, formatter);
+    }
+  }
+  if (auto hp_b = dynamic_cast<const HonorPossessionInvariant*>(b.get())) {
+    if (hp_b->target_hand() == HonorPossessionTargetHand::kHand1 ||
+        hp_b->target_hand() == HonorPossessionTargetHand::kHand2) {
+      auto holder = (hp_b->target_hand() == HonorPossessionTargetHand::kHand1)
+                        ? InvariantHandChoice::kHand1
+                        : InvariantHandChoice::kHand2;
+      a = RewriteConditionalForKnownHolder(
+          a, hp_b->card(), holder, unknown_cards, hand1_size, formatter);
+    }
+  }
+  if (a->ToString() == b->ToString()) return a;
+  return MakeCanonicalAnd(std::move(a), std::move(b));
+}
+
+std::shared_ptr<UnknownCardsInvariant> MakeCanonicalOrRewritten(
+    std::shared_ptr<UnknownCardsInvariant> a,
+    std::shared_ptr<UnknownCardsInvariant> b,
+    uint64_t unknown_cards,
+    int hand1_size,
+    const HandLabelFormatter& formatter) {
+  if (auto hp_a = dynamic_cast<const HonorPossessionInvariant*>(a.get())) {
+    if (hp_a->target_hand() == HonorPossessionTargetHand::kHand1 ||
+        hp_a->target_hand() == HonorPossessionTargetHand::kHand2) {
+      auto other_holder =
+          (hp_a->target_hand() == HonorPossessionTargetHand::kHand1)
+              ? InvariantHandChoice::kHand2
+              : InvariantHandChoice::kHand1;
+      b = RewriteConditionalForKnownHolder(
+          b, hp_a->card(), other_holder, unknown_cards, hand1_size, formatter);
+    }
+  }
+  if (auto hp_b = dynamic_cast<const HonorPossessionInvariant*>(b.get())) {
+    if (hp_b->target_hand() == HonorPossessionTargetHand::kHand1 ||
+        hp_b->target_hand() == HonorPossessionTargetHand::kHand2) {
+      auto other_holder =
+          (hp_b->target_hand() == HonorPossessionTargetHand::kHand1)
+              ? InvariantHandChoice::kHand2
+              : InvariantHandChoice::kHand1;
+      a = RewriteConditionalForKnownHolder(
+          a, hp_b->card(), other_holder, unknown_cards, hand1_size, formatter);
+    }
+  }
+  if (a->ToString() == b->ToString()) return a;
+  return MakeCanonicalOr(std::move(a), std::move(b));
+}
+
 struct BitsetSignature {
   DealBitset target;
   DealBitset opposing;
@@ -569,7 +817,7 @@ AtomicPredicateCatalog::AtomicPredicateCatalog(
                                std::shared_ptr<UnknownCardsInvariant>> {
               auto inv = std::make_shared<ExactSuitLengthInvariant>(
                   InvariantHandChoice::kHand1, suit, len, l1);
-              return {inv, inv};
+              return {inv, nullptr};
             });
       }
       for (int lo = min1; lo <= max1; ++lo) {
@@ -585,7 +833,7 @@ AtomicPredicateCatalog::AtomicPredicateCatalog(
                                  std::shared_ptr<UnknownCardsInvariant>> {
                 auto inv = std::make_shared<SuitLengthRangeInvariant>(
                     InvariantHandChoice::kHand1, suit, lo, hi, l1);
-                return {inv, inv};
+                return {inv, nullptr};
               });
         }
       }
@@ -602,7 +850,7 @@ AtomicPredicateCatalog::AtomicPredicateCatalog(
                                std::shared_ptr<UnknownCardsInvariant>> {
               auto inv = std::make_shared<ExactSuitLengthInvariant>(
                   InvariantHandChoice::kHand2, suit, len, l2);
-              return {inv, inv};
+              return {inv, nullptr};
             });
       }
       for (int lo = min2; lo <= max2; ++lo) {
@@ -618,7 +866,7 @@ AtomicPredicateCatalog::AtomicPredicateCatalog(
                                  std::shared_ptr<UnknownCardsInvariant>> {
                 auto inv = std::make_shared<SuitLengthRangeInvariant>(
                     InvariantHandChoice::kHand2, suit, lo, hi, l2);
-                return {inv, inv};
+                return {inv, nullptr};
               });
         }
       }
@@ -699,52 +947,99 @@ AtomicPredicateCatalog::AtomicPredicateCatalog(
 
       if (min_p >= max_p) continue;
 
+      const int n_t_cat = static_cast<int>(target_feats.size());
+      const int n_o_cat = static_cast<int>(opposing_feats.size());
+      auto passes_two_sided_cond = [&](auto&& h1_pred, auto&& h2_pred) -> bool {
+        if (n_o_cat == 0) return true;
+        int tc1 = 0, oc1 = 0, tc2 = 0, oc2 = 0;
+        for (const auto& f : target_feats) {
+          if (h1_pred(f)) ++tc1;
+          else if (h2_pred(f)) ++tc2;
+        }
+        if (tc1 + tc2 == 0) return false;
+        for (const auto& f : opposing_feats) {
+          if (h1_pred(f)) ++oc1;
+          else if (h2_pred(f)) ++oc2;
+        }
+        if (tc1 + oc1 >= 3 &&
+            static_cast<int64_t>(tc1) * n_o_cat <=
+                static_cast<int64_t>(oc1) * n_t_cat) {
+          return false;
+        }
+        if (tc2 + oc2 >= 3 &&
+            static_cast<int64_t>(tc2) * n_o_cat <=
+                static_cast<int64_t>(oc2) * n_t_cat) {
+          return false;
+        }
+        return true;
+      };
+
       for (int n = min_p; n <= max_p; ++n) {
-        add_lazy_entry(
-            AtomicPredicateFamily::kCrossSuitLength,
-            [cond_card, s, n](const PrecomputedDealFeatures& f) {
-              if ((f.h1 & cond_card) != 0) return f.len1[s] == n;
-              if ((f.h2 & cond_card) != 0) return f.len2[s] == n;
-              return false;
-            },
-            [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
-                               std::shared_ptr<UnknownCardsInvariant>> {
-              auto inv = std::make_shared<CrossSuitExactSuitLengthInvariant>(
-                  cond_card, suit, n);
-              return {inv, inv};
-            });
+        auto h1_p = [cond_card, s, n](const PrecomputedDealFeatures& f) {
+          return (f.h1 & cond_card) != 0 && f.len1[s] == n;
+        };
+        auto h2_p = [cond_card, s, n](const PrecomputedDealFeatures& f) {
+          return (f.h2 & cond_card) != 0 && f.len2[s] == n;
+        };
+        if (passes_two_sided_cond(h1_p, h2_p)) {
+          add_lazy_entry(
+              AtomicPredicateFamily::kCrossSuitLength,
+              [h1_p, h2_p](const PrecomputedDealFeatures& f) {
+                return h1_p(f) || h2_p(f);
+              },
+              [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
+                                 std::shared_ptr<UnknownCardsInvariant>> {
+                auto inv = std::make_shared<CrossSuitExactSuitLengthInvariant>(
+                    cond_card, suit, n);
+                return {inv, inv};
+              });
+        }
       }
       for (int n = min_p + 1; n < max_p; ++n) {
-        add_lazy_entry(
-            AtomicPredicateFamily::kCrossSuitLength,
-            [cond_card, s, n](const PrecomputedDealFeatures& f) {
-              if ((f.h1 & cond_card) != 0) return f.len1[s] >= n;
-              if ((f.h2 & cond_card) != 0) return f.len2[s] >= n;
-              return false;
-            },
-            [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
-                               std::shared_ptr<UnknownCardsInvariant>> {
-              auto inv = std::make_shared<CrossSuitMinSuitLengthInvariant>(
-                  cond_card, suit, n);
-              return {inv, inv};
-            });
+        auto h1_ge = [cond_card, s, n](const PrecomputedDealFeatures& f) {
+          return (f.h1 & cond_card) != 0 && f.len1[s] >= n;
+        };
+        auto h2_ge = [cond_card, s, n](const PrecomputedDealFeatures& f) {
+          return (f.h2 & cond_card) != 0 && f.len2[s] >= n;
+        };
+        if (passes_two_sided_cond(h1_ge, h2_ge)) {
+          add_lazy_entry(
+              AtomicPredicateFamily::kCrossSuitLength,
+              [h1_ge, h2_ge](const PrecomputedDealFeatures& f) {
+                return h1_ge(f) || h2_ge(f);
+              },
+              [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
+                                 std::shared_ptr<UnknownCardsInvariant>> {
+                auto inv = std::make_shared<CrossSuitMinSuitLengthInvariant>(
+                    cond_card, suit, n);
+                return {inv, inv};
+              });
+        }
 
-        add_lazy_entry(
-            AtomicPredicateFamily::kCrossSuitLength,
-            [cond_card, s, n](const PrecomputedDealFeatures& f) {
-              if ((f.h1 & cond_card) != 0) return f.len1[s] <= n;
-              if ((f.h2 & cond_card) != 0) return f.len2[s] <= n;
-              return false;
-            },
-            [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
-                               std::shared_ptr<UnknownCardsInvariant>> {
-              auto inv = std::make_shared<CrossSuitMaxSuitLengthInvariant>(
-                  cond_card, suit, n);
-              return {inv, inv};
-            });
+        auto h1_le = [cond_card, s, n](const PrecomputedDealFeatures& f) {
+          return (f.h1 & cond_card) != 0 && f.len1[s] <= n;
+        };
+        auto h2_le = [cond_card, s, n](const PrecomputedDealFeatures& f) {
+          return (f.h2 & cond_card) != 0 && f.len2[s] <= n;
+        };
+        if (passes_two_sided_cond(h1_le, h2_le)) {
+          add_lazy_entry(
+              AtomicPredicateFamily::kCrossSuitLength,
+              [h1_le, h2_le](const PrecomputedDealFeatures& f) {
+                return h1_le(f) || h2_le(f);
+              },
+              [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
+                                 std::shared_ptr<UnknownCardsInvariant>> {
+                auto inv = std::make_shared<CrossSuitMaxSuitLengthInvariant>(
+                    cond_card, suit, n);
+                return {inv, inv};
+              });
+        }
       }
     }
 
+    const int n_t_cat = static_cast<int>(target_feats.size());
+    const int n_o_cat = static_cast<int>(opposing_feats.size());
     for (int s2 = 0; s2 < 4; ++s2) {
       Suit suit2 = static_cast<Suit>(s2);
       for (int r2 = 8; r2 <= 12; ++r2) {
@@ -752,16 +1047,38 @@ AtomicPredicateCatalog::AtomicPredicateCatalog(
         if (target_card == cond_card || (unknown_cards_ & target_card) == 0) {
           continue;
         }
+        auto h1_cc = [cond_card, target_card](const PrecomputedDealFeatures& f) {
+          return (f.h1 & cond_card) != 0 && (f.h1 & target_card) != 0;
+        };
+        auto h2_cc = [cond_card, target_card](const PrecomputedDealFeatures& f) {
+          return (f.h2 & cond_card) != 0 && (f.h2 & target_card) != 0;
+        };
+        if (n_o_cat > 0) {
+          int tc1 = 0, oc1 = 0, tc2 = 0, oc2 = 0;
+          for (const auto& f : target_feats) {
+            if (h1_cc(f)) ++tc1;
+            else if (h2_cc(f)) ++tc2;
+          }
+          if (tc1 + tc2 == 0) continue;
+          for (const auto& f : opposing_feats) {
+            if (h1_cc(f)) ++oc1;
+            else if (h2_cc(f)) ++oc2;
+          }
+          if (tc1 + oc1 >= 3 &&
+              static_cast<int64_t>(tc1) * n_o_cat <=
+                  static_cast<int64_t>(oc1) * n_t_cat) {
+            continue;
+          }
+          if (tc2 + oc2 >= 3 &&
+              static_cast<int64_t>(tc2) * n_o_cat <=
+                  static_cast<int64_t>(oc2) * n_t_cat) {
+            continue;
+          }
+        }
         add_lazy_entry(
             AtomicPredicateFamily::kCrossSuitCard,
-            [cond_card, target_card](const PrecomputedDealFeatures& f) {
-              if ((f.h1 & cond_card) != 0) {
-                return (f.h1 & target_card) != 0;
-              }
-              if ((f.h2 & cond_card) != 0) {
-                return (f.h2 & target_card) != 0;
-              }
-              return false;
+            [h1_cc, h2_cc](const PrecomputedDealFeatures& f) {
+              return h1_cc(f) || h2_cc(f);
             },
             [&]() -> std::pair<std::shared_ptr<UnknownCardsInvariant>,
                                std::shared_ptr<UnknownCardsInvariant>> {
@@ -857,7 +1174,9 @@ bool SetCoverSynthesizer::PassesUniformRecallOrContrastGate(
       static_cast<int64_t>(opposing_count) * target_total) {
     return false;
   }
-  bool high_recall = MeetsCeilingQuantile(target_count, target_total, 9, 10);
+  bool high_recall =
+      MeetsCeilingQuantile(target_count, target_total, 9, 10) &&
+      static_cast<int64_t>(opposing_count) * 2 <= opposing_total;
   bool high_contrast =
       MeetsCeilingQuantile(target_count, target_total, 3, 4) &&
       static_cast<int64_t>(opposing_count) * 10 <= opposing_total;
@@ -869,6 +1188,9 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
   std::vector<SynthesizedCandidate> results;
   const int n_t = catalog.target_size();
   const int n_o = catalog.opposing_size();
+  const uint64_t unk = catalog.unknown_cards();
+  const int h1_sz = catalog.cards_per_hand();
+  const auto& fmt = catalog.formatter();
   if (n_t <= 0) return results;
 
   std::vector<AtomicPredicateEntry> raw_atoms = catalog.DeduplicatedEntries();
@@ -884,6 +1206,9 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
   std::set<std::pair<Suit, HonorPossessionTargetHand>> shv_covered;
 
   for (auto& a : raw_atoms) {
+    if (n_o > 0 && EntryUsesSpotConnectedHonor(a, unk)) {
+      continue;
+    }
     if (a.family == AtomicPredicateFamily::kSuitHonorVariable &&
         PassesUniformRecallOrContrastGate(a.target_count, n_t, a.opposing_count,
                                           n_o)) {
@@ -903,9 +1228,34 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
       results.push_back(std::move(sc));
     }
 
-    std::string comp_rule = (a.composite_invariant == a.invariant)
-                                ? a.rule
-                                : a.composite_invariant->ToString();
+    std::string comp_rule = a.rule;
+    if (a.composite_invariant != a.invariant) {
+      comp_rule = a.composite_invariant->ToString();
+    } else if (a.family == AtomicPredicateFamily::kExactSuitLength) {
+      if (auto ex = dynamic_cast<const ExactSuitLengthInvariant*>(
+              a.invariant.get())) {
+        std::string clbl = (ex->hand_choice() == InvariantHandChoice::kHand1)
+                               ? fmt.FormatCompositeHand1()
+                               : fmt.FormatCompositeHand2();
+        if (clbl != ex->label()) {
+          a.composite_invariant = std::make_shared<ExactSuitLengthInvariant>(
+              ex->hand_choice(), ex->suit(), ex->exact_len(), clbl);
+          comp_rule = a.composite_invariant->ToString();
+        }
+      }
+    } else if (a.family == AtomicPredicateFamily::kSuitLengthRange) {
+      if (auto sr = dynamic_cast<const SuitLengthRangeInvariant*>(
+              a.invariant.get())) {
+        std::string clbl = (sr->hand_choice() == InvariantHandChoice::kHand1)
+                               ? fmt.FormatCompositeHand1()
+                               : fmt.FormatCompositeHand2();
+        if (clbl != sr->label()) {
+          a.composite_invariant = std::make_shared<SuitLengthRangeInvariant>(
+              sr->hand_choice(), sr->suit(), sr->min_len(), sr->max_len(), clbl);
+          comp_rule = a.composite_invariant->ToString();
+        }
+      }
+    }
     PairBitsetSignature psig{a.target_bits, a.opposing_bits};
     auto it = atom_pair_map.find(psig);
     if (it == atom_pair_map.end()) {
@@ -1020,12 +1370,29 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
           if (tc == 0 || (n_t >= 10 && tc < 2)) continue;
           int oc = b.opposing_bits.AndPopCount(c.opposing_bits);
 
-          // Requirement 6: Conjunction must strictly beat all sub-clauses in precision
+          // Requirement 6: Conjunction must strictly beat all sub-clauses in precision,
+          // and on simulated partitions when a sub-clause holds on >= 15 deals,
+          // the precision gain within that sub-clause must be statistically
+          // significant (preventing e.g. shaving 1 outlier off a 50/51 clause).
           if (!StrictlyBeatsPrecision(tc, oc, b.target_count,
                                       b.opposing_count) ||
               !StrictlyBeatsPrecision(tc, oc, c.target_count,
                                       c.opposing_count)) {
             continue;
+          }
+          if (total_sim >= 20) {
+            int nb = b.target_count + b.opposing_count;
+            if (nb >= 15 &&
+                HypergeomUpperTailPValue(tc, tc + oc, b.target_count, nb) >
+                    0.02) {
+              continue;
+            }
+            int nc = c.target_count + c.opposing_count;
+            if (nc >= 15 &&
+                HypergeomUpperTailPValue(tc, tc + oc, c.target_count, nc) >
+                    0.02) {
+              continue;
+            }
           }
           if (depth == 3) {
             const auto& p0 = atoms[b.p0];
@@ -1095,13 +1462,18 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
 
       auto materialize_and = [&](BeamNode& node) {
         if (!node.invariant) {
-          node.invariant =
-              (node.arity == 2)
-                  ? MakeCanonicalAnd(atoms[node.p0].composite_invariant,
-                                     atoms[node.p1].composite_invariant)
-                  : MakeCanonicalAnd3(atoms[node.p0].composite_invariant,
-                                      atoms[node.p1].composite_invariant,
-                                      atoms[node.p2].composite_invariant);
+          if (node.arity == 2) {
+            node.invariant = MakeCanonicalAndRewritten(
+                atoms[node.p0].composite_invariant,
+                atoms[node.p1].composite_invariant, unk, h1_sz, fmt);
+          } else {
+            auto ab = MakeCanonicalAndRewritten(
+                atoms[node.p0].composite_invariant,
+                atoms[node.p1].composite_invariant, unk, h1_sz, fmt);
+            node.invariant = MakeCanonicalAndRewritten(
+                std::move(ab), atoms[node.p2].composite_invariant, unk, h1_sz,
+                fmt);
+          }
           node.rule = node.invariant->ToString();
           node.eval_bits =
               (node.arity == 2)
@@ -1110,6 +1482,22 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
                      atoms[node.p2].eval_bits);
         }
       };
+
+      // Filter out conjunctions that fail statistical significance on simulated
+      // partitions (total_sim >= 20) to prevent multiple-testing overfitting.
+      if (total_sim >= 20 && !cands.empty()) {
+        std::vector<BeamNode> sig_cands;
+        sig_cands.reserve(cands.size());
+        for (auto& cand : cands) {
+          double p_val = HypergeomUpperTailPValue(
+              cand.target_count, cand.target_count + cand.opposing_count, n_t,
+              static_cast<int>(total_sim));
+          if (p_val <= 0.005) {
+            sig_cands.push_back(std::move(cand));
+          }
+        }
+        cands = std::move(sig_cands);
+      }
 
       if (depth == 2 && !cands.empty()) {
         // Select non-dominated positive-lift >50%-precision 2-ANDs for OR set cover
@@ -1429,11 +1817,18 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
         if (b.target_count >= n_t) continue;
 
         size_t start_c = (depth == 2) ? (b.c0 + 1) : 0;
+        int b_atom_clauses =
+            or_clauses[b.c0].atom_clauses +
+            (depth == 3 ? or_clauses[b.c1].atom_clauses : 0);
         for (size_t c_idx = start_c; c_idx < or_clauses.size(); ++c_idx) {
           if (c_idx == b.c0 || (depth == 3 && c_idx == b.c1)) {
             continue;
           }
           const auto& c = or_clauses[c_idx];
+          constexpr int kMaxOrAtomClauses = 4;
+          if (b_atom_clauses + c.atom_clauses > kMaxOrAtomClauses) {
+            continue;
+          }
 
           // Suppress redundant 2-honor same-suit OR when $honor variable holds
           if (depth == 2 && or_clauses[b.c0].is_single_honor &&
@@ -1477,10 +1872,29 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
             continue;
           }
 
-          // Marginal newly-covered deals must beat 50% precision when opposing exists
+          // Marginal newly-covered deals must beat 50% precision and pass
+          // hypergeometric significance on simulated partitions (n_t + n_o >= 20)
+          // so small-sample coin-flip slices cannot be stitched onto a strong
+          // base clause (e.g., Or(E has SA, W_C <= 2) on 30 deals).
           if (n_o > 0) {
-            if (gain_b <= (oc - b.opposing_count)) continue;
-            if (gain_c <= (oc - c.opposing_count)) continue;
+            int add_oc_b = oc - b.opposing_count;
+            int add_oc_c = oc - c.opposing_count;
+            if (gain_b <= add_oc_b) continue;
+            if (gain_c <= add_oc_c) continue;
+            if (n_t + n_o >= 20) {
+              int rem_t_b = n_t - b.target_count;
+              int rem_o_b = n_o - b.opposing_count;
+              if (HypergeomUpperTailPValue(gain_b, gain_b + add_oc_b, rem_t_b,
+                                           rem_t_b + rem_o_b) > 0.005) {
+                continue;
+              }
+              int rem_t_c = n_t - c.target_count;
+              int rem_o_c = n_o - c.opposing_count;
+              if (HypergeomUpperTailPValue(gain_c, gain_c + add_oc_c, rem_t_c,
+                                           rem_t_c + rem_o_c) > 0.005) {
+                continue;
+              }
+            }
           }
 
           if (depth == 3) {
@@ -1498,7 +1912,23 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
             if (n_o > 0) {
               int oc02 = p0.opposing_bits.OrPopCount(c.opposing_bits);
               int oc12 = p1.opposing_bits.OrPopCount(c.opposing_bits);
-              if (gain02 <= (oc - oc02) || gain12 <= (oc - oc12)) continue;
+              int add_oc02 = oc - oc02;
+              int add_oc12 = oc - oc12;
+              if (gain02 <= add_oc02 || gain12 <= add_oc12) continue;
+              if (n_t + n_o >= 20) {
+                int rem_t02 = n_t - tc02;
+                int rem_o02 = n_o - oc02;
+                if (HypergeomUpperTailPValue(gain02, gain02 + add_oc02, rem_t02,
+                                             rem_t02 + rem_o02) > 0.005) {
+                  continue;
+                }
+                int rem_t12 = n_t - tc12;
+                int rem_o12 = n_o - oc12;
+                if (HypergeomUpperTailPValue(gain12, gain12 + add_oc12, rem_t12,
+                                             rem_t12 + rem_o12) > 0.005) {
+                  continue;
+                }
+              }
               if (MeetsCeilingQuantile(tc02, n_t, 9, 10) && tc02 > oc02 &&
                   !StrictlyBeatsPrecision(tc, oc, tc02, oc02)) {
                 continue;
@@ -1591,13 +2021,37 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
       next_or_beam.reserve(keep);
       for (size_t k = 0; k < keep; ++k) {
         auto& item = cands[or_order[k].second];
-        item.invariant =
-            (depth == 2)
-                ? MakeCanonicalOr(or_clauses[item.c0].invariant,
-                                  or_clauses[item.c1].invariant)
-                : MakeCanonicalOr3(or_clauses[item.c0].invariant,
-                                   or_clauses[item.c1].invariant,
-                                   or_clauses[item.c2].invariant);
+        if (depth == 2) {
+          item.invariant = MakeCanonicalOrRewritten(
+              or_clauses[item.c0].invariant, or_clauses[item.c1].invariant, unk,
+              h1_sz, fmt);
+        } else {
+          auto inv0 = or_clauses[item.c0].invariant;
+          auto inv1 = or_clauses[item.c1].invariant;
+          auto inv2 = or_clauses[item.c2].invariant;
+          auto rewrite_against = [&](std::shared_ptr<UnknownCardsInvariant>& tgt,
+                                     const std::shared_ptr<UnknownCardsInvariant>& src) {
+            if (auto hp = dynamic_cast<const HonorPossessionInvariant*>(src.get())) {
+              if (hp->target_hand() == HonorPossessionTargetHand::kHand1 ||
+                  hp->target_hand() == HonorPossessionTargetHand::kHand2) {
+                auto other_holder =
+                    (hp->target_hand() == HonorPossessionTargetHand::kHand1)
+                        ? InvariantHandChoice::kHand2
+                        : InvariantHandChoice::kHand1;
+                tgt = RewriteConditionalForKnownHolder(
+                    tgt, hp->card(), other_holder, unk, h1_sz, fmt);
+              }
+            }
+          };
+          rewrite_against(inv0, inv1);
+          rewrite_against(inv0, inv2);
+          rewrite_against(inv1, inv0);
+          rewrite_against(inv1, inv2);
+          rewrite_against(inv2, inv0);
+          rewrite_against(inv2, inv1);
+          item.invariant = MakeCanonicalOr3(std::move(inv0), std::move(inv1),
+                                            std::move(inv2));
+        }
         item.rule = item.invariant->ToString();
         item.eval_bits =
             (depth == 2)
@@ -1655,16 +2109,28 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
     pruned.reserve(results.size());
     for (size_t i = 0; i < results.size(); ++i) {
       const auto& x = results[i];
-      if (x.clause_count <= 1) {
-        pruned.push_back(x);
-        continue;
-      }
       bool dominated = false;
       for (size_t j = 0; j < results.size(); ++j) {
         if (i == j) continue;
         const auto& y = results[j];
-        if (y.clause_count > x.clause_count) continue;
         if (!survives_post_gates(y)) continue;
+
+        if (x.clause_count <= 1) {
+          // Prune a 1-clause rule when strictly subsumed on target deals by a
+          // 100%-precision (0-opposing) rule of higher recall (e.g. `E has HK`
+          // under `Or(E has HK, E has SK)`, or `exactly 2 H` under `at most 2 H`),
+          // or by another 1-clause rule with strictly higher recall and <= opposing.
+          if (y.target_count > x.target_count &&
+              x.target_bits.IsSubsetOf(y.target_bits) &&
+              (y.opposing_count == 0 ||
+               (y.clause_count <= 1 && y.opposing_count <= x.opposing_count))) {
+            dominated = true;
+            break;
+          }
+          continue;
+        }
+
+        if (y.clause_count > x.clause_count) continue;
 
         if (y.target_count >= x.target_count &&
             y.opposing_count <= x.opposing_count &&
@@ -1676,6 +2142,18 @@ std::vector<SynthesizedCandidate> SetCoverSynthesizer::Synthesize(
         }
         if (n_o > 0 && y.opposing_count == 0 && x.opposing_count > 0 &&
             MeetsCeilingQuantile(y.target_count, n_t, 19, 20)) {
+          dominated = true;
+          break;
+        }
+        // Single-outlier overfitting guard: if a strictly simpler rule Y already
+        // covers >=95% of target deals with <=1 opposing outlier (>=95% precision),
+        // do not emit higher-clause rules that drop >=3 target deals just to
+        // shave that single outlier.
+        if (n_o > 0 && y.opposing_count <= 1 &&
+            MeetsCeilingQuantile(y.target_count, n_t, 19, 20) &&
+            y.target_count >= 19 * y.opposing_count &&
+            x.clause_count > y.clause_count &&
+            x.target_count + 2 < y.target_count) {
           dominated = true;
           break;
         }

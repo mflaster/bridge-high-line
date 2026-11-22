@@ -1577,3 +1577,200 @@ TEST(CrossHandSummarizerTest,
     EXPECT_NE(inv->ToString(), "hand 1 always contains the HK");
   }
 }
+
+namespace {
+
+std::vector<PairedDeal> MakeDeterministicBifurcations(uint64_t unk_mask,
+                                                      int h1_size,
+                                                      int count,
+                                                      uint64_t seed) {
+  std::vector<CardType> cards;
+  for (int s = 0; s < 4; ++s) {
+    for (int r = 0; r <= 12; ++r) {
+      CardType c = Card::GetSuitedCard(static_cast<Suit>(s), r);
+      if ((unk_mask & c) != 0) cards.push_back(c);
+    }
+  }
+  std::vector<PairedDeal> out;
+  out.reserve(count);
+  for (int iter = 0; iter < count; ++iter) {
+    for (size_t i = cards.size() - 1; i > 0; --i) {
+      seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+      size_t j = static_cast<size_t>((seed >> 32) % (i + 1));
+      std::swap(cards[i], cards[j]);
+    }
+    uint64_t h1 = 0;
+    uint64_t h2 = 0;
+    for (size_t i = 0; i < cards.size(); ++i) {
+      if (static_cast<int>(i) < h1_size) {
+        h1 |= cards[i];
+      } else {
+        h2 |= cards[i];
+      }
+    }
+    out.emplace_back(h1, h2);
+  }
+  return out;
+}
+
+}  // namespace
+
+TEST(CrossHandSummarizerTest,
+     SetCoverSynthesizer_NineCardHeartsSmallSampleOverfitAndSpotConnectedSuppression) {
+  // Exact 18-card unknown pool from nine_card_hearts (9 cards each in E and W):
+  // S AQJT64 (6), D KQJ976 (6), C QT9843 (6).
+  // Line 1 (club finesse to CJ, then spade up to SK) succeeds iff
+  // Or(E has CQ, E has SA). Sample 30 deals (23 wins, 7 losses) including the
+  // small-sample trap where all deals with (W has SA, W_C <= 2) happen to place
+  // CQ in East while all 7 losses have W_C >= 3.
+  const uint64_t unk_mask = PairedDeal("S AQJT64 D KQJ976 C QT9843", "").hand1;
+  const CardType cq = Card::GetSuitedCard(Suit::CLUBS, 10);
+  const CardType sa = Card::GetSuitedCard(Suit::SPADES, 12);
+
+  std::vector<PairedDeal> pool =
+      MakeDeterministicBifurcations(unk_mask, 9, 400, 20261122ULL);
+  std::vector<PairedDeal> succ_deals;
+  std::vector<PairedDeal> fail_deals;
+  int trap_wins = 0;
+  for (const auto& d : pool) {
+    if (succ_deals.size() >= 23 && fail_deals.size() >= 7) break;
+    int w_clubs = 0;
+    for (int r = 0; r <= 12; ++r) {
+      if ((d.hand2 & Card::GetSuitedCard(Suit::CLUBS, r)) != 0) ++w_clubs;
+    }
+    bool wins = ((d.hand1 & cq) != 0) || ((d.hand1 & sa) != 0);
+    if (wins) {
+      if ((d.hand2 & sa) != 0 && w_clubs <= 2) {
+        if (succ_deals.size() < 23) {
+          succ_deals.push_back(d);
+          ++trap_wins;
+        }
+      } else if (succ_deals.size() < 19 ||
+                 (trap_wins >= 4 && succ_deals.size() < 23)) {
+        succ_deals.push_back(d);
+      }
+    } else if (w_clubs >= 3 && fail_deals.size() < 7) {
+      fail_deals.push_back(d);
+    }
+  }
+
+  ASSERT_EQ(succ_deals.size(), 23u);
+  ASSERT_EQ(fail_deals.size(), 7u);
+  ASSERT_GE(trap_wins, 4);
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport succ_report =
+      summarizer.Summarize(succ_deals, formatter, nullptr, &fail_deals, false);
+  CrossHandSummaryReport fail_report =
+      summarizer.Summarize(fail_deals, formatter, nullptr, &succ_deals, true);
+
+  ASSERT_EQ(succ_report.invariant_stats.size(), 1u);
+  EXPECT_EQ(succ_report.invariant_stats[0].invariant->ToString(),
+            "OrInvariant(E has the CQ, E has the SA)");
+  EXPECT_EQ(succ_report.invariant_stats[0].holds_count, 23);
+  EXPECT_EQ(succ_report.invariant_stats[0].success_when_holds_count, 23);
+
+  for (const auto& st : succ_report.invariant_stats) {
+    EXPECT_EQ(st.invariant->ToString().find("CT"), std::string::npos);
+    EXPECT_EQ(st.invariant->ToString().find("the hand with the SA"),
+              std::string::npos);
+  }
+
+  ASSERT_FALSE(fail_report.invariant_stats.empty());
+  EXPECT_EQ(fail_report.invariant_stats[0].invariant->ToString(),
+            "AndInvariant(W has the CQ, W has the SA)");
+}
+
+TEST(CrossHandSummarizerTest,
+     SetCoverSynthesizer_RewritesConditionalPairedWithHonorPossession) {
+  // 80 simulated deals over 14 unknown cards (7 per hand):
+  // S A654 D 65432 C 65432.
+  // True winning condition: `E has the SA` OR `W length in C <= 1`
+  // (`OrInvariant(E has the SA, W length in C is between 0 and 1)`).
+  // Any candidate pairing `E has the SA` with `the hand with the SA also has at
+  // most 1 C` must be canonically rewritten to reference W directly.
+  const uint64_t unk_mask = PairedDeal("S A654 D 65432 C 65432", "").hand1;
+  const CardType sa = Card::GetSuitedCard(Suit::SPADES, 12);
+
+  std::vector<PairedDeal> pool =
+      MakeDeterministicBifurcations(unk_mask, 7, 500, 123456ULL);
+  std::vector<PairedDeal> succ_deals;
+  std::vector<PairedDeal> fail_deals;
+  int w_sa_short_c = 0;
+  for (const auto& d : pool) {
+    if (succ_deals.size() >= 60 && fail_deals.size() >= 20) break;
+    int w_clubs = 0;
+    for (int r = 0; r <= 12; ++r) {
+      if ((d.hand2 & Card::GetSuitedCard(Suit::CLUBS, r)) != 0) ++w_clubs;
+    }
+    bool e_sa = (d.hand1 & sa) != 0;
+    if (e_sa || w_clubs <= 1) {
+      if (!e_sa && succ_deals.size() < 60) {
+        succ_deals.push_back(d);
+        ++w_sa_short_c;
+      } else if (e_sa && (succ_deals.size() < 42 ||
+                          (w_sa_short_c >= 18 && succ_deals.size() < 60))) {
+        succ_deals.push_back(d);
+      }
+    } else if (fail_deals.size() < 20) {
+      fail_deals.push_back(d);
+    }
+  }
+
+  ASSERT_EQ(succ_deals.size(), 60u);
+  ASSERT_EQ(fail_deals.size(), 20u);
+
+  HandLabelFormatter formatter("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport succ_report =
+      summarizer.Summarize(succ_deals, formatter, nullptr, &fail_deals, false);
+
+  EXPECT_TRUE(succ_report.HasRule(
+                  "OrInvariant(E has the SA, E length in C is between 4 and 5)") ||
+              succ_report.HasRule(
+                  "OrInvariant(E has the SA, W length in C is between 0 and 1)"))
+      << succ_report.ToString();
+  for (const auto& st : succ_report.invariant_stats) {
+    const std::string s = st.invariant->ToString();
+    if (s.find("OrInvariant(") != std::string::npos &&
+        s.find("E has the SA") != std::string::npos) {
+      EXPECT_EQ(s.find("the hand with the SA"), std::string::npos)
+          << "Unrewritten self-conditional paired with honor possession: " << s;
+    }
+    auto parsed = UnknownCardsInvariant::FromString(s, "hand 1", "hand 3");
+    ASSERT_NE(parsed, nullptr) << "Failed round-trip: " << s;
+  }
+
+  // Also check conjunction with CrossSuitCardConditional: when failures occur
+  // iff W holds both SJ and SQ (`S QJ65 D 5432 C 5432`), `And(W has SJ, the hand
+  // with SQ also has SJ)` rewrites cleanly to `AndInvariant(W has the SJ, W has the SQ)`.
+  const uint64_t unk_qj = PairedDeal("S QJ65 D 5432 C 5432", "").hand1;
+  const CardType sj = Card::GetSuitedCard(Suit::SPADES, 9);
+  const CardType sq = Card::GetSuitedCard(Suit::SPADES, 10);
+  std::vector<PairedDeal> pool_qj =
+      MakeDeterministicBifurcations(unk_qj, 6, 300, 654321ULL);
+  std::vector<PairedDeal> qj_fail;
+  std::vector<PairedDeal> qj_succ;
+  for (const auto& d : pool_qj) {
+    if (qj_fail.size() >= 20 && qj_succ.size() >= 60) break;
+    bool w_both = ((d.hand2 & sj) != 0) && ((d.hand2 & sq) != 0);
+    if (w_both && qj_fail.size() < 20) {
+      qj_fail.push_back(d);
+    } else if (!w_both && qj_succ.size() < 60) {
+      qj_succ.push_back(d);
+    }
+  }
+  ASSERT_EQ(qj_fail.size(), 20u);
+  ASSERT_EQ(qj_succ.size(), 60u);
+
+  CrossHandSummaryReport qj_report =
+      summarizer.Summarize(qj_fail, formatter, nullptr, &qj_succ, true);
+  EXPECT_TRUE(qj_report.HasRule("AndInvariant(W has the SJ, W has the SQ)"))
+      << qj_report.ToString();
+  for (const auto& st : qj_report.invariant_stats) {
+    EXPECT_EQ(st.invariant->ToString().find("the hand with the S"),
+              std::string::npos);
+  }
+}
+

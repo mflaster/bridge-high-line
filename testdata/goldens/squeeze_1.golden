@@ -10,7 +10,6 @@ Cross-Hand Deal Set Summary Report
 Total Deals: 11
 Invariant Rules for 6 card ending:
   - the hand with the HA also has at most 2 H (holds: 18%, success when holds: 100%)
-  - the hand with the HA also has exactly 2 H (holds: 17%, success when holds: 100%)
 Example Play (Board 4):
   #1 (N) DQ* H8 D2 S7
   #2 (N) DK* HJ D3 H9
