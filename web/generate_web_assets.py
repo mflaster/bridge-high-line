@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import os
+import re
+import subprocess
 import sys
 
 
@@ -8,9 +10,26 @@ def read_utf8(path):
     return f.read()
 
 
+def resolve_app_version(repo_dir):
+  try:
+    out = subprocess.check_output(
+        ["git", "rev-parse", "--short=8", "HEAD"],
+        cwd=repo_dir,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip()
+    if re.fullmatch(r"[0-9a-fA-F]{7,40}", out):
+      return out.lower()
+  except (OSError, subprocess.SubprocessError):
+    pass
+  return "dev"
+
+
 def main():
   script_dir = os.path.dirname(os.path.abspath(__file__))
+  repo_dir = os.path.dirname(script_dir)
   static_dir = os.path.join(script_dir, "static")
+  app_version = resolve_app_version(repo_dir)
 
   html_content = read_utf8(os.path.join(static_dir, "index.html"))
   help_html_content = read_utf8(os.path.join(static_dir, "help.html"))
@@ -29,7 +48,7 @@ def main():
   )
   telemetry_and_help_js_content = read_utf8(
       os.path.join(static_dir, "telemetry_and_help.js")
-  )
+  ).replace("__BRIDGE_HIGH_LINE_VERSION__", app_version)
   pdf_export_js_content = read_utf8(
       os.path.join(static_dir, "pdf_export.js")
   )

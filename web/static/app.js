@@ -333,6 +333,11 @@ const gridContainer = document.getElementById('gridContainer') || document.query
 const dealSetupPanel = document.getElementById('dealSetupPanel') || document.querySelector('.deal-setup-panel');
 const panelResizer = document.getElementById('panelResizer');
 
+const DEAL_SETUP_PANEL_WIDTH_STORAGE_KEY =
+  'bridge_high_line_deal_setup_panel_width';
+const LEGACY_DEAL_SETUP_PANEL_WIDTH_STORAGE_KEY =
+  'bridge_deal_setup_panel_width';
+
 if (panelResizer && dealSetupPanel && gridContainer) {
   let isResizing = false;
   let resizeStartX = 0;
@@ -340,7 +345,9 @@ if (panelResizer && dealSetupPanel && gridContainer) {
 
   // Restore saved width from localStorage if available
   try {
-    const savedWidth = localStorage.getItem('bridge_deal_setup_panel_width');
+    const savedWidth =
+      localStorage.getItem(DEAL_SETUP_PANEL_WIDTH_STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_DEAL_SETUP_PANEL_WIDTH_STORAGE_KEY);
     if (savedWidth) {
       gridContainer.style.setProperty('--left-panel-width', savedWidth);
       dealSetupPanel.style.width = savedWidth;
@@ -387,7 +394,10 @@ if (panelResizer && dealSetupPanel && gridContainer) {
     const currentWidthStyle = dealSetupPanel.style.width;
     if (currentWidthStyle) {
       try {
-        localStorage.setItem('bridge_deal_setup_panel_width', currentWidthStyle);
+        localStorage.setItem(
+          DEAL_SETUP_PANEL_WIDTH_STORAGE_KEY,
+          currentWidthStyle
+        );
       } catch (e) {}
     }
   };
@@ -421,7 +431,7 @@ if (panelResizer && dealSetupPanel && gridContainer) {
       gridContainer.style.setProperty('--left-panel-width', pct);
       dealSetupPanel.style.width = pct;
       try {
-        localStorage.setItem('bridge_deal_setup_panel_width', pct);
+        localStorage.setItem(DEAL_SETUP_PANEL_WIDTH_STORAGE_KEY, pct);
       } catch (err) {}
       window.dispatchEvent(new Event('resize'));
       e.preventDefault();

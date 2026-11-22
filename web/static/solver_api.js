@@ -105,10 +105,14 @@ const WASM_NUM_THREADS =
     ? 8
     : 4;
 
+const COI_RELOADED_STORAGE_KEY = 'bridge_high_line_coi_reloaded';
+const LEGACY_COI_RELOADED_STORAGE_KEY = 'bridge_coi_reloaded';
+
 async function ensureCrossOriginIsolation() {
   if (window.crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') {
     try {
-      sessionStorage.removeItem('bridge_coi_reloaded');
+      sessionStorage.removeItem(COI_RELOADED_STORAGE_KEY);
+      sessionStorage.removeItem(LEGACY_COI_RELOADED_STORAGE_KEY);
     } catch (_) {}
     return true;
   }
@@ -118,8 +122,12 @@ async function ensureCrossOriginIsolation() {
   try {
     const reg = await navigator.serviceWorker.register('coi_serviceworker.js');
     if (reg && (reg.installing || reg.waiting || reg.active)) {
-      if (!sessionStorage.getItem('bridge_coi_reloaded')) {
-        sessionStorage.setItem('bridge_coi_reloaded', '1');
+      const alreadyReloaded =
+        sessionStorage.getItem(COI_RELOADED_STORAGE_KEY) ||
+        sessionStorage.getItem(LEGACY_COI_RELOADED_STORAGE_KEY);
+      sessionStorage.setItem(COI_RELOADED_STORAGE_KEY, '1');
+      sessionStorage.removeItem(LEGACY_COI_RELOADED_STORAGE_KEY);
+      if (!alreadyReloaded) {
         if (navigator.serviceWorker.controller) {
           window.location.reload();
         } else {
