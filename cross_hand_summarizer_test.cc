@@ -1215,3 +1215,352 @@ TEST(CrossHandSummarizerTest, HonorPossessionClassifier_CompassDirectionFormatti
   ASSERT_TRUE(report.total_deals == 3);
   ASSERT_TRUE(report.HasRule("E has Heart $honor"));
 }
+
+#include <chrono>
+#include <cmath>
+
+namespace {
+
+std::vector<PairedDeal> MakeDeterministicBifurcations(uint64_t unk_mask,
+                                                      int h1_size, int count,
+                                                      uint64_t seed) {
+  std::vector<CardType> cards;
+  for (int s = 0; s < 4; ++s) {
+    for (int r = 0; r <= 12; ++r) {
+      CardType c = Card::GetSuitedCard(static_cast<Suit>(s), r);
+      if ((unk_mask & c) != 0) cards.push_back(c);
+    }
+  }
+  std::vector<PairedDeal> out;
+  out.reserve(count);
+  for (int iter = 0; iter < count; ++iter) {
+    for (size_t i = cards.size() - 1; i > 0; --i) {
+      seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+      std::swap(cards[i], cards[(seed >> 32) % (i + 1)]);
+    }
+    uint64_t h1 = 0, h2 = 0;
+    for (size_t i = 0; i < cards.size(); ++i) {
+      (static_cast<int>(i) < h1_size ? h1 : h2) |= cards[i];
+    }
+    out.emplace_back(h1, h2);
+  }
+  return out;
+}
+
+void VerifyReportStatsAndRoundTrip(const CrossHandSummaryReport& report,
+                                   const std::string& l1 = "hand 1",
+                                   const std::string& l2 = "hand 3") {
+  for (const auto& st : report.invariant_stats) {
+    EXPECT_LT(st.holds_percent(), 95);
+    int prec = static_cast<int>(
+        std::lround(100.0 * st.success_when_holds_count / st.holds_count));
+    EXPECT_GT(prec, 50);
+    ASSERT_NE(UnknownCardsInvariant::FromString(st.invariant->ToString(), l1, l2),
+              nullptr);
+  }
+}
+
+}  // namespace
+
+TEST(CrossHandSummarizerTest, DealBitset_InlineAndHeapOperations) {
+  for (size_t n : {size_t{65}, size_t{200}, size_t{320}}) {
+    DealBitset a(n), b(n);
+    for (size_t idx : {size_t{0}, size_t{63}, n / 2, n - 1}) a.Set(idx);
+    for (size_t idx : {size_t{63}, n / 2, size_t{17}}) b.Set(idx);
+
+    EXPECT_EQ(a.PopCount(), 4);
+    EXPECT_EQ(b.PopCount(), 3);
+    EXPECT_TRUE(a.Test(0) && a.Test(n - 1) && !a.Test(17));
+
+    DealBitset inter = a & b, uni = a | b;
+    EXPECT_EQ(inter.PopCount(), 2);
+    EXPECT_EQ(a.AndPopCount(b), 2);
+    EXPECT_EQ(uni.PopCount(), 5);
+    EXPECT_EQ(a.OrPopCount(b), 5);
+    EXPECT_EQ(a.AndNotCount(b), 2);
+    EXPECT_TRUE(inter.IsSubsetOf(a) && inter.IsSubsetOf(b));
+    EXPECT_TRUE(!a.IsSubsetOf(b) && a.IsSubsetOf(uni));
+  }
+}
+
+TEST(CrossHandSummarizerTest, AtomicPredicateCatalog_HonorsOnlyAndBitsetEquivalence) {
+  std::vector<PairedDeal> target_deals = {
+      PairedDeal("S K92 H Q8 D 4", "H 3 D JT C A75"),
+      PairedDeal("S K2 H Q83 D J", "S 9 D T4 C A75"),
+      PairedDeal("S 92 H Q3 D JT", "S K H 8 D 4 C A75"),
+      PairedDeal("S K9 H 83 C A7", "S 2 H Q D JT4 C 5")};
+  std::vector<PairedDeal> opposing_deals = {
+      PairedDeal("S 92 H 83 D T4", "S K H Q D J C A75"),
+      PairedDeal("D JT4 C A75", "S K92 H Q83")};
+
+  HandLabelFormatter fmt("hand 1", "hand 3");
+  AtomicPredicateCatalog catalog(target_deals, &opposing_deals, fmt);
+  EXPECT_FALSE(catalog.entries().empty());
+
+  bool saw_honor = false, saw_suit_len = false, saw_shortest = false, saw_cross = false;
+  for (const auto& entry : catalog.entries()) {
+    ASSERT_NE(entry.invariant, nullptr);
+    for (char s : {'S', 'H', 'D', 'C'}) {
+      for (char r = '2'; r <= '9'; ++r) {
+        std::string spot = {s, r};
+        EXPECT_EQ(entry.rule.find(spot), std::string::npos) << entry.rule;
+      }
+    }
+    auto parsed = UnknownCardsInvariant::FromString(
+        entry.rule, fmt.hand1_label(), fmt.hand2_label());
+    ASSERT_NE(parsed, nullptr) << entry.rule;
+
+    for (size_t i = 0; i < target_deals.size(); ++i) {
+      bool exp = entry.invariant->HoldsOnDeal(target_deals[i], fmt.hand1_label(),
+                                              fmt.hand2_label());
+      EXPECT_EQ(entry.target_bits.Test(i), exp) << entry.rule;
+      EXPECT_EQ(parsed->HoldsOnDeal(target_deals[i], fmt.hand1_label(), fmt.hand2_label()), exp);
+    }
+    for (size_t i = 0; i < opposing_deals.size(); ++i) {
+      EXPECT_EQ(entry.opposing_bits.Test(i),
+                entry.invariant->HoldsOnDeal(opposing_deals[i], fmt.hand1_label(),
+                                             fmt.hand2_label()));
+    }
+    saw_honor |= (entry.family == AtomicPredicateFamily::kHonorPossession ||
+                  entry.family == AtomicPredicateFamily::kSuitHonorVariable);
+    saw_suit_len |= (entry.family == AtomicPredicateFamily::kExactSuitLength ||
+                     entry.family == AtomicPredicateFamily::kSuitLengthRange ||
+                     entry.family == AtomicPredicateFamily::kMaxSuitLength);
+    saw_shortest |= (entry.family == AtomicPredicateFamily::kShortestLength);
+    saw_cross |= (entry.family == AtomicPredicateFamily::kCrossSuitCard ||
+                  entry.family == AtomicPredicateFamily::kCrossSuitLength);
+  }
+  EXPECT_TRUE(saw_honor && saw_suit_len && saw_shortest && saw_cross);
+}
+
+TEST(CrossHandSummarizerTest, UniformContrastGate_UnlocksNonShortestFamilies) {
+  // 16/20 (80%) target deals vs 1/20 (5%) opposing deals have HA with singleton H.
+  std::vector<PairedDeal> target_deals, opposing_deals;
+  for (int i = 0; i < 8; ++i) {
+    target_deals.emplace_back("S 876 H A D 54", "S 5 H 432 D 32");
+    target_deals.emplace_back("S 5 H 432 D 32", "S 876 H A D 54");
+  }
+  for (int i = 0; i < 2; ++i) {
+    target_deals.emplace_back("S 87 H A43 D 5", "S 65 H 2 D 432");
+    target_deals.emplace_back("S 65 H 2 D 432", "S 87 H A43 D 5");
+  }
+  opposing_deals.emplace_back("S 876 H A D 54", "S 5 H 432 D 32");
+  for (int i = 0; i < 19; ++i) {
+    opposing_deals.push_back((i % 2 == 0) ? PairedDeal("S 87 H A43 D 5", "S 65 H 2 D 432")
+                                          : PairedDeal("S 65 H 2 D 432", "S 87 H A43 D 5"));
+  }
+
+  CrossHandDealSetSummarizer summarizer;
+  auto report = summarizer.Summarize(target_deals, HandLabelFormatter("hand 1", "hand 3"),
+                                     nullptr, &opposing_deals, false);
+  EXPECT_TRUE(report.HasRule("the hand with the HA also has exactly 1 H"));
+  VerifyReportStatsAndRoundTrip(report);
+}
+
+TEST(CrossHandSummarizerTest, AndBeamPass_SynthesizesDirectConjunctionWithoutInvert) {
+  std::vector<PairedDeal> fail_deals, succ_deals;
+  for (int i = 0; i < 10; ++i) {
+    fail_deals.emplace_back("S 43 H 54 D 54 C 43", "S A2 H 32 D 32 C Q2");
+    succ_deals.emplace_back("S A2 H 54 D 54 C Q2", "S 43 H 32 D 32 C 43");
+    succ_deals.emplace_back("S A2 H 54 D 54 C 43", "S 43 H 32 D 32 C Q2");
+    succ_deals.emplace_back("S 43 H 54 D 54 C Q2", "S A2 H 32 D 32 C 43");
+  }
+
+  HandLabelFormatter fmt("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  auto fail_report = summarizer.Summarize(fail_deals, fmt, nullptr, &succ_deals, true);
+  auto succ_report = summarizer.Summarize(succ_deals, fmt, nullptr, &fail_deals, false);
+
+  EXPECT_TRUE(fail_report.HasRule("AndInvariant(W has the CQ, W has the SA)"));
+  for (const auto& st : fail_report.invariant_stats) {
+    const std::string s = st.invariant->ToString();
+    EXPECT_TRUE(s != "W has the CQ" && s != "hand 3 always contains the CQ" &&
+                s != "W has the SA" && s != "hand 3 always contains the SA");
+  }
+  EXPECT_TRUE(succ_report.HasRule("OrInvariant(E has the CQ, E has the SA)"));
+}
+
+TEST(CrossHandSummarizerTest,
+     SetCoverOrBeamPass_SynthesizesThreeClauseDisjunctionAndPrunesDominated) {
+  std::vector<PairedDeal> fail_deals, succ_deals;
+  for (int i = 0; i < 5; ++i) {
+    fail_deals.emplace_back("S 76543 H 43 D K C 43", "S 2 H 7652 D Q43 C A2");
+    fail_deals.emplace_back("S 2 H 7652 D Q43 C 43", "S 76543 H 43 D K C A2");
+    fail_deals.emplace_back("S 765 H 765 D KQ C 43", "S 432 H 432 D 43 C A2");
+    fail_deals.emplace_back("S 765 H 765 D 43 C 43", "S 432 H 432 D KQ C A2");
+    fail_deals.emplace_back("S 765 H 765 D K4 C A4", "S 432 H 432 D Q3 C 32");
+    fail_deals.emplace_back("S 765 H 765 D Q4 C A4", "S 432 H 432 D K3 C 32");
+  }
+  for (int i = 0; i < 30; ++i) {
+    succ_deals.emplace_back("S 765 H 765 D K4 C 43", "S 432 H 432 D Q3 C A2");
+    succ_deals.emplace_back("S 765 H 7654 D Q C 43", "S 432 H 32 D K43 C A2");
+    succ_deals.emplace_back("S 765 H 43 D K43 C 43", "S 432 H 7652 D Q C A2");
+  }
+
+  HandLabelFormatter fmt("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  CrossHandSummaryReport fail_report;
+  double best_ms = 1e9;
+  for (int trial = 0; trial < 3; ++trial) {
+    auto t0 = std::chrono::steady_clock::now();
+    fail_report = summarizer.Summarize(fail_deals, fmt, nullptr, &succ_deals, true);
+    best_ms = std::min(best_ms, std::chrono::duration<double, std::milli>(
+                                    std::chrono::steady_clock::now() - t0)
+                                    .count());
+  }
+  EXPECT_LT(best_ms, 5.0);
+
+  const std::string expected_3or =
+      "OrInvariant(OrInvariant(E has the CA, ShortestLength(S) <= 1), "
+      "the hand with the DK also has the DQ)";
+  EXPECT_TRUE(fail_report.HasRule(expected_3or));
+  VerifyReportStatsAndRoundTrip(fail_report);
+  for (const auto& st : fail_report.invariant_stats) {
+    if (st.invariant->ToString() != expected_3or) {
+      EXPECT_EQ(st.invariant->ToString().find(expected_3or), std::string::npos);
+    }
+  }
+}
+
+TEST(CrossHandSummarizerTest,
+     QuantileExtractors_CeilingQuantileToleranceAndSmallSampleExactness) {
+  std::vector<PairedDeal> twenty_deals(19, PairedDeal("S 43 H K D 43", "S 2 H 2 D 2 C 43"));
+  twenty_deals.emplace_back("S 4 H 2 D 43 C 4", "S 32 H K D 2 C 3");
+
+  HandLabelFormatter fmt("hand 1", "hand 3");
+  JointSuitRuleExtractor suit_ext(fmt);
+  HonorPossessionClassifier honor_cls(fmt);
+  for (const auto& d : twenty_deals) {
+    suit_ext.ProcessDeal(d);
+    honor_cls.ProcessDeal(d);
+  }
+  EXPECT_EQ(suit_ext.GetSuitBounds().at(Suit::SPADES).min_hand1, 1);
+  EXPECT_EQ(suit_ext.GetSuitBounds().at(Suit::SPADES).max_hand1, 2);
+
+  auto has_rule = [](const auto& invs, const std::string& target) {
+    return std::any_of(invs.begin(), invs.end(),
+                       [&](const auto& inv) { return inv->ToString() == target; });
+  };
+  EXPECT_TRUE(has_rule(suit_ext.ExtractInvariants(), "hand 1 length in S is always 2"));
+  EXPECT_TRUE(has_rule(honor_cls.ExtractInvariants(), "hand 1 always contains the HK"));
+
+  CrossSuitConditionalRuleExtractor movable_cond_ext;
+  for (int i = 0; i < 10; ++i)
+    movable_cond_ext.ProcessDeal(PairedDeal("S 43 H K D 43", "S 2 H 2 D 2 C 43"));
+  for (int i = 0; i < 9; ++i)
+    movable_cond_ext.ProcessDeal(PairedDeal("S 432 H 2 C 4", "H K D 432 C 3"));
+  movable_cond_ext.ProcessDeal(PairedDeal("S 4 H 2 D 43 C 4", "S 32 H K D 2 C 3"));
+  EXPECT_TRUE(has_rule(movable_cond_ext.ExtractInvariants(),
+                       "the hand with the HK also has at least 2 D"));
+
+  // < 10 deals (8/9 = 88.9%): ceiling quantile requires 9/9 = 100% agreement.
+  std::vector<PairedDeal> nine_deals(8, PairedDeal("S 43 H K D 43", "S 2 H 2 D 2 C 43"));
+  nine_deals.emplace_back("S 4 H 2 D 43 C 4", "S 32 H K D 2 C 3");
+  JointSuitRuleExtractor small_suit(fmt);
+  HonorPossessionClassifier small_honor(fmt);
+  for (const auto& d : nine_deals) {
+    small_suit.ProcessDeal(d);
+    small_honor.ProcessDeal(d);
+  }
+  EXPECT_FALSE(has_rule(small_suit.ExtractInvariants(), "hand 1 length in S is always 2"));
+  EXPECT_FALSE(has_rule(small_honor.ExtractInvariants(), "hand 1 always contains the HK"));
+}
+
+TEST(CrossHandSummarizerTest,
+     SetCoverSynthesizer_NineCardHeartsSmallSampleOverfitAndSpotConnectedSuppression) {
+  const uint64_t unk_mask = PairedDeal("S AQJT64 D KQJ976 C QT9843", "").hand1;
+  const CardType cq = Card::GetSuitedCard(Suit::CLUBS, 10);
+  const CardType sa = Card::GetSuitedCard(Suit::SPADES, 12);
+
+  std::vector<PairedDeal> succ_deals, fail_deals;
+  int trap_wins = 0;
+  for (const auto& d : MakeDeterministicBifurcations(unk_mask, 9, 400, 20261122ULL)) {
+    if (succ_deals.size() >= 23 && fail_deals.size() >= 7) break;
+    int w_clubs = CardsInSuit(d.hand2, Suit::CLUBS);
+    if (((d.hand1 & cq) != 0) || ((d.hand1 & sa) != 0)) {
+      if ((d.hand2 & sa) != 0 && w_clubs <= 2 && succ_deals.size() < 23) {
+        succ_deals.push_back(d);
+        ++trap_wins;
+      } else if (succ_deals.size() < 19 || (trap_wins >= 4 && succ_deals.size() < 23)) {
+        succ_deals.push_back(d);
+      }
+    } else if (w_clubs >= 3 && fail_deals.size() < 7) {
+      fail_deals.push_back(d);
+    }
+  }
+  ASSERT_EQ(succ_deals.size(), 23u);
+  ASSERT_EQ(fail_deals.size(), 7u);
+  ASSERT_GE(trap_wins, 4);
+
+  HandLabelFormatter fmt("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  auto succ_report = summarizer.Summarize(succ_deals, fmt, nullptr, &fail_deals, false);
+  auto fail_report = summarizer.Summarize(fail_deals, fmt, nullptr, &succ_deals, true);
+
+  ASSERT_EQ(succ_report.invariant_stats.size(), 1u);
+  EXPECT_EQ(succ_report.invariant_stats[0].invariant->ToString(),
+            "OrInvariant(E has the CQ, E has the SA)");
+  EXPECT_EQ(succ_report.invariant_stats[0].holds_count, 23);
+  EXPECT_EQ(succ_report.invariant_stats[0].success_when_holds_count, 23);
+  ASSERT_FALSE(fail_report.invariant_stats.empty());
+  EXPECT_EQ(fail_report.invariant_stats[0].invariant->ToString(),
+            "AndInvariant(W has the CQ, W has the SA)");
+}
+
+TEST(CrossHandSummarizerTest,
+     SetCoverSynthesizer_RewritesConditionalPairedWithHonorPossession) {
+  const uint64_t unk_mask = PairedDeal("S A654 D 65432 C 65432", "").hand1;
+  const CardType sa = Card::GetSuitedCard(Suit::SPADES, 12);
+
+  std::vector<PairedDeal> succ_deals, fail_deals;
+  int w_sa_short_c = 0;
+  for (const auto& d : MakeDeterministicBifurcations(unk_mask, 7, 500, 123456ULL)) {
+    if (succ_deals.size() >= 60 && fail_deals.size() >= 20) break;
+    int w_clubs = CardsInSuit(d.hand2, Suit::CLUBS);
+    bool e_sa = (d.hand1 & sa) != 0;
+    if (e_sa || w_clubs <= 1) {
+      if (!e_sa && succ_deals.size() < 60) {
+        succ_deals.push_back(d);
+        ++w_sa_short_c;
+      } else if (e_sa && (succ_deals.size() < 42 || (w_sa_short_c >= 18 && succ_deals.size() < 60))) {
+        succ_deals.push_back(d);
+      }
+    } else if (fail_deals.size() < 20) {
+      fail_deals.push_back(d);
+    }
+  }
+  ASSERT_EQ(succ_deals.size(), 60u);
+  ASSERT_EQ(fail_deals.size(), 20u);
+
+  HandLabelFormatter fmt("hand 1", "hand 3");
+  CrossHandDealSetSummarizer summarizer;
+  auto succ_report = summarizer.Summarize(succ_deals, fmt, nullptr, &fail_deals, false);
+  EXPECT_TRUE(succ_report.HasRule("OrInvariant(E has the SA, E length in C is between 4 and 5)") ||
+              succ_report.HasRule("OrInvariant(E has the SA, W length in C is between 0 and 1)"));
+  VerifyReportStatsAndRoundTrip(succ_report);
+  for (const auto& st : succ_report.invariant_stats) {
+    const std::string s = st.invariant->ToString();
+    if (s.find("OrInvariant(") != std::string::npos && s.find("E has the SA") != std::string::npos) {
+      EXPECT_EQ(s.find("the hand with the SA"), std::string::npos) << s;
+    }
+  }
+
+  const uint64_t unk_qj = PairedDeal("S QJ65 D 5432 C 5432", "").hand1;
+  const CardType sj = Card::GetSuitedCard(Suit::SPADES, 9);
+  const CardType sq = Card::GetSuitedCard(Suit::SPADES, 10);
+  std::vector<PairedDeal> qj_fail, qj_succ;
+  for (const auto& d : MakeDeterministicBifurcations(unk_qj, 6, 300, 654321ULL)) {
+    if (qj_fail.size() >= 20 && qj_succ.size() >= 60) break;
+    if ((d.hand2 & sj) != 0 && (d.hand2 & sq) != 0) {
+      if (qj_fail.size() < 20) qj_fail.push_back(d);
+    } else if (qj_succ.size() < 60) {
+      qj_succ.push_back(d);
+    }
+  }
+  auto qj_report = summarizer.Summarize(qj_fail, fmt, nullptr, &qj_succ, true);
+  EXPECT_TRUE(qj_report.HasRule("AndInvariant(W has the SJ, W has the SQ)"));
+  for (const auto& st : qj_report.invariant_stats) {
+    EXPECT_EQ(st.invariant->ToString().find("the hand with the S"), std::string::npos);
+  }
+}
+

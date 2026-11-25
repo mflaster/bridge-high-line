@@ -29,6 +29,125 @@ struct HonorPossessionStats {
   int neither_count = 0;
 };
 
+class DealBitset {
+ public:
+  static constexpr size_t kInlineWords = 4;
+
+  DealBitset() = default;
+  explicit DealBitset(size_t num_bits);
+
+  size_t size() const { return num_bits_; }
+  size_t num_words() const { return num_words_; }
+
+  void Set(size_t bit_idx);
+  bool Test(size_t bit_idx) const;
+  int PopCount() const;
+  bool Empty() const;
+
+  DealBitset operator&(const DealBitset& other) const;
+  DealBitset operator|(const DealBitset& other) const;
+  int AndPopCount(const DealBitset& other) const;
+  int OrPopCount(const DealBitset& other) const;
+  int AndNotCount(const DealBitset& other) const;
+  bool IsSubsetOf(const DealBitset& other) const { return AndNotCount(other) == 0; }
+
+  bool operator==(const DealBitset& other) const;
+  bool operator!=(const DealBitset& other) const { return !(*this == other); }
+  bool operator<(const DealBitset& other) const;
+  uint64_t Hash(uint64_t seed = 0x9e3779b97f4a7c15ULL) const noexcept;
+
+  const uint64_t* words() const {
+    return num_words_ <= kInlineWords ? inline_words_ : heap_words_.data();
+  }
+  uint64_t* mutable_words() {
+    return num_words_ <= kInlineWords ? inline_words_ : heap_words_.data();
+  }
+
+ private:
+  size_t num_bits_ = 0;
+  size_t num_words_ = 0;
+  uint64_t inline_words_[kInlineWords] = {0};
+  std::vector<uint64_t> heap_words_;
+};
+
+enum class AtomicPredicateFamily {
+  kHonorPossession,
+  kSuitHonorVariable,
+  kExactSuitLength,
+  kSuitLengthRange,
+  kMaxSuitLength,
+  kShortestLength,
+  kCrossSuitCard,
+  kCrossSuitLength,
+};
+
+struct AtomicPredicateEntry {
+  std::shared_ptr<UnknownCardsInvariant> invariant;
+  std::shared_ptr<UnknownCardsInvariant> composite_invariant;
+  AtomicPredicateFamily family = AtomicPredicateFamily::kHonorPossession;
+  Suit honor_suit = Suit::SPADES;
+  HonorPossessionTargetHand honor_target = HonorPossessionTargetHand::kHand1;
+  uint8_t pure_suit_mask = 0;
+  uint8_t hand_suit_mask = 0;
+  std::string rule;
+  DealBitset target_bits;
+  DealBitset opposing_bits;
+  DealBitset eval_bits;
+  int target_count = 0;
+  int opposing_count = 0;
+};
+
+class AtomicPredicateCatalog {
+ public:
+  AtomicPredicateCatalog(
+      const std::vector<PairedDeal>& target_deals,
+      const std::vector<PairedDeal>* opposing_deals = nullptr,
+      const HandLabelFormatter& formatter = HandLabelFormatter(),
+      const std::vector<PairedDeal>* eval_bifurcations = nullptr);
+
+  int target_size() const { return target_size_; }
+  int opposing_size() const { return opposing_size_; }
+  uint64_t unknown_cards() const { return unknown_cards_; }
+  int cards_per_hand() const { return cards_per_hand_; }
+  const HandLabelFormatter& formatter() const { return formatter_; }
+
+  const std::vector<AtomicPredicateEntry>& entries() const { return entries_; }
+  std::vector<AtomicPredicateEntry> DeduplicatedEntries() const;
+
+ private:
+  int target_size_ = 0;
+  int opposing_size_ = 0;
+  uint64_t unknown_cards_ = 0;
+  int cards_per_hand_ = 0;
+  HandLabelFormatter formatter_;
+  std::vector<AtomicPredicateEntry> entries_;
+};
+
+struct SynthesizedCandidate {
+  std::shared_ptr<UnknownCardsInvariant> invariant;
+  std::string rule;
+  DealBitset target_bits;
+  DealBitset opposing_bits;
+  DealBitset eval_bits;
+  int target_count = 0;
+  int opposing_count = 0;
+  int clause_count = 1;
+};
+
+class SetCoverSynthesizer {
+ public:
+  static constexpr size_t kBeamWidth = 32;
+  static constexpr int kMaxClauses = 3;
+
+  static bool PassesUniformRecallOrContrastGate(int target_count,
+                                                int target_total,
+                                                int opposing_count,
+                                                int opposing_total);
+
+  static std::vector<SynthesizedCandidate> Synthesize(
+      const AtomicPredicateCatalog& catalog);
+};
+
 class JointSuitRuleExtractor {
  public:
   explicit JointSuitRuleExtractor(HandLabelFormatter formatter)
@@ -51,6 +170,7 @@ class JointSuitRuleExtractor {
   std::map<Suit, JointSuitBounds> suit_bounds_;
   std::map<Suit, std::map<int, int>> shortest_counts_;
   int total_deals_ = 0;
+  std::vector<PairedDeal> deals_;
 };
 
 class HonorPossessionClassifier {
@@ -75,15 +195,6 @@ class HonorPossessionClassifier {
   std::vector<std::string> ExtractRules() const;
 
  private:
-  void AddOrInvariants(
-      const std::vector<std::shared_ptr<HonorPossessionInvariant>>&
-          non_100_candidates,
-      std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const;
-  void AddAndInvariants(
-      const std::vector<std::shared_ptr<HonorPossessionInvariant>>&
-          all_candidates,
-      std::vector<std::shared_ptr<UnknownCardsInvariant>>& invariants) const;
-
   HandLabelFormatter formatter_;
   // Map of Suit -> (honor rank 8..12 -> HonorPossessionStats)
   std::map<Suit, std::map<int, HonorPossessionStats>> honor_stats_;
@@ -244,4 +355,3 @@ class CrossHandDealSetSummarizer {
       const std::vector<PairedDeal>* opposing_deals = nullptr,
       bool is_failure_mode = false) const;
 };
-
