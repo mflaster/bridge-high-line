@@ -2739,6 +2739,394 @@ assert(getEl("equivalentLinesBadge").textContent === "2 Finalist Lines",
   }
 }
 
+TEST(ServerTest, PhotoScannerConsolidatedHelpersInNodeVm) {
+  if (std::system("command -v node >/dev/null 2>&1") != 0) {
+    return;
+  }
+  std::string cmd = R"NODE(node << 'NODE_EOF'
+const assert = require("assert");
+const fs = require("fs");
+const vm = require("vm");
+
+const staticDir = process.cwd().endsWith("/build")
+  ? "../web/static"
+  : "web/static";
+
+function createScannerSandbox(extra = {}) {
+  const elements = {};
+  function makeEl(id = "") {
+    const listeners = {};
+    return {
+      id,
+      value: "",
+      textContent: "",
+      _innerHTML: "",
+      disabled: false,
+      title: "",
+      width: 420,
+      height: 260,
+      get innerHTML() { return this._innerHTML; },
+      set innerHTML(v) {
+        this._innerHTML = String(v);
+        if (v === "") this.children = [];
+      },
+      className: "",
+      style: { setProperty() {} },
+      dataset: {},
+      children: [],
+      classList: {
+        _set: new Set(),
+        add(...c) { c.forEach(x => this._set.add(x)); },
+        remove(...c) { c.forEach(x => this._set.delete(x)); },
+        toggle(c, force) {
+          if (force === undefined) {
+            if (this._set.has(c)) this._set.delete(c); else this._set.add(c);
+          } else if (force) this._set.add(c); else this._set.delete(c);
+        },
+        contains(c) { return this._set.has(c); }
+      },
+      appendChild(ch) { this.children.push(ch); return ch; },
+      addEventListener(ev, fn) {
+        if (!listeners[ev]) listeners[ev] = [];
+        listeners[ev].push(fn);
+      },
+      trigger(ev, payload = {}) {
+        (listeners[ev] || []).forEach(fn => fn(payload));
+      },
+      setAttribute() {},
+      getBoundingClientRect() { return { left: 0, top: 0, width: 500, height: 400 }; },
+      getContext() {
+        return {
+          fillStyle: "",
+          strokeStyle: "",
+          lineWidth: 1,
+          font: "",
+          fillRect() {},
+          strokeRect() {},
+          fillText() {},
+          clearRect() {},
+          save() {},
+          restore() {},
+          translate() {},
+          scale() {},
+          rotate() {},
+          drawImage() {},
+          setLineDash() {},
+          beginPath() {},
+          moveTo() {},
+          lineTo() {},
+          stroke() {},
+          arc() {},
+          fill() {},
+          getImageData: (x, y, w, h) => ({
+            width: w,
+            height: h,
+            data: new Uint8ClampedArray(w * h * 4).fill(255)
+          })
+        };
+      },
+      querySelector(sel) { return makeEl(sel); }
+    };
+  }
+  function getEl(id) {
+    if (!elements[id]) elements[id] = makeEl(id);
+    return elements[id];
+  }
+  const sb = Object.assign({
+    console,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    requestAnimationFrame: (fn) => fn(),
+    performance: { now: () => 0 },
+    URLSearchParams,
+    TextDecoder,
+    TextEncoder,
+    Uint8Array,
+    Uint8ClampedArray,
+    Float32Array,
+    Float64Array,
+    Int32Array,
+    Math,
+    Set,
+    Map,
+    Array,
+    String,
+    Number,
+    Boolean,
+    Object,
+    Promise,
+    window: {
+      location: { search: "", hash: "" },
+      addEventListener() {},
+      dispatchEvent() {}
+    },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    document: {
+      body: makeEl("body"),
+      head: makeEl("head"),
+      getElementById: getEl,
+      querySelector: () => makeEl(),
+      querySelectorAll: () => [],
+      createElement: (tag) => makeEl(tag),
+      createElementNS: (ns, tag) => makeEl(tag),
+      addEventListener() {}
+    },
+    emitSentryMetricDistribution() {},
+    emitSentryMetricCount() {},
+    reportRuntimeErrorToSentry() {},
+    getEl
+  }, extra);
+  vm.createContext(sb);
+  return sb;
+}
+
+function makeSingleBoardImage(w, h, useRedInk) {
+  const data = new Uint8ClampedArray(w * h * 4).fill(255);
+  function paint(x0, y0, rw, rh, r, g, b) {
+    for (let y = y0; y < y0 + rh; y++) {
+      for (let x = x0; x < x0 + rw; x++) {
+        const p = (y * w + x) * 4;
+        data[p] = r; data[p + 1] = g; data[p + 2] = b; data[p + 3] = 255;
+      }
+    }
+  }
+  for (const [hx, hy] of [[160, 20], [24, 96], [290, 96], [160, 172]]) {
+    paint(hx, hy, 8, 8, 20, 20, 20);
+    paint(hx, hy + 16, 8, 8, useRedInk ? 210 : 20, 20, 20);
+    paint(hx, hy + 32, 8, 8, useRedInk ? 210 : 20, 20, 20);
+    paint(hx, hy + 48, 8, 8, 20, 20, 20);
+    paint(hx + 14, hy - 1, 7, 10, 20, 20, 20);
+  }
+  return { width: w, height: h, data };
+}
+
+function makeMultiBoardSheetImage() {
+  const w = 2400, h = 1400; // scale = 2
+  const data = new Uint8ClampedArray(w * h * 4).fill(255);
+  function paintRed(x0, y0, rw, rh) {
+    for (let y = y0; y < y0 + rh; y++) {
+      for (let x = x0; x < x0 + rw; x++) {
+        const p = (y * w + x) * 4;
+        data[p] = 220; data[p + 1] = 25; data[p + 2] = 25; data[p + 3] = 255;
+      }
+    }
+  }
+  for (const [bx, by] of [[80, 80], [750, 80], [80, 620], [750, 620]]) {
+    for (const [ox, oy] of [[200, 40], [50, 160], [350, 160], [200, 280]]) {
+      paintRed(bx + ox, by + oy, 12, 12);
+      paintRed(bx + ox, by + oy + 24, 12, 12);
+    }
+  }
+  return { width: w, height: h, data };
+}
+
+(async () => {
+  const scannerSrc = fs.readFileSync(staticDir + "/photo_scanner.js", "utf8");
+
+  // Check detectAllBoardsInImageData size (< 100 lines)
+  const srcLines = scannerSrc.split("\n");
+  const fnStart = srcLines.findIndex(l => l.startsWith("function detectAllBoardsInImageData("));
+  let fnEnd = fnStart;
+  while (fnEnd < srcLines.length && srcLines[fnEnd] !== "}") fnEnd++;
+  assert(fnStart >= 0 && (fnEnd - fnStart + 1) < 100,
+         "detectAllBoardsInImageData should be under 100 lines");
+
+  // 1. Standalone execution in Node vm (only photo_scanner.js loaded)
+  const standalone = createScannerSandbox();
+  vm.runInContext(scannerSrc, standalone);
+
+  const colorRes = standalone.recognizeBoardFromImageData(makeSingleBoardImage(420, 260, true));
+  assert(colorRes && colorRes.anchors && colorRes.anchors.N && colorRes.anchors.S,
+         "Standalone color single-board recognition");
+  const bwRes = standalone.recognizeBoardFromImageData(makeSingleBoardImage(420, 260, false));
+  assert(bwRes && bwRes.anchors && bwRes.anchors.W && bwRes.anchors.E,
+         "Standalone B&W fallback single-board recognition");
+
+  const detectedQuads = standalone.detectAllBoardsInImageData(makeMultiBoardSheetImage());
+  assert.strictEqual(detectedQuads.length, 4, "Multi-board detector finds 4 boards at scale=2");
+  assert(detectedQuads[0].x < detectedQuads[1].x && detectedQuads[0].y < detectedQuads[2].y,
+         "Multi-board quads sorted in reading order");
+
+  // Suit & strain formatters in standalone mode
+  assert.strictEqual(
+    standalone.formatScannerSuitMap({ S: ["2", "A", "K"], H: [], D: ["T"], C: [] }, false),
+    "S 2AK; H -; D T; C -;"
+  );
+  assert.strictEqual(
+    standalone.formatScannerSuitMap({ S: ["2", "A", "K"], H: [], D: ["T"], C: [] }, true),
+    "S AK2; H -; D T; C -;"
+  );
+  const pbnBoards = standalone.parsePbnBoardsFromText([
+    '[Board "5"]',
+    '[Dealer "N"]',
+    '[Deal "N:2QKA.-.1098.765432 T98.AKQJT.7654.A J765.987654.AK.K 43.32.QJ32.QJT98"]'
+  ].join("\n"));
+  assert.strictEqual(pbnBoards.length, 1);
+  assert(pbnBoards[0].hands.N.startsWith("S 2QKA; H -; D T98;"),
+         "PBN parser preserves unsorted rank order and empty '-' suits");
+
+  const linBoards = standalone.parseLinBoardsFromText(
+    "qx|o5|md|3S2QKAHDT98C765432,ST98HAKQJTD7654CA,SJ765H987654DAKCK,|sv|n|"
+  );
+  assert.strictEqual(linBoards.length, 1);
+  assert.strictEqual(linBoards[0].dealer, "N");
+  assert(linBoards[0].hands.S.startsWith("S AKQ2; H -; D T98;"),
+         "LIN parser sorts suit ranks descending");
+
+  const pdfBytes = new TextEncoder().encode('%PDF-1.4\n[Board "2"]\n[Deal "E:AKQJT98765432... .AKQJT98765432.. ..AKQJT98765432. ...AKQJT98765432"]\n');
+  const pdfExtracted = await standalone.extractPbnBoardsFromPdfBuffer(pdfBytes.buffer);
+  assert.strictEqual(pdfExtracted.length, 1);
+  assert.strictEqual(pdfExtracted[0].board, "2");
+
+  assert.strictEqual(standalone.strainToTrumpCode("SPADES"), "S");
+  assert.strictEqual(standalone.strainToTrumpCode("NOTRUMP"), "NT");
+  assert.strictEqual(standalone.strainToTrumpCode(""), "NT");
+
+  // Zero-arg getTrumpCode sandbox stub must not override strainToTrumpCode
+  const stubSandbox = createScannerSandbox({ getTrumpCode: () => "S" });
+  vm.runInContext(scannerSrc, stubSandbox);
+  assert.strictEqual(stubSandbox.strainToTrumpCode("HEARTS"), "H");
+  assert.strictEqual(stubSandbox.strainToTrumpCode(""), "NT");
+
+  // Modal token & role helpers in standalone mode
+  assert.strictEqual(standalone.normalizeModalSuitToken(" 1♠ "), "1S");
+  assert.strictEqual(standalone.normalizeCallToken("3nt"), "3NT");
+  assert.strictEqual(standalone.normalizeCallToken("dbl"), "X");
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(standalone.parseModalSingleCardToken("10♥"))),
+    { suit: "H", rank: "T", code: "HT" }
+  );
+  standalone.getEl("scanBiddingInput").value = "P 1♠ X XX";
+  const roundCalls = standalone.parseModalFirstRoundCalls();
+  assert.strictEqual(roundCalls.error, null);
+  assert.strictEqual(roundCalls.calls.length, 4);
+  assert.strictEqual(standalone.getModalSeatRoleInfo("E").getRoleLabel(1), "Declarer");
+  assert.strictEqual(standalone.getModalSeatRoleInfo("E").getRoleLabel(2), "LHO");
+
+  // 2. Multi-script execution (app.js + deal_svg.js + analysis_tabs.js + photo_scanner.js + decision_tree.js)
+  const full = createScannerSandbox();
+  for (const script of ["app.js", "deal_svg.js", "analysis_tabs.js", "photo_scanner.js", "decision_tree.js"]) {
+    vm.runInContext(fs.readFileSync(staticDir + "/" + script, "utf8"), full);
+  }
+
+  let suitDelegated = false;
+  const origFormatSuits = full.formatSuitsToHandStr;
+  full.formatSuitsToHandStr = (m, u) => {
+    suitDelegated = true;
+    return origFormatSuits(m, u);
+  };
+  assert.strictEqual(
+    full.formatScannerSuitMap({ S: ["A", "K"], H: [], D: [], C: [] }, false),
+    "S AK; H -; D -; C -;"
+  );
+  assert(suitDelegated, "formatScannerSuitMap delegates to formatSuitsToHandStr when defined");
+
+  assert(full.getTrumpCode.length >= 1, "getTrumpCode exposes strainOverride arity");
+  full.getEl("trumpSelect").value = "CLUBS";
+  assert.strictEqual(full.getTrumpCode(), "C");
+  full.getEl("trumpSelect").value = "";
+  assert.strictEqual(full.getTrumpCode(), "S");
+  assert.strictEqual(full.getTrumpCode("DIAMONDS", "NT"), "D");
+  assert.strictEqual(full.strainToTrumpCode(""), "NT");
+  assert.strictEqual(full.strainToTrumpCode("HEARTS"), "H");
+
+  // Stale currentSolveData.declarer_seat must not override getModalSeatRoleInfo
+  vm.runInContext('currentSolveData = { declarer_seat: "W" }; currentDeclarerSeat = "S";', full);
+  const fullRole = full.getModalSeatRoleInfo();
+  assert.strictEqual(fullRole.declSeat, "S");
+  assert.strictEqual(fullRole.lhoSeat, "W");
+  assert.strictEqual(fullRole.dummySeat, "N");
+  assert.strictEqual(fullRole.rhoSeat, "E");
+  assert.strictEqual(fullRole.getRoleLabel(2), "Declarer");
+  assert.strictEqual(fullRole.getRoleLabel(3), "LHO");
+
+  // bindModalTokenControls undo/clear wiring
+  full.getEl("scanBiddingInput").value = "1C 1H X";
+  full.getEl("scanUndoBidBtn").trigger("click");
+  assert.strictEqual(full.getEl("scanBiddingInput").value, "1C 1H");
+  full.getEl("scanClearBidsBtn").trigger("click");
+  assert.strictEqual(full.getEl("scanBiddingInput").value, "");
+
+  full.getEl("scanInitialCardsInput").value = "SA SK";
+  full.getEl("scanUndoCardBtn").trigger("click");
+  assert.strictEqual(full.getEl("scanInitialCardsInput").value, "SA");
+  full.getEl("scanClearCardsBtn").trigger("click");
+  assert.strictEqual(full.getEl("scanInitialCardsInput").value, "");
+
+  // applyDetectedBoardSelection flag behavior across all 4 modal contexts
+  const pbnHands = pbnBoards[0].hands;
+  vm.runInContext(`
+    scanSourceCanvas = document.createElement("canvas");
+    scanSourceCanvas.width = 1000;
+    scanSourceCanvas.height = 800;
+    detectedBoardBoxes = [
+      { x: 10, y: 20, w: 300, h: 200, boardLabel: "11", pbnHands: ${JSON.stringify(pbnHands)}, pbnDealer: "N" },
+      { x: 340, y: 20, w: 300, h: 200, boardLabel: "12", pbnHands: ${JSON.stringify(pbnHands)}, pbnDealer: "E" }
+    ];
+    lastSelectedBoardLabel = "99";
+    activeDetectedBoardIdx = -1;
+  `, full);
+
+  // (a) renderActivePdfPage mode: updateLabel=false preserves lastSelectedBoardLabel
+  full.applyDetectedBoardSelection(0, {
+    clearInputsOnSwitch: false,
+    updateLabel: false,
+    viewMode: "fit-and-zoom"
+  });
+  assert.strictEqual(vm.runInContext("lastSelectedBoardLabel", full), "99");
+  assert.strictEqual(vm.runInContext("activeDetectedBoardIdx", full), 0);
+
+  // (b) Pill switch mode: clearInputsOnSwitch=true, updateLabel=true, viewMode="zoom"
+  full.getEl("scanBiddingInput").value = "1S";
+  full.getEl("scanInitialCardsInput").value = "HA";
+  full.applyDetectedBoardSelection(1, {
+    clearInputsOnSwitch: true,
+    updateLabel: true,
+    viewMode: "zoom"
+  });
+  assert.strictEqual(full.getEl("scanBiddingInput").value, "");
+  assert.strictEqual(full.getEl("scanInitialCardsInput").value, "");
+  assert.strictEqual(vm.runInContext("lastSelectedBoardLabel", full), "12");
+  const zoomAfterPill = vm.runInContext("cropViewZoom", full);
+
+  // (c) Tap-on-board mode: viewMode="none" preserves custom pan/zoom
+  vm.runInContext("cropViewZoom = 2.75; cropViewOffsetX = -45;", full);
+  full.applyDetectedBoardSelection(0, {
+    clearInputsOnSwitch: true,
+    updateLabel: true,
+    viewMode: "none"
+  });
+  assert.strictEqual(vm.runInContext("cropViewZoom", full), 2.75);
+  assert.strictEqual(vm.runInContext("cropViewOffsetX", full), -45);
+  assert.strictEqual(vm.runInContext("lastSelectedBoardLabel", full), "11");
+  assert.notStrictEqual(zoomAfterPill, 2.75);
+
+  // (d) Empty detection fallback: 6% padded cropBox & label reset to "1"
+  vm.runInContext("detectedBoardBoxes = [];", full);
+  full.applyDetectedBoardSelection(-1, {
+    clearInputsOnSwitch: false,
+    updateLabel: true,
+    fallbackToPaddedCanvas: true,
+    viewMode: "fit-and-zoom"
+  });
+  const emptyFallback = JSON.parse(vm.runInContext(
+    "JSON.stringify({ idx: activeDetectedBoardIdx, label: lastSelectedBoardLabel, box: cropBox })",
+    full
+  ));
+  assert.strictEqual(emptyFallback.idx, -1);
+  assert.strictEqual(emptyFallback.label, "1");
+  assert.deepStrictEqual(emptyFallback.box, { x: 60, y: 48, w: 880, h: 704 });
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+NODE_EOF
+)NODE";
+  EXPECT_EQ(std::system(cmd.c_str()), 0);
+}
+
 TEST(ServerTest, SolveJsonFinalistOutOfSampleEval) {
   nlohmann::json req = {
       {"hands",

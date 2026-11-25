@@ -60,20 +60,33 @@ function computeBinaryMask(img) {
   return { mask, gray, vBorders };
 }
 
-function findHandAnchorsBW(img, mask) {
-  const { width, height } = img;
-  const visited = new Uint8Array(width * height);
+function isRedInkPixel(data, offset) {
+  const r = data[offset], g = data[offset + 1], b = data[offset + 2];
+  return r - Math.max(g, b) > 35 && r > 90;
+}
+
+function findConnectedBlobs(gridW, gridH, isActivePixel, options = {}) {
+  const {
+    scale = 1,
+    minArea = 12,
+    minSize = 6,
+    maxSize = Infinity,
+    minAspect = 0,
+    maxAspect = Infinity,
+    includeCount = false
+  } = options;
+  const visited = new Uint8Array(gridW * gridH);
   const blobs = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const p = y * width + x;
-      if (!mask[p] || visited[p]) continue;
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      const p = y * gridW + x;
+      if (visited[p] || !isActivePixel(x, y, p)) continue;
       let minX = x, maxX = x, minY = y, maxY = y, count = 0;
       const q = [p];
       visited[p] = 1;
       while (q.length) {
         const cur = q.pop();
-        const cy = Math.floor(cur / width), cx = cur % width;
+        const cy = Math.floor(cur / gridW), cx = cur % gridW;
         count++;
         if (cx < minX) minX = cx;
         if (cx > maxX) maxX = cx;
@@ -82,9 +95,9 @@ function findHandAnchorsBW(img, mask) {
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             const nx = cx + dx, ny = cy + dy;
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-              const np = ny * width + nx;
-              if (mask[np] && !visited[np]) {
+            if (nx >= 0 && nx < gridW && ny >= 0 && ny < gridH) {
+              const np = ny * gridW + nx;
+              if (!visited[np] && isActivePixel(nx, ny, np)) {
                 visited[np] = 1;
                 q.push(np);
               }
@@ -92,13 +105,141 @@ function findHandAnchorsBW(img, mask) {
           }
         }
       }
-      const bw = maxX - minX + 1, bh = maxY - minY + 1;
-      if (count >= 12 && bw >= 6 && bh >= 6 && bw <= height * 0.08 && bh <= height * 0.08 &&
-          bw / bh >= 0.55 && bw / bh <= 1.45) {
-        blobs.push({ minX, maxX, minY, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: bw, h: bh });
+      const bw = (maxX - minX + 1) * scale, bh = (maxY - minY + 1) * scale;
+      const aspect = bw / bh;
+      if (count * scale * scale >= minArea &&
+          bw >= minSize && bh >= minSize &&
+          bw <= maxSize && bh <= maxSize &&
+          aspect >= minAspect && aspect <= maxAspect) {
+        const blob = {
+          minX: minX * scale,
+          maxX: maxX * scale,
+          minY: minY * scale,
+          maxY: maxY * scale,
+          cx: ((minX + maxX) / 2) * scale,
+          cy: ((minY + maxY) / 2) * scale,
+          w: bw,
+          h: bh
+        };
+        if (includeCount) blob.count = count;
+        blobs.push(blob);
       }
     }
   }
+  return blobs;
+}
+
+function matchRedSuitPairs(redBlobs, options = {}) {
+  const {
+    maxCx = Infinity,
+    borderHeight = null,
+    includeAnchorFields = false
+  } = options;
+  const pairs = [];
+  for (let i = 0; i < redBlobs.length; i++) {
+    for (let j = 0; j < redBlobs.length; j++) {
+      if (i === j) continue;
+      const a = redBlobs[i], b = redBlobs[j];
+      const dy = b.cy - a.cy;
+      if (Math.abs(a.cx - b.cx) <= Math.max(8, a.w * 0.6) &&
+          dy >= a.h * 1.05 && dy <= a.h * 2.6 &&
+          a.cx < maxCx) {
+        if (borderHeight !== null) {
+          const spadeY = Math.round(a.cy - dy);
+          const clubY = Math.round(b.cy + dy);
+          if (spadeY < 2 || clubY >= borderHeight - 2) continue;
+        }
+        if (includeAnchorFields) {
+          pairs.push({
+            heart: a,
+            diamond: b,
+            cx: (a.cx + b.cx) / 2,
+            cy: (a.cy + b.cy) / 2,
+            dy,
+            xStart: Math.round(Math.max(a.maxX, b.maxX) + Math.max(3, a.w * 0.22)),
+            iconW: (a.w + b.w) / 2,
+            iconH: (a.h + b.h) / 2
+          });
+        } else {
+          pairs.push({
+            cx: (a.cx + b.cx) / 2,
+            cy: (a.cy + b.cy) / 2,
+            dy,
+            w: (a.w + b.w) / 2
+          });
+        }
+      }
+    }
+  }
+  return pairs;
+}
+
+function findBestQuadForNorth(pairs, iN, used, options = {}) {
+  const N = pairs[iN];
+  const isRelative = Boolean(options.relativeToDy);
+  const width = options.width || 0;
+  const height = options.height || 0;
+  const minVDist = isRelative ? N.dy * 4.5 : height * 0.28;
+  const maxVDist = isRelative ? N.dy * 12 : Infinity;
+  const maxNsDx = isRelative ? N.dy * 2.0 : width * 0.18;
+  const maxWeDy = isRelative ? N.dy * 1.2 : height * 0.12;
+  let best = null, bestScore = 1e9;
+
+  for (let iS = 0; iS < pairs.length; iS++) {
+    if (iS === iN || (used && used.has(iS))) continue;
+    const S = pairs[iS];
+    const vDist = S.cy - N.cy;
+    if (vDist < minVDist || vDist > maxVDist) continue;
+    if (Math.abs(N.cx - S.cx) > maxNsDx) continue;
+    const nsMidY = (N.cy + S.cy) / 2;
+    for (let iW = 0; iW < pairs.length; iW++) {
+      if (iW === iN || iW === iS || (used && used.has(iW))) continue;
+      const W = pairs[iW];
+      const dxW = N.cx - W.cx;
+      if (isRelative) {
+        if (Math.abs(W.cy - nsMidY) > N.dy * 1.8) continue;
+        if (dxW < N.dy * 2.5 || dxW > N.dy * 9.0) continue;
+      } else if (W.cx >= N.cx - width * 0.08) {
+        continue;
+      }
+      for (let iE = 0; iE < pairs.length; iE++) {
+        if (iE === iN || iE === iS || iE === iW || (used && used.has(iE))) continue;
+        const E = pairs[iE];
+        if (Math.abs(W.cy - E.cy) > maxWeDy) continue;
+        const dxE = E.cx - N.cx;
+        let score;
+        if (isRelative) {
+          if (dxE < N.dy * 2.5 || dxE > N.dy * 9.0) continue;
+          score = Math.abs(N.cx - S.cx) * 2 + Math.abs(W.cy - E.cy) * 2 + Math.abs(dxW - dxE);
+        } else {
+          if (E.cx - W.cx < width * 0.32 || E.cx <= N.cx + width * 0.08) continue;
+          const midY = (W.cy + E.cy) / 2;
+          const midX = (W.cx + E.cx) / 2;
+          if (midY <= N.cy + N.dy || midY >= S.cy - S.dy) continue;
+          score =
+            Math.abs(N.cx - S.cx) * 2.5 +
+            Math.abs(W.cy - E.cy) * 2.5 +
+            Math.abs((N.cx + S.cx) / 2 - midX) * 1.5 +
+            Math.abs(nsMidY - midY) * 1.5;
+        }
+        if (score < bestScore) {
+          bestScore = score;
+          best = { score, iN, iS, iW, iE, N, W, E, S };
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function findHandAnchorsBW(img, mask) {
+  const { width, height } = img;
+  const blobs = findConnectedBlobs(
+    width,
+    height,
+    (x, y, p) => Boolean(mask[p]),
+    { scale: 1, minArea: 12, minSize: 6, maxSize: height * 0.08, minAspect: 0.55, maxAspect: 1.45 }
+  );
   const stacks = [];
   for (let i = 0; i < blobs.length; i++) {
     const b0 = blobs[i];
@@ -137,33 +278,10 @@ function selectBestCompassQuad(pairs, width, height) {
   if (!pairs || pairs.length < 4) return null;
   let bestQuad = null, bestScore = 1e9;
   for (let iN = 0; iN < pairs.length; iN++) {
-    for (let iS = 0; iS < pairs.length; iS++) {
-      if (iS === iN) continue;
-      const N = pairs[iN], S = pairs[iS];
-      if (S.cy - N.cy < height * 0.28) continue;
-      if (Math.abs(N.cx - S.cx) > width * 0.18) continue;
-      for (let iW = 0; iW < pairs.length; iW++) {
-        if (iW === iN || iW === iS) continue;
-        for (let iE = 0; iE < pairs.length; iE++) {
-          if (iE === iN || iE === iS || iE === iW) continue;
-          const W = pairs[iW], E = pairs[iE];
-          if (E.cx - W.cx < width * 0.32) continue;
-          if (W.cx >= N.cx - width * 0.08 || E.cx <= N.cx + width * 0.08) continue;
-          if (Math.abs(W.cy - E.cy) > height * 0.12) continue;
-          const midY = (W.cy + E.cy) / 2;
-          const midX = (W.cx + E.cx) / 2;
-          if (midY <= N.cy + N.dy || midY >= S.cy - S.dy) continue;
-          const score =
-            Math.abs(N.cx - S.cx) * 2.5 +
-            Math.abs(W.cy - E.cy) * 2.5 +
-            Math.abs((N.cx + S.cx) / 2 - midX) * 1.5 +
-            Math.abs((N.cy + S.cy) / 2 - midY) * 1.5;
-          if (score < bestScore) {
-            bestScore = score;
-            bestQuad = { N, W, E, S };
-          }
-        }
-      }
+    const cand = findBestQuadForNorth(pairs, iN, null, { width, height, relativeToDy: false });
+    if (cand && cand.score < bestScore) {
+      bestScore = cand.score;
+      bestQuad = { N: cand.N, W: cand.W, E: cand.E, S: cand.S };
     }
   }
   return bestQuad;
@@ -172,79 +290,17 @@ function selectBestCompassQuad(pairs, width, height) {
 function findHandAnchors(img, mask) {
   const { width, height, data } = img;
   const stride = data.length === width * height * 4 ? 4 : 3;
-  const visited = new Uint8Array(width * height);
-  const redBlobs = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const p = y * width + x;
-      if (visited[p]) continue;
-      const r = data[p * stride], g = data[p * stride + 1], b = data[p * stride + 2];
-      if (r - Math.max(g, b) > 35 && r > 90) {
-        let minX = x, maxX = x, minY = y, maxY = y, count = 0;
-        const q = [p];
-        visited[p] = 1;
-        while (q.length) {
-          const cur = q.pop();
-          const cy = Math.floor(cur / width), cx = cur % width;
-          count++;
-          if (cx < minX) minX = cx;
-          if (cx > maxX) maxX = cx;
-          if (cy < minY) minY = cy;
-          if (cy > maxY) maxY = cy;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nx = cx + dx, ny = cy + dy;
-              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                const np = ny * width + nx;
-                if (!visited[np]) {
-                  const nr = data[np * stride], ng = data[np * stride + 1], nb = data[np * stride + 2];
-                  if (nr - Math.max(ng, nb) > 35 && nr > 90) {
-                    visited[np] = 1;
-                    q.push(np);
-                  }
-                }
-              }
-            }
-          }
-        }
-        const bw = maxX - minX + 1, bh = maxY - minY + 1;
-        if (count >= 12 && bw >= 6 && bh >= 6 && bw <= height * 0.12 && bh <= height * 0.12) {
-          redBlobs.push({
-            minX, maxX, minY, maxY,
-            cx: (minX + maxX) / 2,
-            cy: (minY + maxY) / 2,
-            w: bw, h: bh, count
-          });
-        }
-      }
-    }
-  }
-
-  const pairs = [];
-  for (let i = 0; i < redBlobs.length; i++) {
-    for (let j = 0; j < redBlobs.length; j++) {
-      if (i === j) continue;
-      const a = redBlobs[i], b = redBlobs[j];
-      const dy = b.cy - a.cy;
-      if (Math.abs(a.cx - b.cx) <= Math.max(8, a.w * 0.6) &&
-          dy >= a.h * 1.05 && dy <= a.h * 2.6 &&
-          a.cx < width * 0.86) {
-        const spadeY = Math.round(a.cy - dy);
-        const clubY = Math.round(b.cy + dy);
-        if (spadeY < 2 || clubY >= height - 2) continue;
-        pairs.push({
-          heart: a,
-          diamond: b,
-          cx: (a.cx + b.cx) / 2,
-          cy: (a.cy + b.cy) / 2,
-          dy,
-          xStart: Math.round(Math.max(a.maxX, b.maxX) + Math.max(3, a.w * 0.22)),
-          iconW: (a.w + b.w) / 2,
-          iconH: (a.h + b.h) / 2
-        });
-      }
-    }
-  }
+  const redBlobs = findConnectedBlobs(
+    width,
+    height,
+    (x, y, p) => isRedInkPixel(data, p * stride),
+    { scale: 1, minArea: 12, minSize: 6, maxSize: height * 0.12, includeCount: true }
+  );
+  const pairs = matchRedSuitPairs(redBlobs, {
+    maxCx: width * 0.86,
+    borderHeight: height,
+    includeAnchorFields: true
+  });
   const quad = selectBestCompassQuad(pairs, width, height);
   if (quad) return quad;
   return mask ? findHandAnchorsBW(img, mask) : null;
@@ -490,12 +546,36 @@ function solveSuitPartitionDP(suitTokensByHand) {
   return res;
 }
 
-function formatSuitRanksArrayToHandString(suitsArr) {
+function formatScannerSuitMap(suitMap, sortRanks = false) {
   const suitKeys = ['S', 'H', 'D', 'C'];
-  return suitKeys.map((sk, idx) => {
-    const cards = (suitsArr[idx] && suitsArr[idx].length > 0) ? suitsArr[idx].join('') : '-';
-    return `${sk} ${cards};`;
+  const rankOrder = 'AKQJT98765432';
+  const normalized = {};
+  suitKeys.forEach(s => {
+    const raw = suitMap && suitMap[s];
+    const arr = Array.isArray(raw)
+      ? raw.slice()
+      : Array.from(String(raw || '').replace(/10/g, 'T').replace(/-/g, ''));
+    if (sortRanks) {
+      arr.sort((a, b) => rankOrder.indexOf(a) - rankOrder.indexOf(b));
+    }
+    normalized[s] = arr;
+  });
+  if (typeof formatSuitsToHandStr === 'function') {
+    return formatSuitsToHandStr(normalized, false);
+  }
+  return suitKeys.map(s => {
+    const tokens = normalized[s];
+    return `${s} ${tokens.length > 0 ? tokens.join('') : '-'};`;
   }).join(' ');
+}
+
+function formatSuitRanksArrayToHandString(suitsArr) {
+  return formatScannerSuitMap({
+    S: suitsArr && suitsArr[0],
+    H: suitsArr && suitsArr[1],
+    D: suitsArr && suitsArr[2],
+    C: suitsArr && suitsArr[3]
+  }, false);
 }
 
 function recognizeBoardFromImageData(img) {
@@ -542,107 +622,19 @@ function detectAllBoardsInImageData(img) {
   const stride = data.length === width * height * 4 ? 4 : 3;
   const scale = Math.max(1, Math.floor(Math.max(width, height) / 1100));
   const sw = Math.floor(width / scale), sh = Math.floor(height / scale);
-  const visited = new Uint8Array(sw * sh);
-  const redBlobs = [];
-  for (let y = 0; y < sh; y++) {
-    for (let x = 0; x < sw; x++) {
-      const p = y * sw + x;
-      if (visited[p]) continue;
-      const origP = (y * scale * width + x * scale) * stride;
-      const r = data[origP], g = data[origP + 1], b = data[origP + 2];
-      if (r - Math.max(g, b) > 35 && r > 90) {
-        let minX = x, maxX = x, minY = y, maxY = y, count = 0;
-        const q = [p];
-        visited[p] = 1;
-        while (q.length) {
-          const cur = q.pop();
-          const cy = Math.floor(cur / sw), cx = cur % sw;
-          count++;
-          if (cx < minX) minX = cx;
-          if (cx > maxX) maxX = cx;
-          if (cy < minY) minY = cy;
-          if (cy > maxY) maxY = cy;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nx = cx + dx, ny = cy + dy;
-              if (nx >= 0 && nx < sw && ny >= 0 && ny < sh) {
-                const np = ny * sw + nx;
-                if (!visited[np]) {
-                  const op = (ny * scale * width + nx * scale) * stride;
-                  const nr = data[op], ng = data[op + 1], nb = data[op + 2];
-                  if (nr - Math.max(ng, nb) > 35 && nr > 90) {
-                    visited[np] = 1;
-                    q.push(np);
-                  }
-                }
-              }
-            }
-          }
-        }
-        const bw = (maxX - minX + 1) * scale, bh = (maxY - minY + 1) * scale;
-        if (count * scale * scale >= 12 && bw >= 5 && bh >= 5 && bw <= 90 && bh <= 90) {
-          redBlobs.push({
-            minX: minX * scale, maxX: maxX * scale,
-            minY: minY * scale, maxY: maxY * scale,
-            cx: ((minX + maxX) / 2) * scale,
-            cy: ((minY + maxY) / 2) * scale,
-            w: bw, h: bh
-          });
-        }
-      }
-    }
-  }
-  const pairs = [];
-  for (let i = 0; i < redBlobs.length; i++) {
-    for (let j = 0; j < redBlobs.length; j++) {
-      if (i === j) continue;
-      const a = redBlobs[i], b = redBlobs[j];
-      const dy = b.cy - a.cy;
-      if (Math.abs(a.cx - b.cx) <= Math.max(8, a.w * 0.6) &&
-          dy >= a.h * 1.05 && dy <= a.h * 2.6) {
-        pairs.push({
-          cx: (a.cx + b.cx) / 2,
-          cy: (a.cy + b.cy) / 2,
-          dy,
-          w: (a.w + b.w) / 2
-        });
-      }
-    }
-  }
+  const redBlobs = findConnectedBlobs(
+    sw,
+    sh,
+    (x, y) => isRedInkPixel(data, (y * scale * width + x * scale) * stride),
+    { scale, minArea: 12, minSize: 5, maxSize: 90 }
+  );
+  const pairs = matchRedSuitPairs(redBlobs);
   const quads = [];
   const used = new Set();
   pairs.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
   for (let iN = 0; iN < pairs.length; iN++) {
     if (used.has(iN)) continue;
-    const N = pairs[iN];
-    let bestQ = null, bestSc = 1e9;
-    for (let iS = 0; iS < pairs.length; iS++) {
-      if (iS === iN || used.has(iS)) continue;
-      const S = pairs[iS];
-      const vDist = S.cy - N.cy;
-      if (vDist < N.dy * 4.5 || vDist > N.dy * 12) continue;
-      if (Math.abs(N.cx - S.cx) > N.dy * 2.0) continue;
-      const midY = (N.cy + S.cy) / 2;
-      for (let iW = 0; iW < pairs.length; iW++) {
-        if (used.has(iW)) continue;
-        const W = pairs[iW];
-        if (Math.abs(W.cy - midY) > N.dy * 1.8) continue;
-        const dxW = N.cx - W.cx;
-        if (dxW < N.dy * 2.5 || dxW > N.dy * 9.0) continue;
-        for (let iE = 0; iE < pairs.length; iE++) {
-          if (used.has(iE)) continue;
-          const E = pairs[iE];
-          if (Math.abs(E.cy - W.cy) > N.dy * 1.2) continue;
-          const dxE = E.cx - N.cx;
-          if (dxE < N.dy * 2.5 || dxE > N.dy * 9.0) continue;
-          const sc = Math.abs(N.cx - S.cx) * 2 + Math.abs(W.cy - E.cy) * 2 + Math.abs(dxW - dxE);
-          if (sc < bestSc) {
-            bestSc = sc;
-            bestQ = { iN, iS, iW, iE, N, S, W, E };
-          }
-        }
-      }
-    }
+    const bestQ = findBestQuadForNorth(pairs, iN, used, { relativeToDy: true });
     if (bestQ) {
       used.add(bestQ.iN); used.add(bestQ.iS); used.add(bestQ.iW); used.add(bestQ.iE);
       const { N, S, W, E } = bestQ;
@@ -797,14 +789,43 @@ let activePdfTotalPages = 1;
 let pdfPageBoardCounts = {};
 let pdfJsLoadPromise = null;
 
-function normalizeCallToken(tok) {
+function normalizeModalSuitToken(tok) {
   if (!tok) return null;
-  const s = tok.trim()
+  const s = String(tok).trim()
     .replace(/♠/g, 'S')
     .replace(/♥/g, 'H')
     .replace(/♦/g, 'D')
     .replace(/♣/g, 'C')
     .toUpperCase();
+  return s || null;
+}
+
+function getModalSeatRoleInfo(declarerSeat) {
+  const order = ['N', 'E', 'S', 'W'];
+  const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
+  const activeDecl = declarerSeat ||
+    (typeof currentDeclarerSeat !== 'undefined' ? currentDeclarerSeat : '') ||
+    'N';
+  const rotMap = typeof getRotationSeatMap === 'function'
+    ? getRotationSeatMap(activeDecl)
+    : null;
+  const declSeat = rotMap ? rotMap.declSeat : order[Math.max(0, order.indexOf(activeDecl))];
+  const declIdx = Math.max(0, order.indexOf(declSeat));
+  const lhoSeat = rotMap ? rotMap.lhoSeat : order[(declIdx + 1) % 4];
+  const dummySeat = rotMap ? rotMap.dummySeat : order[(declIdx + 2) % 4];
+  const rhoSeat = rotMap ? rotMap.rhoSeat : order[(declIdx + 3) % 4];
+  const getRoleLabel = (seatOrIdx) => {
+    const seat = typeof seatOrIdx === 'number' ? order[((seatOrIdx % 4) + 4) % 4] : seatOrIdx;
+    if (seat === declSeat) return 'Declarer';
+    if (seat === lhoSeat) return 'LHO';
+    if (seat === dummySeat) return 'Dummy';
+    return 'RHO';
+  };
+  return { order, seatNames, declSeat, declIdx, lhoSeat, dummySeat, rhoSeat, getRoleLabel };
+}
+
+function normalizeCallToken(tok) {
+  const s = normalizeModalSuitToken(tok);
   if (!s) return null;
   if (s === 'P' || s === 'PASS' || s === '-') return 'P';
   if (s === 'X' || s === 'DBL' || s === 'DOUBLE') return 'X';
@@ -849,7 +870,8 @@ function formatCallDisplayHtml(callCode) {
 
 function parseModalFirstRoundCalls() {
   const order = ['N', 'E', 'S', 'W'];
-  const dealerIdx = Math.max(0, order.indexOf(modalDealerSeat || 'N'));
+  const activeDealer = (typeof modalDealerSeat !== 'undefined' && modalDealerSeat) ? modalDealerSeat : 'N';
+  const dealerIdx = Math.max(0, order.indexOf(activeDealer));
   const rawInput = scanBiddingInput ? scanBiddingInput.value.trim() : '';
   const rawTokens = rawInput ? rawInput.split(/[\s,;/]+/).filter(Boolean) : [];
   const calls = [];
@@ -948,17 +970,7 @@ function updateModalBiddingUI() {
   });
 
   const parsed = parseModalFirstRoundCalls();
-  const order = ['N', 'E', 'S', 'W'];
-  const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
-  const declIdx = Math.max(0, order.indexOf(currentDeclarerSeat || 'N'));
-  const lhoSeat = order[(declIdx + 1) % 4];
-  const rhoSeat = order[(declIdx + 3) % 4];
-  const getRoleLabel = (origIdx) => {
-    if (origIdx === declIdx) return 'Declarer';
-    if (origIdx === (declIdx + 1) % 4) return 'LHO';
-    if (origIdx === (declIdx + 2) % 4) return 'Dummy';
-    return 'RHO';
-  };
+  const { seatNames, lhoSeat, rhoSeat, getRoleLabel } = getModalSeatRoleInfo();
 
   if (modalBiddingHint) {
     if (parsed.calls.length === 0) {
@@ -1052,13 +1064,7 @@ function updateModalBiddingUI() {
 }
 
 function parseModalSingleCardToken(tok) {
-  if (!tok) return null;
-  const s = tok.trim()
-    .replace(/♠/g, 'S')
-    .replace(/♥/g, 'H')
-    .replace(/♦/g, 'D')
-    .replace(/♣/g, 'C')
-    .toUpperCase();
+  const s = normalizeModalSuitToken(tok);
   if (!s) return null;
   let suit = null;
   let rankPart = '';
@@ -1092,6 +1098,9 @@ function cloneModalHandsMap(handsMap) {
 }
 
 function strainToTrumpCode(strain) {
+  if (typeof getTrumpCode === 'function' && getTrumpCode.length >= 1) {
+    return getTrumpCode(String(strain || ''), 'NT');
+  }
   if (strain === 'SPADES') return 'S';
   if (strain === 'HEARTS') return 'H';
   if (strain === 'DIAMONDS') return 'D';
@@ -1264,15 +1273,7 @@ function updateModalContractAndPlayUI() {
     }
   }
 
-  const order = ['N', 'E', 'S', 'W'];
-  const seatNames = { N: 'North', E: 'East', S: 'South', W: 'West' };
-  const declIdx = Math.max(0, order.indexOf(currentDeclarerSeat || 'N'));
-  const getRoleLabel = (origIdx) => {
-    if (origIdx === declIdx) return 'Declarer';
-    if (origIdx === (declIdx + 1) % 4) return 'LHO';
-    if (origIdx === (declIdx + 2) % 4) return 'Dummy';
-    return 'RHO';
-  };
+  const { order, seatNames, getRoleLabel } = getModalSeatRoleInfo();
 
   if (modalNextLeadHint) {
     const nextRole = getRoleLabel(sim.nextSeatOrigIdx);
@@ -1457,10 +1458,11 @@ function parsePbnDealString(dealStr) {
     const seat = order[(startIdx + i) % 4];
     const suits = handTokens[i].split('.');
     if (suits.length !== 4) return null;
-    hands[seat] = suitKeys.map((sk, sIdx) => {
-      const r = (suits[sIdx] || '').replace(/10/g, 'T').replace(/-/g, '').toUpperCase();
-      return `${sk} ${r.length > 0 ? r : '-'};`;
-    }).join(' ');
+    const suitMap = {};
+    suitKeys.forEach((sk, sIdx) => {
+      suitMap[sk] = (suits[sIdx] || '').replace(/10/g, 'T').replace(/-/g, '').toUpperCase();
+    });
+    hands[seat] = formatScannerSuitMap(suitMap, false);
   }
   return hands;
 }
@@ -1543,14 +1545,7 @@ function parseLinHandToken(rawHand) {
 }
 
 function formatLinSuitMapToHandStr(suitMap) {
-  const rankOrder = 'AKQJT98765432';
-  return ['S', 'H', 'D', 'C'].map(s => {
-    const sorted = (suitMap[s] || [])
-      .slice()
-      .sort((a, b) => rankOrder.indexOf(a) - rankOrder.indexOf(b))
-      .join('');
-    return `${s} ${sorted.length > 0 ? sorted : '-'};`;
-  }).join(' ');
+  return formatScannerSuitMap(suitMap, true);
 }
 
 function countSuitMapCards(suitMap) {
@@ -1896,17 +1891,11 @@ async function renderActivePdfPage() {
     scanSourceCanvas = canvas;
     detectedBoardBoxes = boxes;
     pdfPageBoardCounts[activePdfPageNum] = boxes.length;
-    if (detectedBoardBoxes.length > 0) {
-      activeDetectedBoardIdx = 0;
-      cropBox = { ...detectedBoardBoxes[0] };
-      applyBoardMetadataToModal(detectedBoardBoxes[0]);
-    }
-    renderDetectedBoardsPills();
-    fitCropPhotoView();
-    if (detectedBoardBoxes.length > 1) {
-      zoomCropViewToBox();
-    }
-    scanCurrentCropRegion();
+    applyDetectedBoardSelection(detectedBoardBoxes.length > 0 ? 0 : -1, {
+      clearInputsOnSwitch: false,
+      updateLabel: false,
+      viewMode: 'fit-and-zoom'
+    });
   }
 }
 
@@ -2075,6 +2064,53 @@ function closePhotoScanModal() {
   if (photoScanModal) photoScanModal.classList.add('hidden');
 }
 
+function applyDetectedBoardSelection(idx, options = {}) {
+  const {
+    clearInputsOnSwitch = false,
+    updateLabel = true,
+    fallbackToPaddedCanvas = false,
+    viewMode = 'none'
+  } = options;
+  const hasBoard = idx >= 0 && idx < detectedBoardBoxes.length && Boolean(detectedBoardBoxes[idx]);
+  if (hasBoard) {
+    if (clearInputsOnSwitch && activeDetectedBoardIdx !== idx) {
+      if (scanBiddingInput) scanBiddingInput.value = '';
+      if (scanInitialCardsInput) scanInitialCardsInput.value = '';
+    }
+    activeDetectedBoardIdx = idx;
+    const selectedBox = detectedBoardBoxes[idx];
+    if (updateLabel) {
+      lastSelectedBoardLabel = selectedBox.boardLabel ? selectedBox.boardLabel : String(idx + 1);
+    }
+    cropBox = { ...selectedBox };
+    applyBoardMetadataToModal(selectedBox);
+  } else if (fallbackToPaddedCanvas && scanSourceCanvas) {
+    activeDetectedBoardIdx = -1;
+    if (updateLabel) {
+      lastSelectedBoardLabel = '1';
+    }
+    const padX = Math.round(scanSourceCanvas.width * 0.06);
+    const padY = Math.round(scanSourceCanvas.height * 0.06);
+    cropBox = {
+      x: padX,
+      y: padY,
+      w: Math.max(40, scanSourceCanvas.width - 2 * padX),
+      h: Math.max(40, scanSourceCanvas.height - 2 * padY)
+    };
+  }
+
+  renderDetectedBoardsPills();
+  if (viewMode === 'fit-and-zoom') {
+    fitCropPhotoView();
+    if (detectedBoardBoxes.length > 1) {
+      zoomCropViewToBox();
+    }
+  } else if (viewMode === 'zoom') {
+    zoomCropViewToBox();
+  }
+  scanCurrentCropRegion();
+}
+
 function runFullPhotoBoardDetection(boardOffset = 0) {
   if (!scanSourceCanvas) return;
   const ctx = scanSourceCanvas.getContext('2d');
@@ -2092,30 +2128,12 @@ function runFullPhotoBoardDetection(boardOffset = 0) {
     };
   });
 
-  if (detectedBoardBoxes.length > 0) {
-    activeDetectedBoardIdx = 0;
-    lastSelectedBoardLabel = detectedBoardBoxes[0].boardLabel || '1';
-    cropBox = { ...detectedBoardBoxes[0] };
-    applyBoardMetadataToModal(detectedBoardBoxes[0]);
-  } else {
-    activeDetectedBoardIdx = -1;
-    lastSelectedBoardLabel = '1';
-    const padX = Math.round(scanSourceCanvas.width * 0.06);
-    const padY = Math.round(scanSourceCanvas.height * 0.06);
-    cropBox = {
-      x: padX,
-      y: padY,
-      w: Math.max(40, scanSourceCanvas.width - 2 * padX),
-      h: Math.max(40, scanSourceCanvas.height - 2 * padY)
-    };
-  }
-
-  renderDetectedBoardsPills();
-  fitCropPhotoView();
-  if (detectedBoardBoxes.length > 1) {
-    zoomCropViewToBox();
-  }
-  scanCurrentCropRegion();
+  applyDetectedBoardSelection(detectedBoardBoxes.length > 0 ? 0 : -1, {
+    clearInputsOnSwitch: false,
+    updateLabel: true,
+    fallbackToPaddedCanvas: true,
+    viewMode: 'fit-and-zoom'
+  });
 }
 
 function renderDetectedBoardsPills() {
@@ -2133,18 +2151,11 @@ function renderDetectedBoardsPills() {
     const label = box.boardLabel || String(idx + 1);
     btn.textContent = `#${label}`;
     btn.addEventListener('click', () => {
-      if (activeDetectedBoardIdx !== idx) {
-        if (scanBiddingInput) scanBiddingInput.value = '';
-        if (scanInitialCardsInput) scanInitialCardsInput.value = '';
-      }
-      activeDetectedBoardIdx = idx;
-      const selectedBox = detectedBoardBoxes[idx];
-      lastSelectedBoardLabel = (selectedBox && selectedBox.boardLabel) ? selectedBox.boardLabel : String(idx + 1);
-      cropBox = { ...detectedBoardBoxes[idx] };
-      applyBoardMetadataToModal(detectedBoardBoxes[idx]);
-      renderDetectedBoardsPills();
-      zoomCropViewToBox();
-      scanCurrentCropRegion();
+      applyDetectedBoardSelection(idx, {
+        clearInputsOnSwitch: true,
+        updateLabel: true,
+        viewMode: 'zoom'
+      });
     });
     detectedBoardsList.appendChild(btn);
   });
@@ -2470,17 +2481,11 @@ function endCropPointer(clientX, clientY) {
         pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h
       );
       if (hitIdx !== -1) {
-        if (activeDetectedBoardIdx !== hitIdx) {
-          if (scanBiddingInput) scanBiddingInput.value = '';
-          if (scanInitialCardsInput) scanInitialCardsInput.value = '';
-        }
-        activeDetectedBoardIdx = hitIdx;
-        const hitBox = detectedBoardBoxes[hitIdx];
-        lastSelectedBoardLabel = (hitBox && hitBox.boardLabel) ? hitBox.boardLabel : String(hitIdx + 1);
-        cropBox = { ...detectedBoardBoxes[hitIdx] };
-        applyBoardMetadataToModal(detectedBoardBoxes[hitIdx]);
-        renderDetectedBoardsPills();
-        scanCurrentCropRegion();
+        applyDetectedBoardSelection(hitIdx, {
+          clearInputsOnSwitch: true,
+          updateLabel: true,
+          viewMode: 'none'
+        });
         return;
       }
     }
@@ -2637,53 +2642,36 @@ document.querySelectorAll('.modal-dealer-btn').forEach(btn => {
   });
 });
 
-if (scanBiddingInput) {
-  scanBiddingInput.addEventListener('input', () => {
-    updateModalBiddingUI();
+function bindModalTokenControls(inputEl, undoBtn, clearBtn, onUpdate) {
+  if (!inputEl) return;
+  inputEl.addEventListener('input', () => {
+    onUpdate();
   });
+  if (undoBtn) {
+    undoBtn.addEventListener('click', () => {
+      const toks = inputEl.value.trim().split(/[\s,;/]+/).filter(Boolean);
+      if (toks.length > 0) {
+        toks.pop();
+        inputEl.value = toks.join(' ');
+        onUpdate();
+      }
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      inputEl.value = '';
+      onUpdate();
+    });
+  }
 }
 
-if (scanUndoBidBtn && scanBiddingInput) {
-  scanUndoBidBtn.addEventListener('click', () => {
-    const toks = scanBiddingInput.value.trim().split(/[\s,;/]+/).filter(Boolean);
-    if (toks.length > 0) {
-      toks.pop();
-      scanBiddingInput.value = toks.join(' ');
-      updateModalBiddingUI();
-    }
-  });
-}
-
-if (scanClearBidsBtn && scanBiddingInput) {
-  scanClearBidsBtn.addEventListener('click', () => {
-    scanBiddingInput.value = '';
-    updateModalBiddingUI();
-  });
-}
-
-if (scanInitialCardsInput) {
-  scanInitialCardsInput.addEventListener('input', () => {
-    updateModalContractAndPlayUI();
-  });
-}
-
-if (scanUndoCardBtn && scanInitialCardsInput) {
-  scanUndoCardBtn.addEventListener('click', () => {
-    const toks = scanInitialCardsInput.value.trim().split(/[\s,;/]+/).filter(Boolean);
-    if (toks.length > 0) {
-      toks.pop();
-      scanInitialCardsInput.value = toks.join(' ');
-      updateModalContractAndPlayUI();
-    }
-  });
-}
-
-if (scanClearCardsBtn && scanInitialCardsInput) {
-  scanClearCardsBtn.addEventListener('click', () => {
-    scanInitialCardsInput.value = '';
-    updateModalContractAndPlayUI();
-  });
-}
+bindModalTokenControls(scanBiddingInput, scanUndoBidBtn, scanClearBidsBtn, updateModalBiddingUI);
+bindModalTokenControls(
+  scanInitialCardsInput,
+  scanUndoCardBtn,
+  scanClearCardsBtn,
+  updateModalContractAndPlayUI
+);
 
 if (closePhotoModalBtn) closePhotoModalBtn.addEventListener('click', closePhotoScanModal);
 if (cancelPhotoModalBtn) cancelPhotoModalBtn.addEventListener('click', closePhotoScanModal);
