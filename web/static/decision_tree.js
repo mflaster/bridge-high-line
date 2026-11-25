@@ -1799,15 +1799,20 @@ function getSeatName(seatIdx) {
   return seats[((seatIdx % 4) + 4) % 4];
 }
 
-function getTrumpCode() {
-  if (!trumpSelect) return 'S';
-  const val = trumpSelect.value;
+function getTrumpCode(strainOverride, fallback = 'S') {
+  let val;
+  if (strainOverride !== undefined) {
+    val = strainOverride;
+  } else {
+    if (typeof trumpSelect === 'undefined' || !trumpSelect) return fallback;
+    val = trumpSelect.value;
+  }
   if (val === 'SPADES') return 'S';
   if (val === 'HEARTS') return 'H';
   if (val === 'DIAMONDS') return 'D';
   if (val === 'CLUBS') return 'C';
   if (val === 'NOTRUMP') return 'NT';
-  return 'S';
+  return fallback;
 }
 
 function tokenizeTrick(trickStr) {
