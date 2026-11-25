@@ -409,10 +409,6 @@ function getNodeFillProportions(node) {
   return { dealFrac, failFrac };
 }
 
-function getNodeFailFraction(node) {
-  return getNodeFillProportions(node).failFrac;
-}
-
 // Drag threshold tracking to distinguish clicks from pan drags
 let mouseDragStartX = 0;
 let mouseDragStartY = 0;
@@ -1767,17 +1763,6 @@ function showNodeInspector(node, clickedNode = null) {
   }
 
   inspectorContent.appendChild(trickSection);
-}
-
-if (typeof window !== 'undefined') {
-  window._getCurrentTreeData = () => currentTreeData;
-  window._showNodeInspector = showNodeInspector;
-  window._buildInspectorPathModel = buildInspectorPathModel;
-  window._formatInspectorConditionText = formatInspectorConditionText;
-  window._expandAndInspectNode = expandAndInspectNode;
-  window._centerNodeInTree = centerNodeInTree;
-  window._traceHandByNumber = traceHandByNumber;
-  window._clearTracedHand = clearTracedHand;
 }
 
 function getSeatIndex(seatStr) {

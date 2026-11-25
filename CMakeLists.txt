@@ -209,7 +209,7 @@ if(EMSCRIPTEN)
     "-sMAXIMUM_MEMORY=4294967296"
     "-sSTACK_SIZE=8388608"
     "-sENVIRONMENT=worker,web,node"
-    "-sEXPORTED_FUNCTIONS=['_wasm_solve_json','_wasm_get_solve_status','_wasm_stop_solve','_malloc','_free']"
+    "-sEXPORTED_FUNCTIONS=['_wasm_solve_json','_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
   )
 else()

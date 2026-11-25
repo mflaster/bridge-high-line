@@ -65,10 +65,6 @@ function handleWorkerMessage(msg) {
         })
       });
     }
-  } else if (msg.type === 'stop') {
-    try {
-      self.Module.ccall('wasm_stop_solve', 'string', [], []);
-    } catch (_) {}
   }
 }
 
