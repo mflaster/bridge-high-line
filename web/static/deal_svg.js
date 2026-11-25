@@ -676,23 +676,6 @@ function updateDealSvg() {
       uTurn ? { isTurn: true, leadSuit, forceLeadSuit: forceUnknownLeadSuit, targetSeatIdx: nextSeatIdx } : null);
   }
 
-  const svgTrumpText = document.getElementById('svgTrumpText');
-  const svgLeaderText = document.getElementById('svgLeaderText');
-
-  if (svgTrumpText && trumpSelect) {
-    const trumpVal = trumpSelect.value;
-    const suitSym = getSuitSymbol(trumpVal);
-    let trumpClass = '';
-    if (trumpVal === 'SPADES') trumpClass = 'card-suit-s';
-    else if (trumpVal === 'HEARTS') trumpClass = 'card-suit-h';
-    else if (trumpVal === 'DIAMONDS') trumpClass = 'card-suit-d';
-    else if (trumpVal === 'CLUBS') trumpClass = 'card-suit-c';
-    svgTrumpText.innerHTML = 'Trump: <tspan class="' + trumpClass + '">' + suitSym + '</tspan>';
-  }
-  if (svgLeaderText && leaderSelect) {
-    svgLeaderText.textContent = 'Leader: ' + leaderSelect.value.charAt(0);
-  }
-
   renderSvgAuction();
   updateDealBadge();
 }

@@ -150,14 +150,6 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_js = client.Get("/app.js");
   ASSERT_TRUE(res_js);
   ASSERT_TRUE(res_js->status == 200);
-  ASSERT_TRUE(res_js->body.find(
-                  "const nodeDetailBanner = "
-                  "document.getElementById('nodeDetailBanner');") !=
-              std::string::npos);
-  ASSERT_TRUE(res_js->body.find(
-                  "const nodeDetailContent = "
-                  "document.getElementById('nodeDetailContent');") !=
-              std::string::npos);
   ASSERT_TRUE(res_js->body.find("function formatProposedCardsDescriptor") !=
               std::string::npos);
   ASSERT_TRUE(res_js->body.find("function openImportHandModal") !=

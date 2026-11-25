@@ -226,8 +226,6 @@ const summaryModeHeader = document.getElementById('summaryModeHeader');
 const summaryModeBadge = document.getElementById('summaryModeBadge');
 const summaryModeSub = document.getElementById('summaryModeSub');
 
-const svgTrumpText = document.getElementById('svgTrumpText');
-const svgLeaderText = document.getElementById('svgLeaderText');
 const treeSvg = document.getElementById('treeSvg');
 const treeRootGroup = document.getElementById('treeRootGroup');
 const treeViewport = document.getElementById('treeViewport');
@@ -239,8 +237,6 @@ const toggleInspectorBtn = document.getElementById('toggleInspectorBtn');
 const closeInspectorBtn = document.getElementById('closeInspectorBtn');
 const treeInspectorPanel = document.getElementById('treeInspectorPanel');
 const inspectorContent = document.getElementById('inspectorContent');
-const nodeDetailBanner = document.getElementById('nodeDetailBanner');
-const nodeDetailContent = document.getElementById('nodeDetailContent');
 const traceHandInput = document.getElementById('traceHandInput');
 const traceHandBtn = document.getElementById('traceHandBtn');
 const clearTraceHandBtn = document.getElementById('clearTraceHandBtn');
@@ -1074,8 +1070,6 @@ function clearPanels(keepOriginalSnapshot = false) {
     updateSaveAnalysisButtonState();
   }
 
-  if (nodeDetailBanner) nodeDetailBanner.classList.add('hidden');
-  if (nodeDetailContent) nodeDetailContent.textContent = '';
   if (inspectorContent) {
     inspectorContent.innerHTML = `
       <div class="inspector-placeholder">

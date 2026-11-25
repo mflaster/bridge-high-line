@@ -46,18 +46,4 @@ const char *wasm_solve_json(const char *req_json) {
   return last_response.c_str();
 }
 
-EMSCRIPTEN_KEEPALIVE
-const char *wasm_get_solve_status() {
-  static std::string last_status;
-  last_status = GetSolverEngine().GetSolveStatusJson();
-  return last_status.c_str();
-}
-
-EMSCRIPTEN_KEEPALIVE
-const char *wasm_stop_solve() {
-  static std::string last_stop;
-  last_stop = GetSolverEngine().StopSolveJson();
-  return last_stop.c_str();
-}
-
 }  // extern "C"
