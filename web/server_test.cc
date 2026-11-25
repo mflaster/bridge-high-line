@@ -5,12 +5,20 @@
 #include <chrono>
 #include <functional>
 #include <regex>
+#include <string_view>
 #include <thread>
+#include <type_traits>
 
 #include "line_finder.h"
 #include "third_party/httplib.h"
 #include "third_party/nlohmann/json.hpp"
+#include "web_assets.h"
 #include "web_server.h"
+
+static_assert(std::is_convertible_v<decltype(web_assets::INDEX_HTML), const char *>);
+static_assert(sizeof(web_assets::INDEX_HTML) ==
+              web_assets::INDEX_HTML_VIEW.size() + 1);
+static_assert(!web_assets::INDEX_HTML_VIEW.empty());
 
 namespace {
 int PickFreePort() {
@@ -58,6 +66,12 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_index = client.Get("/");
   ASSERT_TRUE(res_index);
   ASSERT_TRUE(res_index->status == 200);
+  ASSERT_EQ(res_index->body.size(), web_assets::INDEX_HTML_VIEW.size());
+  ASSERT_EQ(res_index->body, web_assets::INDEX_HTML_VIEW);
+  ASSERT_NE(res_index->body.find("♠"), std::string::npos);
+  ASSERT_NE(res_index->body.find("📥"), std::string::npos);
+  ASSERT_NE(res_index->body.find("📋 Pick Board"), std::string::npos);
+  ASSERT_NE(res_index->body.find("—"), std::string::npos);
   ASSERT_TRUE(res_index->body.find("Bridge High Line Solver") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("traceHandInput") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("traceHandBtn") != std::string::npos);
@@ -97,10 +111,19 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   ASSERT_TRUE(res_index->body.find("solve-iters-control") != std::string::npos);
   ASSERT_TRUE(res_index->body.find("hand_15_261028") != std::string::npos);
 
+  auto res_index_html = client.Get("/index.html");
+  ASSERT_TRUE(res_index_html);
+  ASSERT_EQ(res_index_html->status, 200);
+  ASSERT_EQ(res_index_html->body.size(), web_assets::INDEX_HTML_VIEW.size());
+  ASSERT_EQ(res_index_html->body, web_assets::INDEX_HTML_VIEW);
+
   auto res_help_html = client.Get("/help.html");
   ASSERT_TRUE(res_help_html);
   ASSERT_TRUE(res_help_html->status == 200);
+  ASSERT_EQ(res_help_html->body.size(), web_assets::HELP_HTML_VIEW.size());
+  ASSERT_EQ(res_help_html->body, web_assets::HELP_HTML_VIEW);
   ASSERT_TRUE(res_help_html->body.find("helpPageTopicsNav") != std::string::npos);
+  ASSERT_NE(res_help_html->body.find("♠"), std::string::npos);
   ASSERT_TRUE(res_help_html->body.find(
               "Bridge Deal Solver — Help &amp; Strategy Guide") !=
           std::string::npos);
@@ -108,14 +131,26 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_strategy = client.Get("/bridge-strategy.md");
   ASSERT_TRUE(res_strategy);
   ASSERT_TRUE(res_strategy->status == 200);
+  ASSERT_EQ(res_strategy->body.size(),
+            web_assets::BRIDGE_STRATEGY_MD_VIEW.size());
+  ASSERT_EQ(res_strategy->body, web_assets::BRIDGE_STRATEGY_MD_VIEW);
   ASSERT_TRUE(res_strategy->body.find("How the Solver Thinks About Bridge") !=
           std::string::npos);
+  ASSERT_NE(res_strategy->body.find("♠K"), std::string::npos);
+  ASSERT_NE(res_strategy->body.find("♥A"), std::string::npos);
+  ASSERT_NE(res_strategy->body.find("12–14 HCP"), std::string::npos);
+  ASSERT_NE(res_strategy->body.find("—"), std::string::npos);
 
   auto res_guide = client.Get("/user-guide.md");
   ASSERT_TRUE(res_guide);
   ASSERT_TRUE(res_guide->status == 200);
+  ASSERT_EQ(res_guide->body.size(), web_assets::USER_GUIDE_MD_VIEW.size());
+  ASSERT_EQ(res_guide->body, web_assets::USER_GUIDE_MD_VIEW);
   ASSERT_TRUE(res_guide->body.find("Loading Hands & Setting Up a Deal") !=
           std::string::npos);
+  ASSERT_NE(res_guide->body.find("📥 Import Hand"), std::string::npos);
+  ASSERT_NE(res_guide->body.find("⌘V"), std::string::npos);
+  ASSERT_NE(res_guide->body.find("—"), std::string::npos);
   ASSERT_TRUE(res_guide->body.find("images/hand-record-scanner.png") !=
           std::string::npos);
   ASSERT_TRUE(res_guide->body.find("images/decision-tree-inspector.png") !=
@@ -129,6 +164,8 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_css = client.Get("/styles.css");
   ASSERT_TRUE(res_css);
   ASSERT_TRUE(res_css->status == 200);
+  ASSERT_EQ(res_css->body.size(), web_assets::STYLES_CSS_VIEW.size());
+  ASSERT_EQ(res_css->body, web_assets::STYLES_CSS_VIEW);
   ASSERT_TRUE(res_css->body.find(".traced-branch-node") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".traced-branch-link") != std::string::npos);
   ASSERT_TRUE(res_css->body.find(".trick-columns-header") != std::string::npos);
@@ -150,6 +187,10 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_js = client.Get("/app.js");
   ASSERT_TRUE(res_js);
   ASSERT_TRUE(res_js->status == 200);
+  ASSERT_EQ(res_js->body.size(), web_assets::APP_JS_VIEW.size());
+  ASSERT_EQ(res_js->body, web_assets::APP_JS_VIEW);
+  ASSERT_NE(res_js->body.find(" — click card to trace #0 in Decision Tree"),
+            std::string::npos);
   ASSERT_TRUE(res_js->body.find(
                   "const nodeDetailBanner = "
                   "document.getElementById('nodeDetailBanner');") !=
@@ -173,6 +214,9 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_solver_api_js = client.Get("/solver_api.js");
   ASSERT_TRUE(res_solver_api_js);
   ASSERT_TRUE(res_solver_api_js->status == 200);
+  ASSERT_EQ(res_solver_api_js->body.size(),
+            web_assets::SOLVER_API_JS_VIEW.size());
+  ASSERT_EQ(res_solver_api_js->body, web_assets::SOLVER_API_JS_VIEW);
   ASSERT_TRUE(res_solver_api_js->body.find("const WASM_NUM_THREADS =") !=
               std::string::npos);
   ASSERT_TRUE(res_solver_api_js->body.find(
@@ -185,12 +229,24 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_deal_svg_js = client.Get("/deal_svg.js");
   ASSERT_TRUE(res_deal_svg_js);
   ASSERT_TRUE(res_deal_svg_js->status == 200);
+  ASSERT_EQ(res_deal_svg_js->body.size(), web_assets::DEAL_SVG_JS_VIEW.size());
+  ASSERT_EQ(res_deal_svg_js->body, web_assets::DEAL_SVG_JS_VIEW);
   ASSERT_TRUE(res_deal_svg_js->body.find("function handleProposeCardClick") !=
               std::string::npos);
+  ASSERT_NE(res_deal_svg_js->body.find("♠"), std::string::npos);
+  ASSERT_NE(res_deal_svg_js->body.find("♥"), std::string::npos);
+  ASSERT_NE(res_deal_svg_js->body.find("♦"), std::string::npos);
+  ASSERT_NE(res_deal_svg_js->body.find("♣"), std::string::npos);
 
   auto res_analysis_tabs_js = client.Get("/analysis_tabs.js");
   ASSERT_TRUE(res_analysis_tabs_js);
   ASSERT_TRUE(res_analysis_tabs_js->status == 200);
+  ASSERT_EQ(res_analysis_tabs_js->body.size(),
+            web_assets::ANALYSIS_TABS_JS_VIEW.size());
+  ASSERT_EQ(res_analysis_tabs_js->body, web_assets::ANALYSIS_TABS_JS_VIEW);
+  ASSERT_NE(res_analysis_tabs_js->body.find(
+                "Top distinct lines of play — switch to inspect:"),
+            std::string::npos);
   ASSERT_TRUE(res_analysis_tabs_js->body.find(
                   "function selectEquivalentLine") != std::string::npos);
   ASSERT_TRUE(res_analysis_tabs_js->body.find(
@@ -208,14 +264,22 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_photo_scanner_js = client.Get("/photo_scanner.js");
   ASSERT_TRUE(res_photo_scanner_js);
   ASSERT_TRUE(res_photo_scanner_js->status == 200);
+  ASSERT_EQ(res_photo_scanner_js->body.size(),
+            web_assets::PHOTO_SCANNER_JS_VIEW.size());
+  ASSERT_EQ(res_photo_scanner_js->body, web_assets::PHOTO_SCANNER_JS_VIEW);
   ASSERT_TRUE(res_photo_scanner_js->body.find("parseModalFirstRoundCalls") !=
               std::string::npos);
   ASSERT_TRUE(res_photo_scanner_js->body.find("function parseLinBoardsFromText") !=
               std::string::npos);
+  ASSERT_NE(res_photo_scanner_js->body.find("📋 Pick Board"), std::string::npos);
+  ASSERT_NE(res_photo_scanner_js->body.find("…"), std::string::npos);
 
   auto res_decision_tree_js = client.Get("/decision_tree.js");
   ASSERT_TRUE(res_decision_tree_js);
   ASSERT_TRUE(res_decision_tree_js->status == 200);
+  ASSERT_EQ(res_decision_tree_js->body.size(),
+            web_assets::DECISION_TREE_JS_VIEW.size());
+  ASSERT_EQ(res_decision_tree_js->body, web_assets::DECISION_TREE_JS_VIEW);
   ASSERT_TRUE(res_decision_tree_js->body.find("function traceHandByNumber") !=
               std::string::npos);
   ASSERT_TRUE(res_decision_tree_js->body.find("leadSeatIdx") !=
@@ -230,10 +294,18 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
               std::string::npos);
   ASSERT_TRUE(res_decision_tree_js->body.find("selectedTrickStates") !=
               std::string::npos);
+  ASSERT_NE(res_decision_tree_js->body.find("<span class=\"card-suit-s\">♠</span>"),
+            std::string::npos);
+  ASSERT_NE(res_decision_tree_js->body.find("·"), std::string::npos);
 
   auto res_telemetry_js = client.Get("/telemetry_and_help.js");
   ASSERT_TRUE(res_telemetry_js);
   ASSERT_TRUE(res_telemetry_js->status == 200);
+  ASSERT_EQ(res_telemetry_js->body.size(),
+            web_assets::TELEMETRY_AND_HELP_JS_VIEW.size());
+  ASSERT_EQ(res_telemetry_js->body, web_assets::TELEMETRY_AND_HELP_JS_VIEW);
+  ASSERT_NE(res_telemetry_js->body.find("Help — Loading Hands & Deal Setup"),
+            std::string::npos);
   ASSERT_TRUE(res_telemetry_js->body.find(
                   "const APP_NAME = 'Bridge High Line';") != std::string::npos);
   ASSERT_TRUE(res_telemetry_js->body.find("__BRIDGE_HIGH_LINE_VERSION__") ==
@@ -294,6 +366,11 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_pdf_export_js = client.Get("/pdf_export.js");
   ASSERT_TRUE(res_pdf_export_js);
   ASSERT_TRUE(res_pdf_export_js->status == 200);
+  ASSERT_EQ(res_pdf_export_js->body.size(),
+            web_assets::PDF_EXPORT_JS_VIEW.size());
+  ASSERT_EQ(res_pdf_export_js->body, web_assets::PDF_EXPORT_JS_VIEW);
+  ASSERT_NE(res_pdf_export_js->body.find("S: '♠'"), std::string::npos);
+  ASSERT_NE(res_pdf_export_js->body.find("H: '♥'"), std::string::npos);
   ASSERT_TRUE(res_pdf_export_js->body.find(
                   "function generateAnalysisPdfPages") != std::string::npos);
   ASSERT_TRUE(res_pdf_export_js->body.find(
@@ -305,6 +382,9 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_presets_file = client.Get("/presets.json");
   ASSERT_TRUE(res_presets_file);
   ASSERT_TRUE(res_presets_file->status == 200);
+  ASSERT_EQ(res_presets_file->body.size(),
+            web_assets::PRESETS_JSON_VIEW.size());
+  ASSERT_EQ(res_presets_file->body, web_assets::PRESETS_JSON_VIEW);
   nlohmann::json presets_file_json = nlohmann::json::parse(res_presets_file->body);
   ASSERT_TRUE(presets_file_json.contains("finesse"));
   ASSERT_TRUE(presets_file_json.contains("nine_card_hearts"));
@@ -338,6 +418,9 @@ TEST(ServerTest, WebServerHealthAndStaticAssets) {
   auto res_presets_api = client.Get("/api/presets");
   ASSERT_TRUE(res_presets_api);
   ASSERT_TRUE(res_presets_api->status == 200);
+  ASSERT_EQ(res_presets_api->body.size(),
+            web_assets::PRESETS_JSON_VIEW.size());
+  ASSERT_EQ(res_presets_api->body, web_assets::PRESETS_JSON_VIEW);
   nlohmann::json presets_api_json = nlohmann::json::parse(res_presets_api->body);
   ASSERT_TRUE(presets_api_json.contains("endplay"));
   ASSERT_TRUE(presets_api_json.contains("nine_card_hearts"));
